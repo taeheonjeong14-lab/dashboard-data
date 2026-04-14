@@ -1,4 +1,8 @@
 node_modules/
+dashboard/node_modules/
+dashboard/.next/
+.next/
 data/*.json
 .env
+dashboard/.env.local
 *.log
