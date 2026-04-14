@@ -1,6 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 
-let client: ReturnType<typeof createClient> | null = null;
+let client: ReturnType<typeof createClient<any>> | null = null;
 
 export function getSupabaseClient() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -13,7 +13,7 @@ export function getSupabaseClient() {
   }
 
   if (!client) {
-    client = createClient(supabaseUrl, supabaseAnonKey, {
+    client = createClient<any>(supabaseUrl, supabaseAnonKey, {
       auth: {
         persistSession: true,
         autoRefreshToken: true,

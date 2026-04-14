@@ -177,3 +177,20 @@ node scripts/launch-chrome-debug.js
 ```
 
 위 명령으로 현재 설정 포트 기준 실행 예시가 출력됩니다.
+
+## Vercel 배포 (dashboard)
+
+웹 대시보드는 `dashboard` 폴더의 Next.js 앱입니다. Vercel에서 아래처럼 설정하면 배포할 수 있습니다.
+
+1. Vercel에서 `New Project` -> 이 GitHub 저장소 선택
+2. `Root Directory`를 `dashboard`로 지정
+3. Environment Variables 추가
+   - `NEXT_PUBLIC_SUPABASE_URL`
+   - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+4. Deploy 실행
+
+### 배포 전 체크
+
+- Supabase 프로젝트 API 설정에서 `analytics`, `core` 스키마가 노출되어 있어야 합니다.
+- `core.users`에 `role`, `hospital_id`가 채워져 있어야 로그인 후 데이터가 보입니다.
+- RLS 정책이 적용된 최신 `supabase/schema.sql`이 실행되어 있어야 합니다.
