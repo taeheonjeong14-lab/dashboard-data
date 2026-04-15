@@ -1,3 +1,4 @@
+import type { User } from "@supabase/supabase-js";
 import { getSupabaseClient } from "@/lib/supabase";
 import { getCurrentUser } from "@/lib/auth";
 
@@ -51,10 +52,10 @@ export async function fetchBlogViews(
   return (data ?? []) as BlogViewPoint[];
 }
 
-export async function fetchHospitalScope(): Promise<HospitalScope> {
+export async function fetchHospitalScope(user?: User | null): Promise<HospitalScope> {
   const supabase = getSupabaseClient();
-  const user = await getCurrentUser();
-  if (!user) {
+  const resolved = user ?? (await getCurrentUser());
+  if (!resolved) {
     return { isAdmin: false, hospitals: [] };
   }
 
@@ -62,7 +63,7 @@ export async function fetchHospitalScope(): Promise<HospitalScope> {
     .schema("core")
     .from("users")
     .select("id,hospital_id,role")
-    .eq("id", user.id)
+    .eq("id", resolved.id)
     .maybeSingle();
   if (profileError) throw profileError;
 

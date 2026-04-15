@@ -1,4 +1,5 @@
-@import "tailwindcss";
+/* 패키지명 "tailwindcss"는 상위(naver-blog-stat) package.json 기준으로 풀려 실패함 → 이 파일 기준 상대 경로 */
+@import "../../node_modules/tailwindcss/index.css";
 
 :root {
   --background: #ffffff;
