@@ -34,6 +34,40 @@ SUPABASE_SERVICE_ROLE_KEY=YOUR_SERVICE_ROLE_KEY
 
 환경변수가 없으면 기존처럼 엑셀만 저장됩니다.
 
+## 블로그 키워드 순위: DB 직접 적재
+
+`scripts/naver-rank-main.py`는 순위 수집 결과를 기본적으로 Supabase에 바로 적재합니다.
+
+- 기본 동작: DB 업로드 (엑셀 저장 안 함)
+- 적재 대상: `analytics.analytics_blog_keyword_ranks`
+- 키워드 1행당 `섹션별 4건 + best 1건` 총 5건 upsert
+
+예시:
+
+```bash
+python scripts/naver-rank-main.py input.xlsx
+```
+
+옵션:
+
+- `--metric-date YYYY-MM-DD`: 적재 기준일 지정 (미지정 시 KST 오늘)
+- `--no-db`: DB 업로드 없이 실행
+- `--export-excel`: 결과를 `output.xlsx`로도 저장
+
+## 블로그 키워드 순위: DB에서 엑셀 다운로드용 생성
+
+사용자가 엑셀을 원할 때는 DB 데이터를 기준으로 엑셀을 생성합니다.
+
+```bash
+npm run export:ranks -- output.xlsx
+```
+
+기간 필터(선택):
+
+```bash
+RANK_EXPORT_START_DATE=2026-04-01 RANK_EXPORT_END_DATE=2026-04-30 npm run export:ranks -- april-output.xlsx
+```
+
 ## 1단계: Chrome을 디버깅 포트로 실행
 
 **반드시 기존 Chrome 창을 모두 닫은 뒤** 아래 중 하나로 실행하세요.

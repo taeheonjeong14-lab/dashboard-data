@@ -6,6 +6,7 @@
   "scripts": {
     "start": "node index.js",
     "collect": "node index.js",
+    "export:ranks": "node scripts/export-blog-ranks.js",
     "chrome": "node scripts/launch-chrome-debug.js",
     "dev": "npm run dev --prefix dashboard"
   },
