@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node index.js",
     "collect": "node index.js",
-    "chrome": "node scripts/launch-chrome-debug.js"
+    "chrome": "node scripts/launch-chrome-debug.js",
+    "dev": "npm run dev --prefix dashboard"
   },
   "keywords": ["naver", "blog", "statistics", "puppeteer", "cdp"],
   "license": "MIT",

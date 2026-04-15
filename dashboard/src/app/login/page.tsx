@@ -12,11 +12,15 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    let cancelled = false;
     getCurrentUser()
       .then((user) => {
-        if (user) router.replace("/");
+        if (!cancelled && user) router.replace("/");
       })
       .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
   }, [router]);
 
   async function onSubmit(e: FormEvent<HTMLFormElement>) {

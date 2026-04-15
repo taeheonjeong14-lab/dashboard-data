@@ -20,6 +20,7 @@ function formatNumber(value: number | null) {
 
 export default function Home() {
   const router = useRouter();
+  const [authReady, setAuthReady] = useState(false);
   const [rangeDays, setRangeDays] = useState<RangeDays>(30);
   const [hospitalId, setHospitalId] = useState<string | "all">("all");
   const [points, setPoints] = useState<BlogViewPoint[]>([]);
@@ -32,13 +33,19 @@ export default function Home() {
   useEffect(() => {
     let active = true;
     async function bootstrap() {
+      let user;
       try {
-        const user = await getCurrentUser();
-        if (!user) {
-          router.replace("/login");
-          return;
-        }
-        const scope = await fetchHospitalScope();
+        user = await getCurrentUser();
+      } catch {
+        if (active) router.replace("/login");
+        return;
+      }
+      if (!user) {
+        if (active) router.replace("/login");
+        return;
+      }
+      try {
+        const scope = await fetchHospitalScope(user);
         if (!active) return;
         setIsAdmin(scope.isAdmin);
         setHospitals(scope.hospitals);
@@ -51,6 +58,9 @@ export default function Home() {
       } catch (e) {
         if (!active) return;
         setError(e instanceof Error ? e.message : "초기 데이터를 불러오지 못했습니다.");
+        setIsReady(true);
+      } finally {
+        if (active) setAuthReady(true);
       }
     }
     bootstrap();
@@ -94,6 +104,14 @@ export default function Home() {
     if (valid.length === 0) return null;
     return Math.round(valid.reduce((sum, value) => sum + value, 0) / valid.length);
   }, [points]);
+
+  if (!authReady) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-gray-50 px-4">
+        <p className="text-sm text-gray-600">세션 확인 중…</p>
+      </main>
+    );
+  }
 
   return (
     <main className="mx-auto min-h-screen w-full max-w-6xl bg-gray-50 px-4 py-8">
