@@ -110,6 +110,62 @@ async function main() {
   }
   ok("analytics.analytics_searchad_daily_metrics 조회 가능");
 
+  const placeRanks = await restGet("/rest/v1/analytics_place_keyword_ranks?select=metric_date&limit=1", {
+    key: serviceKey,
+    profile: "analytics",
+  });
+  if (!placeRanks.ok) {
+    console.error(
+      "analytics.analytics_place_keyword_ranks 응답:",
+      placeRanks.status,
+      placeRanks.text.slice(0, 500)
+    );
+    fail("analytics_place_keyword_ranks 접근 실패 (schema.sql 또는 migration 반영 확인)");
+  }
+  ok("analytics.analytics_place_keyword_ranks 조회 가능");
+
+  const placeTargets = await restGet("/rest/v1/analytics_place_keyword_targets?select=id&limit=1", {
+    key: serviceKey,
+    profile: "analytics",
+  });
+  if (!placeTargets.ok) {
+    console.error(
+      "analytics.analytics_place_keyword_targets 응답:",
+      placeTargets.status,
+      placeTargets.text.slice(0, 500)
+    );
+    fail("analytics_place_keyword_targets 접근 실패 (schema.sql 또는 migration 반영 확인)");
+  }
+  ok("analytics.analytics_place_keyword_targets 조회 가능");
+
+  const blogDaily = await restGet("/rest/v1/analytics_blog_daily_metrics?select=metric_date&limit=1", {
+    key: serviceKey,
+    profile: "analytics",
+  });
+  if (!blogDaily.ok) {
+    console.error(
+      "analytics.analytics_blog_daily_metrics 응답:",
+      blogDaily.status,
+      blogDaily.text.slice(0, 500)
+    );
+    fail("analytics_blog_daily_metrics 접근 실패 (schema.sql 또는 migration 반영 확인)");
+  }
+  ok("analytics.analytics_blog_daily_metrics 조회 가능");
+
+  const smartplaceDaily = await restGet("/rest/v1/analytics_smartplace_daily_metrics?select=metric_date&limit=1", {
+    key: serviceKey,
+    profile: "analytics",
+  });
+  if (!smartplaceDaily.ok) {
+    console.error(
+      "analytics.analytics_smartplace_daily_metrics 응답:",
+      smartplaceDaily.status,
+      smartplaceDaily.text.slice(0, 500)
+    );
+    fail("analytics_smartplace_daily_metrics 접근 실패 (schema.sql 또는 migration 반영 확인)");
+  }
+  ok("analytics.analytics_smartplace_daily_metrics 조회 가능");
+
   if (anonKey) {
     const anon = await restGet("/rest/v1/analytics_blog_keyword_targets?select=id&limit=1", {
       key: anonKey,

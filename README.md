@@ -90,6 +90,22 @@ RANK_USE_DEBUG_CHROME=1 CHROME_DEBUGGING_PORT=9222 RANK_INPUT_SOURCE=db python s
 python scripts/naver-rank-main.py input.xlsx --input-source excel
 ```
 
+## 블로그 관리자 지표(조회수/순방문자): 분리 수집 + 분리 테이블
+
+기존 `index.js`는 블로그/플레이스를 한 번에 수집해 `analytics.analytics_daily_metrics`에 적재했지만,\n+DB를 분리해서 관리하려면 아래 2개 스크립트를 사용합니다.
+
+- 블로그 조회수/순방문자: `analytics.analytics_blog_daily_metrics`
+
+```bash
+npm run collect:blog-metrics -- howtoanimal
+```
+
+- 스마트플레이스 유입수: `analytics.analytics_smartplace_daily_metrics`
+
+```bash
+npm run collect:smartplace-inflow -- howtoanimal
+```
+
 ## 블로그 키워드 순위: DB에서 엑셀 다운로드용 생성
 
 사용자가 엑셀을 원할 때는 DB 데이터를 기준으로 엑셀을 생성합니다.
@@ -103,6 +119,21 @@ npm run export:ranks -- output.xlsx
 ```bash
 RANK_EXPORT_START_DATE=2026-04-01 RANK_EXPORT_END_DATE=2026-04-30 npm run export:ranks -- april-output.xlsx
 ```
+
+## 플레이스 순위: DB 직접 적재
+
+`scripts/naver-rank-main.py`는 플레이스 결과도 Supabase에 업서트합니다.
+
+- 적재 대상: `analytics.analytics_place_keyword_ranks`
+- 업서트 키: `(metric_date, keyword, store_name, section, metric_key)`
+- 현재 기본값: `section='플레이스'`, `metric_key='place_rank_integrated'`
+
+주의:
+
+- `--input-source db`일 때 플레이스 입력은 `analytics.analytics_place_keyword_targets`에서 읽습니다.
+- 상호명은 별도 입력 없이 `core.hospitals.name`을 사용합니다.
+- `core.hospitals.name`이 비어 있으면 해당 병원 키워드는 스킵됩니다.
+- 엑셀 입력(`--input-source excel`)도 기존대로 사용 가능합니다.
 
 ## 네이버 검색광고(SearchAd): 병원별 계정 수집
 

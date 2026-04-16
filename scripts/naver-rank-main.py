@@ -531,9 +531,8 @@ def create_browser_session(playwright, *, headless: bool = True, use_debug_chrom
         context = browser.contexts[0] if browser.contexts else browser.new_context()
 
         def cleanup():
-            # CDP 모드에서는 기존 사용중인 Chrome 전체 종료를 피한다.
-            with suppress(Exception):
-                context.close()
+            # CDP 모드에서는 기존 사용중인 Chrome(및 기존 탭)을 건드리지 않는다.
+            # (contexts[0]가 사용자의 기본 컨텍스트일 수 있어 close 하면 탭이 닫힐 수 있음)
             with suppress(Exception):
                 browser.close()
 
@@ -569,30 +568,44 @@ def check_place_ranking(
     out = {"keyword": keyword, "store_name": store_name, "rank": None, "url": None, "error": None}
 
     with sync_playwright() as p:
-        for attempt in range(PAGE_LOAD_RETRY_COUNT + 1):
-            timeout_ms = _set_page_load_timeout_for_attempt(attempt)
-            browser, context, cleanup = create_browser_session(
-                p,
-                headless=headless,
-                use_debug_chrome=use_debug_chrome,
-                debug_port=debug_port,
-            )
-            try:
-                page = context.new_page()
-                page.goto(integrated_url, wait_until="domcontentloaded", timeout=timeout_ms)
-                page.wait_for_timeout(400)
-                out["rank"], out["url"] = get_place_rank_with_pagination(page, keyword, store_name, integrated_url)
-                out["error"] = None
+        browser, context, cleanup = create_browser_session(
+            p,
+            headless=headless,
+            use_debug_chrome=use_debug_chrome,
+            debug_port=debug_port,
+        )
+        try:
+            page = context.new_page()
+            out = check_place_ranking_on_page(page, keyword, store_name)
+        finally:
+            cleanup()
+    return out
+
+
+def check_place_ranking_on_page(page, keyword: str, store_name: str) -> dict:
+    """
+    주입된 Playwright page를 재사용하며 플레이스 순위를 확인한다.
+    (탭 누적 방지를 위해 page를 새로 만들지 않는다.)
+    """
+    encoded_kw = quote(keyword)
+    integrated_url = f"https://search.naver.com/search.naver?query={encoded_kw}"
+    out = {"keyword": keyword, "store_name": store_name, "rank": None, "url": None, "error": None}
+
+    for attempt in range(PAGE_LOAD_RETRY_COUNT + 1):
+        timeout_ms = _set_page_load_timeout_for_attempt(attempt)
+        try:
+            page.goto(integrated_url, wait_until="domcontentloaded", timeout=timeout_ms)
+            page.wait_for_timeout(400)
+            out["rank"], out["url"] = get_place_rank_with_pagination(page, keyword, store_name, integrated_url)
+            out["error"] = None
+            break
+        except PlaywrightTimeout:
+            out["error"] = "페이지 로드 시간 초과"
+            if attempt >= PAGE_LOAD_RETRY_COUNT:
                 break
-            except PlaywrightTimeout:
-                out["error"] = "페이지 로드 시간 초과"
-                if attempt >= PAGE_LOAD_RETRY_COUNT:
-                    break
-            except Exception as e:
-                out["error"] = str(e)
-                break
-            finally:
-                cleanup()
+        except Exception as e:
+            out["error"] = str(e)
+            break
     return out
 
 
@@ -1012,76 +1025,87 @@ def check_naver_ranking(
     out = {"keyword": keyword, "error": None, "sections": {}}
 
     with sync_playwright() as p:
-        for attempt in range(PAGE_LOAD_RETRY_COUNT + 1):
-            timeout_ms = _set_page_load_timeout_for_attempt(attempt)
-            phase = "브라우저 세션 생성"
-            attempt_label = f"{attempt + 1}/{PAGE_LOAD_RETRY_COUNT + 1}"
-            print(f"🔎 [{target_id} / {keyword}] 시도 {attempt_label} 시작 (timeout={timeout_ms}ms)")
-            browser, context, cleanup = create_browser_session(
-                p,
-                headless=headless,
-                use_debug_chrome=use_debug_chrome,
-                debug_port=debug_port,
-            )
-            try:
-                phase = "새 페이지 생성"
-                page = context.new_page()
+        browser, context, cleanup = create_browser_session(
+            p,
+            headless=headless,
+            use_debug_chrome=use_debug_chrome,
+            debug_port=debug_port,
+        )
+        try:
+            page = context.new_page()
+            out = check_naver_ranking_on_page(page, keyword, target_blog_id)
+        finally:
+            cleanup()
 
-                # 1) 통합검색: 검색결과 더보기 → 순위 확인 → 1페이지 복귀 → 반려동물 인기글 더보기 → 순위 확인
-                phase = "통합검색 페이지 진입"
+    return out
+
+
+def check_naver_ranking_on_page(page, keyword: str, target_blog_id: str) -> dict:
+    """
+    주입된 Playwright page를 재사용하며 블로그 순위를 확인한다.
+    (탭 누적 방지를 위해 page를 새로 만들지 않는다.)
+    """
+    target_id = normalize_blog_id(target_blog_id)
+    encoded_kw = quote(keyword)
+    integrated_url = f"https://search.naver.com/search.naver?query={encoded_kw}"
+    out = {"keyword": keyword, "error": None, "sections": {}}
+
+    for attempt in range(PAGE_LOAD_RETRY_COUNT + 1):
+        timeout_ms = _set_page_load_timeout_for_attempt(attempt)
+        phase = "통합검색 페이지 진입"
+        attempt_label = f"{attempt + 1}/{PAGE_LOAD_RETRY_COUNT + 1}"
+        print(f"🔎 [{target_id} / {keyword}] 시도 {attempt_label} 시작 (timeout={timeout_ms}ms)")
+        try:
+            print(f"   ↳ [{keyword}] {phase}")
+            page.goto(integrated_url, wait_until="domcontentloaded", timeout=timeout_ms)
+            page.wait_for_timeout(200)
+
+            phase = "3개 섹션 순위 수집"
+            print(f"   ↳ [{keyword}] {phase}")
+            out["sections"] = get_three_section_ranks(page, target_id, integrated_url)
+
+            phase = "블로그 탭 탐색"
+            print(f"   ↳ [{keyword}] {phase}")
+            blog_tab_loc = page.locator(SELECTOR_BLOG_TAB)
+            if blog_tab_loc.count() > 0:
+                phase = "블로그 탭 클릭/로드"
                 print(f"   ↳ [{keyword}] {phase}")
-                page.goto(integrated_url, wait_until="domcontentloaded", timeout=timeout_ms)
+                blog_tab_loc.first.click()
+                page.wait_for_load_state("domcontentloaded", timeout=timeout_ms)
                 page.wait_for_timeout(200)
-                phase = "3개 섹션 순위 수집"
-                print(f"   ↳ [{keyword}] {phase}")
-                out["sections"] = get_three_section_ranks(page, target_id, integrated_url)
+                rank, blog_url = None, None
+                for container_sel in SELECTOR_BLOG_TAB_CONTAINER:
+                    rank, blog_url = find_rank_in_cards(
+                        page, container_sel, CARD_BLOG_TAB, target_id, max_cards=20
+                    )
+                    if rank is not None:
+                        break
+                    more_button_sel = f'{container_sel} a[data-heatmap-target=".more"], {container_sel} a.more, {container_sel} button.more'
+                    rank, blog_url = try_click_more_and_find_rank_blog_tab(
+                        page, container_sel, CARD_BLOG_TAB, more_button_sel, target_id
+                    )
+                    if rank is not None:
+                        break
+                if rank is None:
+                    rank, blog_url = _blog_tab_rank_fallback(page, target_id)
+                out["sections"]["블로그(탭)"] = rank
+                out["sections"]["블로그(탭)_URL"] = blog_url
+            else:
+                out["sections"]["블로그(탭)"] = None
+                out["sections"]["블로그(탭)_URL"] = None
 
-                # 2) 상단 lnb에서 블로그 탭 클릭 후 해당 페이지에서 순위 수집 (카드 단위)
-                # 검색결과 "더보기"를 클릭해서 페이지가 이동했어도 블로그 탭은 확인 가능
-                phase = "블로그 탭 탐색"
-                print(f"   ↳ [{keyword}] {phase}")
-                blog_tab_loc = page.locator(SELECTOR_BLOG_TAB)
-                if blog_tab_loc.count() > 0:
-                    phase = "블로그 탭 클릭/로드"
-                    print(f"   ↳ [{keyword}] {phase}")
-                    blog_tab_loc.first.click()
-                    page.wait_for_load_state("domcontentloaded", timeout=timeout_ms)
-                    page.wait_for_timeout(200)
-                    rank, blog_url = None, None
-                    for container_sel in SELECTOR_BLOG_TAB_CONTAINER:
-                        rank, blog_url = find_rank_in_cards(
-                            page, container_sel, CARD_BLOG_TAB, target_id, max_cards=20
-                        )
-                        if rank is not None:
-                            break
-                        more_button_sel = f'{container_sel} a[data-heatmap-target=".more"], {container_sel} a.more, {container_sel} button.more'
-                        rank, blog_url = try_click_more_and_find_rank_blog_tab(
-                            page, container_sel, CARD_BLOG_TAB, more_button_sel, target_id
-                        )
-                        if rank is not None:
-                            break
-                    if rank is None:
-                        rank, blog_url = _blog_tab_rank_fallback(page, target_id)
-                    out["sections"]["블로그(탭)"] = rank
-                    out["sections"]["블로그(탭)_URL"] = blog_url
-                else:
-                    out["sections"]["블로그(탭)"] = None
-                    out["sections"]["블로그(탭)_URL"] = None
-
-                out["error"] = None
-                print(f"✅ [{target_id} / {keyword}] 시도 {attempt_label} 완료")
+            out["error"] = None
+            print(f"✅ [{target_id} / {keyword}] 시도 {attempt_label} 완료")
+            break
+        except PlaywrightTimeout:
+            out["error"] = "페이지 로드 시간 초과"
+            print(f"⏱️ [{target_id} / {keyword}] 타임아웃 (단계: {phase}, 시도 {attempt_label})")
+            if attempt >= PAGE_LOAD_RETRY_COUNT:
                 break
-            except PlaywrightTimeout:
-                out["error"] = "페이지 로드 시간 초과"
-                print(f"⏱️ [{target_id} / {keyword}] 타임아웃 (단계: {phase}, 시도 {attempt_label})")
-                if attempt >= PAGE_LOAD_RETRY_COUNT:
-                    break
-            except Exception as e:
-                out["error"] = str(e)
-                print(f"❌ [{target_id} / {keyword}] 실패 (단계: {phase}, 시도 {attempt_label}): {e}")
-                break
-            finally:
-                cleanup()
+        except Exception as e:
+            out["error"] = str(e)
+            print(f"❌ [{target_id} / {keyword}] 실패 (단계: {phase}, 시도 {attempt_label}): {e}")
+            break
 
     return out
 
@@ -1160,6 +1184,63 @@ def read_blog_input_from_supabase() -> list[tuple[str, str]]:
             continue
         seen.add(key)
         pairs.append(key)
+    return pairs
+
+
+def read_place_input_from_supabase() -> list[tuple[str, str, str | None]]:
+    """
+    Supabase의 analytics.analytics_place_keyword_targets + core.hospitals.name 에서
+    활성화된 (keyword, store_name, hospital_id) 쌍을 읽는다.
+    """
+    supabase_url = os.getenv("SUPABASE_URL")
+    service_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+    if not supabase_url or not service_key:
+        raise RuntimeError("DB 입력을 사용하려면 SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY가 필요합니다.")
+
+    params = {
+        "select": "hospital_id,keyword",
+        "is_active": "eq.true",
+        "order": "hospital_id.asc,priority.asc,keyword.asc",
+    }
+    url = f"{supabase_url.rstrip('/')}/rest/v1/analytics_place_keyword_targets?{urlencode(params)}"
+    req = Request(url, headers=_supabase_headers(service_key, profile="analytics"), method="GET")
+    with urlopen(req, timeout=20) as res:
+        data = json.loads(res.read().decode("utf-8"))
+
+    hospital_ids = sorted({str(row.get("hospital_id") or "").strip() for row in (data or []) if str(row.get("hospital_id") or "").strip()})
+    hospital_name_map: dict[str, str] = {}
+    if hospital_ids:
+        in_values = ",".join(hospital_ids)
+        hparams = {
+            "select": "id,name",
+            "id": f"in.({in_values})",
+        }
+        hurl = f"{supabase_url.rstrip('/')}/rest/v1/hospitals?{urlencode(hparams)}"
+        hreq = Request(hurl, headers=_supabase_headers(service_key, profile="core"), method="GET")
+        with urlopen(hreq, timeout=20) as res:
+            hospitals = json.loads(res.read().decode("utf-8"))
+        hospital_name_map = {
+            str(row.get("id") or "").strip(): str(row.get("name") or "").strip()
+            for row in (hospitals or [])
+            if str(row.get("id") or "").strip()
+        }
+
+    pairs: list[tuple[str, str, str | None]] = []
+    seen: set[tuple[str, str]] = set()
+    for row in data or []:
+        hospital_id = str(row.get("hospital_id") or "").strip()
+        keyword = str(row.get("keyword") or "").strip()
+        if not hospital_id or not keyword:
+            continue
+        store_name = hospital_name_map.get(hospital_id, "").strip()
+        if not store_name:
+            print(f"⚠️ 플레이스 입력 스킵: hospital_id={hospital_id}의 core.hospitals.name 이 비어 있습니다.")
+            continue
+        dedupe_key = (hospital_id, keyword)
+        if dedupe_key in seen:
+            continue
+        seen.add(dedupe_key)
+        pairs.append((keyword, store_name, hospital_id))
     return pairs
 
 
@@ -1429,6 +1510,56 @@ def upload_blog_ranks_to_supabase(results: list[dict], metric_date: str | None =
     return len(payload)
 
 
+def upload_place_ranks_to_supabase(place_results: list[dict], metric_date: str | None = None) -> int:
+    supabase_url = os.getenv("SUPABASE_URL")
+    service_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+    if not supabase_url or not service_key:
+        print("ℹ️ SUPABASE 환경변수가 없어 플레이스 DB 업로드를 건너뜁니다.")
+        return 0
+    if not place_results:
+        return 0
+
+    resolved_metric_date = metric_date or os.getenv("RANK_METRIC_DATE") or _to_kst_date_str()
+    payload = []
+    collected_at = datetime.utcnow().isoformat() + "Z"
+    for item in place_results:
+        keyword = str(item.get("keyword") or "").strip()
+        store_name = str(item.get("store_name") or "").strip()
+        if not keyword or not store_name:
+            continue
+        rank_num = _to_rank_value(item.get("rank"))
+        error_msg = item.get("error")
+        payload.append({
+            "metric_date": resolved_metric_date,
+            "hospital_id": str(item.get("hospital_id") or "").strip() or None,
+            "keyword": keyword,
+            "store_name": store_name,
+            "section": "플레이스",
+            "metric_key": "place_rank_integrated",
+            "rank_value": rank_num,
+            "metadata": {
+                "status": "found" if rank_num is not None else "not_found",
+                "error": error_msg,
+            },
+            "collected_at": collected_at,
+        })
+
+    if not payload:
+        return 0
+
+    params = {
+        "on_conflict": "metric_date,keyword,store_name,section,metric_key",
+    }
+    url = f"{supabase_url.rstrip('/')}/rest/v1/analytics_place_keyword_ranks?{urlencode(params)}"
+    headers = _supabase_headers(service_key, profile="analytics")
+    headers["Prefer"] = "resolution=merge-duplicates,return=minimal"
+    req = Request(url, data=json.dumps(payload).encode("utf-8"), headers=headers, method="POST")
+    with urlopen(req, timeout=40):
+        pass
+    print(f"✅ Supabase 플레이스 업서트 완료: {len(payload)}건 (metric_date={resolved_metric_date})")
+    return len(payload)
+
+
 def main():
     import sys
     input_path = "input.xlsx"
@@ -1506,17 +1637,17 @@ def main():
     if input_source == "db":
         try:
             pairs = read_blog_input_from_supabase()
+            place_pairs = read_place_input_from_supabase()
         except Exception as e:
             print(f"❌ DB 입력 조회 실패: {e}")
             return
-        place_pairs: list[tuple[str, str]] = []
     else:
         if Path(input_path).exists():
             pairs = read_input_excel(input_path)
         else:
             target = TARGET_BLOG_ID
             pairs = [(target, kw) for kw in KEYWORDS] if target and KEYWORDS else []
-        place_pairs = read_place_input_excel(input_path) if Path(input_path).exists() else []
+        place_pairs = [(kw, store, None) for kw, store in (read_place_input_excel(input_path) if Path(input_path).exists() else [])]
 
     if not pairs and not place_pairs:
         if input_source == "db":
@@ -1529,52 +1660,119 @@ def main():
         print(f"ℹ️ CDP 모드: 디버깅 Chrome 세션 공유 사용 (port={debug_port})")
 
     results = []
-    if pairs:
-        print(f"🚀 네이버 블로그 순위 확인 — {len(pairs)}개 조합 (검색결과 / 반려동물 인기글 / 일반 검색 / 블로그(탭))\n")
-        for blog_id, kw in pairs:
-            if not blog_id or blog_id == "your_blog_id":
-                print(f"⚠️ 키워드 '{kw}' 행의 블로그 ID가 비어 있어 스킵합니다.")
-                continue
-            data = check_naver_ranking(
-                kw,
-                blog_id,
-                use_debug_chrome=use_debug_chrome,
-                debug_port=debug_port,
-            )
-            data["blog_id"] = blog_id
-            results.append({
-                "blog_id": blog_id,
-                "keyword": kw,
-                "sections": data.get("sections"),
-                "error": data.get("error"),
-            })
-            print_result(data)
-            time.sleep(0.5)
-
     place_results: list[dict] = []
-    if place_pairs:
-        print(f"\n🏪 플레이스 순위 확인 — {len(place_pairs)}개 조합 (광고 제외)\n")
-        for kw, store in place_pairs:
-            data = check_place_ranking(
-                kw,
-                store,
+
+    # Playwright는 한 번만 띄우고 페이지를 재사용한다.
+    # CDP 모드(use_debug_chrome)에서는 사용자의 Chrome 탭을 닫지 않도록 context.close()를 피한다.
+    reset_every = 50
+    processed = 0
+
+    def should_reset() -> bool:
+        return processed > 0 and processed % reset_every == 0
+
+    with sync_playwright() as p:
+        browser = None
+        context = None
+        page = None
+        cleanup = None
+
+        def start_session():
+            nonlocal browser, context, page, cleanup
+            browser, context, cleanup = create_browser_session(
+                p,
+                headless=True,
                 use_debug_chrome=use_debug_chrome,
                 debug_port=debug_port,
             )
-            place_results.append(data)
-            err = data.get("error")
-            if err:
-                print(f"⚠️ [{kw} / {store}] 에러: {err}")
-            else:
-                rank = data.get("rank")
-                print(f"📌 [{kw} / {store}] 플레이스: {rank}위")
-            time.sleep(0.5)
+            page = context.new_page()
+
+        def reset_session():
+            nonlocal browser, context, page, cleanup
+            with suppress(Exception):
+                if page:
+                    page.close()
+            if not use_debug_chrome and cleanup:
+                cleanup()
+                browser = None
+                context = None
+            # CDP 모드에서는 context/browser를 건드리지 않고 페이지만 교체
+            if context is None and cleanup is None:
+                return
+            page = context.new_page() if context else None
+
+        start_session()
+        try:
+            if pairs:
+                print(f"🚀 네이버 블로그 순위 확인 — {len(pairs)}개 조합 (검색결과 / 반려동물 인기글 / 일반 검색 / 블로그(탭))\n")
+                for blog_id, kw in pairs:
+                    if should_reset():
+                        print(f"ℹ️ 안정화 리셋: {processed}건 처리 후 페이지 재시작")
+                        if use_debug_chrome:
+                            reset_session()
+                        else:
+                            # non-CDP: 세션 전체를 재시작
+                            with suppress(Exception):
+                                cleanup()
+                            start_session()
+
+                    if not blog_id or blog_id == "your_blog_id":
+                        print(f"⚠️ 키워드 '{kw}' 행의 블로그 ID가 비어 있어 스킵합니다.")
+                        processed += 1
+                        continue
+
+                    data = check_naver_ranking_on_page(page, kw, blog_id)
+                    data["blog_id"] = blog_id
+                    results.append({
+                        "blog_id": blog_id,
+                        "keyword": kw,
+                        "sections": data.get("sections"),
+                        "error": data.get("error"),
+                    })
+                    print_result(data)
+                    processed += 1
+                    time.sleep(0.5)
+
+            if place_pairs:
+                print(f"\n🏪 플레이스 순위 확인 — {len(place_pairs)}개 조합 (광고 제외)\n")
+                for kw, store, hospital_id in place_pairs:
+                    if should_reset():
+                        print(f"ℹ️ 안정화 리셋: {processed}건 처리 후 페이지 재시작")
+                        if use_debug_chrome:
+                            reset_session()
+                        else:
+                            with suppress(Exception):
+                                cleanup()
+                            start_session()
+
+                    data = check_place_ranking_on_page(page, kw, store)
+                    data["hospital_id"] = hospital_id
+                    place_results.append(data)
+                    err = data.get("error")
+                    if err:
+                        print(f"⚠️ [{kw} / {store}] 에러: {err}")
+                    else:
+                        rank = data.get("rank")
+                        print(f"📌 [{kw} / {store}] 플레이스: {rank}위")
+                    processed += 1
+                    time.sleep(0.5)
+        finally:
+            with suppress(Exception):
+                if page:
+                    page.close()
+            with suppress(Exception):
+                if cleanup:
+                    cleanup()
 
     if upload_db and results:
         try:
             upload_blog_ranks_to_supabase(results, metric_date=metric_date)
         except Exception as e:
             print(f"❌ Supabase 업로드 실패: {e}")
+    if upload_db and place_results:
+        try:
+            upload_place_ranks_to_supabase(place_results, metric_date=metric_date)
+        except Exception as e:
+            print(f"❌ Supabase 플레이스 업로드 실패: {e}")
 
     if export_excel:
         write_output_excel(output_path, results, place_results if place_results else None)
