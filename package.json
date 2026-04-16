@@ -7,8 +7,8 @@
     "start": "node index.js",
     "collect": "node index.js",
     "export:ranks": "node scripts/export-blog-ranks.js",
-    "chrome": "node scripts/launch-chrome-debug.js",
-    "dev": "npm run dev --prefix dashboard"
+    "verify:supabase": "node scripts/verify-supabase.js",
+    "chrome": "node scripts/launch-chrome-debug.js"
   },
   "keywords": ["naver", "blog", "statistics", "puppeteer", "cdp"],
   "license": "MIT",

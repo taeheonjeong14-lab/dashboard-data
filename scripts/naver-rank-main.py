@@ -45,6 +45,7 @@ import time
 import re
 import os
 import json
+from contextlib import suppress
 from datetime import datetime, timedelta
 from pathlib import Path
 from urllib.parse import quote, urlparse, parse_qs, unquote, urlencode
@@ -462,7 +463,61 @@ def get_place_rank_with_pagination(page, keyword: str, store_name: str, integrat
         return None, None
 
 
-def check_place_ranking(keyword: str, store_name: str, headless: bool = True) -> dict:
+def _is_truthy_env(name: str) -> bool:
+    raw = os.getenv(name)
+    if raw is None:
+        return False
+    return str(raw).strip().lower() in {"1", "true", "yes", "y", "on"}
+
+
+def create_browser_session(playwright, *, headless: bool = True, use_debug_chrome: bool = False, debug_port: int = 9222):
+    """
+    브라우저 세션 생성:
+    - 기본: 독립 Chromium launch
+    - CDP 모드: 디버깅 Chrome에 접속
+    """
+    if use_debug_chrome:
+        endpoint = f"http://127.0.0.1:{debug_port}"
+        try:
+            browser = playwright.chromium.connect_over_cdp(endpoint)
+        except Exception as e:
+            raise RuntimeError(
+                f"디버깅 Chrome(CDP) 연결 실패: {endpoint}. "
+                f"Chrome을 --remote-debugging-port={debug_port}로 실행했는지 확인하세요."
+            ) from e
+
+        context = browser.contexts[0] if browser.contexts else browser.new_context()
+
+        def cleanup():
+            # CDP 모드에서는 기존 사용중인 Chrome 전체 종료를 피한다.
+            with suppress(Exception):
+                context.close()
+            with suppress(Exception):
+                browser.close()
+
+        return browser, context, cleanup
+
+    browser = playwright.chromium.launch(headless=headless)
+    context = browser.new_context(
+        user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    )
+
+    def cleanup():
+        with suppress(Exception):
+            context.close()
+        with suppress(Exception):
+            browser.close()
+
+    return browser, context, cleanup
+
+
+def check_place_ranking(
+    keyword: str,
+    store_name: str,
+    headless: bool = True,
+    use_debug_chrome: bool = False,
+    debug_port: int = 9222,
+) -> dict:
     """
     키워드로 네이버 검색 후 플레이스 섹션에서 상호명이 일치하는 항목의 순위를 찾는다.
     광고는 순위에서 제외하며, 2·3페이지까지 페이지네이션한다.
@@ -472,11 +527,13 @@ def check_place_ranking(keyword: str, store_name: str, headless: bool = True) ->
     out = {"keyword": keyword, "store_name": store_name, "rank": None, "url": None, "error": None}
 
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=headless)
+        browser, context, cleanup = create_browser_session(
+            p,
+            headless=headless,
+            use_debug_chrome=use_debug_chrome,
+            debug_port=debug_port,
+        )
         try:
-            context = browser.new_context(
-                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-            )
             page = context.new_page()
             page.goto(integrated_url, wait_until="domcontentloaded", timeout=15000)
             page.wait_for_timeout(400)
@@ -486,7 +543,7 @@ def check_place_ranking(keyword: str, store_name: str, headless: bool = True) ->
         except Exception as e:
             out["error"] = str(e)
         finally:
-            browser.close()
+            cleanup()
     return out
 
 
@@ -889,7 +946,13 @@ def get_three_section_ranks(page, target_id: str, integrated_url: str) -> dict[s
     return result
 
 
-def check_naver_ranking(keyword: str, target_blog_id: str, headless: bool = True) -> dict:
+def check_naver_ranking(
+    keyword: str,
+    target_blog_id: str,
+    headless: bool = True,
+    use_debug_chrome: bool = False,
+    debug_port: int = 9222,
+) -> dict:
     """
     1) 통합검색(전체 탭) → 검색결과 / 반려동물 인기글 섹션에서 순위 수집
     2) 상단 lnb에서 '블로그' 탭 클릭 → 블로그 탭 페이지에서 순위 수집
@@ -900,11 +963,13 @@ def check_naver_ranking(keyword: str, target_blog_id: str, headless: bool = True
     out = {"keyword": keyword, "error": None, "sections": {}}
 
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=headless)
+        browser, context, cleanup = create_browser_session(
+            p,
+            headless=headless,
+            use_debug_chrome=use_debug_chrome,
+            debug_port=debug_port,
+        )
         try:
-            context = browser.new_context(
-                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-            )
             page = context.new_page()
 
             # 1) 통합검색: 검색결과 더보기 → 순위 확인 → 1페이지 복귀 → 반려동물 인기글 더보기 → 순위 확인
@@ -944,7 +1009,7 @@ def check_naver_ranking(keyword: str, target_blog_id: str, headless: bool = True
         except Exception as e:
             out["error"] = str(e)
         finally:
-            browser.close()
+            cleanup()
 
     return out
 
@@ -989,6 +1054,41 @@ def read_place_input_excel(path: str) -> list[tuple[str, str]]:
         return pairs
     except Exception:
         return []
+
+
+def read_blog_input_from_supabase() -> list[tuple[str, str]]:
+    """
+    Supabase의 analytics.analytics_blog_keyword_targets 에서
+    활성화된 (blog_id(account_id), keyword) 쌍을 읽는다.
+    """
+    supabase_url = os.getenv("SUPABASE_URL")
+    service_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+    if not supabase_url or not service_key:
+        raise RuntimeError("DB 입력을 사용하려면 SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY가 필요합니다.")
+
+    params = {
+        "select": "account_id,keyword",
+        "is_active": "eq.true",
+        "order": "account_id.asc,priority.asc,keyword.asc",
+    }
+    url = f"{supabase_url.rstrip('/')}/rest/v1/analytics_blog_keyword_targets?{urlencode(params)}"
+    req = Request(url, headers=_supabase_headers(service_key), method="GET")
+    with urlopen(req, timeout=20) as res:
+        data = json.loads(res.read().decode("utf-8"))
+
+    pairs: list[tuple[str, str]] = []
+    seen: set[tuple[str, str]] = set()
+    for row in data or []:
+        blog_id = str(row.get("account_id") or "").strip()
+        keyword = str(row.get("keyword") or "").strip()
+        if not blog_id or not keyword:
+            continue
+        key = (blog_id, keyword)
+        if key in seen:
+            continue
+        seen.add(key)
+        pairs.append(key)
+    return pairs
 
 
 def write_output_excel(
@@ -1260,6 +1360,14 @@ def main():
     export_excel = False
     upload_db = True
     metric_date = None
+    use_debug_chrome = _is_truthy_env("RANK_USE_DEBUG_CHROME")
+    raw_debug_port = os.getenv("CHROME_DEBUGGING_PORT", "9222")
+    input_source = os.getenv("RANK_INPUT_SOURCE", "db").strip().lower()
+    try:
+        debug_port = int(raw_debug_port)
+    except ValueError:
+        print(f"❌ CHROME_DEBUGGING_PORT 값이 잘못되었습니다: {raw_debug_port}")
+        return
 
     positional = []
     args = sys.argv[1:]
@@ -1286,6 +1394,31 @@ def main():
             metric_date = args[i + 1]
             i += 2
             continue
+        if arg == "--use-debug-chrome":
+            use_debug_chrome = True
+            i += 1
+            continue
+        if arg == "--debug-port":
+            if i + 1 >= len(args):
+                print("❌ --debug-port 다음에 포트 번호를 입력하세요.")
+                return
+            try:
+                debug_port = int(args[i + 1])
+            except ValueError:
+                print("❌ --debug-port는 숫자여야 합니다. 예: --debug-port 9222")
+                return
+            i += 2
+            continue
+        if arg == "--input-source":
+            if i + 1 >= len(args):
+                print("❌ --input-source 다음에 db 또는 excel 을 입력하세요.")
+                return
+            input_source = args[i + 1].strip().lower()
+            if input_source not in {"db", "excel"}:
+                print("❌ --input-source는 db 또는 excel 이어야 합니다.")
+                return
+            i += 2
+            continue
         positional.append(arg)
         i += 1
 
@@ -1294,17 +1427,30 @@ def main():
     if len(positional) >= 2:
         output_path = positional[1]
 
-    if Path(input_path).exists():
-        pairs = read_input_excel(input_path)
+    if input_source == "db":
+        try:
+            pairs = read_blog_input_from_supabase()
+        except Exception as e:
+            print(f"❌ DB 입력 조회 실패: {e}")
+            return
+        place_pairs: list[tuple[str, str]] = []
     else:
-        target = TARGET_BLOG_ID
-        pairs = [(target, kw) for kw in KEYWORDS] if target and KEYWORDS else []
-
-    place_pairs = read_place_input_excel(input_path) if Path(input_path).exists() else []
+        if Path(input_path).exists():
+            pairs = read_input_excel(input_path)
+        else:
+            target = TARGET_BLOG_ID
+            pairs = [(target, kw) for kw in KEYWORDS] if target and KEYWORDS else []
+        place_pairs = read_place_input_excel(input_path) if Path(input_path).exists() else []
 
     if not pairs and not place_pairs:
-        print("❌ 확인할 (블로그 ID, 키워드) 또는 (키워드, 상호명)이 없습니다. input.xlsx를 확인하세요.")
+        if input_source == "db":
+            print("❌ 활성화된 키워드 타깃이 없습니다. analytics.analytics_blog_keyword_targets를 확인하세요.")
+        else:
+            print("❌ 확인할 (블로그 ID, 키워드) 또는 (키워드, 상호명)이 없습니다. input.xlsx를 확인하세요.")
         return
+    print(f"ℹ️ 입력 소스: {input_source}")
+    if use_debug_chrome:
+        print(f"ℹ️ CDP 모드: 디버깅 Chrome 세션 공유 사용 (port={debug_port})")
 
     results = []
     if pairs:
@@ -1313,7 +1459,12 @@ def main():
             if not blog_id or blog_id == "your_blog_id":
                 print(f"⚠️ 키워드 '{kw}' 행의 블로그 ID가 비어 있어 스킵합니다.")
                 continue
-            data = check_naver_ranking(kw, blog_id)
+            data = check_naver_ranking(
+                kw,
+                blog_id,
+                use_debug_chrome=use_debug_chrome,
+                debug_port=debug_port,
+            )
             data["blog_id"] = blog_id
             results.append({
                 "blog_id": blog_id,
@@ -1328,7 +1479,12 @@ def main():
     if place_pairs:
         print(f"\n🏪 플레이스 순위 확인 — {len(place_pairs)}개 조합 (광고 제외)\n")
         for kw, store in place_pairs:
-            data = check_place_ranking(kw, store)
+            data = check_place_ranking(
+                kw,
+                store,
+                use_debug_chrome=use_debug_chrome,
+                debug_port=debug_port,
+            )
             place_results.append(data)
             err = data.get("error")
             if err:
