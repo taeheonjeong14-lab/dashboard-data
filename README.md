@@ -104,6 +104,47 @@ npm run export:ranks -- output.xlsx
 RANK_EXPORT_START_DATE=2026-04-01 RANK_EXPORT_END_DATE=2026-04-30 npm run export:ranks -- april-output.xlsx
 ```
 
+## 네이버 검색광고(SearchAd): 병원별 계정 수집
+
+`scripts/naver-searchad-main.py`는 병원별 광고계정을 순회하면서 검색광고 API 데이터를 수집해
+`analytics.analytics_searchad_daily_metrics`에 업서트합니다.
+
+- 계정 입력 테이블: `analytics.analytics_searchad_accounts`
+- 성과 적재 테이블: `analytics.analytics_searchad_daily_metrics`
+- 수집 단위: **캠페인 + 광고그룹**
+- 기본 수집일: KST 전일(D-1) (`SEARCHAD_METRIC_DATE`로 오버라이드 가능)
+
+사전 준비:
+
+1. Supabase SQL 적용 (둘 중 하나)
+   - 신규/전체 반영: `supabase/schema.sql` 실행
+   - 운영 DB 증분 반영: `supabase/migrations/20260416183000_analytics_searchad_tables.sql` 실행
+2. `analytics.analytics_searchad_accounts`에 병원별 계정 입력
+   - `hospital_id`, `customer_id`, `api_license`, `secret_key_encrypted`, `is_active`
+   - `secret_key_encrypted`는 `enc::` 접두어 + 암호문(base64)을 권장하며, 이 경우 `SEARCHAD_SECRET_PASSPHRASE` 필요
+   - 하위 호환으로 평문 값도 동작하지만 운영에서는 비권장
+3. (선택) `.env`에 수집일/패스프레이즈 설정
+
+실행:
+
+```bash
+npm run collect:searchad
+```
+
+또는:
+
+```bash
+python scripts/naver-searchad-main.py
+```
+
+검증:
+
+```bash
+npm run verify:supabase
+```
+
+`verify:supabase`는 SearchAd 관련 테이블 접근(`analytics_searchad_accounts`, `analytics_searchad_daily_metrics`)까지 점검합니다.
+
 ## 1단계: Chrome을 디버깅 포트로 실행
 
 **반드시 기존 Chrome 창을 모두 닫은 뒤** 아래 중 하나로 실행하세요.

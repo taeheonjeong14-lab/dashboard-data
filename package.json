@@ -8,7 +8,8 @@
     "collect": "node index.js",
     "export:ranks": "node scripts/export-blog-ranks.js",
     "verify:supabase": "node scripts/verify-supabase.js",
-    "chrome": "node scripts/launch-chrome-debug.js"
+    "chrome": "node scripts/launch-chrome-debug.js",
+    "collect:searchad": "python scripts/naver-searchad-main.py"
   },
   "keywords": ["naver", "blog", "statistics", "puppeteer", "cdp"],
   "license": "MIT",

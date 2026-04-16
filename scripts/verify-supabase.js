@@ -82,6 +82,34 @@ async function main() {
   }
   ok("analytics.analytics_blog_keyword_targets 조회 가능");
 
+  const searchadAccounts = await restGet("/rest/v1/analytics_searchad_accounts?select=id&limit=1", {
+    key: serviceKey,
+    profile: "analytics",
+  });
+  if (!searchadAccounts.ok) {
+    console.error(
+      "analytics.analytics_searchad_accounts 응답:",
+      searchadAccounts.status,
+      searchadAccounts.text.slice(0, 500)
+    );
+    fail("analytics_searchad_accounts 접근 실패 (schema.sql 또는 migration 반영 확인)");
+  }
+  ok("analytics.analytics_searchad_accounts 조회 가능");
+
+  const searchadMetrics = await restGet("/rest/v1/analytics_searchad_daily_metrics?select=metric_date&limit=1", {
+    key: serviceKey,
+    profile: "analytics",
+  });
+  if (!searchadMetrics.ok) {
+    console.error(
+      "analytics.analytics_searchad_daily_metrics 응답:",
+      searchadMetrics.status,
+      searchadMetrics.text.slice(0, 500)
+    );
+    fail("analytics_searchad_daily_metrics 접근 실패 (schema.sql 또는 migration 반영 확인)");
+  }
+  ok("analytics.analytics_searchad_daily_metrics 조회 가능");
+
   if (anonKey) {
     const anon = await restGet("/rest/v1/analytics_blog_keyword_targets?select=id&limit=1", {
       key: anonKey,

@@ -53,6 +53,35 @@ from urllib.request import Request, urlopen
 from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeout
 import openpyxl
 
+
+def load_local_env_files():
+    """
+    프로젝트 루트(.env/.env.local)의 KEY=VALUE를 현재 프로세스 환경으로 로드한다.
+    이미 설정된 환경변수는 덮어쓰지 않는다.
+    """
+    project_root = Path(__file__).resolve().parents[1]
+    candidates = [project_root / ".env", project_root / ".env.local"]
+
+    for env_path in candidates:
+        if not env_path.exists():
+            continue
+        try:
+            for raw_line in env_path.read_text(encoding="utf-8").splitlines():
+                line = raw_line.strip()
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+                key, value = line.split("=", 1)
+                key = key.strip()
+                value = value.strip().strip("'").strip('"')
+                if key:
+                    os.environ.setdefault(key, value)
+        except Exception:
+            # 환경 파일 파싱 실패는 치명적이지 않으므로 무시하고 기존 환경변수만 사용
+            pass
+
+
+load_local_env_files()
+
 # 타깃 블로그 ID (예: blog.naver.com/여기부분)
 TARGET_BLOG_ID = "jd_ah"
 
@@ -65,11 +94,24 @@ KEYWORDS = [
 ]
 
 SECTION_SPECS = [
-    ("검색결과", "검색결과_URL", "integrated", "blog_rank_integrated"),
-    ("반려동물 인기글", "반려동물 인기글_URL", "pet_popular", "blog_rank_pet_popular"),
-    ("일반 검색", "일반 검색_URL", "general", "blog_rank_general"),
-    ("블로그(탭)", "블로그(탭)_URL", "tab", "blog_rank_tab"),
+    ("검색결과", "검색결과_URL", "검색결과", "blog_rank_integrated"),
+    ("반려동물 인기글", "반려동물 인기글_URL", "반려동물 인기글", "blog_rank_pet_popular"),
+    ("일반 검색", "일반 검색_URL", "일반 검색", "blog_rank_general"),
+    ("블로그(탭)", "블로그(탭)_URL", "블로그(탭)", "blog_rank_tab"),
 ]
+
+PAGE_LOAD_TIMEOUT_MS_FIRST = 15000
+PAGE_LOAD_TIMEOUT_MS_RETRY = 30000
+PAGE_LOAD_RETRY_COUNT = 1
+CURRENT_PAGE_LOAD_TIMEOUT_MS = PAGE_LOAD_TIMEOUT_MS_FIRST
+
+
+def _set_page_load_timeout_for_attempt(attempt: int) -> int:
+    global CURRENT_PAGE_LOAD_TIMEOUT_MS
+    CURRENT_PAGE_LOAD_TIMEOUT_MS = (
+        PAGE_LOAD_TIMEOUT_MS_FIRST if attempt == 0 else PAGE_LOAD_TIMEOUT_MS_RETRY
+    )
+    return CURRENT_PAGE_LOAD_TIMEOUT_MS
 
 
 def normalize_blog_id(blog_id: str) -> str:
@@ -527,23 +569,30 @@ def check_place_ranking(
     out = {"keyword": keyword, "store_name": store_name, "rank": None, "url": None, "error": None}
 
     with sync_playwright() as p:
-        browser, context, cleanup = create_browser_session(
-            p,
-            headless=headless,
-            use_debug_chrome=use_debug_chrome,
-            debug_port=debug_port,
-        )
-        try:
-            page = context.new_page()
-            page.goto(integrated_url, wait_until="domcontentloaded", timeout=15000)
-            page.wait_for_timeout(400)
-            out["rank"], out["url"] = get_place_rank_with_pagination(page, keyword, store_name, integrated_url)
-        except PlaywrightTimeout:
-            out["error"] = "페이지 로드 시간 초과"
-        except Exception as e:
-            out["error"] = str(e)
-        finally:
-            cleanup()
+        for attempt in range(PAGE_LOAD_RETRY_COUNT + 1):
+            timeout_ms = _set_page_load_timeout_for_attempt(attempt)
+            browser, context, cleanup = create_browser_session(
+                p,
+                headless=headless,
+                use_debug_chrome=use_debug_chrome,
+                debug_port=debug_port,
+            )
+            try:
+                page = context.new_page()
+                page.goto(integrated_url, wait_until="domcontentloaded", timeout=timeout_ms)
+                page.wait_for_timeout(400)
+                out["rank"], out["url"] = get_place_rank_with_pagination(page, keyword, store_name, integrated_url)
+                out["error"] = None
+                break
+            except PlaywrightTimeout:
+                out["error"] = "페이지 로드 시간 초과"
+                if attempt >= PAGE_LOAD_RETRY_COUNT:
+                    break
+            except Exception as e:
+                out["error"] = str(e)
+                break
+            finally:
+                cleanup()
     return out
 
 
@@ -626,7 +675,7 @@ def try_click_more_and_find_rank_search_result(
             return None, None
 
         # 2페이지 로드 대기
-        page.wait_for_load_state("domcontentloaded", timeout=15000)
+            page.wait_for_load_state("domcontentloaded", timeout=CURRENT_PAGE_LOAD_TIMEOUT_MS)
         page.wait_for_timeout(200)  # 추가 결과 로드 대기
 
         # 새 페이지에서 web_lis 컨테이너 찾기 (검색결과 전용 페이지, 2페이지)
@@ -674,7 +723,7 @@ def try_click_more_and_find_rank_search_result(
             page3_button = page.query_selector('a[href*="page=3"], .paging a:has-text("3"), .paging a.next')
             if page3_button:
                 page3_button.click()
-                page.wait_for_load_state("domcontentloaded", timeout=15000)
+                page.wait_for_load_state("domcontentloaded", timeout=CURRENT_PAGE_LOAD_TIMEOUT_MS)
                 page.wait_for_timeout(200)
                 rank_on_page3, url_on_page3 = find_rank_in_cards(
                     page, container_sel, CARD_SEARCH_RESULT, target_id, remaining_cards
@@ -796,7 +845,7 @@ def try_find_rank_general_search(
         except Exception:
             return None, True, None
 
-        page.wait_for_load_state("domcontentloaded", timeout=15000)
+        page.wait_for_load_state("domcontentloaded", timeout=CURRENT_PAGE_LOAD_TIMEOUT_MS)
         page.wait_for_timeout(200)
         container_sel = None
         for sel in SELECTOR_GENERAL_SEARCH:
@@ -905,7 +954,7 @@ def get_three_section_ranks(page, target_id: str, integrated_url: str) -> dict[s
 
     # 더보기를 눌렀다면 2페이지에 있으므로 1페이지(통합검색)로 복귀
     if search_result_exists:
-        page.goto(integrated_url, wait_until="domcontentloaded", timeout=15000)
+        page.goto(integrated_url, wait_until="domcontentloaded", timeout=CURRENT_PAGE_LOAD_TIMEOUT_MS)
         page.wait_for_timeout(200)
 
     # --- 2) 반려동물 인기글 ---
@@ -939,7 +988,7 @@ def get_three_section_ranks(page, target_id: str, integrated_url: str) -> dict[s
     result["_일반검색_섹션있음"] = general_exists
     # 일반 검색에서 2페이지로 갔을 수 있으므로 통합검색 1페이지로 복귀
     if general_exists:
-        page.goto(integrated_url, wait_until="domcontentloaded", timeout=15000)
+        page.goto(integrated_url, wait_until="domcontentloaded", timeout=CURRENT_PAGE_LOAD_TIMEOUT_MS)
         page.wait_for_timeout(200)
 
     result["_페이지이동됨"] = False
@@ -963,53 +1012,76 @@ def check_naver_ranking(
     out = {"keyword": keyword, "error": None, "sections": {}}
 
     with sync_playwright() as p:
-        browser, context, cleanup = create_browser_session(
-            p,
-            headless=headless,
-            use_debug_chrome=use_debug_chrome,
-            debug_port=debug_port,
-        )
-        try:
-            page = context.new_page()
+        for attempt in range(PAGE_LOAD_RETRY_COUNT + 1):
+            timeout_ms = _set_page_load_timeout_for_attempt(attempt)
+            phase = "브라우저 세션 생성"
+            attempt_label = f"{attempt + 1}/{PAGE_LOAD_RETRY_COUNT + 1}"
+            print(f"🔎 [{target_id} / {keyword}] 시도 {attempt_label} 시작 (timeout={timeout_ms}ms)")
+            browser, context, cleanup = create_browser_session(
+                p,
+                headless=headless,
+                use_debug_chrome=use_debug_chrome,
+                debug_port=debug_port,
+            )
+            try:
+                phase = "새 페이지 생성"
+                page = context.new_page()
 
-            # 1) 통합검색: 검색결과 더보기 → 순위 확인 → 1페이지 복귀 → 반려동물 인기글 더보기 → 순위 확인
-            page.goto(integrated_url, wait_until="domcontentloaded", timeout=15000)
-            page.wait_for_timeout(200)
-            out["sections"] = get_three_section_ranks(page, target_id, integrated_url)
-
-            # 2) 상단 lnb에서 블로그 탭 클릭 후 해당 페이지에서 순위 수집 (카드 단위)
-            # 검색결과 "더보기"를 클릭해서 페이지가 이동했어도 블로그 탭은 확인 가능
-            blog_tab_loc = page.locator(SELECTOR_BLOG_TAB)
-            if blog_tab_loc.count() > 0:
-                blog_tab_loc.first.click()
-                page.wait_for_load_state("domcontentloaded", timeout=15000)
+                # 1) 통합검색: 검색결과 더보기 → 순위 확인 → 1페이지 복귀 → 반려동물 인기글 더보기 → 순위 확인
+                phase = "통합검색 페이지 진입"
+                print(f"   ↳ [{keyword}] {phase}")
+                page.goto(integrated_url, wait_until="domcontentloaded", timeout=timeout_ms)
                 page.wait_for_timeout(200)
-                rank, blog_url = None, None
-                for container_sel in SELECTOR_BLOG_TAB_CONTAINER:
-                    rank, blog_url = find_rank_in_cards(
-                        page, container_sel, CARD_BLOG_TAB, target_id, max_cards=20
-                    )
-                    if rank is not None:
-                        break
-                    more_button_sel = f'{container_sel} a[data-heatmap-target=".more"], {container_sel} a.more, {container_sel} button.more'
-                    rank, blog_url = try_click_more_and_find_rank_blog_tab(
-                        page, container_sel, CARD_BLOG_TAB, more_button_sel, target_id
-                    )
-                    if rank is not None:
-                        break
-                if rank is None:
-                    rank, blog_url = _blog_tab_rank_fallback(page, target_id)
-                out["sections"]["블로그(탭)"] = rank
-                out["sections"]["블로그(탭)_URL"] = blog_url
-            else:
-                out["sections"]["블로그(탭)"] = None
-                out["sections"]["블로그(탭)_URL"] = None
-        except PlaywrightTimeout:
-            out["error"] = "페이지 로드 시간 초과"
-        except Exception as e:
-            out["error"] = str(e)
-        finally:
-            cleanup()
+                phase = "3개 섹션 순위 수집"
+                print(f"   ↳ [{keyword}] {phase}")
+                out["sections"] = get_three_section_ranks(page, target_id, integrated_url)
+
+                # 2) 상단 lnb에서 블로그 탭 클릭 후 해당 페이지에서 순위 수집 (카드 단위)
+                # 검색결과 "더보기"를 클릭해서 페이지가 이동했어도 블로그 탭은 확인 가능
+                phase = "블로그 탭 탐색"
+                print(f"   ↳ [{keyword}] {phase}")
+                blog_tab_loc = page.locator(SELECTOR_BLOG_TAB)
+                if blog_tab_loc.count() > 0:
+                    phase = "블로그 탭 클릭/로드"
+                    print(f"   ↳ [{keyword}] {phase}")
+                    blog_tab_loc.first.click()
+                    page.wait_for_load_state("domcontentloaded", timeout=timeout_ms)
+                    page.wait_for_timeout(200)
+                    rank, blog_url = None, None
+                    for container_sel in SELECTOR_BLOG_TAB_CONTAINER:
+                        rank, blog_url = find_rank_in_cards(
+                            page, container_sel, CARD_BLOG_TAB, target_id, max_cards=20
+                        )
+                        if rank is not None:
+                            break
+                        more_button_sel = f'{container_sel} a[data-heatmap-target=".more"], {container_sel} a.more, {container_sel} button.more'
+                        rank, blog_url = try_click_more_and_find_rank_blog_tab(
+                            page, container_sel, CARD_BLOG_TAB, more_button_sel, target_id
+                        )
+                        if rank is not None:
+                            break
+                    if rank is None:
+                        rank, blog_url = _blog_tab_rank_fallback(page, target_id)
+                    out["sections"]["블로그(탭)"] = rank
+                    out["sections"]["블로그(탭)_URL"] = blog_url
+                else:
+                    out["sections"]["블로그(탭)"] = None
+                    out["sections"]["블로그(탭)_URL"] = None
+
+                out["error"] = None
+                print(f"✅ [{target_id} / {keyword}] 시도 {attempt_label} 완료")
+                break
+            except PlaywrightTimeout:
+                out["error"] = "페이지 로드 시간 초과"
+                print(f"⏱️ [{target_id} / {keyword}] 타임아웃 (단계: {phase}, 시도 {attempt_label})")
+                if attempt >= PAGE_LOAD_RETRY_COUNT:
+                    break
+            except Exception as e:
+                out["error"] = str(e)
+                print(f"❌ [{target_id} / {keyword}] 실패 (단계: {phase}, 시도 {attempt_label}): {e}")
+                break
+            finally:
+                cleanup()
 
     return out
 
@@ -1072,7 +1144,7 @@ def read_blog_input_from_supabase() -> list[tuple[str, str]]:
         "order": "account_id.asc,priority.asc,keyword.asc",
     }
     url = f"{supabase_url.rstrip('/')}/rest/v1/analytics_blog_keyword_targets?{urlencode(params)}"
-    req = Request(url, headers=_supabase_headers(service_key), method="GET")
+    req = Request(url, headers=_supabase_headers(service_key, profile="analytics"), method="GET")
     with urlopen(req, timeout=20) as res:
         data = json.loads(res.read().decode("utf-8"))
 
@@ -1213,12 +1285,16 @@ def _to_rank_value(rank) -> int | None:
         return None
 
 
-def _supabase_headers(service_key: str) -> dict:
-    return {
+def _supabase_headers(service_key: str, profile: str | None = None) -> dict:
+    headers = {
         "apikey": service_key,
         "Authorization": f"Bearer {service_key}",
         "Content-Type": "application/json",
     }
+    if profile:
+        headers["Accept-Profile"] = profile
+        headers["Content-Profile"] = profile
+    return headers
 
 
 def _supabase_get_hospital_map(supabase_url: str, service_key: str, blog_ids: list[str]) -> dict:
@@ -1232,7 +1308,7 @@ def _supabase_get_hospital_map(supabase_url: str, service_key: str, blog_ids: li
         "naver_blog_id": f"in.({in_values})",
     }
     url = f"{supabase_url.rstrip('/')}/rest/v1/hospitals?{urlencode(params)}"
-    req = Request(url, headers=_supabase_headers(service_key), method="GET")
+    req = Request(url, headers=_supabase_headers(service_key, profile="core"), method="GET")
     with urlopen(req, timeout=20) as res:
         data = json.loads(res.read().decode("utf-8"))
     out = {}
@@ -1307,7 +1383,7 @@ def _build_rank_upsert_payload(results: list[dict], hospital_map: dict, metric_d
             "metric_date": metric_date,
             "metric_key": "blog_rank_best",
             "keyword": keyword,
-            "section": "best",
+            "section": "최고 순위",
             "rank_value": min(section_ranks) if section_ranks else None,
             "exposed_url": None,
             "metadata": {
@@ -1344,7 +1420,7 @@ def upload_blog_ranks_to_supabase(results: list[dict], metric_date: str | None =
         "on_conflict": "account_id,metric_date,keyword,section,metric_key",
     }
     url = f"{supabase_url.rstrip('/')}/rest/v1/analytics_blog_keyword_ranks?{urlencode(params)}"
-    headers = _supabase_headers(service_key)
+    headers = _supabase_headers(service_key, profile="analytics")
     headers["Prefer"] = "resolution=merge-duplicates,return=minimal"
     req = Request(url, data=json.dumps(payload).encode("utf-8"), headers=headers, method="POST")
     with urlopen(req, timeout=40):
