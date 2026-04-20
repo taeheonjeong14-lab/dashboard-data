@@ -106,6 +106,28 @@ npm run collect:blog-metrics -- howtoanimal
 npm run collect:smartplace-inflow -- howtoanimal
 ```
 
+## 원클릭 전체 수집 (권장)
+
+분리된 수집기를 한 번에 실행하려면 아래 명령을 사용합니다.
+
+```bash
+npm run collect:all -- <core.hospitals.id>
+```
+
+- 실행 순서(고정): 블로그 지표 → 스마트플레이스 유입 → 블로그/플레이스 키워드 순위 → SearchAd
+- 실패 정책: 중간 단계 실패 시 즉시 종료(fail-fast)
+- 인자는 `core.hospitals.id`(hospital_id) 입니다.
+- `collect:all`은 hospital_id로 `core.hospitals.naver_blog_id`를 조회해 블로그/스마트플레이스 수집을 실행합니다.
+- 키워드 순위/SearchAd는 `COLLECT_HOSPITAL_ID` 필터를 적용해 해당 병원 데이터만 수집합니다.
+- 키워드 순위(`naver-rank-main.py`)와 SearchAd(`naver-searchad-main.py`)는 기존과 동일하게 환경변수/DB 입력 규칙을 따릅니다.
+
+주요 환경변수(기존과 동일):
+
+- 공통 DB: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`
+- 순위 수집: `RANK_INPUT_SOURCE`, `RANK_METRIC_DATE`, `RANK_USE_DEBUG_CHROME`, `CHROME_DEBUGGING_PORT`
+- SearchAd: `SEARCHAD_METRIC_DATE`, `SEARCHAD_SECRET_PASSPHRASE`, `SEARCHAD_API_BASE_URL`
+- 오케스트레이션 필터: `COLLECT_HOSPITAL_ID` (`collect:all` 실행 시 자동 주입)
+
 ## 블로그 키워드 순위: DB에서 엑셀 다운로드용 생성
 
 사용자가 엑셀을 원할 때는 DB 데이터를 기준으로 엑셀을 생성합니다.

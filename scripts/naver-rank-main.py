@@ -1167,6 +1167,9 @@ def read_blog_input_from_supabase() -> list[tuple[str, str]]:
         "is_active": "eq.true",
         "order": "account_id.asc,priority.asc,keyword.asc",
     }
+    target_hospital_id = os.getenv("COLLECT_HOSPITAL_ID", "").strip()
+    if target_hospital_id:
+        params["hospital_id"] = f"eq.{target_hospital_id}"
     url = f"{supabase_url.rstrip('/')}/rest/v1/analytics_blog_keyword_targets?{urlencode(params)}"
     req = Request(url, headers=_supabase_headers(service_key, profile="analytics"), method="GET")
     with urlopen(req, timeout=20) as res:
@@ -1202,6 +1205,9 @@ def read_place_input_from_supabase() -> list[tuple[str, str, str | None]]:
         "is_active": "eq.true",
         "order": "hospital_id.asc,priority.asc,keyword.asc",
     }
+    target_hospital_id = os.getenv("COLLECT_HOSPITAL_ID", "").strip()
+    if target_hospital_id:
+        params["hospital_id"] = f"eq.{target_hospital_id}"
     url = f"{supabase_url.rstrip('/')}/rest/v1/analytics_place_keyword_targets?{urlencode(params)}"
     req = Request(url, headers=_supabase_headers(service_key, profile="analytics"), method="GET")
     with urlopen(req, timeout=20) as res:

@@ -77,12 +77,18 @@ def resolve_searchad_secret(stored_value: str) -> str:
     return _xor_decrypt(cipher_text, passphrase)
 
 
-def fetch_active_accounts(supabase_url: str, service_key: str) -> list[dict[str, Any]]:
+def fetch_active_accounts(
+    supabase_url: str,
+    service_key: str,
+    hospital_id: str | None = None,
+) -> list[dict[str, Any]]:
     params = {
         "select": "hospital_id,customer_id,api_license,secret_key_encrypted",
         "is_active": "eq.true",
         "order": "hospital_id.asc,customer_id.asc",
     }
+    if hospital_id:
+        params["hospital_id"] = f"eq.{hospital_id}"
     url = f"{supabase_url.rstrip('/')}/rest/v1/analytics_searchad_accounts?{urlencode(params)}"
     req = Request(url, headers=_supabase_headers(service_key, profile="analytics"), method="GET")
     try:
@@ -381,11 +387,12 @@ def main() -> None:
     service_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "").strip()
     searchad_base_url = os.getenv("SEARCHAD_API_BASE_URL", "https://api.searchad.naver.com").strip()
     metric_date = os.getenv("SEARCHAD_METRIC_DATE", _to_kst_date_str(-1)).strip()
+    target_hospital_id = os.getenv("COLLECT_HOSPITAL_ID", "").strip()
 
     if not supabase_url or not service_key:
         raise RuntimeError("SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY가 필요합니다.")
 
-    accounts = fetch_active_accounts(supabase_url, service_key)
+    accounts = fetch_active_accounts(supabase_url, service_key, hospital_id=target_hospital_id or None)
     if not accounts:
         print("ℹ️ 활성 SearchAd 계정이 없습니다. analytics.analytics_searchad_accounts를 확인하세요.")
         return
