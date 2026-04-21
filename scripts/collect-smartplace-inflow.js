@@ -14,15 +14,21 @@ const { createClient } = require("@supabase/supabase-js");
 require("dotenv").config();
 
 const CONFIG_PATH = path.join(__dirname, "..", "config.json");
+const { getKstYesterdayString, computeMetricRange, INITIAL_BACKFILL_DAYS } = require("./lib/metricDateRange");
 
 function loadConfig() {
   return JSON.parse(fs.readFileSync(CONFIG_PATH, "utf8"));
 }
 
-function getYesterdayDateString() {
-  const d = new Date();
-  d.setDate(d.getDate() - 1);
-  return d.toISOString().slice(0, 10);
+function resolveChromePort(config, hospitalId) {
+  const envPort = Number(process.env.COLLECT_CHROME_DEBUGGING_PORT || "");
+  if (Number.isFinite(envPort) && envPort > 0) return envPort;
+  const byHospital = config?.hospitalPorts?.[hospitalId];
+  const parsedHospital = typeof byHospital === "number" ? byHospital : Number(byHospital);
+  if (Number.isFinite(parsedHospital) && parsedHospital > 0) return parsedHospital;
+  const fallback = config?.chrome?.debuggingPort ?? 9222;
+  const parsedFallback = typeof fallback === "number" ? fallback : Number(fallback);
+  return Number.isFinite(parsedFallback) && parsedFallback > 0 ? parsedFallback : 9222;
 }
 
 function addDays(dateStr, days) {
@@ -80,13 +86,33 @@ async function resolveHospitalByBlogId(supabase, blogId) {
   const coreResult = await supabase
     .schema("core")
     .from("hospitals")
-    .select("id,name")
+    .select("id,name,smartplace_stat_url")
     .eq("naver_blog_id", normalizedBlogId)
     .limit(1);
 
   if (coreResult.error) throw coreResult.error;
-  if (!coreResult.data || coreResult.data.length === 0) return { hospitalId: null, hospitalName: null };
-  return { hospitalId: String(coreResult.data[0].id), hospitalName: coreResult.data[0].name || null };
+  if (!coreResult.data || coreResult.data.length === 0) {
+    return { hospitalId: null, hospitalName: null, smartplaceStatUrl: null };
+  }
+  return {
+    hospitalId: String(coreResult.data[0].id),
+    hospitalName: coreResult.data[0].name || null,
+    smartplaceStatUrl: coreResult.data[0].smartplace_stat_url || null,
+  };
+}
+
+async function fetchMaxSmartplaceMetricDate(supabase, accountId) {
+  const { data, error } = await supabase
+    .schema("analytics")
+    .from("analytics_smartplace_daily_metrics")
+    .select("metric_date")
+    .eq("account_id", accountId)
+    .order("metric_date", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data || data.metric_date == null) return null;
+  return String(data.metric_date).slice(0, 10);
 }
 
 async function scrapeSmartPlaceInflow(page, statUrl, startDate, endDate) {
@@ -130,18 +156,10 @@ async function upsertSmartplaceDailyMetrics(supabase, accountId, hospitalId, hos
 
 async function main() {
   const config = loadConfig();
-  const port = config.chrome?.debuggingPort ?? 9222;
   const arg = process.argv[2];
   const id = (arg && arg.trim()) || config.blog?.blogId?.trim();
   if (!id) {
     console.error("blogId를 지정해 주세요. 예: node scripts/collect-smartplace-inflow.js howtoanimal");
-    process.exit(1);
-  }
-
-  const account = config.accounts && config.accounts[id];
-  const smartplaceStatUrl = (account && account.smartplaceStatUrl) || config.smartplace?.statUrl;
-  if (!smartplaceStatUrl) {
-    console.error("smartplaceStatUrl이 없습니다. config.smartplace.statUrl 또는 accounts.<id>.smartplaceStatUrl을 설정하세요.");
     process.exit(1);
   }
 
@@ -151,24 +169,45 @@ async function main() {
     process.exit(1);
   }
 
-  const { hospitalId, hospitalName } = await resolveHospitalByBlogId(supabase, id).catch(() => ({
+  const { hospitalId, hospitalName, smartplaceStatUrl: dbSmartplaceStatUrl } = await resolveHospitalByBlogId(supabase, id).catch(() => ({
     hospitalId: null,
     hospitalName: null,
+    smartplaceStatUrl: null,
   }));
+  const port = resolveChromePort(config, hospitalId);
+  const account = config.accounts && config.accounts[id];
+  const smartplaceStatUrl = dbSmartplaceStatUrl || (account && account.smartplaceStatUrl) || config.smartplace?.statUrl;
+  if (!smartplaceStatUrl) {
+    console.error(
+      "smartplaceStatUrl이 없습니다. core.hospitals.smartplace_stat_url 또는 config.smartplace.statUrl/accounts.<id>.smartplaceStatUrl을 설정하세요."
+    );
+    process.exit(1);
+  }
 
-  const endDate = getYesterdayDateString();
-  const scrapeDays = config.smartplace?.scrapeDays ?? 31;
-  const startDate = addDays(endDate, -scrapeDays);
+  const endDate = getKstYesterdayString();
+  const maxMetric = await fetchMaxSmartplaceMetricDate(supabase, id);
+  const initialDays = Number(process.env.SMARTPLACE_METRICS_INITIAL_DAYS || INITIAL_BACKFILL_DAYS) || INITIAL_BACKFILL_DAYS;
+  const range = computeMetricRange(maxMetric, endDate, initialDays);
+  if (range.empty) {
+    console.log(
+      "ℹ️ smartplace_daily_metrics 이미 최신입니다. (KST end=%s, DB max=%s → start=%s)",
+      endDate,
+      maxMetric ?? "(없음)",
+      range.startDate
+    );
+    return;
+  }
+  const startDate = range.startDate;
+  console.log("스마트플레이스 유입 수집 구간 (KST): %s ~ %s (DB max=%s)", startDate, endDate, maxMetric ?? "없음");
 
-  console.log("Chrome에 연결 중... (포트 %s)", port);
+  console.log("Chrome에 연결 중... (포트 %s, hospital_id=%s)", port, hospitalId || "-");
   const browser = await connectBrowser(port);
   const page = (await browser.pages())[0] || (await browser.newPage());
 
   try {
-    console.log("스마트플레이스 유입 수집 중... (%s ~ %s)", startDate, endDate);
     const rows = await scrapeSmartPlaceInflow(page, smartplaceStatUrl, startDate, endDate);
     const count = await upsertSmartplaceDailyMetrics(supabase, id, hospitalId, hospitalName, rows);
-    console.log("✅ smartplace_daily_metrics 업서트 완료: %d건 (latest=%s)", count, endDate);
+    console.log("✅ smartplace_daily_metrics 업서트 완료: %d건 (KST end=%s)", count, endDate);
   } finally {
     await browser.disconnect();
   }

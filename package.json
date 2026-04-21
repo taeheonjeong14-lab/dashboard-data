@@ -7,6 +7,7 @@
     "start": "node index.js",
     "collect": "node index.js",
     "collect:all": "node scripts/collect-all.js",
+    "collect:all:batch": "node scripts/collect-all-batch.js",
     "collect:blog-metrics": "node scripts/collect-blog-metrics.js",
     "collect:smartplace-inflow": "node scripts/collect-smartplace-inflow.js",
     "export:ranks": "node scripts/export-blog-ranks.js",

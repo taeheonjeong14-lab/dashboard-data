@@ -3,7 +3,9 @@
 
 - 입력: analytics.analytics_searchad_accounts (활성 계정)
 - 출력: analytics.analytics_searchad_daily_metrics (일별 캠페인 + 광고그룹 단위 성과)
-- 기본 기간: KST 기준 전일(D-1)
+- 기본 기간: (hospital_id, customer_id)별 DB max(metric_date) 다음날 ~ KST 어제(D-1).
+  해당 조합에 행이 없으면 KST 어제 포함 30일(환경변수 SEARCHAD_METRICS_INITIAL_DAYS로 변경 가능).
+- SEARCHAD_METRIC_DATE 가 설정되면 위 증분을 끄고 해당 날짜만 수집(디버그/재처리용).
 """
 
 from __future__ import annotations
@@ -42,6 +44,64 @@ def load_local_env_files() -> None:
 def _to_kst_date_str(delta_days: int = -1) -> str:
     kst = timezone(timedelta(hours=9))
     return (datetime.now(kst) + timedelta(days=delta_days)).strftime("%Y-%m-%d")
+
+
+INITIAL_BACKFILL_DAYS = 30
+
+
+def _add_days_ymd(ymd: str, delta: int) -> str:
+    base = datetime.strptime(ymd[:10], "%Y-%m-%d")
+    return (base + timedelta(days=delta)).strftime("%Y-%m-%d")
+
+
+def _iter_dates_inclusive(start: str, end: str):
+    a = datetime.strptime(start[:10], "%Y-%m-%d").date()
+    b = datetime.strptime(end[:10], "%Y-%m-%d").date()
+    d = a
+    while d <= b:
+        yield d.strftime("%Y-%m-%d")
+        d += timedelta(days=1)
+
+
+def fetch_max_searchad_metric_date(
+    supabase_url: str,
+    service_key: str,
+    hospital_id: str,
+    customer_id: str,
+) -> str | None:
+    params = {
+        "select": "metric_date",
+        "hospital_id": f"eq.{hospital_id}",
+        "customer_id": f"eq.{customer_id}",
+        "order": "metric_date.desc",
+        "limit": "1",
+    }
+    url = f"{supabase_url.rstrip('/')}/rest/v1/analytics_searchad_daily_metrics?{urlencode(params)}"
+    req = Request(url, headers=_supabase_headers(service_key, profile="analytics"), method="GET")
+    with urlopen(req, timeout=20) as res:
+        rows = json.loads(res.read().decode("utf-8"))
+    if not rows:
+        return None
+    raw = rows[0].get("metric_date")
+    if raw is None:
+        return None
+    s = str(raw).strip()
+    return s[:10] if s else None
+
+
+def compute_searchad_metric_range(
+    max_metric_date: str | None,
+    end_date: str,
+    initial_days: int,
+) -> tuple[str, str] | None:
+    end = end_date.strip()[:10]
+    if not max_metric_date or not str(max_metric_date).strip():
+        start = _add_days_ymd(end, -(initial_days - 1))
+    else:
+        start = _add_days_ymd(str(max_metric_date).strip()[:10], 1)
+    if start > end:
+        return None
+    return (start, end)
 
 
 def _supabase_headers(service_key: str, profile: str | None = None) -> dict[str, str]:
@@ -386,8 +446,14 @@ def main() -> None:
     supabase_url = os.getenv("SUPABASE_URL", "").strip()
     service_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "").strip()
     searchad_base_url = os.getenv("SEARCHAD_API_BASE_URL", "https://api.searchad.naver.com").strip()
-    metric_date = os.getenv("SEARCHAD_METRIC_DATE", _to_kst_date_str(-1)).strip()
+    force_metric_date = os.getenv("SEARCHAD_METRIC_DATE", "").strip()
     target_hospital_id = os.getenv("COLLECT_HOSPITAL_ID", "").strip()
+    try:
+        initial_days = int(os.getenv("SEARCHAD_METRICS_INITIAL_DAYS", str(INITIAL_BACKFILL_DAYS)).strip())
+    except ValueError:
+        initial_days = INITIAL_BACKFILL_DAYS
+    if initial_days < 1:
+        initial_days = INITIAL_BACKFILL_DAYS
 
     if not supabase_url or not service_key:
         raise RuntimeError("SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY가 필요합니다.")
@@ -397,17 +463,44 @@ def main() -> None:
         print("ℹ️ 활성 SearchAd 계정이 없습니다. analytics.analytics_searchad_accounts를 확인하세요.")
         return
 
+    end_date_kst = _to_kst_date_str(-1)
     total_rows = 0
     for account in accounts:
         hospital_id = str(account.get("hospital_id") or "").strip()
         customer_id = str(account.get("customer_id") or "").strip()
-        print(f"🔎 SearchAd 수집 시작: hospital_id={hospital_id} customer_id={customer_id} metric_date={metric_date}")
         try:
-            rows = collect_one_account(searchad_base_url, metric_date, account)
-            inserted = upsert_daily_metrics(supabase_url, service_key, rows)
+            if force_metric_date:
+                print(
+                    f"🔎 SearchAd 수집(단일일 SEARCHAD_METRIC_DATE): hospital_id={hospital_id} "
+                    f"customer_id={customer_id} metric_date={force_metric_date}"
+                )
+                rows = collect_one_account(searchad_base_url, force_metric_date, account)
+                inserted = upsert_daily_metrics(supabase_url, service_key, rows)
+                update_last_synced_at(supabase_url, service_key, hospital_id, customer_id)
+                total_rows += inserted
+                print(f"✅ SearchAd 수집 완료: hospital_id={hospital_id} upsert_rows={inserted}")
+                continue
+
+            max_d = fetch_max_searchad_metric_date(supabase_url, service_key, hospital_id, customer_id)
+            span = compute_searchad_metric_range(max_d, end_date_kst, initial_days)
+            if span is None:
+                print(
+                    f"ℹ️ SearchAd 이미 최신: hospital_id={hospital_id} customer_id={customer_id} "
+                    f"KST end={end_date_kst} DB max={max_d or '(없음)'}"
+                )
+                continue
+            start_d, end_d = span
+            print(
+                f"🔎 SearchAd 수집 구간: hospital_id={hospital_id} customer_id={customer_id} "
+                f"{start_d} ~ {end_d} (KST, DB max={max_d or '없음'})"
+            )
+            account_inserted = 0
+            for d in _iter_dates_inclusive(start_d, end_d):
+                rows = collect_one_account(searchad_base_url, d, account)
+                account_inserted += upsert_daily_metrics(supabase_url, service_key, rows)
             update_last_synced_at(supabase_url, service_key, hospital_id, customer_id)
-            total_rows += inserted
-            print(f"✅ SearchAd 수집 완료: hospital_id={hospital_id} upsert_rows={inserted}")
+            total_rows += account_inserted
+            print(f"✅ SearchAd 수집 완료: hospital_id={hospital_id} upsert_rows={account_inserted}")
         except HTTPError as e:
             body = e.read().decode("utf-8", errors="ignore")
             print(f"❌ SearchAd HTTP 실패: hospital_id={hospital_id} status={e.code} body={body[:500]}")

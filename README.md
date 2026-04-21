@@ -92,7 +92,7 @@ python scripts/naver-rank-main.py input.xlsx --input-source excel
 
 ## 블로그 관리자 지표(조회수/순방문자): 분리 수집 + 분리 테이블
 
-기존 `index.js`는 블로그/플레이스를 한 번에 수집해 `analytics.analytics_daily_metrics`에 적재했지만,\n+DB를 분리해서 관리하려면 아래 2개 스크립트를 사용합니다.
+기존 `index.js`는 블로그/플레이스를 한 번에 수집해 `analytics.analytics_daily_metrics`에 적재했지만, DB를 분리해서 관리하려면 아래 2개 스크립트를 사용합니다.
 
 - 블로그 조회수/순방문자: `analytics.analytics_blog_daily_metrics`
 
@@ -105,6 +105,8 @@ npm run collect:blog-metrics -- howtoanimal
 ```bash
 npm run collect:smartplace-inflow -- howtoanimal
 ```
+
+**일별 수집 구간(공통 규칙):** 각 스크립트는 해당 적재 테이블에서 `account_id`(블로그·스마트플레이스) 또는 SearchAd의 `(hospital_id, customer_id)` 기준으로 `metric_date`의 **최댓값 다음날**부터 **KST 어제**까지만 채웁니다. 기존 행이 없으면 **KST 어제 포함 30일**을 한 번에 가져옵니다(초기 백필 일수는 `BLOG_METRICS_INITIAL_DAYS`, `SMARTPLACE_METRICS_INITIAL_DAYS`, `SEARCHAD_METRICS_INITIAL_DAYS`로 변경 가능). 이미 어제까지 반영돼 있으면 아무 것도 하지 않습니다.
 
 ## 원클릭 전체 수집 (권장)
 
@@ -119,13 +121,14 @@ npm run collect:all -- <core.hospitals.id>
 - 인자는 `core.hospitals.id`(hospital_id) 입니다.
 - `collect:all`은 hospital_id로 `core.hospitals.naver_blog_id`를 조회해 블로그/스마트플레이스 수집을 실행합니다.
 - 키워드 순위/SearchAd는 `COLLECT_HOSPITAL_ID` 필터를 적용해 해당 병원 데이터만 수집합니다.
-- 키워드 순위(`naver-rank-main.py`)와 SearchAd(`naver-searchad-main.py`)는 기존과 동일하게 환경변수/DB 입력 규칙을 따릅니다.
+- 키워드 순위(`naver-rank-main.py`)는 기존과 동일하게 환경변수/DB 입력 규칙을 따릅니다.
+- SearchAd는 기본 증분 수집이며, `SEARCHAD_METRIC_DATE`를 지정하면 해당 **하루만** 강제 수집합니다.
 
 주요 환경변수(기존과 동일):
 
 - 공통 DB: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`
 - 순위 수집: `RANK_INPUT_SOURCE`, `RANK_METRIC_DATE`, `RANK_USE_DEBUG_CHROME`, `CHROME_DEBUGGING_PORT`
-- SearchAd: `SEARCHAD_METRIC_DATE`, `SEARCHAD_SECRET_PASSPHRASE`, `SEARCHAD_API_BASE_URL`
+- SearchAd: `SEARCHAD_METRIC_DATE`(선택, 지정 시 단일일만), `SEARCHAD_SECRET_PASSPHRASE`, `SEARCHAD_API_BASE_URL`, `SEARCHAD_METRICS_INITIAL_DAYS`(선택)
 - 오케스트레이션 필터: `COLLECT_HOSPITAL_ID` (`collect:all` 실행 시 자동 주입)
 
 ## 블로그 키워드 순위: DB에서 엑셀 다운로드용 생성
@@ -165,7 +168,7 @@ RANK_EXPORT_START_DATE=2026-04-01 RANK_EXPORT_END_DATE=2026-04-30 npm run export
 - 계정 입력 테이블: `analytics.analytics_searchad_accounts`
 - 성과 적재 테이블: `analytics.analytics_searchad_daily_metrics`
 - 수집 단위: **캠페인 + 광고그룹**
-- 기본 수집일: KST 전일(D-1) (`SEARCHAD_METRIC_DATE`로 오버라이드 가능)
+- 기본 수집 구간: 계정별 `analytics_searchad_daily_metrics`의 `max(metric_date)` 다음날 ~ **KST 어제**. 데이터가 없으면 **어제 포함 30일**. `SEARCHAD_METRIC_DATE`를 켜면 증분을 끄고 그날만 수집
 
 사전 준비:
 

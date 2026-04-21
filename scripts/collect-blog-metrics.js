@@ -15,15 +15,21 @@ require("dotenv").config();
 
 const CONFIG_PATH = path.join(__dirname, "..", "config.json");
 const ADMIN_BASE = "https://admin.blog.naver.com";
+const { getKstYesterdayString, computeMetricRange, INITIAL_BACKFILL_DAYS } = require("./lib/metricDateRange");
 
 function loadConfig() {
   return JSON.parse(fs.readFileSync(CONFIG_PATH, "utf8"));
 }
 
-function getYesterdayDateString() {
-  const d = new Date();
-  d.setDate(d.getDate() - 1);
-  return d.toISOString().slice(0, 10);
+function resolveChromePort(config, hospitalId) {
+  const envPort = Number(process.env.COLLECT_CHROME_DEBUGGING_PORT || "");
+  if (Number.isFinite(envPort) && envPort > 0) return envPort;
+  const byHospital = config?.hospitalPorts?.[hospitalId];
+  const parsedHospital = typeof byHospital === "number" ? byHospital : Number(byHospital);
+  if (Number.isFinite(parsedHospital) && parsedHospital > 0) return parsedHospital;
+  const fallback = config?.chrome?.debuggingPort ?? 9222;
+  const parsedFallback = typeof fallback === "number" ? fallback : Number(fallback);
+  return Number.isFinite(parsedFallback) && parsedFallback > 0 ? parsedFallback : 9222;
 }
 
 function getSupabaseClient() {
@@ -83,10 +89,10 @@ function parseTableRows(body) {
   return rows;
 }
 
-async function scrapeBlogMetrics(page, blogId, config, scrapeDays) {
+/** 네이버 통계 표에서 파싱 가능한 날짜는 모두 반환 (증분 필터는 호출 측). */
+async function scrapeBlogMetrics(page, blogId, config) {
   const visitPvUrl = config.blog?.visitPvUrl || `${ADMIN_BASE}/${blogId}/stat/visit_pv`;
   const uvUrl = config.blog?.uvUrl || `${ADMIN_BASE}/${blogId}/stat/uv`;
-  const daysCount = scrapeDays ?? config.blog?.daysCount ?? 7;
 
   console.log("조회수 페이지 로드 중...");
   await page.goto(visitPvUrl, { waitUntil: "domcontentloaded", timeout: 20000 });
@@ -116,8 +122,22 @@ async function scrapeBlogMetrics(page, blogId, config, scrapeDays) {
       blog_unique_visitors: uvByDate[pv.date] ?? null,
     });
   }
-  merged.sort((a, b) => (b.metric_date > a.metric_date ? 1 : -1));
-  return merged.slice(0, daysCount).reverse();
+  merged.sort((a, b) => (a.metric_date < b.metric_date ? -1 : a.metric_date > b.metric_date ? 1 : 0));
+  return merged;
+}
+
+async function fetchMaxBlogMetricDate(supabase, accountId) {
+  const { data, error } = await supabase
+    .schema("analytics")
+    .from("analytics_blog_daily_metrics")
+    .select("metric_date")
+    .eq("account_id", accountId)
+    .order("metric_date", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data || data.metric_date == null) return null;
+  return String(data.metric_date).slice(0, 10);
 }
 
 async function upsertBlogDailyMetrics(supabase, accountId, hospitalId, hospitalName, rows) {
@@ -144,7 +164,6 @@ async function upsertBlogDailyMetrics(supabase, accountId, hospitalId, hospitalN
 
 async function main() {
   const config = loadConfig();
-  const port = config.chrome?.debuggingPort ?? 9222;
   const arg = process.argv[2];
   const id = (arg && arg.trim()) || config.blog?.blogId?.trim();
   if (!id) {
@@ -152,25 +171,50 @@ async function main() {
     process.exit(1);
   }
 
-  console.log("Chrome에 연결 중... (포트 %s)", port);
+  const supabase = getSupabaseClient();
+  if (!supabase) {
+    console.error("SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY가 없어 DB 저장을 할 수 없습니다.");
+    process.exit(1);
+  }
+
+  const { hospitalId, hospitalName } = await resolveHospitalByBlogId(supabase, id).catch(() => ({
+    hospitalId: null,
+    hospitalName: null,
+  }));
+  const port = resolveChromePort(config, hospitalId);
+
+  const endDate = getKstYesterdayString();
+  const maxMetric = await fetchMaxBlogMetricDate(supabase, id);
+  const initialDays = Number(process.env.BLOG_METRICS_INITIAL_DAYS || INITIAL_BACKFILL_DAYS) || INITIAL_BACKFILL_DAYS;
+  const range = computeMetricRange(maxMetric, endDate, initialDays);
+  if (range.empty) {
+    console.log(
+      "ℹ️ blog_daily_metrics 이미 최신입니다. (KST end=%s, DB max=%s → start=%s)",
+      endDate,
+      maxMetric ?? "(없음)",
+      range.startDate
+    );
+    return;
+  }
+  console.log("블로그 일별 수집 구간 (KST): %s ~ %s (DB max=%s)", range.startDate, range.endDate, maxMetric ?? "없음");
+
+  console.log("Chrome에 연결 중... (포트 %s, hospital_id=%s)", port, hospitalId || "-");
   const browser = await connectBrowser(port);
   const page = (await browser.pages())[0] || (await browser.newPage());
 
   try {
-    const supabase = getSupabaseClient();
-    if (!supabase) {
-      console.error("SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY가 없어 DB 저장을 할 수 없습니다.");
-      process.exit(1);
+    const merged = await scrapeBlogMetrics(page, id, config);
+    const rows = merged.filter((r) => r.metric_date >= range.startDate && r.metric_date <= range.endDate);
+    if (rows.length === 0) {
+      console.log(
+        "ℹ️ 네이버 통계 표에 해당 구간(%s~%s) 데이터가 없습니다. 표에 노출되는 일수를 확인하세요.",
+        range.startDate,
+        range.endDate
+      );
+      return;
     }
-
-    const { hospitalId, hospitalName } = await resolveHospitalByBlogId(supabase, id).catch(() => ({
-      hospitalId: null,
-      hospitalName: null,
-    }));
-
-    const rows = await scrapeBlogMetrics(page, id, config, config.blog?.accumulateScrapeDays ?? 31);
     const count = await upsertBlogDailyMetrics(supabase, id, hospitalId, hospitalName, rows);
-    console.log("✅ blog_daily_metrics 업서트 완료: %d건 (latest=%s)", count, getYesterdayDateString());
+    console.log("✅ blog_daily_metrics 업서트 완료: %d건 (KST end=%s)", count, endDate);
   } finally {
     await browser.disconnect();
   }

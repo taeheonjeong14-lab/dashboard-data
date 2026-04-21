@@ -229,6 +229,9 @@ create trigger trg_place_keyword_targets_updated_at
 alter table if exists core.hospitals
   add column if not exists naver_blog_id text;
 
+alter table if exists core.hospitals
+  add column if not exists smartplace_stat_url text;
+
 create unique index if not exists uq_hospitals_naver_blog_id
   on core.hospitals (naver_blog_id)
   where naver_blog_id is not null;
