@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
+import { buildPreview, executeChartUpload } from "./lib/chartUpload";
+import { fileToSha256, parseIntoVetWorkbook } from "./lib/intovet";
 
 function cleanEnv(value) {
   if (typeof value !== "string") return "";
@@ -77,6 +79,12 @@ function App() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [hospitalForm, setHospitalForm] = useState(EMPTY_FORM);
   const [editingId, setEditingId] = useState("");
+  const [selectedHospitalId, setSelectedHospitalId] = useState("");
+  const [uploadFile, setUploadFile] = useState(null);
+  const [preview, setPreview] = useState(null);
+  const [previewRows, setPreviewRows] = useState([]);
+  const [previewErrors, setPreviewErrors] = useState([]);
+  const [uploadResult, setUploadResult] = useState(null);
 
   useEffect(() => {
     void refreshAll();
@@ -275,6 +283,72 @@ function App() {
     }
   }
 
+  async function onBuildPreview() {
+    if (!supabase) {
+      setMessage("VITE_SUPABASE_URL / VITE_SUPABASE_SERVICE_ROLE_KEY 설정이 필요합니다.");
+      return;
+    }
+    if (!selectedHospitalId) {
+      setMessage("업로드할 병원을 먼저 선택해 주세요.");
+      return;
+    }
+    if (!uploadFile) {
+      setMessage("IntoVet .xls 파일을 선택해 주세요.");
+      return;
+    }
+    setLoading(true);
+    setMessage("");
+    setUploadResult(null);
+    try {
+      const parsed = await parseIntoVetWorkbook(uploadFile, selectedHospitalId);
+      const p = buildPreview(parsed.rows, parsed.errors);
+      setPreview(p);
+      setPreviewRows(parsed.rows);
+      setPreviewErrors(parsed.errors);
+      setMessage(`미리보기 완료: 정상 ${parsed.rows.length}행 / 오류 ${parsed.errors.length}행`);
+    } catch (e) {
+      setMessage(`미리보기 실패: ${e.message || e}`);
+      setPreview(null);
+      setPreviewRows([]);
+      setPreviewErrors([]);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function onUploadConfirm() {
+    if (!supabase || !selectedHospitalId || !uploadFile) return;
+    if (!previewRows.length && !previewErrors.length) {
+      setMessage("먼저 미리보기를 실행해 주세요.");
+      return;
+    }
+    setLoading(true);
+    setMessage("");
+    setUploadResult(null);
+    try {
+      const fileHash = await fileToSha256(uploadFile);
+      const result = await executeChartUpload({
+        supabase,
+        hospitalId: selectedHospitalId,
+        chartType: "intovet",
+        sourceFileName: uploadFile.name,
+        sourceFileHash: fileHash,
+        parsedRows: previewRows,
+        parseErrors: previewErrors,
+      });
+      setUploadResult(result);
+      setMessage("업로드가 완료되었습니다.");
+      setPreview(null);
+      setPreviewRows([]);
+      setPreviewErrors([]);
+      setUploadFile(null);
+    } catch (e) {
+      setMessage(`업로드 실패: ${e.message || e}`);
+    } finally {
+      setLoading(false);
+    }
+  }
+
   return (
     <div className="page">
       <header className="topHeader">
@@ -293,6 +367,66 @@ function App() {
         </button>
       </div>
       <div className="status">{loading ? "처리 중..." : message || "준비"}</div>
+      <section className="panel">
+        <h2>IntoVet 실적 업로드</h2>
+        <div className="uploadGrid">
+          <label>
+            병원 선택
+            <select
+              value={selectedHospitalId}
+              onChange={(e) => setSelectedHospitalId(e.target.value)}
+              disabled={loading}
+            >
+              <option value="">병원을 선택하세요</option>
+              {hospitals.map((h) => (
+                <option key={h.id} value={h.id}>
+                  {h.name} ({h.id})
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            IntoVet 파일(.xls)
+            <input
+              type="file"
+              accept=".xls,.xlsx"
+              onChange={(e) => setUploadFile(e.target.files?.[0] || null)}
+              disabled={loading}
+            />
+          </label>
+          <div className="uploadActions">
+            <button className="secondaryBtn" onClick={() => void onBuildPreview()} disabled={loading}>
+              미리보기
+            </button>
+            <button
+              className="primaryBtn"
+              onClick={() => void onUploadConfirm()}
+              disabled={loading || (!previewRows.length && !previewErrors.length)}
+            >
+              업로드 확정
+            </button>
+          </div>
+        </div>
+        {preview && (
+          <div className="summaryBox">
+            <div>기간: {preview.startDate || "-"} ~ {preview.endDate || "-"}</div>
+            <div>정상 행: {preview.totalRows}</div>
+            <div>오류 행: {preview.errorRows}</div>
+            <div>예상 매출 합계: {preview.estimatedSalesAmount.toLocaleString()}</div>
+            <div>예상 진료건수(unique patient/day): {preview.uniqueVisitCount}</div>
+          </div>
+        )}
+        {uploadResult && (
+          <div className="summaryBox">
+            <div>run_id: {uploadResult.runId}</div>
+            <div>적재 행: {uploadResult.importedRows}</div>
+            <div>오류 행: {uploadResult.errorRows}</div>
+            <div>신규 환자 마스터 추가: {uploadResult.patientInserted}</div>
+            <div>환자 마스터 업데이트: {uploadResult.patientUpdated}</div>
+            <div>영향 일자 수: {uploadResult.affectedDays}</div>
+          </div>
+        )}
+      </section>
       <section className="panel">
         <h2>병원 목록 ({hospitals.length})</h2>
         <div className="tableWrap">

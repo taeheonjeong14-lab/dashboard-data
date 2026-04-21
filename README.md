@@ -219,6 +219,14 @@ npm run admin:dev
 - `analytics.analytics_blog_keyword_targets`
 - `analytics.analytics_place_keyword_targets`
 - `analytics.analytics_searchad_accounts`
+- `analytics.chart_*` (IntoVet 원본/환자마스터/일간 KPI)
+
+IntoVet 업로드 파이프라인:
+- 원본 line item 적재: `analytics.chart_transactions_raw`
+- 환자 마스터 갱신(첫방문일 관리): `analytics.chart_patient_master`
+- 일간 KPI 적재: `analytics.chart_daily_kpis`
+- 업로드 이력/오류: `analytics.chart_upload_runs`, `analytics.chart_upload_errors`
+- 기간 조회 뷰: `analytics.chart_kpis_period_view` (`day|week|month`)
 
 ## 1단계: Chrome을 디버깅 포트로 실행
 

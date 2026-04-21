@@ -105,6 +105,47 @@ button:disabled {
   font-size: 18px;
 }
 
+.uploadGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  gap: 10px;
+  align-items: end;
+  margin-bottom: 10px;
+}
+
+.uploadGrid label {
+  display: grid;
+  gap: 6px;
+  font-size: 13px;
+  color: #334155;
+}
+
+.uploadGrid input,
+.uploadGrid select {
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid #cbd5e1;
+  font: inherit;
+}
+
+.uploadActions {
+  display: flex;
+  gap: 8px;
+}
+
+.summaryBox {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 8px;
+  margin-top: 8px;
+  padding: 10px 12px;
+  border: 1px solid #dbeafe;
+  border-radius: 12px;
+  background: #f8fbff;
+  font-size: 13px;
+  color: #1e3a8a;
+}
+
 .tableWrap {
   width: 100%;
   overflow: auto;
@@ -263,5 +304,9 @@ tbody tr:hover {
 
   .actions {
     justify-content: flex-start;
+  }
+
+  .uploadGrid {
+    grid-template-columns: 1fr;
   }
 }
