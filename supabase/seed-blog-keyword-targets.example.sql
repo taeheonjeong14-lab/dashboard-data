@@ -14,16 +14,14 @@ insert into analytics.analytics_blog_keyword_targets (
   hospital_id,
   keyword,
   is_active,
-  priority,
   source
 )
 values
-  ('PLACEHOLDER_NAVER_BLOG_ID', 'PLACEHOLDER_HOSPITAL_ID_TEXT', '은평구동물병원', true, 10, 'manual'),
-  ('PLACEHOLDER_NAVER_BLOG_ID', 'PLACEHOLDER_HOSPITAL_ID_TEXT', '수색동물병원', true, 20, 'manual')
+  ('PLACEHOLDER_NAVER_BLOG_ID', 'PLACEHOLDER_HOSPITAL_ID_TEXT', '은평구동물병원', true, 'manual'),
+  ('PLACEHOLDER_NAVER_BLOG_ID', 'PLACEHOLDER_HOSPITAL_ID_TEXT', '수색동물병원', true, 'manual')
 on conflict (account_id, keyword) do update set
   hospital_id = excluded.hospital_id,
   is_active = excluded.is_active,
-  priority = excluded.priority,
   source = excluded.source,
   updated_at = now();
 

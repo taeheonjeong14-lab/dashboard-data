@@ -11,7 +11,6 @@ create table if not exists analytics.analytics_blog_keyword_targets (
   hospital_id text,
   keyword text not null,
   is_active boolean not null default true,
-  priority integer not null default 100,
   source text not null default 'manual',
   metadata jsonb not null default '{}'::jsonb,
   created_at timestamptz not null default now(),
@@ -20,7 +19,7 @@ create table if not exists analytics.analytics_blog_keyword_targets (
 );
 
 create index if not exists idx_blog_keyword_targets_active
-  on analytics.analytics_blog_keyword_targets (is_active, account_id, priority, keyword);
+  on analytics.analytics_blog_keyword_targets (is_active, account_id, keyword);
 
 create or replace function analytics.blog_keyword_targets_touch_updated_at()
 returns trigger

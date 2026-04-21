@@ -4,5 +4,7 @@ dashboard/.next/
 .next/
 data/*.json
 .env
+.env.local
+admin-ui/.env.local
 dashboard/.env.local
 *.log

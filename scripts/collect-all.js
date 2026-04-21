@@ -146,7 +146,7 @@ async function resolveHospital(hospitalId) {
     throw new Error("hospital_id를 인자로 전달해 주세요. 예: npm run collect:all -- <hospital_id>");
   }
 
-  const endpoint = `${url.replace(/\/$/, "")}/rest/v1/hospitals?select=id,name,naver_blog_id&id=eq.${encodeURIComponent(
+  const endpoint = `${url.replace(/\/$/, "")}/rest/v1/hospitals?select=id,name,naver_blog_id,debug_port&id=eq.${encodeURIComponent(
     hospitalId
   )}&limit=1`;
   const res = await fetch(endpoint, {
@@ -174,6 +174,7 @@ async function resolveHospital(hospitalId) {
     hospitalId: String(row.id),
     hospitalName: row.name || null,
     blogId,
+    debugPort: row.debug_port == null ? null : Number(row.debug_port) || null,
   };
 }
 
@@ -263,7 +264,9 @@ async function main() {
     `병원 조회 OK — id=${resolved.hospitalId} | name=${resolved.hospitalName || "-"} | naver_blog_id=${resolved.blogId}`
   );
   const config = readConfig();
-  const resolvedChromePort = resolveHospitalChromePort(config, resolved.hospitalId);
+  const configChromePort = resolveHospitalChromePort(config, resolved.hospitalId);
+  const resolvedChromePort =
+    Number.isFinite(resolved.debugPort) && resolved.debugPort > 0 ? resolved.debugPort : configChromePort;
   emit(`병원별 Chrome 포트: ${resolvedChromePort == null ? "(미설정, 스크립트 기본값 사용)" : resolvedChromePort}`);
 
   const baseEnv = {

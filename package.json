@@ -13,9 +13,17 @@
     "export:ranks": "node scripts/export-blog-ranks.js",
     "verify:supabase": "node scripts/verify-supabase.js",
     "chrome": "node scripts/launch-chrome-debug.js",
-    "collect:searchad": "python scripts/naver-searchad-main.py"
+    "collect:searchad": "python scripts/naver-searchad-main.py",
+    "admin:dev": "npm --prefix admin-ui run dev",
+    "admin:build": "npm --prefix admin-ui run build"
   },
-  "keywords": ["naver", "blog", "statistics", "puppeteer", "cdp"],
+  "keywords": [
+    "naver",
+    "blog",
+    "statistics",
+    "puppeteer",
+    "cdp"
+  ],
   "license": "MIT",
   "dependencies": {
     "@supabase/supabase-js": "^2.57.4",

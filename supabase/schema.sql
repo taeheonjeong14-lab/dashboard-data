@@ -128,7 +128,6 @@ create table if not exists analytics.analytics_blog_keyword_targets (
   hospital_id text,
   keyword text not null,
   is_active boolean not null default true,
-  priority integer not null default 100,
   source text not null default 'manual',
   metadata jsonb not null default '{}'::jsonb,
   created_at timestamptz not null default now(),
@@ -187,7 +186,6 @@ create table if not exists analytics.analytics_place_keyword_targets (
   hospital_id text not null,
   keyword text not null,
   is_active boolean not null default true,
-  priority integer not null default 100,
   source text not null default 'manual',
   metadata jsonb not null default '{}'::jsonb,
   created_at timestamptz not null default now(),
@@ -196,7 +194,7 @@ create table if not exists analytics.analytics_place_keyword_targets (
 );
 
 create index if not exists idx_blog_keyword_targets_active
-  on analytics.analytics_blog_keyword_targets (is_active, account_id, priority, keyword);
+  on analytics.analytics_blog_keyword_targets (is_active, account_id, keyword);
 
 create or replace function analytics.blog_keyword_targets_touch_updated_at()
 returns trigger
@@ -231,6 +229,9 @@ alter table if exists core.hospitals
 
 alter table if exists core.hospitals
   add column if not exists smartplace_stat_url text;
+
+alter table if exists core.hospitals
+  add column if not exists debug_port integer;
 
 create unique index if not exists uq_hospitals_naver_blog_id
   on core.hospitals (naver_blog_id)
@@ -270,7 +271,7 @@ create index if not exists idx_place_keyword_ranks_metric_date
   on analytics.analytics_place_keyword_ranks (metric_date desc, keyword, store_name);
 
 create index if not exists idx_place_keyword_targets_active
-  on analytics.analytics_place_keyword_targets (is_active, hospital_id, priority, keyword);
+  on analytics.analytics_place_keyword_targets (is_active, hospital_id, keyword);
 
 create or replace view analytics.analytics_daily_metrics_daily_view as
 select

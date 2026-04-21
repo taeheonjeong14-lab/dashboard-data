@@ -68,7 +68,6 @@ python scripts/naver-rank-main.py
 - `hospital_id` (선택, 권한 필터용)
 - `keyword`
 - `is_active` (true만 수집)
-- `priority` (작을수록 먼저 수집)
 
 키워드 입력·관리 UI는 분리된 dashboard 리포(권장 위치: `C:\Projects\dashboard-ui`)에서 운영합니다. 이 collector 리포는 DB 스키마·마이그레이션·수집 스크립트만 관리합니다.
 
@@ -123,6 +122,7 @@ npm run collect:all -- <core.hospitals.id>
 - 키워드 순위/SearchAd는 `COLLECT_HOSPITAL_ID` 필터를 적용해 해당 병원 데이터만 수집합니다.
 - 키워드 순위(`naver-rank-main.py`)는 기존과 동일하게 환경변수/DB 입력 규칙을 따릅니다.
 - SearchAd는 기본 증분 수집이며, `SEARCHAD_METRIC_DATE`를 지정하면 해당 **하루만** 강제 수집합니다.
+- Chrome 포트 선택은 `core.hospitals.debug_port`(있으면 우선) → `config.json.hospitalPorts[hospital_id]` → `config.json.chrome.debuggingPort` 순으로 fallback 합니다.
 
 주요 환경변수(기존과 동일):
 
@@ -200,6 +200,25 @@ npm run verify:supabase
 ```
 
 `verify:supabase`는 SearchAd 관련 테이블 접근(`analytics_searchad_accounts`, `analytics_searchad_daily_metrics`)까지 점검합니다.
+
+## 로컬 운영 UI (admin-ui)
+
+SQL 직접 입력 대신 로컬 UI로 병원/키워드/SearchAd를 관리할 수 있습니다.
+
+1. `admin-ui/.env.example`를 `admin-ui/.env.local`로 복사하고 값 입력
+   - `VITE_SUPABASE_URL`
+   - `VITE_SUPABASE_SERVICE_ROLE_KEY`
+2. 실행:
+
+```bash
+npm run admin:dev
+```
+
+관리 대상:
+- `core.hospitals` (`name`, `naver_blog_id`, `smartplace_stat_url`, `debug_port`)
+- `analytics.analytics_blog_keyword_targets`
+- `analytics.analytics_place_keyword_targets`
+- `analytics.analytics_searchad_accounts`
 
 ## 1단계: Chrome을 디버깅 포트로 실행
 

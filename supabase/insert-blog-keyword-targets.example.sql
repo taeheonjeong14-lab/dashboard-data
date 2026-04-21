@@ -15,16 +15,14 @@ insert into analytics.analytics_blog_keyword_targets (
   hospital_id,
   keyword,
   is_active,
-  priority,
   source
 )
 values
-  ('PLACEHOLDER_NAVER_BLOG_ID', 'PLACEHOLDER_HOSPITAL_ID_TEXT', '키워드예시1', true, 10, 'manual'),
-  ('PLACEHOLDER_NAVER_BLOG_ID', 'PLACEHOLDER_HOSPITAL_ID_TEXT', '키워드예시2', true, 20, 'manual'),
-  ('PLACEHOLDER_NAVER_BLOG_ID', 'PLACEHOLDER_HOSPITAL_ID_TEXT', '키워드예시3', true, 30, 'manual')
+  ('PLACEHOLDER_NAVER_BLOG_ID', 'PLACEHOLDER_HOSPITAL_ID_TEXT', '키워드예시1', true, 'manual'),
+  ('PLACEHOLDER_NAVER_BLOG_ID', 'PLACEHOLDER_HOSPITAL_ID_TEXT', '키워드예시2', true, 'manual'),
+  ('PLACEHOLDER_NAVER_BLOG_ID', 'PLACEHOLDER_HOSPITAL_ID_TEXT', '키워드예시3', true, 'manual')
 on conflict (account_id, keyword) do update set
   hospital_id = excluded.hospital_id,
   is_active = excluded.is_active,
-  priority = excluded.priority,
   source = excluded.source,
   updated_at = now();

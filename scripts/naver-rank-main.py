@@ -1165,7 +1165,7 @@ def read_blog_input_from_supabase() -> list[tuple[str, str]]:
     params = {
         "select": "account_id,keyword",
         "is_active": "eq.true",
-        "order": "account_id.asc,priority.asc,keyword.asc",
+        "order": "account_id.asc,keyword.asc",
     }
     target_hospital_id = os.getenv("COLLECT_HOSPITAL_ID", "").strip()
     if target_hospital_id:
@@ -1203,7 +1203,7 @@ def read_place_input_from_supabase() -> list[tuple[str, str, str | None]]:
     params = {
         "select": "hospital_id,keyword",
         "is_active": "eq.true",
-        "order": "hospital_id.asc,priority.asc,keyword.asc",
+        "order": "hospital_id.asc,keyword.asc",
     }
     target_hospital_id = os.getenv("COLLECT_HOSPITAL_ID", "").strip()
     if target_hospital_id:

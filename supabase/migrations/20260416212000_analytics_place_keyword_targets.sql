@@ -7,7 +7,6 @@ create table if not exists analytics.analytics_place_keyword_targets (
   hospital_id text not null,
   keyword text not null,
   is_active boolean not null default true,
-  priority integer not null default 100,
   source text not null default 'manual',
   metadata jsonb not null default '{}'::jsonb,
   created_at timestamptz not null default now(),
@@ -32,7 +31,7 @@ create trigger trg_place_keyword_targets_updated_at
   execute function analytics.blog_keyword_targets_touch_updated_at();
 
 create index if not exists idx_place_keyword_targets_active
-  on analytics.analytics_place_keyword_targets (is_active, hospital_id, priority, keyword);
+  on analytics.analytics_place_keyword_targets (is_active, hospital_id, keyword);
 
 grant select, insert, update, delete on table analytics.analytics_place_keyword_targets to service_role;
 grant select, insert, update, delete on table analytics.analytics_place_keyword_targets to authenticated;
