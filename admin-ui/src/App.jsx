@@ -2,12 +2,23 @@ import { useEffect, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
 import { buildPreview, executeChartUpload } from "./lib/chartUpload";
 import { fileToSha256, parseIntoVetWorkbook } from "./lib/intovet";
+import { parseWoorienPmsWorkbook } from "./lib/woorienPms";
+import { parseEFriendsFile } from "./lib/efriends";
 
 function cleanEnv(value) {
   if (typeof value !== "string") return "";
   // Remove BOM, trim whitespace, and strip wrapping quotes.
   const v = value.replace(/^\uFEFF/, "").trim();
   return v.replace(/^['"]|['"]$/g, "").trim();
+}
+
+/** Supabase/PostgREST errors often only show "Bad Request" in .message; details carry the real cause. */
+function formatSupabaseError(err) {
+  if (err == null) return "Unknown error";
+  if (typeof err === "string") return err;
+  const msg = err.message || String(err);
+  const extra = [err.details, err.hint, err.code].filter(Boolean).join(" | ");
+  return extra ? `${msg} (${extra})` : msg;
 }
 
 const supabaseUrl = cleanEnv(import.meta.env.VITE_SUPABASE_URL);
@@ -17,6 +28,34 @@ const supabase =
   supabaseUrl && supabaseKey
     ? createClient(supabaseUrl, supabaseKey, { auth: { persistSession: false } })
     : null;
+
+const CHART_TYPES = [
+  { value: "intovet", label: "IntoVet" },
+  { value: "woorien_pms", label: "Woorien PMS" },
+  { value: "efriends", label: "eFriends" },
+];
+
+const CHART_TYPE_HELP = {
+  common: [
+    "차트 종류마다 원천 데이터 구조가 달라 지표 해석 기준이 다를 수 있습니다.",
+    "특히 방문수(visit_count) 기준은 차트 종류별로 다를 수 있으니 아래 안내를 확인하세요.",
+  ],
+  intovet: [
+    "IntoVet: 방문수는 (일자 + 고객 + 환자) unique 기준으로 집계합니다.",
+    "미상(고객명/환자명 누락) 행은 매출에는 포함되지만 방문/신규고객에는 제외됩니다.",
+  ],
+  woorien_pms: [
+    "Woorien PMS: 방문수는 (일자 + 고객 + 환자) unique 기준으로 집계합니다.",
+    "미상(고객명/환자명 누락) 행은 매출에는 포함되지만 방문/신규고객에는 제외됩니다.",
+  ],
+  efriends: [
+    "eFriends: 보호자 1명이 여러 환자를 보유하는 경우 실제 방문 환자 특정이 어려울 수 있습니다.",
+    "따라서 eFriends의 방문수는 환자 구분 없이 (일자 + 고객) 기준으로만 해석하는 것을 권장합니다.",
+    "H컬럼 괄호 안 환자명은 참고용이며, KPI 방문 구분 기준으로 강제 사용하지 않습니다.",
+    "동명이인(고객명 동일) 구분을 위해, 보유 환자 목록 유사도 기반으로 고객을 분리/병합할 수 있습니다(서버 재빌드에서 처리).",
+    "[RETAIL SALES] 행은 미상과 동일하게 매출만 포함하고 방문/신규고객에서는 제외합니다.",
+  ],
+};
 
 const EMPTY_FORM = {
   id: "",
@@ -80,11 +119,13 @@ function App() {
   const [hospitalForm, setHospitalForm] = useState(EMPTY_FORM);
   const [editingId, setEditingId] = useState("");
   const [selectedHospitalId, setSelectedHospitalId] = useState("");
+  const [selectedChartType, setSelectedChartType] = useState(CHART_TYPES[0].value);
   const [uploadFile, setUploadFile] = useState(null);
   const [preview, setPreview] = useState(null);
   const [previewRows, setPreviewRows] = useState([]);
   const [previewErrors, setPreviewErrors] = useState([]);
   const [uploadResult, setUploadResult] = useState(null);
+  const chartHelp = CHART_TYPE_HELP[selectedChartType] || [];
 
   useEffect(() => {
     void refreshAll();
@@ -292,15 +333,28 @@ function App() {
       setMessage("업로드할 병원을 먼저 선택해 주세요.");
       return;
     }
+    if (!selectedChartType) {
+      setMessage("차트 종류를 먼저 선택해 주세요.");
+      return;
+    }
     if (!uploadFile) {
-      setMessage("IntoVet .xls 파일을 선택해 주세요.");
+      setMessage("업로드 파일을 선택해 주세요.");
       return;
     }
     setLoading(true);
     setMessage("");
     setUploadResult(null);
     try {
-      const parsed = await parseIntoVetWorkbook(uploadFile, selectedHospitalId);
+      let parsed;
+      if (selectedChartType === "intovet") {
+        parsed = await parseIntoVetWorkbook(uploadFile, selectedHospitalId);
+      } else if (selectedChartType === "woorien_pms") {
+        parsed = await parseWoorienPmsWorkbook(uploadFile, selectedHospitalId);
+      } else if (selectedChartType === "efriends") {
+        parsed = await parseEFriendsFile(uploadFile, selectedHospitalId);
+      } else {
+        throw new Error(`아직 지원하지 않는 차트 종류입니다: ${selectedChartType}`);
+      }
       const p = buildPreview(parsed.rows, parsed.errors);
       setPreview(p);
       setPreviewRows(parsed.rows);
@@ -317,7 +371,7 @@ function App() {
   }
 
   async function onUploadConfirm() {
-    if (!supabase || !selectedHospitalId || !uploadFile) return;
+    if (!supabase || !selectedHospitalId || !selectedChartType || !uploadFile) return;
     if (!previewRows.length && !previewErrors.length) {
       setMessage("먼저 미리보기를 실행해 주세요.");
       return;
@@ -330,7 +384,7 @@ function App() {
       const result = await executeChartUpload({
         supabase,
         hospitalId: selectedHospitalId,
-        chartType: "intovet",
+        chartType: selectedChartType,
         sourceFileName: uploadFile.name,
         sourceFileHash: fileHash,
         parsedRows: previewRows,
@@ -343,7 +397,7 @@ function App() {
       setPreviewErrors([]);
       setUploadFile(null);
     } catch (e) {
-      setMessage(`업로드 실패: ${e.message || e}`);
+      setMessage(`업로드 실패: ${formatSupabaseError(e)}`);
     } finally {
       setLoading(false);
     }
@@ -368,7 +422,7 @@ function App() {
       </div>
       <div className="status">{loading ? "처리 중..." : message || "준비"}</div>
       <section className="panel">
-        <h2>IntoVet 실적 업로드</h2>
+        <h2>병원 실적 업로드</h2>
         <div className="uploadGrid">
           <label>
             병원 선택
@@ -386,10 +440,43 @@ function App() {
             </select>
           </label>
           <label>
-            IntoVet 파일(.xls)
+            차트 종류
+            <select
+              value={selectedChartType}
+              onChange={(e) => {
+                setSelectedChartType(e.target.value);
+                setPreview(null);
+                setPreviewRows([]);
+                setPreviewErrors([]);
+                setUploadResult(null);
+              }}
+              disabled={loading}
+            >
+              {CHART_TYPES.map((c) => (
+                <option key={c.value} value={c.value}>
+                  {c.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <div style={{ gridColumn: "1 / -1", fontSize: 12, opacity: 0.85, lineHeight: 1.4 }}>
+            <div>
+              <strong>차트별 기준 안내</strong>
+            </div>
+            <ul style={{ margin: "6px 0 0", paddingLeft: 18 }}>
+              {CHART_TYPE_HELP.common.map((t, i) => (
+                <li key={`common-${i}`}>{t}</li>
+              ))}
+              {chartHelp.map((t, i) => (
+                <li key={`chart-${i}`}>{t}</li>
+              ))}
+            </ul>
+          </div>
+          <label>
+            업로드 파일
             <input
               type="file"
-              accept=".xls,.xlsx"
+              accept=".xls,.xlsx,.csv"
               onChange={(e) => setUploadFile(e.target.files?.[0] || null)}
               disabled={loading}
             />
@@ -413,7 +500,25 @@ function App() {
             <div>정상 행: {preview.totalRows}</div>
             <div>오류 행: {preview.errorRows}</div>
             <div>예상 매출 합계: {preview.estimatedSalesAmount.toLocaleString()}</div>
-            <div>예상 진료건수(unique patient/day): {preview.uniqueVisitCount}</div>
+            <div>예상 진료건수(unique customer+patient/day): {preview.uniqueVisitCount}</div>
+            <div style={{ marginTop: 6, fontSize: 12, opacity: 0.85 }}>
+              <strong>방문 집계 기준</strong>: {chartHelp[0] || "차트별 안내를 확인하세요."}
+            </div>
+            {previewErrors.length > 0 && (
+              <div style={{ marginTop: 10 }}>
+                <strong>오류 행 상세 (최대 20개)</strong>
+                <ul>
+                  {previewErrors.slice(0, 20).map((err, idx) => (
+                    <li key={`${err.source_row_no || "na"}-${idx}`}>
+                      {`row ${err.source_row_no ?? "?"}: ${err.error_message || err.error_code || "UNKNOWN_ERROR"}`}
+                    </li>
+                  ))}
+                </ul>
+                {previewErrors.length > 20 && (
+                  <div>...외 {previewErrors.length - 20}건</div>
+                )}
+              </div>
+            )}
           </div>
         )}
         {uploadResult && (
@@ -421,8 +526,10 @@ function App() {
             <div>run_id: {uploadResult.runId}</div>
             <div>적재 행: {uploadResult.importedRows}</div>
             <div>오류 행: {uploadResult.errorRows}</div>
-            <div>신규 환자 마스터 추가: {uploadResult.patientInserted}</div>
-            <div>환자 마스터 업데이트: {uploadResult.patientUpdated}</div>
+            <div>신규 고객 마스터 추가: {uploadResult.customerInserted ?? 0}</div>
+            <div>고객 마스터 업데이트: {uploadResult.customerUpdated ?? 0}</div>
+            <div>고객-환자 링크 추가: {uploadResult.customerPatientLinkInserted ?? 0}</div>
+            <div>고객-환자 링크 업데이트: {uploadResult.customerPatientLinkUpdated ?? 0}</div>
             <div>영향 일자 수: {uploadResult.affectedDays}</div>
           </div>
         )}

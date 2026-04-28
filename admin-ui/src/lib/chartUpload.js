@@ -20,9 +20,16 @@ function groupBy(rows, keyFn) {
   return map;
 }
 
+function throwDbError(error, context) {
+  if (!error) return;
+  const details = [error.message, error.details, error.hint, error.code].filter(Boolean).join(" | ");
+  throw new Error(`${context}: ${details || "Unknown database error"}`);
+}
+
 export function buildPreview(rows, errors) {
   const byDate = groupBy(rows, (r) => r.service_date);
-  const patientSet = new Set(rows.map((r) => `${r.service_date}|${r.patient_key_norm}`));
+  const knownRows = rows.filter((r) => !r.is_unknown_identity);
+  const visitSet = new Set(knownRows.map((r) => `${r.service_date}|${r.customer_key_norm}|${r.patient_key_norm}`));
   const range = rows.reduce(
     (acc, r) => ({
       startDate: minDate(acc.startDate, r.service_date),
@@ -36,7 +43,7 @@ export function buildPreview(rows, errors) {
     errorRows: errors.length,
     startDate: range.startDate,
     endDate: range.endDate,
-    uniqueVisitCount: patientSet.size,
+    uniqueVisitCount: visitSet.size,
     estimatedSalesAmount: amount,
     dateCount: byDate.size,
   };
@@ -54,7 +61,16 @@ async function insertUploadErrors(supabase, runId, hospitalId, chartType, errors
     raw_payload: e.raw_payload || {},
   }));
   const { error } = await supabase.schema("analytics").from("chart_upload_errors").insert(payload);
-  if (error) throw error;
+  throwDbError(error, "chart_upload_errors insert");
+}
+
+async function updateRunProgress(supabase, runId, patch) {
+  const { error } = await supabase
+    .schema("analytics")
+    .from("chart_upload_runs")
+    .update(patch)
+    .eq("id", runId);
+  throwDbError(error, "chart_upload_runs update progress");
 }
 
 async function upsertRawTransactions(supabase, runId, hospitalId, chartType, sourceFileName, sourceFileHash, rows) {
@@ -80,20 +96,19 @@ async function upsertRawTransactions(supabase, runId, hospitalId, chartType, sou
     .schema("analytics")
     .from("chart_transactions_raw")
     .upsert(payload, { onConflict: "hospital_id,chart_type,source_file_hash,source_row_no" });
-  if (error) throw error;
+  throwDbError(error, "chart_transactions_raw upsert");
 }
 
-async function mergePatientMaster(supabase, hospitalId, chartType, rows) {
+async function mergeCustomerMaster(supabase, hospitalId, chartType, rows) {
   if (!rows.length) return { inserted: 0, updated: 0 };
-  const patientMap = new Map();
+  const customerMap = new Map();
   for (const row of rows) {
-    const key = row.patient_key_norm;
-    const existing = patientMap.get(key);
+    const key = row.customer_key_norm;
+    const existing = customerMap.get(key);
     if (!existing) {
-      patientMap.set(key, {
-        patient_key_norm: key,
-        customer_key_norm: row.customer_key_norm || null,
-        patient_name_latest: row.patient_name_raw || null,
+      customerMap.set(key, {
+        customer_key_norm: key,
+        customer_no_raw_latest: row.customer_no_raw || null,
         customer_name_latest: row.customer_name_raw || null,
         first_visit_date: row.service_date,
         last_seen_date: row.service_date,
@@ -102,41 +117,40 @@ async function mergePatientMaster(supabase, hospitalId, chartType, rows) {
     }
     existing.first_visit_date = minDate(existing.first_visit_date, row.service_date);
     existing.last_seen_date = maxDate(existing.last_seen_date, row.service_date);
-    existing.patient_name_latest = row.patient_name_raw || existing.patient_name_latest;
+    existing.customer_no_raw_latest = row.customer_no_raw || existing.customer_no_raw_latest;
     existing.customer_name_latest = row.customer_name_raw || existing.customer_name_latest;
-    existing.customer_key_norm = row.customer_key_norm || existing.customer_key_norm;
   }
 
-  const patientKeys = [...patientMap.keys()];
+  const customerKeys = [...customerMap.keys()];
   const existingMap = new Map();
-  const pageSize = 500;
-  for (let i = 0; i < patientKeys.length; i += pageSize) {
-    const chunk = patientKeys.slice(i, i + pageSize);
+  // PostgREST query string can get too long with large IN lists.
+  const pageSize = 100;
+  for (let i = 0; i < customerKeys.length; i += pageSize) {
+    const chunk = customerKeys.slice(i, i + pageSize);
     const { data, error } = await supabase
       .schema("analytics")
-      .from("chart_patient_master")
-      .select("patient_key_norm,first_visit_date,last_seen_at")
+      .from("chart_customer_master")
+      .select("customer_key_norm,first_visit_date")
       .eq("hospital_id", hospitalId)
       .eq("chart_type", chartType)
-      .in("patient_key_norm", chunk);
-    if (error) throw error;
-    for (const row of data || []) existingMap.set(row.patient_key_norm, row);
+      .in("customer_key_norm", chunk);
+    throwDbError(error, "chart_customer_master select existing");
+    for (const row of data || []) existingMap.set(row.customer_key_norm, row);
   }
 
   const nowIso = new Date().toISOString();
   const upserts = [];
   let inserted = 0;
   let updated = 0;
-  for (const [patientKey, item] of patientMap.entries()) {
-    const old = existingMap.get(patientKey);
+  for (const [customerKey, item] of customerMap.entries()) {
+    const old = existingMap.get(customerKey);
     if (!old) inserted += 1;
     else updated += 1;
     upserts.push({
       hospital_id: hospitalId,
       chart_type: chartType,
-      patient_key_norm: patientKey,
-      customer_key_norm: item.customer_key_norm,
-      patient_name_latest: item.patient_name_latest,
+      customer_key_norm: customerKey,
+      customer_no_raw_latest: item.customer_no_raw_latest,
       customer_name_latest: item.customer_name_latest,
       first_visit_date: minDate(old?.first_visit_date || null, item.first_visit_date),
       last_seen_at: nowIso,
@@ -147,23 +161,100 @@ async function mergePatientMaster(supabase, hospitalId, chartType, rows) {
   if (upserts.length) {
     const { error } = await supabase
       .schema("analytics")
-      .from("chart_patient_master")
-      .upsert(upserts, { onConflict: "hospital_id,chart_type,patient_key_norm" });
-    if (error) throw error;
+      .from("chart_customer_master")
+      .upsert(upserts, { onConflict: "hospital_id,chart_type,customer_key_norm" });
+    throwDbError(error, "chart_customer_master upsert");
   }
 
   return { inserted, updated };
 }
 
+async function mergeCustomerPatients(supabase, hospitalId, chartType, rows) {
+  if (!rows.length) return { inserted: 0, updated: 0 };
+  const linkMap = new Map();
+  for (const row of rows) {
+    const linkKey = `${row.customer_key_norm}|${row.patient_key_norm}`;
+    const existing = linkMap.get(linkKey);
+    if (!existing) {
+      linkMap.set(linkKey, {
+        customer_key_norm: row.customer_key_norm,
+        patient_key_norm: row.patient_key_norm,
+        patient_name_latest: row.patient_name_raw || null,
+        first_seen_date: row.service_date,
+        last_seen_date: row.service_date,
+      });
+      continue;
+    }
+    existing.first_seen_date = minDate(existing.first_seen_date, row.service_date);
+    existing.last_seen_date = maxDate(existing.last_seen_date, row.service_date);
+    existing.patient_name_latest = row.patient_name_raw || existing.patient_name_latest;
+  }
+
+  const nowIso = new Date().toISOString();
+  const upserts = [];
+  for (const item of linkMap.values()) {
+    upserts.push({
+      hospital_id: hospitalId,
+      chart_type: chartType,
+      customer_key_norm: item.customer_key_norm,
+      patient_key_norm: item.patient_key_norm,
+      patient_name_latest: item.patient_name_latest,
+      first_seen_date: item.first_seen_date,
+      last_seen_date: item.last_seen_date,
+      last_seen_at: nowIso,
+      is_active: true,
+    });
+  }
+
+  if (upserts.length) {
+    const { error } = await supabase
+      .schema("analytics")
+      .from("chart_customer_patients")
+      .upsert(upserts, { onConflict: "hospital_id,chart_type,customer_key_norm,patient_key_norm" });
+    throwDbError(error, "chart_customer_patients upsert");
+  }
+
+  return { inserted: upserts.length, updated: 0 };
+}
+
 async function upsertDailyKpis(supabase, runId, hospitalId, chartType, rows) {
   if (!rows.length) return { days: 0 };
+  const minMetricDate = rows.reduce((a, b) => minDate(a, b.service_date), null);
+  const maxMetricDate = rows.reduce((a, b) => maxDate(a, b.service_date), null);
+  if (!minMetricDate || !maxMetricDate) return { days: 0 };
+
+  const { data: rawRows, error: rawError } = await supabase
+    .schema("analytics")
+    .from("chart_transactions_raw")
+    .select("service_date,final_amount_raw,customer_key_norm,patient_key_norm,customer_name_raw,patient_name_raw")
+    .eq("hospital_id", hospitalId)
+    .eq("chart_type", chartType)
+    .gte("service_date", minMetricDate)
+    .lte("service_date", maxMetricDate);
+  throwDbError(rawError, "chart_transactions_raw select for kpi rebuild");
+
   const dayMap = new Map();
-  for (const row of rows) {
+  for (const row of rawRows || []) {
     const key = row.service_date;
-    const entry = dayMap.get(key) || { sales_amount: 0, patientKeys: new Set() };
+    const entry = dayMap.get(key) || { sales_amount: 0, visitKeys: new Set() };
     entry.sales_amount += Number(row.final_amount_raw || 0);
-    entry.patientKeys.add(row.patient_key_norm);
+    const isUnknownIdentity =
+      row.customer_name_raw === "(고객명 미상)" || row.patient_name_raw === "(환자명 미상)";
+    if (!isUnknownIdentity) {
+      entry.visitKeys.add(`${row.customer_key_norm}|${row.patient_key_norm}`);
+    }
     dayMap.set(key, entry);
+  }
+
+  // Rebuild entire uploaded date range, including dates with now-empty raw rows.
+  let cursorDate = minMetricDate;
+  while (cursorDate <= maxMetricDate) {
+    if (!dayMap.has(cursorDate)) {
+      dayMap.set(cursorDate, { sales_amount: 0, visitKeys: new Set() });
+    }
+    const next = new Date(`${cursorDate}T00:00:00.000Z`);
+    next.setUTCDate(next.getUTCDate() + 1);
+    cursorDate = next.toISOString().slice(0, 10);
   }
 
   const dayRows = [...dayMap.entries()].map(([metricDate, info]) => ({
@@ -171,38 +262,35 @@ async function upsertDailyKpis(supabase, runId, hospitalId, chartType, rows) {
     hospital_id: hospitalId,
     chart_type: chartType,
     sales_amount: info.sales_amount,
-    visit_count: info.patientKeys.size,
+    visit_count: info.visitKeys.size,
     source_run_id: runId,
   }));
 
-  const minMetricDate = dayRows.reduce((a, b) => minDate(a, b.metric_date), null);
-  const maxMetricDate = dayRows.reduce((a, b) => maxDate(a, b.metric_date), null);
+  const newCustomerCountByDate = new Map();
   const { data: firstVisits, error: fvError } = await supabase
     .schema("analytics")
-    .from("chart_patient_master")
+    .from("chart_customer_master")
     .select("first_visit_date")
     .eq("hospital_id", hospitalId)
     .eq("chart_type", chartType)
     .gte("first_visit_date", minMetricDate)
     .lte("first_visit_date", maxMetricDate);
-  if (fvError) throw fvError;
-
-  const newPatientCountByDate = new Map();
+  throwDbError(fvError, "chart_customer_master select first_visit");
   for (const r of firstVisits || []) {
     const d = r.first_visit_date;
-    newPatientCountByDate.set(d, (newPatientCountByDate.get(d) || 0) + 1);
+    newCustomerCountByDate.set(d, (newCustomerCountByDate.get(d) || 0) + 1);
   }
 
   const payload = dayRows.map((r) => ({
     ...r,
-    new_patient_count: newPatientCountByDate.get(r.metric_date) || 0,
+    new_customer_count: newCustomerCountByDate.get(r.metric_date) || 0,
     metadata: {},
   }));
   const { error } = await supabase
     .schema("analytics")
     .from("chart_daily_kpis")
     .upsert(payload, { onConflict: "metric_date,hospital_id,chart_type" });
-  if (error) throw error;
+  throwDbError(error, "chart_daily_kpis upsert");
 
   return { days: payload.length };
 }
@@ -216,6 +304,15 @@ export async function executeChartUpload({
   parsedRows,
   parseErrors,
 }) {
+  // Auto-repair stale "running" runs for this hospital/chart so KPIs don't stay inconsistent.
+  const { error: repairError } = await supabase
+    .schema("analytics")
+    .rpc("repair_stale_chart_runs", { p_hospital_id: hospitalId, p_chart_type: chartType });
+  // Ignore repair errors; the current run should still attempt to proceed.
+  if (repairError) {
+    // best effort only
+  }
+
   const { data: runData, error: runError } = await supabase
     .schema("analytics")
     .from("chart_upload_runs")
@@ -236,15 +333,34 @@ export async function executeChartUpload({
     )
     .select("id")
     .single();
-  if (runError) throw runError;
+  throwDbError(runError, "chart_upload_runs upsert running");
   const runId = runData.id;
+  let currentStage = "started";
 
   try {
+    currentStage = "inserting_errors";
+    await updateRunProgress(supabase, runId, {
+      metadata: { stage: currentStage },
+    });
     await insertUploadErrors(supabase, runId, hospitalId, chartType, parseErrors);
-    await upsertRawTransactions(supabase, runId, hospitalId, chartType, sourceFileName, sourceFileHash, parsedRows);
-    const patientResult = await mergePatientMaster(supabase, hospitalId, chartType, parsedRows);
-    const kpiResult = await upsertDailyKpis(supabase, runId, hospitalId, chartType, parsedRows);
 
+    currentStage = "upserting_raw";
+    await updateRunProgress(supabase, runId, {
+      metadata: { stage: currentStage },
+    });
+    await upsertRawTransactions(supabase, runId, hospitalId, chartType, sourceFileName, sourceFileHash, parsedRows);
+
+    // Rebuild master/link/kpis from raw inside DB for strong consistency.
+    currentStage = "rebuild_in_db";
+    await updateRunProgress(supabase, runId, {
+      metadata: { stage: currentStage },
+    });
+    const { data: rebuildResult, error: rebuildError } = await supabase
+      .schema("analytics")
+      .rpc("rebuild_chart_for_run", { p_run_id: runId });
+    throwDbError(rebuildError, "rebuild_chart_for_run rpc");
+
+    currentStage = "finalizing";
     const { error: doneError } = await supabase
       .schema("analytics")
       .from("chart_upload_runs")
@@ -255,21 +371,22 @@ export async function executeChartUpload({
         error_rows: parseErrors.length,
         finished_at: new Date().toISOString(),
         metadata: {
-          patient_inserted: patientResult.inserted,
-          patient_updated: patientResult.updated,
-          affected_days: kpiResult.days,
+          stage: "completed",
+          rebuild: rebuildResult || {},
         },
       })
       .eq("id", runId);
-    if (doneError) throw doneError;
+    throwDbError(doneError, "chart_upload_runs update completed");
 
     return {
       runId,
       importedRows: parsedRows.length,
       errorRows: parseErrors.length,
-      patientInserted: patientResult.inserted,
-      patientUpdated: patientResult.updated,
-      affectedDays: kpiResult.days,
+      customerInserted: rebuildResult?.customer_upserts ?? 0,
+      customerUpdated: 0,
+      customerPatientLinkInserted: rebuildResult?.link_upserts ?? 0,
+      customerPatientLinkUpdated: 0,
+      affectedDays: rebuildResult?.kpi_days ?? 0,
     };
   } catch (err) {
     await supabase
@@ -279,9 +396,12 @@ export async function executeChartUpload({
         status: "failed",
         error_rows: parseErrors.length,
         finished_at: new Date().toISOString(),
-        metadata: { failed_reason: String(err?.message || err) },
+        metadata: {
+          stage: currentStage,
+          failed_reason: String(err?.message || err),
+        },
       })
       .eq("id", runId);
-    throw err;
+    throw new Error(`[${currentStage}] ${String(err?.message || err)}`);
   }
 }

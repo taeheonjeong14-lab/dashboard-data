@@ -223,10 +223,17 @@ npm run admin:dev
 
 IntoVet 업로드 파이프라인:
 - 원본 line item 적재: `analytics.chart_transactions_raw`
-- 환자 마스터 갱신(첫방문일 관리): `analytics.chart_patient_master`
+- 고객 마스터 갱신(첫방문일 관리): `analytics.chart_customer_master`
+- 고객-환자 링크 갱신: `analytics.chart_customer_patients`
 - 일간 KPI 적재: `analytics.chart_daily_kpis`
 - 업로드 이력/오류: `analytics.chart_upload_runs`, `analytics.chart_upload_errors`
 - 기간 조회 뷰: `analytics.chart_kpis_period_view` (`day|week|month`)
+
+IntoVet 미상 이름 처리:
+- 고객명/환자명 중 하나라도 비어 있으면 각각 `(고객명 미상)`, `(환자명 미상)`으로 저장
+- 미상 row는 raw에는 저장하고 `sales_amount`에는 포함
+- 미상 row는 `visit_count`/`new_customer_count` 계산 및 고객 마스터/링크 업서트에서 제외
+- 미상 row에서는 IntoVet B컬럼 고객번호를 고객 식별키 산정에 사용하지 않음
 
 ## 1단계: Chrome을 디버깅 포트로 실행
 

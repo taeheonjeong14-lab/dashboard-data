@@ -1,48 +1,39 @@
 import * as XLSX from "xlsx";
 
-const INTO_VET_CHART_TYPE = "intovet";
-const INTO_VET_MIN_COLS = {
+const WOORIEN_PMS_CHART_TYPE = "woorien_pms";
+const WOORIEN_PMS_MIN_COLS = {
   serviceDate: 0, // A
   customerNo: 1, // B
   customerName: 2, // C
   patientName: 3, // D
-  finalAmount: 70, // BS
+  finalAmount: 11, // L
 };
-const INTO_VET_HEADER_ROW_COUNT = 2;
 
 function excelDateToYmd(value) {
   if (value == null || value === "") return null;
   if (value instanceof Date && !Number.isNaN(value.getTime())) {
     return value.toISOString().slice(0, 10);
   }
-
   if (typeof value === "number" && Number.isFinite(value)) {
     const parsed = XLSX.SSF.parse_date_code(value);
     if (parsed && parsed.y && parsed.m && parsed.d) {
       return `${String(parsed.y).padStart(4, "0")}-${String(parsed.m).padStart(2, "0")}-${String(parsed.d).padStart(2, "0")}`;
     }
   }
-
   const raw = String(value).trim();
   if (!raw) return null;
-
-  const ymdMatch = raw.match(/^(\d{4})[-./](\d{1,2})[-./](\d{1,2})$/);
-  if (ymdMatch) {
-    const [, y, m, d] = ymdMatch;
+  const ymd = raw.match(/^(\d{4})[-./](\d{1,2})[-./](\d{1,2})$/);
+  if (ymd) {
+    const [, y, m, d] = ymd;
     return `${y}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`;
   }
-
-  const mdYMatch = raw.match(/^(\d{1,2})[-./](\d{1,2})[-./](\d{4})$/);
-  if (mdYMatch) {
-    const [, m, d, y] = mdYMatch;
+  const mdY = raw.match(/^(\d{1,2})[-./](\d{1,2})[-./](\d{4})$/);
+  if (mdY) {
+    const [, m, d, y] = mdY;
     return `${y}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`;
   }
-
   const t = Date.parse(raw);
-  if (!Number.isNaN(t)) {
-    return new Date(t).toISOString().slice(0, 10);
-  }
-
+  if (!Number.isNaN(t)) return new Date(t).toISOString().slice(0, 10);
   return null;
 }
 
@@ -74,30 +65,6 @@ function makeUnknownName(raw, placeholder) {
   return normalizeText(raw) || placeholder;
 }
 
-function hasAnyNumberCell(row) {
-  if (!Array.isArray(row)) return false;
-  return row.some((cell) => {
-    if (typeof cell === "number") return Number.isFinite(cell);
-    const text = String(cell ?? "").replace(/[,\s]/g, "").trim();
-    if (!text) return false;
-    return Number.isFinite(Number(text));
-  });
-}
-
-function findTrailingTotalRowIndex(rows) {
-  for (let i = rows.length - 1; i >= 0; i -= 1) {
-    const row = rows[i];
-    if (!Array.isArray(row)) continue;
-    const customerNoRaw = normalizeText(row[INTO_VET_MIN_COLS.customerNo]);
-    const customerNameRaw = normalizeText(row[INTO_VET_MIN_COLS.customerName]);
-    const patientNameRaw = normalizeText(row[INTO_VET_MIN_COLS.patientName]);
-    if (!customerNoRaw && !customerNameRaw && !patientNameRaw && hasAnyNumberCell(row)) {
-      return i;
-    }
-  }
-  return -1;
-}
-
 async function sha256Hex(input) {
   const enc = new TextEncoder();
   const data = enc.encode(input);
@@ -106,14 +73,7 @@ async function sha256Hex(input) {
   return Array.from(view).map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
-export async function fileToSha256(file) {
-  const buf = await file.arrayBuffer();
-  const digest = await crypto.subtle.digest("SHA-256", buf);
-  const view = new Uint8Array(digest);
-  return Array.from(view).map((b) => b.toString(16).padStart(2, "0")).join("");
-}
-
-export async function parseIntoVetWorkbook(file, hospitalId) {
+export async function parseWoorienPmsWorkbook(file, hospitalId) {
   const bytes = await file.arrayBuffer();
   const workbook = XLSX.read(bytes, { type: "array", cellDates: true });
   const sheetName = workbook.SheetNames[0];
@@ -121,31 +81,25 @@ export async function parseIntoVetWorkbook(file, hospitalId) {
   const sheet = workbook.Sheets[sheetName];
   const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: true, defval: "" });
   if (!rows.length) throw new Error("엑셀 데이터가 비어 있습니다.");
-  const trailingTotalRowIndex = findTrailingTotalRowIndex(rows);
 
   const parsedRows = [];
   const errors = [];
 
   for (let i = 0; i < rows.length; i += 1) {
-    // IntoVet export has two header rows at the top.
-    if (i < INTO_VET_HEADER_ROW_COUNT) continue;
-    // The trailing numeric summary row is total, not transaction data.
-    if (i === trailingTotalRowIndex) continue;
+    // Woorien PMS has a single header row at top.
+    if (i === 0) continue;
 
     const row = rows[i];
-    if (!Array.isArray(row) || row.length <= INTO_VET_MIN_COLS.patientName) continue;
+    if (!Array.isArray(row) || row.length <= WOORIEN_PMS_MIN_COLS.patientName) continue;
 
-    const serviceDate = excelDateToYmd(row[INTO_VET_MIN_COLS.serviceDate]);
-    const customerNoRaw = normalizeText(row[INTO_VET_MIN_COLS.customerNo]);
-    const customerNameRaw = normalizeText(row[INTO_VET_MIN_COLS.customerName]);
-    const patientNameRaw = normalizeText(row[INTO_VET_MIN_COLS.patientName]);
-    const finalAmountRaw = amountToNumber(row[INTO_VET_MIN_COLS.finalAmount]);
-
+    const serviceDate = excelDateToYmd(row[WOORIEN_PMS_MIN_COLS.serviceDate]);
+    const customerNoRaw = normalizeText(row[WOORIEN_PMS_MIN_COLS.customerNo]);
+    const customerNameRaw = normalizeText(row[WOORIEN_PMS_MIN_COLS.customerName]);
+    const patientNameRaw = normalizeText(row[WOORIEN_PMS_MIN_COLS.patientName]);
+    const finalAmountRaw = amountToNumber(row[WOORIEN_PMS_MIN_COLS.finalAmount]);
     const rowNo = i + 1;
 
-    // Skip probable header rows.
     if (!serviceDate && !customerNoRaw && !patientNameRaw && finalAmountRaw === 0) continue;
-
     if (!serviceDate) {
       errors.push({
         source_row_no: rowNo,
@@ -171,16 +125,14 @@ export async function parseIntoVetWorkbook(file, hospitalId) {
       continue;
     }
 
-    // Unknown identity rows should never contribute to unique customer counting.
-    // Generate keys without relying on B(customer_no) so the assigned number is ignored.
     const customerKeyBase = isUnknownIdentity
-      ? `${hospitalId}|${INTO_VET_CHART_TYPE}|unknown|${serviceDate}|${rowNo}`
-      : `${hospitalId}|${INTO_VET_CHART_TYPE}|${normalizedCustomerNo}`;
+      ? `${hospitalId}|${WOORIEN_PMS_CHART_TYPE}|unknown|${serviceDate}|${rowNo}`
+      : `${hospitalId}|${WOORIEN_PMS_CHART_TYPE}|${normalizedCustomerNo}`;
     const customerKeyNorm = await sha256Hex(customerKeyBase);
-    const patientBase = `${hospitalId}|${INTO_VET_CHART_TYPE}|${customerKeyNorm}|${normalizePatientName(effectivePatientName)}|${rowNo}`;
+    const patientBase = `${hospitalId}|${WOORIEN_PMS_CHART_TYPE}|${customerKeyNorm}|${normalizePatientName(effectivePatientName)}|${rowNo}`;
     const patientKeyNorm = await sha256Hex(patientBase);
     const rowSignature = await sha256Hex(
-      `${hospitalId}|${INTO_VET_CHART_TYPE}|${serviceDate}|${customerKeyNorm}|${effectivePatientName}|${finalAmountRaw}|${rowNo}`
+      `${hospitalId}|${WOORIEN_PMS_CHART_TYPE}|${serviceDate}|${customerKeyNorm}|${effectivePatientName}|${finalAmountRaw}|${rowNo}`
     );
 
     parsedRows.push({
@@ -199,7 +151,7 @@ export async function parseIntoVetWorkbook(file, hospitalId) {
   }
 
   return {
-    chartType: INTO_VET_CHART_TYPE,
+    chartType: WOORIEN_PMS_CHART_TYPE,
     sheetName,
     rows: parsedRows,
     errors,
