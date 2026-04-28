@@ -68,6 +68,8 @@ const EMPTY_FORM = {
   searchad_customer_id: "",
   searchad_api_license: "",
   searchad_secret_key_encrypted: "",
+  googleads_customer_id: "",
+  googleads_refresh_token_encrypted: "",
 };
 
 function createHospitalId() {
@@ -188,9 +190,11 @@ function App() {
       searchad_customer_id: "",
       searchad_api_license: "",
       searchad_secret_key_encrypted: "",
+      googleads_customer_id: "",
+      googleads_refresh_token_encrypted: "",
     };
     try {
-      const [bt, pt, sa] = await Promise.all([
+      const [bt, pt, sa, ga] = await Promise.all([
         supabase
           .schema("analytics")
           .from("analytics_blog_keyword_targets")
@@ -211,10 +215,19 @@ function App() {
           .order("updated_at", { ascending: false })
           .limit(1)
           .maybeSingle(),
+        supabase
+          .schema("analytics")
+          .from("analytics_googleads_accounts")
+          .select("customer_id,refresh_token_encrypted,is_active")
+          .eq("hospital_id", String(row.id))
+          .order("updated_at", { ascending: false })
+          .limit(1)
+          .maybeSingle(),
       ]);
       if (bt.error) throw bt.error;
       if (pt.error) throw pt.error;
       if (sa.error) throw sa.error;
+      if (ga.error) throw ga.error;
 
       base.blog_keywords_text = buildKeywordText(bt.data || []);
       base.place_keywords_text = buildKeywordText(pt.data || []);
@@ -222,6 +235,10 @@ function App() {
         base.searchad_customer_id = sa.data.customer_id || "";
         base.searchad_api_license = sa.data.api_license || "";
         base.searchad_secret_key_encrypted = sa.data.secret_key_encrypted || "";
+      }
+      if (ga.data) {
+        base.googleads_customer_id = ga.data.customer_id || "";
+        base.googleads_refresh_token_encrypted = ga.data.refresh_token_encrypted || "";
       }
       setHospitalForm(base);
       setIsModalOpen(true);
@@ -312,6 +329,22 @@ function App() {
             { onConflict: "hospital_id,customer_id" }
           );
         if (saErr) throw saErr;
+      }
+
+      if (hospitalForm.googleads_customer_id.trim()) {
+        const { error: gaErr } = await supabase
+          .schema("analytics")
+          .from("analytics_googleads_accounts")
+          .upsert(
+            {
+              hospital_id: resolvedHospitalId,
+              customer_id: hospitalForm.googleads_customer_id.trim().replace(/-/g, ""),
+              refresh_token_encrypted: hospitalForm.googleads_refresh_token_encrypted.trim() || null,
+              is_active: true,
+            },
+            { onConflict: "hospital_id,customer_id" }
+          );
+        if (gaErr) throw gaErr;
       }
 
       setMessage("병원 정보를 저장했습니다.");
@@ -631,6 +664,19 @@ function App() {
                 value={hospitalForm.searchad_secret_key_encrypted}
                 onChange={(e) =>
                   setHospitalForm((f) => ({ ...f, searchad_secret_key_encrypted: e.target.value }))
+                }
+              />
+              <h4>Google Ads 계정 (선택)</h4>
+              <input
+                placeholder="googleads_customer_id (예: 123-456-7890)"
+                value={hospitalForm.googleads_customer_id}
+                onChange={(e) => setHospitalForm((f) => ({ ...f, googleads_customer_id: e.target.value }))}
+              />
+              <input
+                placeholder="googleads_refresh_token_encrypted (평문 또는 enc::...)"
+                value={hospitalForm.googleads_refresh_token_encrypted}
+                onChange={(e) =>
+                  setHospitalForm((f) => ({ ...f, googleads_refresh_token_encrypted: e.target.value }))
                 }
               />
               <div className="modalActions">
