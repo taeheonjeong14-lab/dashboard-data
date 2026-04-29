@@ -223,13 +223,18 @@ create table if not exists analytics.chart_transactions_raw (
   customer_no_raw text,
   customer_name_raw text,
   patient_name_raw text,
+  receipt_no_raw text,
+  treatment_content_raw text,
+  bill_no_raw text,
   final_amount_raw numeric not null default 0,
   customer_key_norm text not null,
   patient_key_norm text not null,
+  dedupe_key text,
   raw_payload jsonb not null default '{}'::jsonb,
   ingested_at timestamptz not null default now(),
   unique (hospital_id, chart_type, source_file_hash, source_row_no),
-  unique (hospital_id, chart_type, row_signature)
+  unique (hospital_id, chart_type, row_signature),
+  unique (hospital_id, chart_type, dedupe_key)
 );
 
 create table if not exists analytics.chart_patient_master (

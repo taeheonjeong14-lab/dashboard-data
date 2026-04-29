@@ -6,6 +6,7 @@ const INTO_VET_MIN_COLS = {
   customerNo: 1, // B
   customerName: 2, // C
   patientName: 3, // D
+  receiptNo: 5, // F
   finalAmount: 70, // BS
 };
 const INTO_VET_HEADER_ROW_COUNT = 2;
@@ -70,6 +71,18 @@ function normalizePatientName(patientNameRaw) {
   return normalizeText(patientNameRaw).toLowerCase();
 }
 
+function normalizeOwnerName(ownerNameRaw) {
+  return normalizeText(ownerNameRaw).toLowerCase();
+}
+
+function normalizeReceiptNo(receiptNoRaw) {
+  return String(receiptNoRaw ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, "")
+    .replace(/[^a-z0-9_-]/g, "");
+}
+
 function makeUnknownName(raw, placeholder) {
   return normalizeText(raw) || placeholder;
 }
@@ -106,15 +119,15 @@ async function sha256Hex(input) {
   return Array.from(view).map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
-export async function fileToSha256(file) {
-  const buf = await file.arrayBuffer();
+export async function fileToSha256(source) {
+  const buf = source instanceof ArrayBuffer ? source : await source.arrayBuffer();
   const digest = await crypto.subtle.digest("SHA-256", buf);
   const view = new Uint8Array(digest);
   return Array.from(view).map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
-export async function parseIntoVetWorkbook(file, hospitalId) {
-  const bytes = await file.arrayBuffer();
+export async function parseIntoVetWorkbook(source, hospitalId) {
+  const bytes = source instanceof ArrayBuffer ? source : await source.arrayBuffer();
   const workbook = XLSX.read(bytes, { type: "array", cellDates: true });
   const sheetName = workbook.SheetNames[0];
   if (!sheetName) throw new Error("엑셀 시트를 찾을 수 없습니다.");
@@ -139,6 +152,7 @@ export async function parseIntoVetWorkbook(file, hospitalId) {
     const customerNoRaw = normalizeText(row[INTO_VET_MIN_COLS.customerNo]);
     const customerNameRaw = normalizeText(row[INTO_VET_MIN_COLS.customerName]);
     const patientNameRaw = normalizeText(row[INTO_VET_MIN_COLS.patientName]);
+    const receiptNoRaw = normalizeText(row[INTO_VET_MIN_COLS.receiptNo]);
     const finalAmountRaw = amountToNumber(row[INTO_VET_MIN_COLS.finalAmount]);
 
     const rowNo = i + 1;
@@ -179,6 +193,11 @@ export async function parseIntoVetWorkbook(file, hospitalId) {
     const customerKeyNorm = await sha256Hex(customerKeyBase);
     const patientBase = `${hospitalId}|${INTO_VET_CHART_TYPE}|${customerKeyNorm}|${normalizePatientName(effectivePatientName)}|${rowNo}`;
     const patientKeyNorm = await sha256Hex(patientBase);
+    const normalizedReceiptNo = normalizeReceiptNo(receiptNoRaw);
+    const dedupeKey =
+      normalizedCustomerNo && customerNameRaw && normalizedReceiptNo
+        ? `${serviceDate}|${normalizedCustomerNo}|${normalizeOwnerName(customerNameRaw)}|${normalizedReceiptNo}|${finalAmountRaw}`
+        : null;
     const rowSignature = await sha256Hex(
       `${hospitalId}|${INTO_VET_CHART_TYPE}|${serviceDate}|${customerKeyNorm}|${effectivePatientName}|${finalAmountRaw}|${rowNo}`
     );
@@ -189,9 +208,11 @@ export async function parseIntoVetWorkbook(file, hospitalId) {
       customer_no_raw: customerNoRaw || null,
       customer_name_raw: effectiveCustomerName,
       patient_name_raw: effectivePatientName,
+      receipt_no_raw: receiptNoRaw || null,
       final_amount_raw: finalAmountRaw,
       customer_key_norm: customerKeyNorm,
       patient_key_norm: patientKeyNorm,
+      dedupe_key: dedupeKey,
       is_unknown_identity: isUnknownIdentity,
       row_signature: rowSignature,
       raw_payload: { row },

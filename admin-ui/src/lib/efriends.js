@@ -3,6 +3,7 @@ import * as XLSX from "xlsx";
 const EFRIENDS_CHART_TYPE = "efriends";
 const EFRIENDS_MIN_COLS = {
   serviceDate: 5, // F
+  billNo: 6, // G (청구서#)
   ownerAndPatients: 7, // H
   amount: 10, // K (금액)
 };
@@ -44,6 +45,14 @@ function normalizeCustomerKeyFromName(name) {
     .toLowerCase()
     .replace(/\s+/g, " ")
     .trim();
+}
+
+function normalizeBillNo(value) {
+  return String(value ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, "")
+    .replace(/[^a-z0-9_-]/g, "");
 }
 
 async function sha256Hex(input) {
@@ -138,8 +147,8 @@ function findTrailingTotalRowIndex(rows) {
   return -1;
 }
 
-async function decodeFileTextWithFallback(file) {
-  const buf = await file.arrayBuffer();
+async function decodeFileTextWithFallback(source) {
+  const buf = source instanceof ArrayBuffer ? source : await source.arrayBuffer();
   const bytes = new Uint8Array(buf);
   const encodings = ["utf-8", "utf-8-sig", "euc-kr", "windows-949"];
   for (const enc of encodings) {
@@ -153,8 +162,20 @@ async function decodeFileTextWithFallback(file) {
   return new TextDecoder("utf-8", { fatal: false }).decode(bytes);
 }
 
-export async function parseEFriendsFile(file, hospitalId) {
-  const name = String(file?.name || "").toLowerCase();
+export async function parseEFriendsFile(source, hospitalId) {
+  let fileName = "";
+  let bytes;
+  if (source && typeof source === "object" && "bytes" in source && source.bytes instanceof ArrayBuffer) {
+    bytes = source.bytes;
+    fileName = String(source.name || "");
+  } else if (source instanceof ArrayBuffer) {
+    bytes = source;
+    fileName = "";
+  } else {
+    fileName = String(source?.name || "");
+    bytes = await source.arrayBuffer();
+  }
+  const name = fileName.toLowerCase();
   const isCsv = name.endsWith(".csv");
 
   const parsedRows = [];
@@ -164,11 +185,10 @@ export async function parseEFriendsFile(file, hospitalId) {
   let sheetName;
 
   if (isCsv) {
-    const text = await decodeFileTextWithFallback(file);
+    const text = await decodeFileTextWithFallback(bytes);
     rows = parseCsv(text);
     sheetName = "csv";
   } else {
-    const bytes = await file.arrayBuffer();
     const workbook = XLSX.read(bytes, { type: "array", cellDates: true });
     sheetName = workbook.SheetNames[0];
     if (!sheetName) throw new Error("엑셀 시트를 찾을 수 없습니다.");
@@ -189,6 +209,7 @@ export async function parseEFriendsFile(file, hospitalId) {
 
     const rowNo = i + 1;
     const serviceDate = ymdToYmd(row[EFRIENDS_MIN_COLS.serviceDate]);
+    const billNoRaw = normalizeText(row[EFRIENDS_MIN_COLS.billNo]);
     const ownerTextRaw = normalizeText(row[EFRIENDS_MIN_COLS.ownerAndPatients]);
     const finalAmountRaw = amountToNumber(row[EFRIENDS_MIN_COLS.amount]);
 
@@ -220,6 +241,11 @@ export async function parseEFriendsFile(file, hospitalId) {
     // IMPORTANT: for eFriends we intentionally DO NOT increase visit_count by patient.
     // Collapse patient key to be stable per customer so (customer|patient) uniqueness == customer uniqueness.
     const patientKeyNorm = await sha256Hex(`${hospitalId}|${EFRIENDS_CHART_TYPE}|visit|${customerKeyNorm}`);
+    const normalizedBillNo = normalizeBillNo(billNoRaw);
+    const dedupeKey =
+      !isUnknownIdentity && normalizedBillNo
+        ? `${serviceDate}|${normalizeCustomerKeyFromName(customerName)}|${normalizedBillNo}|${finalAmountRaw}`
+        : null;
 
     const rowSignature = await sha256Hex(
       `${hospitalId}|${EFRIENDS_CHART_TYPE}|${serviceDate}|${customerKeyNorm}|${finalAmountRaw}|${rowNo}`
@@ -231,9 +257,11 @@ export async function parseEFriendsFile(file, hospitalId) {
       customer_no_raw: null,
       customer_name_raw: customerName,
       patient_name_raw: patientName,
+      bill_no_raw: billNoRaw || null,
       final_amount_raw: finalAmountRaw,
       customer_key_norm: customerKeyNorm,
       patient_key_norm: patientKeyNorm,
+      dedupe_key: dedupeKey,
       is_unknown_identity: isUnknownIdentity,
       row_signature: rowSignature,
       raw_payload: { row },

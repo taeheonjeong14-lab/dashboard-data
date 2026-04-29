@@ -75,7 +75,27 @@ async function updateRunProgress(supabase, runId, patch) {
 
 async function upsertRawTransactions(supabase, runId, hospitalId, chartType, sourceFileName, sourceFileHash, rows) {
   if (!rows.length) return;
-  const payload = rows.map((r) => ({
+  const usesDedupeKey = chartType === "intovet" || chartType === "woorien_pms" || chartType === "efriends";
+  let effectiveRows = rows;
+  if (usesDedupeKey) {
+    // Postgres ON CONFLICT cannot update the same constrained key twice in one statement.
+    // Collapse duplicate dedupe_key rows inside one upload payload, keeping the latest source row.
+    const byDedupeKey = new Map();
+    const passthrough = [];
+    for (const row of rows) {
+      const key = String(row?.dedupe_key || "").trim();
+      if (!key) {
+        passthrough.push(row);
+        continue;
+      }
+      const old = byDedupeKey.get(key);
+      if (!old || Number(row?.source_row_no || 0) >= Number(old?.source_row_no || 0)) {
+        byDedupeKey.set(key, row);
+      }
+    }
+    effectiveRows = [...passthrough, ...byDedupeKey.values()];
+  }
+  const payload = effectiveRows.map((r) => ({
     run_id: runId,
     hospital_id: hospitalId,
     chart_type: chartType,
@@ -87,15 +107,22 @@ async function upsertRawTransactions(supabase, runId, hospitalId, chartType, sou
     customer_no_raw: r.customer_no_raw,
     customer_name_raw: r.customer_name_raw,
     patient_name_raw: r.patient_name_raw,
+    receipt_no_raw: r.receipt_no_raw ?? null,
+    treatment_content_raw: r.treatment_content_raw ?? null,
+    bill_no_raw: r.bill_no_raw ?? null,
     final_amount_raw: r.final_amount_raw,
     customer_key_norm: r.customer_key_norm,
     patient_key_norm: r.patient_key_norm,
+    dedupe_key: r.dedupe_key ?? null,
     raw_payload: r.raw_payload || {},
   }));
+  const onConflict = usesDedupeKey
+    ? "hospital_id,chart_type,dedupe_key"
+    : "hospital_id,chart_type,source_file_hash,source_row_no";
   const { error } = await supabase
     .schema("analytics")
     .from("chart_transactions_raw")
-    .upsert(payload, { onConflict: "hospital_id,chart_type,source_file_hash,source_row_no" });
+    .upsert(payload, { onConflict });
   throwDbError(error, "chart_transactions_raw upsert");
 }
 

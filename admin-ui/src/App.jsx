@@ -46,10 +46,12 @@ const CHART_TYPE_HELP = {
   ],
   woorien_pms: [
     "Woorien PMS: 방문수는 (일자 + 고객 + 환자) unique 기준으로 집계합니다.",
+    "Woorien PMS 중복 덮어쓰기: (일자 + 보호자 + 환자 + 진료내용(F열))이 같으면 최신 업로드 데이터로 치환됩니다.",
     "미상(고객명/환자명 누락) 행은 매출에는 포함되지만 방문/신규고객에는 제외됩니다.",
   ],
   efriends: [
     "eFriends: 보호자 1명이 여러 환자를 보유하는 경우 실제 방문 환자 특정이 어려울 수 있습니다.",
+    "eFriends 중복 덮어쓰기: (일자 + 고객명(H컬럼 해석 결과) + 청구서번호(G열))이 같으면 최신 업로드 데이터로 치환됩니다.",
     "따라서 eFriends의 방문수는 환자 구분 없이 (일자 + 고객) 기준으로만 해석하는 것을 권장합니다.",
     "H컬럼 괄호 안 환자명은 참고용이며, KPI 방문 구분 기준으로 강제 사용하지 않습니다.",
     "동명이인(고객명 동일) 구분을 위해, 보유 환자 목록 유사도 기반으로 고객을 분리/병합할 수 있습니다(서버 재빌드에서 처리).",
@@ -122,7 +124,8 @@ function App() {
   const [editingId, setEditingId] = useState("");
   const [selectedHospitalId, setSelectedHospitalId] = useState("");
   const [selectedChartType, setSelectedChartType] = useState(CHART_TYPES[0].value);
-  const [uploadFile, setUploadFile] = useState(null);
+  /** Snapshot after one successful read — avoids repeat File.arrayBuffer() (DOMException on some hosts). */
+  const [uploadSnapshot, setUploadSnapshot] = useState(null);
   const [preview, setPreview] = useState(null);
   const [previewRows, setPreviewRows] = useState([]);
   const [previewErrors, setPreviewErrors] = useState([]);
@@ -370,7 +373,7 @@ function App() {
       setMessage("차트 종류를 먼저 선택해 주세요.");
       return;
     }
-    if (!uploadFile) {
+    if (!uploadSnapshot) {
       setMessage("업로드 파일을 선택해 주세요.");
       return;
     }
@@ -380,11 +383,11 @@ function App() {
     try {
       let parsed;
       if (selectedChartType === "intovet") {
-        parsed = await parseIntoVetWorkbook(uploadFile, selectedHospitalId);
+        parsed = await parseIntoVetWorkbook(uploadSnapshot.bytes, selectedHospitalId);
       } else if (selectedChartType === "woorien_pms") {
-        parsed = await parseWoorienPmsWorkbook(uploadFile, selectedHospitalId);
+        parsed = await parseWoorienPmsWorkbook(uploadSnapshot.bytes, selectedHospitalId);
       } else if (selectedChartType === "efriends") {
-        parsed = await parseEFriendsFile(uploadFile, selectedHospitalId);
+        parsed = await parseEFriendsFile(uploadSnapshot, selectedHospitalId);
       } else {
         throw new Error(`아직 지원하지 않는 차트 종류입니다: ${selectedChartType}`);
       }
@@ -404,7 +407,7 @@ function App() {
   }
 
   async function onUploadConfirm() {
-    if (!supabase || !selectedHospitalId || !selectedChartType || !uploadFile) return;
+    if (!supabase || !selectedHospitalId || !selectedChartType || !uploadSnapshot) return;
     if (!previewRows.length && !previewErrors.length) {
       setMessage("먼저 미리보기를 실행해 주세요.");
       return;
@@ -413,12 +416,12 @@ function App() {
     setMessage("");
     setUploadResult(null);
     try {
-      const fileHash = await fileToSha256(uploadFile);
+      const fileHash = await fileToSha256(uploadSnapshot.bytes);
       const result = await executeChartUpload({
         supabase,
         hospitalId: selectedHospitalId,
         chartType: selectedChartType,
-        sourceFileName: uploadFile.name,
+        sourceFileName: uploadSnapshot.name,
         sourceFileHash: fileHash,
         parsedRows: previewRows,
         parseErrors: previewErrors,
@@ -428,7 +431,7 @@ function App() {
       setPreview(null);
       setPreviewRows([]);
       setPreviewErrors([]);
-      setUploadFile(null);
+      setUploadSnapshot(null);
     } catch (e) {
       setMessage(`업로드 실패: ${formatSupabaseError(e)}`);
     } finally {
@@ -510,7 +513,26 @@ function App() {
             <input
               type="file"
               accept=".xls,.xlsx,.csv"
-              onChange={(e) => setUploadFile(e.target.files?.[0] || null)}
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                setPreview(null);
+                setPreviewRows([]);
+                setPreviewErrors([]);
+                setUploadResult(null);
+                if (!file) {
+                  setUploadSnapshot(null);
+                  return;
+                }
+                void (async () => {
+                  try {
+                    const bytes = await file.arrayBuffer();
+                    setUploadSnapshot({ name: file.name, bytes });
+                  } catch (err) {
+                    setUploadSnapshot(null);
+                    setMessage(`파일을 읽지 못했습니다: ${err?.message || err}`);
+                  }
+                })();
+              }}
               disabled={loading}
             />
           </label>
