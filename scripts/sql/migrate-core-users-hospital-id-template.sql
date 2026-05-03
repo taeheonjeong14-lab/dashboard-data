@@ -1,0 +1,31 @@
+-- TEMPLATE ONLY — do not run blindly.
+-- After verify-hospital-id-unification.sql and team review:
+--   1) Backfill a single canonical column (recommended: hospital_id text matching core.hospitals.id).
+--   2) Point RLS policies already use u.hospital_id — ensure data lives there.
+--   3) Update DDx Prisma: hospitalId @map("hospital_id") on User (and regenerate client).
+--   4) Drop the redundant column (often quoted "hospitalId") and add FK:
+--        alter table core.users add constraint ... foreign key (hospital_id)
+--        references core.hospitals (id) on delete set null;
+--
+-- Order of operations is environment-specific; use a transaction on staging first.
+
+-- Example shape (commented):
+--
+-- begin;
+--
+-- update core.users u
+-- set hospital_id = coalesce(u.hospital_id, u."hospitalId")
+-- where u.hospital_id is null and u."hospitalId" is not null;
+--
+-- update core.users u
+-- set "hospitalId" = u.hospital_id
+-- where u."hospitalId" is null and u.hospital_id is not null;
+--
+-- -- resolve conflicts manually before:
+-- -- select id, "hospitalId", hospital_id from core.users where ... distinct ...
+--
+-- alter table core.users drop column if exists ??? ;  -- choose one column to remove after Prisma maps to the other
+--
+-- commit;
+
+select 'Template only — replace with real migration after audit.' as status;
