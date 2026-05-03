@@ -17,7 +17,9 @@
     "collect:googleads": "node scripts/googleads-collect-main.js",
     "auth:googleads": "node scripts/googleads-oauth-token.js",
     "admin:dev": "npm --prefix admin-ui run dev",
-    "admin:build": "npm --prefix admin-ui run build"
+    "admin:build": "npm --prefix admin-ui run build",
+    "ddx-api:dev": "npm --prefix ddx-api run dev",
+    "ddx-api:build": "npm --prefix ddx-api run build"
   },
   "keywords": [
     "naver",

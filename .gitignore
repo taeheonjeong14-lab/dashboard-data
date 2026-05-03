@@ -1,4 +1,8 @@
 node_modules/
+ddx-api/node_modules/
+ddx-api/.next/
+.vercel/
+ddx-api/.vercel/
 dashboard/node_modules/
 dashboard/.next/
 .next/

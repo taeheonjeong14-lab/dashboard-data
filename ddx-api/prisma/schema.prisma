@@ -1,0 +1,223 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["partialIndexes"]
+}
+
+datasource db {
+  provider = "postgresql"
+  schemas  = ["core", "robovet"]
+}
+
+model Hospital {
+  id                String   @id @default(uuid())
+  name              String   // 병원명
+  address           String?  @db.Text // 병원 주소
+  addressDetail     String?  @db.Text // 병원 상세주소
+  logoUrl           String?  @db.Text // 병원 로고 URL
+  brandColor        String?  // 병원 BI 컬러 (hex, e.g. #10B981)
+  // Supabase에만 있는 확장 컬럼 (삭제 방지용 introspection 반영)
+  naverBlogId        String? @map("naver_blog_id") @unique(map: "uq_hospitals_naver_blog_id", where: raw("(naver_blog_id IS NOT NULL)"))
+  smartplaceStatUrl  String? @map("smartplace_stat_url")
+  debugPort          Int?    @map("debug_port")
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  users             User[]
+  preConsultations  PreConsultation[]
+  surveyTemplates   SurveyTemplate[]
+  surveySessions    SurveySession[]
+
+  @@map("hospitals")
+  @@schema("core")
+}
+
+model User {
+  id                    String    @id // Supabase Auth uid
+  email                 String?   // 로그인 이메일 (관리자 판별용)
+  name                  String?   // 이름
+  phone                 String?   // 휴대폰 번호
+  hospitalId            String?  @map("hospital_id")
+  customHospitalName    String?   // 드롭다운에 없을 때 직접 입력한 병원명
+  hospitalAddress       String?   @db.Text // 병원 주소 (한국 주소 검색)
+  hospitalAddressDetail String?   @db.Text // 병원 상세주소 (수기 입력)
+  approved              Boolean   @default(false) // 관리자 승인 여부
+  rejected              Boolean   @default(false) // 관리자 승인 거절 여부 (거절 시 대기 목록에서 제외)
+  role                  String    @default("member") // Supabase 확장 (백엔드 / 멤버십)
+  active                 Boolean   @default(true)  // 비활성화 시 false (로그인 불가)
+  deletedAt              DateTime? // 삭제 시 설정 (소프트 삭제, 목록 제외·로그인 불가)
+  emailVerified         Boolean   @default(false) // 이메일 인증 링크 클릭 완료 여부
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  hospital Hospital? @relation(fields: [hospitalId], references: [id], onDelete: SetNull)
+
+  @@index([hospitalId], map: "idx_core_users_hospital")
+  @@map("users")
+  @@schema("core")
+}
+
+/// Supabase RLS 사용 — https://pris.ly/d/row-level-security
+model UserHospital {
+  userId     String   @map("user_id") @unique(map: "uq_user_hospitals_single_active_member", where: raw("((is_active = true) AND (role = 'member'::text))")) @db.Uuid
+  hospitalId String   @map("hospital_id")
+  role       String   @default("member")
+  isActive   Boolean  @default(true) @map("is_active")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@id([userId, hospitalId])
+  @@index([hospitalId], map: "idx_user_hospitals_hospital")
+  @@index([userId, isActive], map: "idx_user_hospitals_user_active")
+  @@map("user_hospitals")
+  @@schema("core")
+}
+
+model PreConsultation {
+  id                String   @id @default(uuid())
+  hospitalId        String?   // 어느 병원 Tally에서 들어온 건지
+  patientName       String?  // 환자 이름 (매칭용)
+  guardianName      String?  // 보호자 이름 (매칭용)
+  tallyData         Json     // Tally에서 받은 원본 데이터
+  tallyResponseId   String?  @unique // Tally 응답 ID (중복 방지)
+  questions         Json?    // 사전문진 기반 필수 질문들 (Gemini로 생성)
+  geminiRawResponse String?  @db.Text // Gemini API 원본 응답 (디버깅용)
+  // 파트7: 사전문진 기반 사전 분석 결과 (초기 요약/DDx/추가 질문)
+  analysisStatus    String   @default("pending") // "pending" | "processing" | "done" | "error"
+  draftSummary      String?  @db.Text            // 차트 요약 (초안)
+  draftDdx          String?  @db.Text            // DDx 후보 목록 (초안, 포맷 자유)
+  followUpQuestions Json?                         // 실제 문진 때 더 물어볼 질문 목록 (string[] 형태 저장)
+  isUsed            Boolean  @default(false) // 이미 문진에 연결되었는지
+  consultationId    String?  @unique // 연결된 Consultation ID (하나의 Consultation에 하나의 PreConsultation만)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  hospital    Hospital?    @relation(fields: [hospitalId], references: [id], onDelete: SetNull)
+  consultation Consultation? @relation(fields: [consultationId], references: [id], onDelete: SetNull)
+
+  @@map("pre_consultations")
+  @@schema("robovet")
+}
+
+model Consultation {
+  id                String   @id @default(uuid())
+  sessionId         String   @unique // 모바일과 PC 연결용 세션 ID
+  userId            String?  // 로그인 사용자 ID (Supabase Auth)
+  patientName       String?  // 환자 이름
+  guardianName      String?  // 보호자 이름
+  visitType         String?  // "first" | "follow" (초진 | 재진)
+  previousChartContent String?  @db.Text // 재진 시 이전 차트 내용
+  preConsultationId String?  // 연결된 사전문진 ID
+  surveySessionId   String?  // 연결된 (우리) 사전문진 세션 ID
+  transcript        String   @db.Text
+  cc                String?  // CC(주증상) 50글자 내 요약
+  summary           String?  @db.Text
+  ddx               String?  @db.Text
+  realtimeQuestions Json     @default("[]")
+  status            String   @default("recording") // "recording" | "completed"
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  preConsultation   PreConsultation? @relation
+
+  @@map("consultations")
+  @@schema("robovet")
+}
+
+// 회원가입 이메일 인증용 (인증 링크 클릭 시 verifiedAt 설정, 가입 시 검사)
+model EmailVerification {
+  id         String    @id @default(uuid())
+  email      String    // 소문자 저장
+  token      String    @unique
+  expiresAt  DateTime
+  verifiedAt DateTime? // 링크 클릭 시 설정
+  createdAt  DateTime  @default(now())
+
+  @@index([email])
+  @@index([token])
+  @@map("email_verifications")
+  @@schema("core")
+}
+
+model SurveyTemplate {
+  id         String   @id @default(uuid())
+  hospitalId String?
+  name       String   // 템플릿 이름 (예: 초진 기본 설문)
+  visitType  String?  // "초진" | "재진" 등
+  config     Json?    // 고정 질문/AI 프롬프트 등 설정
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  hospital Hospital?      @relation(fields: [hospitalId], references: [id], onDelete: SetNull)
+  sessions SurveySession[]
+
+  @@map("survey_templates")
+  @@schema("robovet")
+}
+
+model SurveySession {
+  id                String    @id @default(uuid())
+  hospitalId        String?
+  templateId        String?
+  patientName       String?   // 환자 이름
+  guardianName      String?   // 보호자 이름
+  contact           String?   // 연락처 (카톡/전화)
+  petBirthday       DateTime? // 반려동물 생일
+  petAge            Int?      // 반려동물 만 나이(올림 규칙)
+  visitType         String?   // "초진" | "재진"
+  scheduledDate     DateTime? // 내원 예정일
+  previousChartText String?   @db.Text // 재진 시 이전 차트 내용
+  status            String    @default("pending") // "pending" | "completed" | "expired"
+  token             String    @unique // 보호자 설문 링크용 토큰
+  createdAt         DateTime  @default(now())
+  completedAt       DateTime?
+
+  // 파트7: 사전문진 기반 사전 분석 결과 (초기 요약/DDx/추가 질문)
+  analysisStatus    String    @default("pending") // "pending" | "processing" | "done" | "error"
+  draftSummary      String?   @db.Text            // 차트 요약 (초안)
+  draftDdx          String?   @db.Text            // DDx 후보 목록 (초안, 포맷 자유)
+  followUpQuestions Json?                          // 실제 문진 때 더 물어볼 질문 목록 (string[] 형태 저장)
+
+  hospital Hospital?      @relation(fields: [hospitalId], references: [id], onDelete: SetNull)
+  template SurveyTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  questions SurveyQuestionInstance[]
+  answers   SurveyAnswer[]
+
+  @@map("survey_sessions")
+  @@schema("robovet")
+}
+
+model SurveyQuestionInstance {
+  id        String   @id @default(uuid())
+  sessionId String
+  order     Int      // 설문 내 노출 순서
+  source    String   // "fixed" | "ai"
+  stage     String?  // "initial" | "followup" 등 (선택)
+  text      String   @db.Text
+  type      String   // "short_text" | "single_choice" 등
+  options   Json?    // 선택형일 때 옵션 목록
+  createdAt DateTime @default(now())
+
+  session SurveySession   @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  answers SurveyAnswer[]
+
+  @@map("survey_question_instances")
+  @@schema("robovet")
+}
+
+model SurveyAnswer {
+  id                 String   @id @default(uuid())
+  sessionId          String
+  questionInstanceId String
+  answerText         String?  @db.Text
+  answerJson         Json?
+  createdAt          DateTime @default(now())
+
+  session  SurveySession         @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  question SurveyQuestionInstance @relation(fields: [questionInstanceId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionId, questionInstanceId])
+  @@map("survey_answers")
+  @@schema("robovet")
+}
