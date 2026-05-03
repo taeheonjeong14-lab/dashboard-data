@@ -6,8 +6,17 @@ const globalForPrisma = globalThis as unknown as {
 };
 
 function createPrisma(): PrismaClient {
-  const url = process.env.DATABASE_URL;
+  const url = process.env.DATABASE_URL?.trim();
   if (!url) throw new Error('DATABASE_URL is not set');
+
+  try {
+    // Fail fast with the same validation pg uses (password special chars must be URL-encoded).
+    new URL(url);
+  } catch {
+    throw new Error(
+      'DATABASE_URL is not a valid URL. Remove wrapping quotes in Vercel, use one line, and URL-encode password characters like @ # % ? /'
+    );
+  }
 
   const adapter = new PrismaPg({ connectionString: url });
   return new PrismaClient({
