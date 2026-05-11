@@ -107,8 +107,17 @@
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anon 공개 키 | 동일 |
 | `NEXT_PUBLIC_SITE_URL` | `https://vet-solution-hospital-ui.vercel.app` | `https://vet-solution-admin-ui.vercel.app` |
 | `NEXT_PUBLIC_DASHBOARD_API_URL` (선택) | `https://dashboard-api-jade.vercel.app` | 동일 |
+| `DDX_API_BASE_URL` | _(비움)_ | **필수:** `https://ddx-api.vercel.app` 등 — 서버에서만 `/api/admin/check` 호출 |
 
 로컬은 각 앱 폴더의 `.env.example`를 참고해 `.env.local`에 두면 됩니다.
+
+### admin-web 관리자 인가 (ddx-api 연동)
+
+Supabase 로그인만으로는 부족하고, **관리자만** `apps/admin-web`의 홈·대시보드를 보도록 서버에서 **`DDX_API_BASE_URL/api/admin/check?userId=`** 를 호출합니다.
+
+- **ddx-api Vercel:** `ADMIN_EMAILS`(쉼표 구분)에 관리자 이메일을 넣거나, Postgres `core.users`에서 해당 사용자 `role`을 `'admin'`으로 둡니다. (`ddx-api/lib/admin.ts` 로직)
+- **`core.users` 행이 없을 때:** 이메일 화이트리스트 매칭은 Supabase Auth 관리 API로 보완하므로, ddx-api에 **`SUPABASE_SERVICE_ROLE_KEY`** 가 있어야 합니다.
+- DDx 가입 등으로 **`core.users.id` = Supabase Auth `uid`** 인 행이 이미 생기면, 관리자 지정은 **`role` 업데이트** 또는 **`ADMIN_EMAILS`** 추가만 하면 됩니다.
 
 ### Supabase Auth
 
@@ -135,7 +144,9 @@ Supabase 대시보드 → Authentication → URL configuration:
 
 ## 3. 다음 구현 단계 (에이전트/개발자용)
 
-- **`apps/hospital-web` · `apps/admin-web`:** Supabase SSR(`@supabase/ssr`), `/login`(이메일·비밀번호), `/auth/callback`, `/auth/signout`, 로그인 후 `/dashboard`(브라우저에서 `dashboard-api` `/api/health` CORS 스모크)까지 뼈대 추가됨. 다음은 실제 화면 이관·역할(RBAC)·API 클라이언트 연동.
+- **`apps/hospital-web` · `apps/admin-web`:** Supabase SSR(`@supabase/ssr`), `/login`(이메일·비밀번호), `/auth/callback`, `/auth/signout`, 로그인 후 `/dashboard`(브라우저에서 `dashboard-api` `/api/health` CORS 스모크)까지 뼈대 추가됨.
+- **`apps/admin-web`:** 비관리자는 `DDX_API_BASE_URL`·ddx-api `ADMIN_EMAILS` / `core.users.role` 기준으로 홈·대시보드 진입 차단.
+- 다음은 실제 화면 이관·추가 RBAC·API 클라이언트 연동.
 - **배포 인벤토리** 표는 통합 진행에 맞춰 계속 갱신한다.
 - **`admin-ui` 폐기:** `admin-web`에 기능 패리티 생기면 워크스페이스·루트 `package.json`의 `admin:*` 스크립트·폴더 정리.
 - 병원 정보 관리처럼 **중복**되는 관리 화면은 `apps/admin-web` 쪽 **단일 진실원**으로 모은 뒤 DDx 관리자에서는 제거 또는 링크만 유지.

@@ -1,11 +1,18 @@
 import Link from 'next/link';
+import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
+import { fetchDdxAdminAllowed } from '@/lib/require-admin';
 
 export default async function AdminHomePage() {
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
+
+  if (user) {
+    const allowed = await fetchDdxAdminAllowed(user.id);
+    if (!allowed) redirect('/login?error=forbidden');
+  }
 
   return (
     <main style={{ padding: 24, maxWidth: 560, lineHeight: 1.6 }}>

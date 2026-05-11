@@ -1,17 +1,9 @@
 import Link from 'next/link';
-import { redirect } from 'next/navigation';
-import { createClient } from '@/lib/supabase/server';
 import { DashboardApiSmoke } from '@/components/dashboard-api-smoke';
+import { requireAdminSession } from '@/lib/require-admin';
 
 export default async function AdminDashboardPage() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    redirect('/login');
-  }
+  const user = await requireAdminSession();
 
   const apiBase =
     process.env.NEXT_PUBLIC_DASHBOARD_API_URL?.trim() ||
