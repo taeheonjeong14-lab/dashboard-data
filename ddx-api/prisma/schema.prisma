@@ -72,15 +72,15 @@ model User {
   @@schema("core")
 }
 
-/// 플랫폼(내부) 관리자 — `core.users`(병원 귀속)와 테이블 분리. id = Supabase Auth uid.
-model PlatformUser {
+/// 내부 관리자 — `core.users`(병원 귀속)와 테이블 분리. id = Supabase Auth uid.
+model AdminUser {
   id        String   @id
   email     String?
   name      String?
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  @@map("platform_users")
+  @@map("admin_users")
   @@schema("core")
 }
 

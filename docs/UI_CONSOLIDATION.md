@@ -115,10 +115,10 @@
 
 Supabase 로그인만으로는 부족하고, **관리자만** `apps/admin-web`의 홈·대시보드를 보도록 서버에서 **`DDX_API_BASE_URL/api/admin/check?userId=`** 를 호출합니다.
 
-- **단일 진실원:** Postgres **`core.platform_users`** — 행의 **`id`** 는 Supabase Auth **`uid`** 와 같아야 합니다. 병원 귀속 사용자는 **`core.users`** 만 쓰고, 플랫폼 관리자는 **`core.platform_users`** 에만 두는 것을 권장합니다 (`ddx-api/lib/admin.ts`).
+- **단일 진실원:** Postgres **`core.admin_users`** — 행의 **`id`** 는 Supabase Auth **`uid`** 와 같아야 합니다. 병원 귀속 사용자는 **`core.users`** 만 쓰고, 내부 관리자는 **`core.admin_users`** 에만 두는 것을 권장합니다 (`ddx-api/lib/admin.ts`).
 - **마이그레이션 폴백:** 레거시 **`core.users.role = 'admin'`** 또는 **`ADMIN_EMAILS`**(쉼표 구분)도 아직 허용됩니다. 안정화 후 폴백 제거 가능.
-- **`ADMIN_EMAILS`만 쓰고 DB에 `platform_users` 행이 없을 때:** 이메일 확인을 위해 ddx-api에 **`SUPABASE_SERVICE_ROLE_KEY`** 가 필요할 수 있습니다.
-- **기존 관리자 옮기기 예시 (수동):** `INSERT INTO core.platform_users (id, email, name) SELECT id, email, name FROM core.users WHERE role = 'admin';` 실행 후 검토·`role` 정리 등은 운영 정책에 따름.
+- **`ADMIN_EMAILS`만 쓰고 DB에 `admin_users` 행이 없을 때:** 이메일 확인을 위해 ddx-api에 **`SUPABASE_SERVICE_ROLE_KEY`** 가 필요할 수 있습니다.
+- **기존 관리자 옮기기 예시 (수동):** `INSERT INTO core.admin_users (id, email, name) SELECT id, email, name FROM core.users WHERE role = 'admin';` 실행 후 검토·`role` 정리 등은 운영 정책에 따름. (과거에 `platform_users` 로 만들었다면 마이그레이션 `20260510130500_rename_platform_users_to_admin_users.sql` 적용 후 동일.)
 
 ### Supabase Auth
 

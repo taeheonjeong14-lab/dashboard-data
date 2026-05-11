@@ -394,7 +394,7 @@ alter table if exists core.users
 create index if not exists idx_core_users_hospital
   on core.users (hospital_id);
 
-create table if not exists core.platform_users (
+create table if not exists core.admin_users (
   id text primary key,
   email text,
   name text,
@@ -402,8 +402,8 @@ create table if not exists core.platform_users (
   updated_at timestamptz not null default now()
 );
 
-create index if not exists idx_platform_users_email_lower
-  on core.platform_users (lower(email));
+create index if not exists idx_admin_users_email_lower
+  on core.admin_users (lower(email));
 
 create index if not exists idx_analytics_daily_metrics_account_date
   on analytics.analytics_daily_metrics (account_id, metric_date desc);

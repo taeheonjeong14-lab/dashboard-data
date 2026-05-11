@@ -20,16 +20,16 @@ async function authEmailForUserId(userId: string): Promise<string | null> {
 
 /**
  * 관리자 판별 (우선순위):
- * 1) `core.platform_users` 에 행이 있으면 플랫폼 관리자
+ * 1) `core.admin_users` 에 행이 있으면 내부 관리자
  * 2) 마이그레이션 폴백: `core.users.role === 'admin'`
  * 3) 마이그레이션 폴백: `ADMIN_EMAILS` + 이메일(Auth 또는 core.users)
  */
 export async function isAdminByUserId(userId: string): Promise<boolean> {
-  const platform = await prisma.platformUser.findUnique({
+  const adminRow = await prisma.adminUser.findUnique({
     where: { id: userId },
     select: { id: true },
   });
-  if (platform) return true;
+  if (adminRow) return true;
 
   const row = await prisma.user.findUnique({
     where: { id: userId },

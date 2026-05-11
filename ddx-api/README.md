@@ -18,7 +18,7 @@ npm run dev                 # http://localhost:3001
 - **Project** is linked as `ddx-api` (subdirectory of this repo). **Production URL:** `https://ddx-api.vercel.app` (alias; each deploy also gets a `*.vercel.app` URL).
 - In Vercel → **Settings → Environment Variables**, add at least **`DATABASE_URL`** (Supabase Postgres) for **Production** and **Preview** so API routes can talk to the DB at **runtime**. Build no longer requires it, but every Prisma call will fail without it.
 - Copy the rest from DDx / `BACKEND_HANDOFF.md` (Supabase, Gemini, OpenAI, Resend, `ADMIN_EMAILS`, `CRON_SECRET`, etc.) as you enable each feature.
-- **플랫폼 관리자:** DB `core.platform_users` (`id` = Supabase Auth uid). 병원 사용자는 `core.users` 만 사용. `ADMIN_EMAILS` / `core.users.role = admin` 은 마이그레이션 폴백 (`lib/admin.ts`).
+- **내부 관리자:** DB `core.admin_users` (`id` = Supabase Auth uid). 병원 사용자는 `core.users` 만 사용. `ADMIN_EMAILS` / `core.users.role = admin` 은 마이그레이션 폴백 (`lib/admin.ts`).
 - Monorepo: if the Vercel project **root directory** is the repo root, set it to **`ddx-api`** so only this app is built.
 
 ## Sync from DDx
