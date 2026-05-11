@@ -343,9 +343,47 @@ alter table if exists core.hospitals
 alter table if exists core.hospitals
   add column if not exists debug_port integer;
 
+alter table if exists core.hospitals
+  add column if not exists searchad_customer_id text;
+
+alter table if exists core.hospitals
+  add column if not exists searchad_api_license text;
+
+alter table if exists core.hospitals
+  add column if not exists searchad_secret_key_encrypted text;
+
+alter table if exists core.hospitals
+  add column if not exists searchad_is_active boolean not null default false;
+
+alter table if exists core.hospitals
+  add column if not exists searchad_last_synced_at timestamptz;
+
+alter table if exists core.hospitals
+  add column if not exists googleads_customer_id text;
+
+alter table if exists core.hospitals
+  add column if not exists googleads_refresh_token_encrypted text;
+
+alter table if exists core.hospitals
+  add column if not exists googleads_is_active boolean not null default false;
+
+alter table if exists core.hospitals
+  add column if not exists googleads_last_synced_at timestamptz;
+
+alter table if exists core.hospitals
+  add column if not exists googleads_metadata jsonb not null default '{}'::jsonb;
+
 create unique index if not exists uq_hospitals_naver_blog_id
   on core.hospitals (naver_blog_id)
   where naver_blog_id is not null;
+
+create unique index if not exists uq_hospitals_searchad_customer_id
+  on core.hospitals (searchad_customer_id)
+  where searchad_customer_id is not null;
+
+create unique index if not exists uq_hospitals_googleads_customer_id
+  on core.hospitals (googleads_customer_id)
+  where googleads_customer_id is not null;
 
 alter table if exists core.users
   add column if not exists role text not null default 'member';
@@ -355,6 +393,17 @@ alter table if exists core.users
 
 create index if not exists idx_core_users_hospital
   on core.users (hospital_id);
+
+create table if not exists core.platform_users (
+  id text primary key,
+  email text,
+  name text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists idx_platform_users_email_lower
+  on core.platform_users (lower(email));
 
 create index if not exists idx_analytics_daily_metrics_account_date
   on analytics.analytics_daily_metrics (account_id, metric_date desc);

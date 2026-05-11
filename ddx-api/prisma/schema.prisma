@@ -18,6 +18,19 @@ model Hospital {
   addressDetail     String?  @db.Text // 병원 상세주소
   logoUrl           String?  @db.Text // 병원 로고 URL
   brandColor        String?  // 병원 BI 컬러 (hex, e.g. #10B981)
+  /// PDF/other-app merge; NULL until populated from source (see hospital_pdf_merge_map).
+  nameEn             String? @map("name_en") @db.Text
+  phone              String? @db.Text
+  slug               String? @unique(map: "uq_core_hospitals_slug_when_set", where: raw("(slug IS NOT NULL AND btrim(slug::text) <> '')"))
+  code               String? @db.Text
+  directorNameKo     String? @map("director_name_ko") @db.Text
+  sealUrl            String? @map("seal_url") @db.Text
+  coverPetImageUrl   String? @map("cover_pet_image_url") @db.Text
+  taglineLine1       String? @map("tagline_line1") @db.Text
+  taglineLine2       String? @map("tagline_line2") @db.Text
+  directorTitle      String? @map("director_title") @db.Text
+  blogIntro          String? @map("blog_intro") @db.Text
+  blogOutro          String? @map("blog_outro") @db.Text
   // Supabase에만 있는 확장 컬럼 (삭제 방지용 introspection 반영)
   naverBlogId        String? @map("naver_blog_id") @unique(map: "uq_hospitals_naver_blog_id", where: raw("(naver_blog_id IS NOT NULL)"))
   smartplaceStatUrl  String? @map("smartplace_stat_url")
@@ -56,6 +69,18 @@ model User {
 
   @@index([hospitalId], map: "idx_core_users_hospital")
   @@map("users")
+  @@schema("core")
+}
+
+/// 플랫폼(내부) 관리자 — `core.users`(병원 귀속)와 테이블 분리. id = Supabase Auth uid.
+model PlatformUser {
+  id        String   @id
+  email     String?
+  name      String?
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("platform_users")
   @@schema("core")
 }
 

@@ -18,8 +18,19 @@ async function authEmailForUserId(userId: string): Promise<string | null> {
   return data.user.email.trim().toLowerCase();
 }
 
-/** 관리자: `core.users.role === 'admin'` 또는 `ADMIN_EMAILS`(이메일, 대소문자 무시). DB 행이 없어도 Auth 이메일과 매치되면 허용(서비스 롤 필요). */
+/**
+ * 관리자 판별 (우선순위):
+ * 1) `core.platform_users` 에 행이 있으면 플랫폼 관리자
+ * 2) 마이그레이션 폴백: `core.users.role === 'admin'`
+ * 3) 마이그레이션 폴백: `ADMIN_EMAILS` + 이메일(Auth 또는 core.users)
+ */
 export async function isAdminByUserId(userId: string): Promise<boolean> {
+  const platform = await prisma.platformUser.findUnique({
+    where: { id: userId },
+    select: { id: true },
+  });
+  if (platform) return true;
+
   const row = await prisma.user.findUnique({
     where: { id: userId },
     select: { email: true, role: true },
