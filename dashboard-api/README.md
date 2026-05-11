@@ -22,7 +22,13 @@ npm run dev                 # http://localhost:3002
 
 ## 배포 (Vercel)
 
-- 새 프로젝트를 만들고 **Root Directory** 를 `dashboard-api` 로 지정.
+- **Root Directory:** **`dashboard-api`** (레포 루트 `.` 아님).
+- 루트에만 `package-lock.json` 이 있으므로 `dashboard-api/vercel.json` 에 **`cd .. && npm ci`** / **`cd .. && npm run dashboard-api:build`** 가 설정되어 있습니다. **Install / Build Command 는 비워 두어도 됩니다.**
+
+### 빌드 로그에 `naver-blog-stat` · `Couldn't find any pages or app directory` 가 나오면
+
+Vercel 이 **레포 루트**에서 빌드하고 있는 것입니다. **Settings → General → Root Directory → `dashboard-api`** 로 저장 후 재배포하세요.
+
 - `NEXT_PUBLIC_*` 는 dashboard-ui와 동일 Supabase면 동일 값 가능.
 
 ### 브라우저 CORS

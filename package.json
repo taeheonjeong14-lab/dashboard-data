@@ -33,6 +33,8 @@
     "admin-web:build": "npm --prefix apps/admin-web run build",
     "ddx-api:dev": "npm --prefix ddx-api run dev",
     "ddx-api:build": "npm --prefix ddx-api run build",
+    "dashboard-api:dev": "npm --prefix dashboard-api run dev",
+    "dashboard-api:build": "npm --prefix dashboard-api run build",
     "chart-api:dev": "npm --prefix chart-api run dev",
     "chart-api:build": "npm --prefix chart-api run build",
     "sql:decode-batch": "node scripts/sql/decode-supabase-batch.mjs",
