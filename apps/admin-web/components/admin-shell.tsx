@@ -26,13 +26,16 @@ type NavItem = {
   section?: string | null;
 };
 
-const DATA_NAV: NavItem[] = [
-  { href: '/admin/performance', label: '통계', icon: <BarChart2 size={17} /> },
+const ANALYTICS_NAV: NavItem[] = [
+  { href: '/admin/performance', label: '경영분석', icon: <BarChart2 size={17} /> },
+  { href: '/admin/health-report', label: '건강검진 리포트', icon: <HeartPulse size={17} /> },
+];
+
+const COLLECT_NAV: NavItem[] = [
   { href: '/admin/chart-data', label: '차트 데이터', icon: <FileText size={17} /> },
-  { href: '/admin/data-upload', label: 'PDF 업로드', icon: <Upload size={17} />, section: null },
-  { href: '/admin/data-upload?section=stats', label: '경영통계 업로드', icon: <FileSpreadsheet size={17} />, section: 'stats' },
   { href: '/admin/data-upload?section=collect', label: '자동 수집', icon: <RefreshCw size={17} />, section: 'collect' },
-  { href: '/admin/health-report', label: '건강검진', icon: <HeartPulse size={17} /> },
+  { href: '/admin/data-upload', label: '차트데이터 수집', icon: <Upload size={17} />, section: null },
+  { href: '/admin/data-upload?section=stats', label: '경영통계 수집', icon: <FileSpreadsheet size={17} />, section: 'stats' },
 ];
 
 const MANAGE_NAV: NavItem[] = [
@@ -86,8 +89,17 @@ export function AdminShell({ title, description, children }: { title: string; de
           {/* Nav */}
           <nav className={styles.nav}>
             <div className={styles.navSection}>
-              <div className={styles.navSectionLabel}>데이터</div>
-              {DATA_NAV.map((item) => (
+              <div className={styles.navSectionLabel}>분석 및 서비스</div>
+              {ANALYTICS_NAV.map((item) => (
+                <NavLink key={item.href} item={item} active={isActive(item)} />
+              ))}
+            </div>
+
+            <div className={styles.navDivider} />
+
+            <div className={styles.navSection}>
+              <div className={styles.navSectionLabel}>데이터 수집</div>
+              {COLLECT_NAV.map((item) => (
                 <NavLink key={item.href} item={item} active={isActive(item)} />
               ))}
             </div>
