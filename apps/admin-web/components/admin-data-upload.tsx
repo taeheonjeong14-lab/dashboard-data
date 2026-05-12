@@ -5,7 +5,7 @@ import { parseChartAdminHospitalsResponse } from '@/lib/chart-extraction/chart-a
 import type { CSSProperties } from 'react';
 import { FormEvent, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import { useChartExtraction } from '@/components/chart-extraction-provider';
 import AdminDataConsole from '@/components/admin-data-console';
 
@@ -18,7 +18,6 @@ type CollectUpsertItem = { label: string; count: number };
 type CollectRunResult = { ok: boolean; output: string; steps: CollectStepResult[]; upserts: CollectUpsertItem[] };
 
 export default function AdminDataUpload() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const [section, setSection] = useState<UploadSection>('pdf');
   const { startExtract, status, error: extractError } = useChartExtraction();
@@ -167,42 +166,8 @@ export default function AdminDataUpload() {
   };
 
   return (
-    <div className="adminLayout2WithMain">
-      <nav className="adminLayoutSecondaryRail" aria-label="데이터 수집 유형">
-        <button
-          type="button"
-          className={`adminRailRow${section === 'pdf' ? ' adminRailRowActive' : ''}`}
-          onClick={() => {
-            setSection('pdf');
-            router.replace('/admin/data-upload', { scroll: false });
-          }}
-        >
-          PDF 업로드
-        </button>
-        <button
-          type="button"
-          className={`adminRailRow${section === 'stats' ? ' adminRailRowActive' : ''}`}
-          onClick={() => {
-            setSection('stats');
-            router.replace('/admin/data-upload?section=stats', { scroll: false });
-          }}
-        >
-          경영통계 업로드
-        </button>
-        <button
-          type="button"
-          className={`adminRailRow${section === 'collect' ? ' adminRailRowActive' : ''}`}
-          onClick={() => {
-            setSection('collect');
-            router.replace('/admin/data-upload?section=collect', { scroll: false });
-          }}
-        >
-          자동 수집
-        </button>
-      </nav>
-
-      <div className="adminLayoutMainPane">
-        <div className="adminLayoutMainColumnInset">
+    <div className="adminLayoutMainPane">
+      <div className="adminLayoutMainColumnInset">
           {section === 'collect' ? (
             <>
               <header style={{ marginBottom: 20 }}>
@@ -597,6 +562,5 @@ export default function AdminDataUpload() {
           )}
         </div>
       </div>
-    </div>
   );
 }
