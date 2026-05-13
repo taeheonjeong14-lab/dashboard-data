@@ -1,26 +1,32 @@
 /**
- * collect-worker.js — 로컬 수집 Worker HTTP 서버
+ * collect-worker.js — Supabase Job Queue 폴링 Worker
  *
- * Vercel admin-web이 COLLECT_WORKER_URL 로 요청을 보내면
- * 실제 Chrome 디버그 포트에 접근해 collect-all.js 를 실행합니다.
+ * core.collect_jobs 테이블을 30초마다 확인해서
+ * pending 상태의 Job을 가져와 collect 스크립트를 실행합니다.
  *
  * Usage:
  *   node scripts/collect-worker.js
  *   npm run collect:worker
  *
- * 환경변수 (.env):
- *   COLLECT_WORKER_PORT    — 리슨 포트 (기본: 3099)
- *   COLLECT_WORKER_API_KEY — Bearer 인증 키 (미설정 시 경고 출력, 인증 없음)
+ * 필요 환경변수 (.env):
+ *   SUPABASE_URL
+ *   SUPABASE_SERVICE_ROLE_KEY
  */
 
-const http = require("http");
 const { spawn } = require("child_process");
 const path = require("path");
 require("dotenv").config({ path: path.resolve(__dirname, "..", ".env") });
 
-const PORT = parseInt(process.env.COLLECT_WORKER_PORT || "3099", 10);
-const API_KEY = (process.env.COLLECT_WORKER_API_KEY || "").trim();
+const { createClient } = require("@supabase/supabase-js");
+
 const ROOT_DIR = path.resolve(__dirname, "..");
+const POLL_INTERVAL_MS = 30_000;
+
+const supabase = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_ROLE_KEY,
+  { db: { schema: "core" } }
+);
 
 function parseCollectOutput(output) {
   const steps = [];
@@ -84,72 +90,56 @@ function spawnAndCapture(scriptPath, args) {
   });
 }
 
-function readBody(req) {
-  return new Promise((resolve, reject) => {
-    const chunks = [];
-    req.on("data", (c) => chunks.push(c));
-    req.on("end", () => resolve(Buffer.concat(chunks).toString("utf8")));
-    req.on("error", reject);
-  });
-}
+async function pollAndRun() {
+  const { data: jobs } = await supabase
+    .from("collect_jobs")
+    .select("*")
+    .eq("status", "pending")
+    .order("created_at", { ascending: true })
+    .limit(1);
 
-const server = http.createServer(async (req, res) => {
-  res.setHeader("Content-Type", "application/json");
+  if (!jobs || jobs.length === 0) return;
 
-  if (req.method === "GET" && req.url === "/health") {
-    res.writeHead(200);
-    res.end(JSON.stringify({ ok: true }));
-    return;
-  }
+  const job = jobs[0];
 
-  if (req.method !== "POST" || req.url !== "/collect/run") {
-    res.writeHead(404);
-    res.end(JSON.stringify({ error: "not_found" }));
-    return;
-  }
+  // 원자적 클레임 — 이미 다른 Worker가 가져갔으면 0건 업데이트
+  const { data: claimed } = await supabase
+    .from("collect_jobs")
+    .update({ status: "running", started_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+    .eq("id", job.id)
+    .eq("status", "pending")
+    .select("id")
+    .single();
 
-  if (API_KEY) {
-    const auth = req.headers["authorization"] || "";
-    if (auth !== `Bearer ${API_KEY}`) {
-      res.writeHead(401);
-      res.end(JSON.stringify({ error: "unauthorized" }));
-      return;
-    }
-  }
+  if (!claimed) return;
 
-  let body = {};
-  try {
-    const raw = await readBody(req);
-    if (raw) body = JSON.parse(raw);
-  } catch {
-    // body 없음 = 전체 병원 배치
-  }
+  console.log(`[collect-worker] Job 시작: ${job.id} | hospital_id=${job.hospital_id ?? "전체"}`);
 
-  const hospitalId = (body.hospitalId || "").trim();
-  if (hospitalId && !/^[0-9a-f-]{8,36}$/i.test(hospitalId)) {
-    res.writeHead(400);
-    res.end(JSON.stringify({ error: "유효하지 않은 hospital_id입니다." }));
-    return;
-  }
-
-  const isBatch = !hospitalId;
+  const isBatch = !job.hospital_id;
   const scriptName = isBatch ? "collect-all-batch.js" : "collect-all.js";
   const scriptPath = path.join(ROOT_DIR, "scripts", scriptName);
+  const args = isBatch ? [] : [job.hospital_id];
 
-  try {
-    const { code, output } = await spawnAndCapture(scriptPath, isBatch ? [] : [hospitalId]);
-    const { steps, upserts } = parseCollectOutput(output);
-    res.writeHead(200);
-    res.end(JSON.stringify({ ok: code === 0, output, steps, upserts }));
-  } catch (err) {
-    res.writeHead(500);
-    res.end(JSON.stringify({ ok: false, output: String(err), steps: [], upserts: [] }));
-  }
-});
+  const { code, output } = await spawnAndCapture(scriptPath, args);
+  const { steps, upserts } = parseCollectOutput(output);
+  const status = code === 0 ? "done" : "failed";
 
-server.listen(PORT, () => {
-  console.log(`[collect-worker] 포트 ${PORT} 에서 실행 중`);
-  if (!API_KEY) {
-    console.warn("[collect-worker] 경고: COLLECT_WORKER_API_KEY 미설정 — 인증 없이 누구나 접근 가능");
-  }
-});
+  await supabase
+    .from("collect_jobs")
+    .update({
+      status,
+      output,
+      steps,
+      upserts,
+      finished_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", job.id);
+
+  console.log(`[collect-worker] Job ${status}: ${job.id}`);
+}
+
+console.log(`[collect-worker] 시작 — Supabase 폴링 간격: ${POLL_INTERVAL_MS / 1000}초`);
+
+void pollAndRun();
+setInterval(() => void pollAndRun(), POLL_INTERVAL_MS);

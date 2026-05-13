@@ -15,7 +15,13 @@ type UploadSection = 'pdf' | 'stats' | 'collect';
 
 type CollectStepResult = { index: number; total: number; name: string; durationSec: number };
 type CollectUpsertItem = { label: string; count: number };
-type CollectRunResult = { ok: boolean; output: string; steps: CollectStepResult[]; upserts: CollectUpsertItem[] };
+type CollectJob = {
+  id: string;
+  status: 'pending' | 'running' | 'done' | 'failed';
+  output: string | null;
+  steps: CollectStepResult[] | null;
+  upserts: CollectUpsertItem[] | null;
+};
 
 export default function AdminDataUpload() {
   const searchParams = useSearchParams();
@@ -34,8 +40,8 @@ export default function AdminDataUpload() {
   const [patchMessage, setPatchMessage] = useState<string | null>(null);
 
   const [collectHospitalId, setCollectHospitalId] = useState('');
-  const [collectBusy, setCollectBusy] = useState(false);
-  const [collectResult, setCollectResult] = useState<CollectRunResult | null>(null);
+  const [collectSubmitting, setCollectSubmitting] = useState(false);
+  const [collectJob, setCollectJob] = useState<CollectJob | null>(null);
   const [collectError, setCollectError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -127,8 +133,8 @@ export default function AdminDataUpload() {
   }
 
   async function runCollect(hospitalId?: string) {
-    setCollectBusy(true);
-    setCollectResult(null);
+    setCollectSubmitting(true);
+    setCollectJob(null);
     setCollectError(null);
     try {
       const res = await fetch('/api/admin/collect/run', {
@@ -137,18 +143,33 @@ export default function AdminDataUpload() {
         credentials: 'include',
         body: JSON.stringify(hospitalId ? { hospitalId } : {}),
       });
-      const data = (await res.json()) as CollectRunResult & { error?: string };
-      if (!res.ok) {
-        setCollectError(data.error ?? '수집 실행 중 오류가 발생했습니다.');
+      const data = (await res.json()) as { ok?: boolean; jobId?: string; error?: string };
+      if (!res.ok || !data.jobId) {
+        setCollectError(data.error ?? '수집 요청 생성에 실패했습니다.');
         return;
       }
-      setCollectResult(data);
+      setCollectJob({ id: data.jobId, status: 'pending', output: null, steps: null, upserts: null });
     } catch (e) {
       setCollectError(e instanceof Error ? e.message : '알 수 없는 오류');
     } finally {
-      setCollectBusy(false);
+      setCollectSubmitting(false);
     }
   }
+
+  useEffect(() => {
+    if (!collectJob || collectJob.status === 'done' || collectJob.status === 'failed') return;
+    const timer = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/admin/collect/status/${collectJob.id}`, { credentials: 'include' });
+        if (!res.ok) return;
+        const job = (await res.json()) as CollectJob;
+        setCollectJob(job);
+      } catch {
+        // 폴링 오류는 무시하고 계속 시도
+      }
+    }, 5_000);
+    return () => clearInterval(timer);
+  }, [collectJob?.id, collectJob?.status]);
 
   const error = localError ?? (status === 'error' ? extractError : null);
   const canSubmit =
@@ -217,23 +238,25 @@ export default function AdminDataUpload() {
                     <button
                       type="button"
                       className="adminLegacyPrimaryBtn"
-                      disabled={collectBusy || !collectHospitalId || hospitalsLoading}
+                      disabled={collectSubmitting || !collectHospitalId || hospitalsLoading}
                       onClick={() => void runCollect(collectHospitalId)}
                     >
-                      {collectBusy ? '수집 중…' : '선택 병원 수집'}
+                      {collectSubmitting ? '요청 중…' : '선택 병원 수집'}
                     </button>
                     <button
                       type="button"
                       className="adminLegacySecondaryBtn"
-                      disabled={collectBusy}
+                      disabled={collectSubmitting}
                       onClick={() => void runCollect()}
                     >
-                      {collectBusy ? '수집 중…' : '전체 병원 수집'}
+                      {collectSubmitting ? '요청 중…' : '전체 병원 수집'}
                     </button>
                   </div>
-                  {collectBusy && (
+                  {collectJob && (collectJob.status === 'pending' || collectJob.status === 'running') && (
                     <p style={{ margin: 0, fontSize: 13, color: '#1d4ed8' }}>
-                      수집 실행 중입니다. 완료될 때까지 창을 닫지 마세요…
+                      {collectJob.status === 'pending'
+                        ? 'Worker가 곧 수집을 시작합니다… (최대 30초 대기)'
+                        : '수집 실행 중입니다…'}
                     </p>
                   )}
                 </div>
@@ -248,113 +271,49 @@ export default function AdminDataUpload() {
                 </div>
               )}
 
-              {collectResult && (
+              {collectJob && (collectJob.status === 'done' || collectJob.status === 'failed') && (
                 <>
                   {/* 성공/실패 배너 */}
                   <div
                     className="adminLegacyBlockBleed"
                     style={{
-                      background: collectResult.ok ? '#f0fdf4' : '#fef2f2',
-                      borderBottom: `1px solid ${collectResult.ok ? 'rgba(22,163,74,0.2)' : 'rgba(185,28,28,0.2)'}`,
+                      background: collectJob.status === 'done' ? '#f0fdf4' : '#fef2f2',
+                      borderBottom: `1px solid ${collectJob.status === 'done' ? 'rgba(22,163,74,0.2)' : 'rgba(185,28,28,0.2)'}`,
                     }}
                   >
-                    <p
-                      style={{
-                        margin: 0,
-                        fontSize: 14,
-                        fontWeight: 700,
-                        color: collectResult.ok ? '#15803d' : '#991b1b',
-                      }}
-                    >
-                      {collectResult.ok ? '✓ 수집 완료' : '✗ 수집 실패'}
+                    <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: collectJob.status === 'done' ? '#15803d' : '#991b1b' }}>
+                      {collectJob.status === 'done' ? '✓ 수집 완료' : '✗ 수집 실패'}
                     </p>
                   </div>
 
                   {/* 수집 결과 요약 */}
                   <div className="adminLegacyBlockBleed">
-                    <p style={{ margin: '0 0 10px', fontSize: 13, fontWeight: 600, color: '#334155' }}>
-                      수집 결과
-                    </p>
-                    {collectResult.upserts.length > 0 ? (
-                      <div
-                        style={{
-                          display: 'grid',
-                          gap: 8,
-                          background: '#f8fafc',
-                          border: '1px solid #e2e8f0',
-                          borderRadius: 8,
-                          padding: '12px 14px',
-                        }}
-                      >
-                        {collectResult.upserts.map((u) => (
-                          <div
-                            key={u.label}
-                            style={{
-                              display: 'flex',
-                              justifyContent: 'space-between',
-                              alignItems: 'center',
-                              fontSize: 13,
-                              color: '#0f172a',
-                            }}
-                          >
+                    <p style={{ margin: '0 0 10px', fontSize: 13, fontWeight: 600, color: '#334155' }}>수집 결과</p>
+                    {collectJob.upserts && collectJob.upserts.length > 0 ? (
+                      <div style={{ display: 'grid', gap: 8, background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, padding: '12px 14px' }}>
+                        {collectJob.upserts.map((u) => (
+                          <div key={u.label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 13, color: '#0f172a' }}>
                             <span>{u.label}</span>
-                            <span
-                              style={{
-                                fontWeight: 700,
-                                color: '#1d4ed8',
-                                background: '#eff6ff',
-                                padding: '2px 8px',
-                                borderRadius: 4,
-                                fontSize: 12,
-                              }}
-                            >
+                            <span style={{ fontWeight: 700, color: '#1d4ed8', background: '#eff6ff', padding: '2px 8px', borderRadius: 4, fontSize: 12 }}>
                               {u.count.toLocaleString()}건
                             </span>
                           </div>
                         ))}
                       </div>
                     ) : (
-                      <p style={{ margin: 0, fontSize: 13, color: '#64748b' }}>
-                        모든 데이터가 이미 최신 상태입니다. (신규 수집 없음)
-                      </p>
+                      <p style={{ margin: 0, fontSize: 13, color: '#64748b' }}>모든 데이터가 이미 최신 상태입니다. (신규 수집 없음)</p>
                     )}
                   </div>
 
                   {/* 실행 단계 */}
-                  {collectResult.steps.length > 0 && (
+                  {collectJob.steps && collectJob.steps.length > 0 && (
                     <div className="adminLegacyBlockBleed">
-                      <p style={{ margin: '0 0 10px', fontSize: 13, fontWeight: 600, color: '#334155' }}>
-                        실행 단계
-                      </p>
-                      <ol
-                        style={{
-                          margin: 0,
-                          padding: 0,
-                          listStyle: 'none',
-                          display: 'grid',
-                          gap: 4,
-                        }}
-                      >
-                        {collectResult.steps.map((s) => (
-                          <li
-                            key={`${s.index}-${s.name}`}
-                            style={{
-                              display: 'flex',
-                              justifyContent: 'space-between',
-                              alignItems: 'center',
-                              fontSize: 13,
-                              color: '#475569',
-                              padding: '4px 0',
-                              borderBottom: '1px solid rgba(15,23,42,0.05)',
-                            }}
-                          >
-                            <span>
-                              <span style={{ color: '#15803d', marginRight: 6 }}>✓</span>
-                              {s.index}. {s.name}
-                            </span>
-                            <span style={{ color: '#94a3b8', fontSize: 12, flexShrink: 0, marginLeft: 8 }}>
-                              {s.durationSec.toFixed(1)}s
-                            </span>
+                      <p style={{ margin: '0 0 10px', fontSize: 13, fontWeight: 600, color: '#334155' }}>실행 단계</p>
+                      <ol style={{ margin: 0, padding: 0, listStyle: 'none', display: 'grid', gap: 4 }}>
+                        {collectJob.steps.map((s) => (
+                          <li key={`${s.index}-${s.name}`} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 13, color: '#475569', padding: '4px 0', borderBottom: '1px solid rgba(15,23,42,0.05)' }}>
+                            <span><span style={{ color: '#15803d', marginRight: 6 }}>✓</span>{s.index}. {s.name}</span>
+                            <span style={{ color: '#94a3b8', fontSize: 12, flexShrink: 0, marginLeft: 8 }}>{s.durationSec.toFixed(1)}s</span>
                           </li>
                         ))}
                       </ol>
@@ -363,29 +322,11 @@ export default function AdminDataUpload() {
 
                   {/* 상세 로그 */}
                   <details className="adminMainAccordion">
-                    <summary
-                      className="adminAccordionSummary"
-                      style={{ cursor: 'pointer', fontWeight: 600, fontSize: 13, listStyle: 'none', padding: '12px 0' }}
-                    >
+                    <summary className="adminAccordionSummary" style={{ cursor: 'pointer', fontWeight: 600, fontSize: 13, listStyle: 'none', padding: '12px 0' }}>
                       상세 로그 보기
                     </summary>
-                    <pre
-                      style={{
-                        margin: '8px 0 16px',
-                        fontSize: 11,
-                        lineHeight: 1.6,
-                        color: '#334155',
-                        background: '#f8fafc',
-                        border: '1px solid #e2e8f0',
-                        borderRadius: 6,
-                        padding: 14,
-                        overflow: 'auto',
-                        maxHeight: 400,
-                        whiteSpace: 'pre-wrap',
-                        wordBreak: 'break-all',
-                      }}
-                    >
-                      {collectResult.output}
+                    <pre style={{ margin: '8px 0 16px', fontSize: 11, lineHeight: 1.6, color: '#334155', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 6, padding: 14, overflow: 'auto', maxHeight: 400, whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
+                      {collectJob.output}
                     </pre>
                   </details>
                 </>
