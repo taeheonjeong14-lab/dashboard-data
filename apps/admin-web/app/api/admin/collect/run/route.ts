@@ -117,7 +117,10 @@ export async function POST(request: Request) {
   const workerUrl = process.env.COLLECT_WORKER_URL?.trim();
   if (workerUrl) {
     const workerApiKey = process.env.COLLECT_WORKER_API_KEY?.trim();
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'ngrok-skip-browser-warning': '1',
+    };
     if (workerApiKey) headers['Authorization'] = `Bearer ${workerApiKey}`;
     try {
       const workerRes = await fetch(`${workerUrl.replace(/\/$/, '')}/collect/run`, {
