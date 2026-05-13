@@ -135,24 +135,23 @@ export async function POST(request: Request) {
     const { error: blogDeactivateErr } = await supabase
       .schema('analytics')
       .from('analytics_blog_keyword_targets')
-      .update({ is_active: false })
+      .delete()
       .eq('hospital_id', resolvedHospitalId);
     if (blogDeactivateErr) throw blogDeactivateErr;
 
     const blogKeywords = parseKeywordLines(hospitalForm.blog_keywords_text || '');
-    for (const item of blogKeywords) {
+    if (blogKeywords.length > 0) {
       const { error: btErr } = await supabase
         .schema('analytics')
         .from('analytics_blog_keyword_targets')
-        .upsert(
-          {
+        .insert(
+          blogKeywords.map((item) => ({
             hospital_id: resolvedHospitalId,
             account_id: (hospitalForm.naver_blog_id || '').trim(),
             keyword: item.keyword,
             is_active: true,
             source: 'admin-web',
-          },
-          { onConflict: 'account_id,keyword' },
+          })),
         );
       if (btErr) throw btErr;
     }
@@ -160,23 +159,22 @@ export async function POST(request: Request) {
     const { error: placeDeactivateErr } = await supabase
       .schema('analytics')
       .from('analytics_place_keyword_targets')
-      .update({ is_active: false })
+      .delete()
       .eq('hospital_id', resolvedHospitalId);
     if (placeDeactivateErr) throw placeDeactivateErr;
 
     const placeKeywords = parseKeywordLines(hospitalForm.place_keywords_text || '');
-    for (const item of placeKeywords) {
+    if (placeKeywords.length > 0) {
       const { error: ptErr } = await supabase
         .schema('analytics')
         .from('analytics_place_keyword_targets')
-        .upsert(
-          {
+        .insert(
+          placeKeywords.map((item) => ({
             hospital_id: resolvedHospitalId,
             keyword: item.keyword,
             is_active: true,
             source: 'admin-web',
-          },
-          { onConflict: 'hospital_id,keyword' },
+          })),
         );
       if (ptErr) throw ptErr;
     }
