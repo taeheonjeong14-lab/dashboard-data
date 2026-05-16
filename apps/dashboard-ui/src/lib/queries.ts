@@ -830,3 +830,70 @@ export async function deleteKeywordTarget(id: number) {
     .eq("id", id);
   if (error) throw error;
 }
+
+// ─── 네이버 검색광고 ───────────────────────────────────────────────────────────
+
+export type SearchAdDailyRow = {
+  /** YYYY-MM-DD (Asia/Seoul 기준) */
+  dateKey: string;
+  campaignId: string;
+  campaignName: string | null;
+  impressions: number | null;
+  clicks: number | null;
+  cost: number | null;
+};
+
+/**
+ * 캠페인 레벨(adgroup_id='', keyword_id='') 행만 조회해 중복 합산을 방지한다.
+ * 같은 (dateKey, campaignId) 쌍이 복수일 때는 SUM 처리한다.
+ */
+export async function fetchSearchAdDailyMetrics(
+  hospitalId: string
+): Promise<SearchAdDailyRow[]> {
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase
+    .schema("analytics")
+    .from("analytics_searchad_daily_metrics")
+    .select("metric_date,campaign_id,campaign_name,impressions,clicks,cost")
+    .eq("hospital_id", hospitalId)
+    .eq("adgroup_id", "")
+    .eq("keyword_id", "")
+    .order("metric_date", { ascending: true });
+  if (error) throw error;
+
+  const rows = (data ?? []) as Record<string, unknown>[];
+  const byKey = new Map<string, SearchAdDailyRow>();
+
+  for (const row of rows) {
+    const raw = row.metric_date;
+    if (!raw) continue;
+    const dateKey = String(raw).slice(0, 10); // YYYY-MM-DD (date type은 이미 Seoul 날짜)
+    const campaignId = String(row.campaign_id ?? "");
+    const key = `${dateKey}::${campaignId}`;
+
+    const impressions = asNumberOrNull(row.impressions);
+    const clicks = asNumberOrNull(row.clicks);
+    const cost = asNumberOrNull(row.cost);
+    const campaignName =
+      typeof row.campaign_name === "string" && row.campaign_name.trim()
+        ? row.campaign_name.trim()
+        : null;
+
+    const prev = byKey.get(key);
+    if (prev) {
+      byKey.set(key, {
+        ...prev,
+        impressions: addNullableKpi(prev.impressions, impressions),
+        clicks: addNullableKpi(prev.clicks, clicks),
+        cost: addNullableKpi(prev.cost, cost),
+      });
+    } else {
+      byKey.set(key, { dateKey, campaignId, campaignName, impressions, clicks, cost });
+    }
+  }
+
+  return Array.from(byKey.values()).sort((a, b) => {
+    if (a.dateKey !== b.dateKey) return a.dateKey.localeCompare(b.dateKey);
+    return a.campaignId.localeCompare(b.campaignId);
+  });
+}
