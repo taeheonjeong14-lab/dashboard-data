@@ -2576,9 +2576,15 @@ export async function POST(request: NextRequest) {
     console.log(`[text-bucketing DEBUG] llmLines count=${llmLines.length}, first3=${JSON.stringify(llmLines.slice(0, 3))}, last3=${JSON.stringify(llmLines.slice(-3))}`);
     const ocrConfigured = Boolean(process.env.GOOGLE_CLOUD_CLIENT_EMAIL && process.env.GOOGLE_CLOUD_PRIVATE_KEY &&
       (sourceFileType !== 'application/pdf' || process.env.GOOGLE_CLOUD_OCR_INPUT_BUCKET));
-    const ocr = ocrConfigured
-      ? await runGoogleVisionOcr(binary, sourceFileType)
-      : { text: '', confidence: null, rows: [] };
+    console.log(`[text-bucketing DEBUG] ocrConfigured=${ocrConfigured} fileType=${sourceFileType}`);
+    let ocr: { text: string; confidence: number | null; rows: import('@/lib/google-vision').OcrRow[] } = { text: '', confidence: null, rows: [] };
+    if (ocrConfigured) {
+      try {
+        ocr = await runGoogleVisionOcr(binary, sourceFileType);
+      } catch (ocrErr) {
+        console.error('[text-bucketing] OCR 실패 (건너뜀):', ocrErr instanceof Error ? ocrErr.message : String(ocrErr));
+      }
+    }
 
     const pasteLines =
       chartType === "efriends" ? orderedLinesFromPastedChartText(chartPasteText, "efriends") : [];
