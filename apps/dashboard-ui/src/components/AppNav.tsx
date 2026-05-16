@@ -2,9 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
-import { getCurrentUser } from "@/lib/auth";
-import { fetchHospitalScope } from "@/lib/queries";
+import { useAuth } from "@/lib/auth-context";
 
 function SettingsIcon({ className }: { className?: string }) {
   return (
@@ -57,33 +55,13 @@ const NAV = [
 
 export default function AppNav() {
   const pathname = usePathname();
-  const [userLabel, setUserLabel] = useState<string | null>(null);
+  const { scope } = useAuth();
 
-  useEffect(() => {
-    let active = true;
-    (async () => {
-      try {
-        const user = await getCurrentUser();
-        if (!active) return;
-        if (!user) {
-          setUserLabel(null);
-          return;
-        }
-        const scope = await fetchHospitalScope(user);
-        if (!active) return;
-        const name = scope.userName ?? "—";
-        const hospital = scope.hospitals
-          .find((h) => h.hospital_id === scope.assignedHospitalId)
-          ?.hospital_name?.trim();
-        setUserLabel(hospital ? `${name}(${hospital})` : name);
-      } catch {
-        if (active) setUserLabel(null);
-      }
-    })();
-    return () => {
-      active = false;
-    };
-  }, []);
+  const name = scope.userName ?? "—";
+  const hospital = scope.hospitals
+    .find((h) => h.hospital_id === scope.assignedHospitalId)
+    ?.hospital_name?.trim();
+  const userLabel = hospital ? `${name}(${hospital})` : name;
 
   return (
     <header className="sticky top-0 z-40 border-b border-zinc-800 bg-zinc-950/95 backdrop-blur supports-[backdrop-filter]:bg-zinc-950/80">
@@ -111,13 +89,9 @@ export default function AppNav() {
         </nav>
 
         <div className="ml-auto flex shrink-0 items-center gap-3 sm:gap-4">
-          {userLabel ? (
-            <span className="max-w-[min(100vw-12rem,20rem)] truncate text-sm text-zinc-400" title={userLabel}>
-              {userLabel}
-            </span>
-          ) : (
-            <span className="text-sm text-zinc-600">…</span>
-          )}
+          <span className="max-w-[min(100vw-12rem,20rem)] truncate text-sm text-zinc-400" title={userLabel}>
+            {userLabel}
+          </span>
           <div className="flex shrink-0 items-center gap-1">
             <Link
               href="/settings"

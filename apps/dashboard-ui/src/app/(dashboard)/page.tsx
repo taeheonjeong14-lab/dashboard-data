@@ -1,13 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 import SummaryDualWeekCompareChart from "@/components/SummaryDualWeekCompareChart";
 import SummaryHeader from "@/components/SummaryHeader";
 import BlogRanksSection from "@/components/blog/BlogRanksSection";
-import { getCurrentUser } from "@/lib/auth";
+import { useAuth } from "@/lib/auth-context";
 import {
-  fetchHospitalScope,
   fetchSummaryBlogRanks,
   fetchSummaryKpis,
   fetchSummaryPlaceRanks,
@@ -30,37 +28,25 @@ function formatRank(value: number | null) {
 }
 
 export default function SummaryPage() {
-  const router = useRouter();
-  const [ready, setReady] = useState(false);
+  const { scope } = useAuth();
+  const hospitalId = scope.assignedHospitalId;
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [hospitalId, setHospitalId] = useState<string | null>(null);
   const [kpis, setKpis] = useState<SummaryKpis>(EMPTY_KPIS);
   const [blogRanks, setBlogRanks] = useState<BlogRankSummaryRow[]>([]);
   const [placeRanks, setPlaceRanks] = useState<PlaceRankSummaryRow[]>([]);
 
   useEffect(() => {
+    if (!hospitalId) {
+      setError("users.hospital_id 배정이 없어 요약 데이터를 불러올 수 없습니다.");
+      setLoading(false);
+      return;
+    }
+
     let active = true;
     (async () => {
       try {
-        const user = await getCurrentUser();
-        if (!active) return;
-        if (!user) {
-          router.replace("/login");
-          return;
-        }
-
-        const scope = await fetchHospitalScope(user);
-        if (!active) return;
-        const hospitalId = scope.assignedHospitalId;
-        if (!hospitalId) {
-          setError("users.hospital_id 배정이 없어 요약 데이터를 불러올 수 없습니다.");
-          setHospitalId(null);
-          setReady(true);
-          return;
-        }
-        setHospitalId(hospitalId);
-
         const [kpiRows, blogRows, placeRows] = await Promise.all([
           fetchSummaryKpis(hospitalId),
           fetchSummaryBlogRanks(hospitalId),
@@ -77,22 +63,13 @@ export default function SummaryPage() {
       } finally {
         if (!active) return;
         setLoading(false);
-        setReady(true);
       }
     })();
 
     return () => {
       active = false;
     };
-  }, [router]);
-
-  if (!ready) {
-    return (
-      <main className="flex min-h-[40vh] items-center justify-center px-4">
-        <p className="text-sm text-zinc-400">데이터 준비 중…</p>
-      </main>
-    );
-  }
+  }, [hospitalId]);
 
   return (
     <main className="w-full max-w-none px-4 py-4 sm:px-5 sm:py-5 lg:px-6">

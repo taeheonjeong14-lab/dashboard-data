@@ -1,43 +1,34 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 import ManagementMetricSection from "@/components/management/ManagementMetricSection";
-import { getCurrentUser } from "@/lib/auth";
+import { useAuth } from "@/lib/auth-context";
 import {
   fetchHospitalManagementKpis,
-  fetchHospitalScope,
   type HospitalManagementDayRow,
 } from "@/lib/queries";
 
 export default function HospitalManagementPage() {
-  const router = useRouter();
+  const { scope } = useAuth();
+  const hospitalId = scope.assignedHospitalId;
+
   const [ready, setReady] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [rows, setRows] = useState<HospitalManagementDayRow[]>([]);
 
   useEffect(() => {
+    if (!hospitalId) {
+      setError("users.hospital_id 배정이 없어 경영 통계를 불러올 수 없습니다.");
+      setRows([]);
+      setReady(true);
+      setLoading(false);
+      return;
+    }
+
     let active = true;
     const load = async (kind: "initial" | "refresh") => {
       try {
-        const user = await getCurrentUser();
-        if (!active) return;
-        if (!user) {
-          router.replace("/login");
-          return;
-        }
-
-        const scope = await fetchHospitalScope(user);
-        if (!active) return;
-        const hospitalId = scope.assignedHospitalId;
-        if (!hospitalId) {
-          setError("users.hospital_id 배정이 없어 경영 통계를 불러올 수 없습니다.");
-          setRows([]);
-          setReady(true);
-          return;
-        }
-
         const data = await fetchHospitalManagementKpis(hospitalId);
         if (!active) return;
         setRows(data);
@@ -75,7 +66,7 @@ export default function HospitalManagementPage() {
       window.removeEventListener("focus", onFocus);
       document.removeEventListener("visibilitychange", onVisible);
     };
-  }, [router]);
+  }, [hospitalId]);
 
   if (!ready) {
     return (
