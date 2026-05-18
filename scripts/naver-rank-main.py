@@ -100,8 +100,8 @@ SECTION_SPECS = [
     ("블로그(탭)", "블로그(탭)_URL", "블로그(탭)", "blog_rank_tab"),
 ]
 
-PAGE_LOAD_TIMEOUT_MS_FIRST = 15000
-PAGE_LOAD_TIMEOUT_MS_RETRY = 30000
+PAGE_LOAD_TIMEOUT_MS_FIRST = 8000
+PAGE_LOAD_TIMEOUT_MS_RETRY = 15000
 PAGE_LOAD_RETRY_COUNT = 0
 CURRENT_PAGE_LOAD_TIMEOUT_MS = PAGE_LOAD_TIMEOUT_MS_FIRST
 
@@ -595,7 +595,7 @@ def check_place_ranking_on_page(page, keyword: str, store_name: str) -> dict:
         timeout_ms = _set_page_load_timeout_for_attempt(attempt)
         try:
             page.goto(integrated_url, wait_until="domcontentloaded", timeout=timeout_ms)
-            page.wait_for_timeout(400)
+            page.wait_for_timeout(100)
             out["rank"], out["url"] = get_place_rank_with_pagination(page, keyword, store_name, integrated_url)
             out["error"] = None
             break
@@ -631,7 +631,7 @@ def try_click_more_and_find_rank_blog_tab(
             
             # 버튼 클릭
             more_button.click()
-            page.wait_for_timeout(200)  # 추가 결과 로드 대기
+            page.wait_for_timeout(100)  # 추가 결과 로드 대기
             
             # 카드 수 다시 확인
             new_count = count_cards(page, container_selector, card_selector)
@@ -689,7 +689,7 @@ def try_click_more_and_find_rank_search_result(
 
         # 2페이지 로드 대기
             page.wait_for_load_state("domcontentloaded", timeout=CURRENT_PAGE_LOAD_TIMEOUT_MS)
-        page.wait_for_timeout(200)  # 추가 결과 로드 대기
+        page.wait_for_timeout(100)  # 추가 결과 로드 대기
 
         # 새 페이지에서 web_lis 컨테이너 찾기 (검색결과 전용 페이지, 2페이지)
         # 여러 셀렉터 시도
@@ -714,7 +714,7 @@ def try_click_more_and_find_rank_search_result(
             pass
         
         # 카드들이 로드될 때까지 추가 대기
-        page.wait_for_timeout(200)
+        page.wait_for_timeout(100)
         
         # 카드가 실제로 로드되었는지 확인
         cards = page.query_selector_all(f'{container_sel} {CARD_SEARCH_RESULT}')
@@ -723,7 +723,7 @@ def try_click_more_and_find_rank_search_result(
             cards = page.query_selector_all(f'{container_sel} .fds-web-doc-root')
         if not cards:
             # 추가 대기 후 다시 시도
-            page.wait_for_timeout(200)
+            page.wait_for_timeout(100)
             cards = page.query_selector_all(f'{container_sel} {CARD_SEARCH_RESULT}')
         
         rank, url = find_rank_in_cards(page, container_sel, CARD_SEARCH_RESULT, target_id, max_cards)
@@ -737,7 +737,7 @@ def try_click_more_and_find_rank_search_result(
             if page3_button:
                 page3_button.click()
                 page.wait_for_load_state("domcontentloaded", timeout=CURRENT_PAGE_LOAD_TIMEOUT_MS)
-                page.wait_for_timeout(200)
+                page.wait_for_timeout(100)
                 rank_on_page3, url_on_page3 = find_rank_in_cards(
                     page, container_sel, CARD_SEARCH_RESULT, target_id, remaining_cards
                 )
@@ -766,7 +766,7 @@ def try_click_more_and_find_rank_pet_popular(
         more_button = page.query_selector(more_button_selector)
         if more_button:
             more_button.click()
-            page.wait_for_timeout(200)
+            page.wait_for_timeout(100)
 
         # 2) 레이어가 열렸다면 레이어 안의 리스트 컨테이너를 사용 (스크롤 시 여기에 항목 추가됨)
         effective_selector = container_selector
@@ -859,7 +859,7 @@ def try_find_rank_general_search(
             return None, True, None
 
         page.wait_for_load_state("domcontentloaded", timeout=CURRENT_PAGE_LOAD_TIMEOUT_MS)
-        page.wait_for_timeout(200)
+        page.wait_for_timeout(100)
         container_sel = None
         for sel in SELECTOR_GENERAL_SEARCH:
             if page.query_selector(sel):
@@ -932,7 +932,7 @@ def get_three_section_ranks(page, target_id: str, integrated_url: str) -> dict[s
     result["검색결과"] = None
     result["검색결과_URL"] = None
     search_result_exists = False
-    page.wait_for_timeout(200)
+    page.wait_for_timeout(100)
     try:
         page.wait_for_selector('#main_pack a[data-heatmap-target=".more2"]', state="visible", timeout=8000)
     except Exception:
@@ -968,7 +968,7 @@ def get_three_section_ranks(page, target_id: str, integrated_url: str) -> dict[s
     # 더보기를 눌렀다면 2페이지에 있으므로 1페이지(통합검색)로 복귀
     if search_result_exists:
         page.goto(integrated_url, wait_until="domcontentloaded", timeout=CURRENT_PAGE_LOAD_TIMEOUT_MS)
-        page.wait_for_timeout(200)
+        page.wait_for_timeout(100)
 
     # --- 2) 반려동물 인기글 ---
     result["반려동물 인기글"] = None
@@ -1002,7 +1002,7 @@ def get_three_section_ranks(page, target_id: str, integrated_url: str) -> dict[s
     # 일반 검색에서 2페이지로 갔을 수 있으므로 통합검색 1페이지로 복귀
     if general_exists:
         page.goto(integrated_url, wait_until="domcontentloaded", timeout=CURRENT_PAGE_LOAD_TIMEOUT_MS)
-        page.wait_for_timeout(200)
+        page.wait_for_timeout(100)
 
     result["_페이지이동됨"] = False
     return result
@@ -1058,7 +1058,7 @@ def check_naver_ranking_on_page(page, keyword: str, target_blog_id: str) -> dict
         try:
             print(f"   ↳ [{keyword}] {phase}")
             page.goto(integrated_url, wait_until="domcontentloaded", timeout=timeout_ms)
-            page.wait_for_timeout(200)
+            page.wait_for_timeout(100)
 
             phase = "3개 섹션 순위 수집"
             print(f"   ↳ [{keyword}] {phase}")
@@ -1072,7 +1072,7 @@ def check_naver_ranking_on_page(page, keyword: str, target_blog_id: str) -> dict
                 print(f"   ↳ [{keyword}] {phase}")
                 blog_tab_loc.first.click()
                 page.wait_for_load_state("domcontentloaded", timeout=timeout_ms)
-                page.wait_for_timeout(200)
+                page.wait_for_timeout(100)
                 rank, blog_url = None, None
                 for container_sel in SELECTOR_BLOG_TAB_CONTAINER:
                     rank, blog_url = find_rank_in_cards(
@@ -1765,7 +1765,7 @@ def main():
                     })
                     print_result(data)
                     processed += 1
-                    time.sleep(0.5)
+                    time.sleep(0.2)
 
             if place_pairs:
                 print(f"\n🏪 플레이스 순위 확인 — {len(place_pairs)}개 조합 (광고 제외)\n")
@@ -1789,7 +1789,7 @@ def main():
                         rank = data.get("rank")
                         print(f"📌 [{kw} / {store}] 플레이스: {rank}위")
                     processed += 1
-                    time.sleep(0.5)
+                    time.sleep(0.2)
         finally:
             with suppress(Exception):
                 if page:
