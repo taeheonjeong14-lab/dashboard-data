@@ -399,6 +399,7 @@ function buildSectionInstruction(
         '이번 검진으로 진단 또는 의심할 수 있는 내용을 문단별로 작성한다.',
         '질병이 여러 개라면 각 질병별로 문단을 나누어 설명하고, 핵심 근거자료를 관련 문단에 포함시킨다.',
         '차트 본문에서 의심된다고 언급된 질병은 크던 작던 반드시 근거와 함께 언급할 것.',
+        '심각도 순으로 가장 심각한 것을 먼저, 가장 덜 심각한 것을 마지막에 써줄 것.',
         `글자 수: 공백 포함 최소 ${HEALTH_CHECKUP_PROMPT_MIN_OVERALL_CHARS}자 이상, 최대 ${HEALTH_CHECKUP_PROMPT_MAX_OVERALL_CHARS}자 이하.`,
         '출력 키: overallSummary (문자열)',
       );
