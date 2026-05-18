@@ -1384,6 +1384,26 @@ def _supabase_headers(service_key: str, profile: str | None = None) -> dict:
     return headers
 
 
+def _check_rank_already_collected(supabase_url: str, service_key: str, hospital_id: str, metric_date: str) -> bool:
+    """당일 해당 병원의 순위 데이터가 이미 존재하면 True."""
+    if not hospital_id or not supabase_url or not service_key:
+        return False
+    params = {
+        "select": "metric_date",
+        "hospital_id": f"eq.{hospital_id}",
+        "metric_date": f"eq.{metric_date}",
+        "limit": "1",
+    }
+    url = f"{supabase_url.rstrip('/')}/rest/v1/analytics_blog_keyword_ranks?{urlencode(params)}"
+    try:
+        req = Request(url, headers=_supabase_headers(service_key, profile="analytics"), method="GET")
+        with urlopen(req, timeout=10) as res:
+            data = json.loads(res.read().decode("utf-8"))
+            return len(data) > 0
+    except Exception:
+        return False
+
+
 def _supabase_get_hospital_map(supabase_url: str, service_key: str, blog_ids: list[str]) -> dict:
     cleaned = sorted({str(v).strip() for v in blog_ids if str(v).strip()})
     if not cleaned:
@@ -1664,6 +1684,15 @@ def main():
     print(f"ℹ️ 입력 소스: {input_source}")
     if use_debug_chrome:
         print(f"ℹ️ CDP 모드: 디버깅 Chrome 세션 공유 사용 (port={debug_port})")
+
+    supabase_url = os.getenv("SUPABASE_URL", "")
+    service_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
+    target_hospital_id = os.getenv("COLLECT_HOSPITAL_ID", "").strip()
+    check_date = metric_date or os.getenv("RANK_METRIC_DATE") or _to_kst_date_str()
+    if target_hospital_id and supabase_url and service_key:
+        if _check_rank_already_collected(supabase_url, service_key, target_hospital_id, check_date):
+            print(f"ℹ️ 키워드 순위 이미 수집됨 (hospital_id={target_hospital_id}, date={check_date}). 스킵합니다.")
+            return
 
     results = []
     place_results: list[dict] = []

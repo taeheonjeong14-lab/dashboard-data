@@ -17,7 +17,7 @@ require("dotenv").config({ path: path.resolve(__dirname, "..", ".env") });
 
 const ROOT_DIR = path.resolve(__dirname, "..");
 const HOSPITAL_ID = (process.argv[2] || "").trim();
-const STEP_TIMEOUT_MS = 30 * 60 * 1000; // 단계당 최대 30분
+const STEP_TIMEOUT_MS = 60 * 60 * 1000; // 단계당 최대 60분
 
 const STEPS_FILTER = (() => {
   const raw = process.env.COLLECT_STEPS_FILTER;
