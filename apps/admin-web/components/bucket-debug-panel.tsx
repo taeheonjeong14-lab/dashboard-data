@@ -1,0 +1,252 @@
+'use client';
+
+import { useState, type CSSProperties } from 'react';
+
+type ChartGroup = {
+  dateTime: string;
+  bodyText: string;
+  planText: string;
+  planDetected: boolean;
+  lineCount: number;
+};
+
+type LabItem = {
+  itemName: string;
+  valueText: string;
+  unit: string | null;
+  referenceRange: string | null;
+  flag: string;
+  page: number;
+};
+
+type BucketDebugData = {
+  run: { chartType: string | null } | null;
+  chartBodyByDate: ChartGroup[];
+  bucketLines: { chartBody: string[]; lab: string[]; basicInfo: string[]; vitals: string[] };
+  labItems: LabItem[];
+};
+
+const FLAG_COLOR: Record<string, string> = {
+  high: '#b91c1c',
+  low: '#1d4ed8',
+  normal: '#15803d',
+  unknown: '#64748b',
+};
+
+const FLAG_BG: Record<string, string> = {
+  high: '#fee2e2',
+  low: '#dbeafe',
+  normal: '#dcfce7',
+  unknown: '#f1f5f9',
+};
+
+const sectionStyle: CSSProperties = {
+  border: '1px solid #e2e8f0',
+  background: '#fff',
+  borderRadius: 6,
+  overflow: 'hidden',
+};
+
+const summaryStyle: CSSProperties = {
+  cursor: 'pointer',
+  listStyle: 'none',
+  padding: '9px 14px',
+  fontSize: 12.5,
+  fontWeight: 700,
+  color: '#334155',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  gap: 8,
+  flexWrap: 'wrap',
+  userSelect: 'none',
+  background: '#f1f5f9',
+  borderBottom: '1px solid #e2e8f0',
+  letterSpacing: '0.01em',
+};
+
+type Tab = 'chartBody' | 'basicInfo' | 'lab' | 'labItems';
+
+export function BucketDebugPanel({ runId }: { runId: string }) {
+  const [data, setData] = useState<BucketDebugData | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<Tab>('chartBody');
+
+  async function load() {
+    if (loaded) return;
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/admin/debug/bucket-debug?runId=${encodeURIComponent(runId)}`, { credentials: 'include' });
+      const json = await res.json() as BucketDebugData & { error?: string };
+      if (json.error) throw new Error(json.error);
+      setData(json);
+      setLoaded(true);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  const isPlusVet = data?.run?.chartType === 'plusvet';
+
+  const TABS: { key: Tab; label: string; count?: number }[] = [
+    { key: 'chartBody', label: '차트 본문 (날짜별)', count: data?.chartBodyByDate.length },
+    { key: 'basicInfo', label: '기본정보 버킷', count: data?.bucketLines.basicInfo.length },
+    { key: 'lab', label: '검사 버킷 raw', count: data?.bucketLines.lab.length },
+    { key: 'labItems', label: '추출 검사항목', count: data?.labItems.length },
+  ];
+
+  return (
+    <details
+      style={{ ...sectionStyle, gridColumn: '1 / -1' }}
+      onToggle={(e) => { if ((e.currentTarget as HTMLDetailsElement).open) void load(); }}
+    >
+      <summary style={summaryStyle}>
+        <span>버킷 디버그</span>
+        <span style={{ fontSize: 11, color: '#94a3b8', fontWeight: 400 }}>클릭해서 펼치기</span>
+      </summary>
+
+      <div style={{ padding: '12px 14px' }}>
+        {loading && <p style={{ fontSize: 13, color: '#64748b', margin: 0 }}>로드 중…</p>}
+        {error && <p style={{ fontSize: 13, color: '#b91c1c', margin: 0 }}>오류: {error}</p>}
+
+        {data && (
+          <>
+            {/* 차트 종류 배지 */}
+            {isPlusVet && (
+              <div style={{ marginBottom: 10, fontSize: 12, color: '#1d4ed8', background: '#eff6ff', border: '1px solid #93c5fd', borderRadius: 6, padding: '5px 10px' }}>
+                PlusVet — Subjective → bodyText (파란색) · Plan → planText (초록색) · Objective 버려짐
+              </div>
+            )}
+
+            {/* 탭 바 */}
+            <div style={{ display: 'flex', gap: 0, borderBottom: '2px solid #e2e8f0', marginBottom: 12 }}>
+              {TABS.map(({ key, label, count }) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setActiveTab(key)}
+                  style={{ padding: '6px 14px', border: 'none', borderBottom: activeTab === key ? '2px solid #1d4ed8' : '2px solid transparent', marginBottom: -2, background: 'none', cursor: 'pointer', fontSize: 12, fontFamily: 'sans-serif', fontWeight: activeTab === key ? 700 : 400, color: activeTab === key ? '#1d4ed8' : '#475569' }}
+                >
+                  {label}
+                  {count !== undefined && (
+                    <span style={{ marginLeft: 4, background: '#e2e8f0', borderRadius: 10, padding: '1px 5px', fontSize: 10 }}>{count}</span>
+                  )}
+                </button>
+              ))}
+            </div>
+
+            {/* 차트 본문 탭 */}
+            {activeTab === 'chartBody' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                {data.chartBodyByDate.length === 0 && (
+                  <p style={{ fontSize: 13, color: '#94a3b8', margin: 0 }}>날짜별 그룹 없음</p>
+                )}
+                {data.chartBodyByDate.map((g) => {
+                  const bodyLines = g.bodyText ? g.bodyText.split('\n').filter(Boolean) : [];
+                  const planLines = g.planText ? g.planText.split('\n').filter(Boolean) : [];
+                  return (
+                    <details key={g.dateTime} style={{ border: '1px solid #e2e8f0', borderRadius: 4, overflow: 'hidden' }}>
+                      <summary style={{ padding: '6px 10px', fontSize: 12, fontWeight: 700, color: '#475569', cursor: 'pointer', listStyle: 'none', background: '#f8fafc', display: 'flex', gap: 8, alignItems: 'center' }}>
+                        <span>{g.dateTime}</span>
+                        <span style={{ fontWeight: 400, color: '#94a3b8' }}>{g.lineCount}줄</span>
+                        {g.planDetected && <span style={{ fontSize: 10, background: '#dcfce7', color: '#15803d', border: '1px solid #86efac', borderRadius: 10, padding: '1px 6px' }}>Plan 감지</span>}
+                        {!g.planDetected && isPlusVet && <span style={{ fontSize: 10, background: '#fef3c7', color: '#92400e', border: '1px solid #fde68a', borderRadius: 10, padding: '1px 6px' }}>Plan 없음</span>}
+                      </summary>
+                      <div style={{ padding: '8px 10px', display: 'grid', gridTemplateColumns: planLines.length > 0 ? '1fr 1fr' : '1fr', gap: 8 }}>
+                        <div>
+                          {isPlusVet && <div style={{ fontSize: 10, fontWeight: 700, color: '#1d4ed8', marginBottom: 4 }}>Subjective (bodyText)</div>}
+                          <pre style={{ margin: 0, fontSize: 11, lineHeight: 1.6, whiteSpace: 'pre-wrap', wordBreak: 'break-all', background: isPlusVet ? '#eff6ff' : '#f8fafc', padding: '6px 8px', borderRadius: 4, maxHeight: 300, overflowY: 'auto' }}>
+                            {bodyLines.join('\n') || '(비어 있음)'}
+                          </pre>
+                        </div>
+                        {planLines.length > 0 && (
+                          <div>
+                            {isPlusVet && <div style={{ fontSize: 10, fontWeight: 700, color: '#15803d', marginBottom: 4 }}>Plan (planText)</div>}
+                            <pre style={{ margin: 0, fontSize: 11, lineHeight: 1.6, whiteSpace: 'pre-wrap', wordBreak: 'break-all', background: '#f0fdf4', padding: '6px 8px', borderRadius: 4, maxHeight: 300, overflowY: 'auto' }}>
+                              {planLines.join('\n')}
+                            </pre>
+                          </div>
+                        )}
+                      </div>
+                    </details>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* 기본정보 버킷 탭 */}
+            {activeTab === 'basicInfo' && (
+              <div>
+                {data.bucketLines.basicInfo.length === 0 ? (
+                  <p style={{ fontSize: 13, color: '#94a3b8', margin: 0 }}>기본정보 버킷이 비어있습니다.</p>
+                ) : (
+                  <pre style={{ margin: 0, padding: '8px 10px', fontSize: 11, lineHeight: 1.7, background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 4, whiteSpace: 'pre-wrap', wordBreak: 'break-all', maxHeight: 500, overflowY: 'auto' }}>
+                    {data.bucketLines.basicInfo.map((line, i) => (
+                      <span key={i} style={{ display: 'block', borderBottom: '1px solid #f1f5f9', paddingBottom: 1 }}>{line}</span>
+                    ))}
+                  </pre>
+                )}
+              </div>
+            )}
+
+            {/* 검사 버킷 raw 탭 */}
+            {activeTab === 'lab' && (
+              <div>
+                {data.bucketLines.lab.length === 0 ? (
+                  <p style={{ fontSize: 13, color: '#94a3b8', margin: 0 }}>lab 버킷 비어있음 — 버케팅 규칙이 검사 섹션을 찾지 못했을 수 있습니다.</p>
+                ) : (
+                  <pre style={{ margin: 0, padding: '8px 10px', fontSize: 11, lineHeight: 1.7, background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 4, whiteSpace: 'pre-wrap', wordBreak: 'break-all', maxHeight: 500, overflowY: 'auto' }}>
+                    {data.bucketLines.lab.map((line, i) => (
+                      <span key={i} style={{ display: 'block', borderBottom: '1px solid #f1f5f9', paddingBottom: 1 }}>{line}</span>
+                    ))}
+                  </pre>
+                )}
+              </div>
+            )}
+
+            {/* 추출 검사항목 탭 */}
+            {activeTab === 'labItems' && (
+              <div>
+                {data.labItems.length === 0 ? (
+                  <p style={{ fontSize: 13, color: '#94a3b8', margin: 0 }}>추출된 검사항목 없음</p>
+                ) : (
+                  <div style={{ overflowX: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                      <thead>
+                        <tr style={{ background: '#f1f5f9' }}>
+                          {['항목명', '결과값', '단위', '참고치', '플래그', 'p'].map((h) => (
+                            <th key={h} style={{ padding: '5px 8px', textAlign: 'left', fontWeight: 700, borderBottom: '1px solid #e2e8f0', whiteSpace: 'nowrap', fontFamily: 'sans-serif' }}>{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {data.labItems.map((item, i) => (
+                          <tr key={i} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                            <td style={{ padding: '4px 8px', fontWeight: 600 }}>{item.itemName}</td>
+                            <td style={{ padding: '4px 8px', color: FLAG_COLOR[item.flag] ?? '#0f172a', fontWeight: 600 }}>{item.valueText}</td>
+                            <td style={{ padding: '4px 8px', color: '#64748b' }}>{item.unit ?? '—'}</td>
+                            <td style={{ padding: '4px 8px', color: '#64748b' }}>{item.referenceRange ?? '—'}</td>
+                            <td style={{ padding: '4px 8px' }}>
+                              <span style={{ padding: '1px 6px', borderRadius: 10, fontSize: 10, fontWeight: 700, fontFamily: 'sans-serif', background: FLAG_BG[item.flag] ?? '#f1f5f9', color: FLAG_COLOR[item.flag] ?? '#64748b' }}>
+                                {item.flag}
+                              </span>
+                            </td>
+                            <td style={{ padding: '4px 8px', color: '#94a3b8' }}>{item.page}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </details>
+  );
+}

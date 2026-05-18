@@ -1,11 +1,15 @@
 'use client';
 
 import Link from 'next/link';
-import { useCallback, useEffect, useMemo, useState, type CSSProperties, type MouseEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent } from 'react';
+import type { ExamType, FindingSpot, RadiologySub } from '@/lib/chart-case-images/types';
+import { EXAM_TYPE_LABEL_KO, RADIOLOGY_SUB_LABEL_KO } from '@/lib/chart-case-images/types';
 import type { PlanRow, RunDetailResponse } from '@/lib/admin-run-detail-types';
+import { HEALTH_CHECKUP_MAX_COVER_FIELD_CHARS, HEALTH_CHECKUP_MUST_INCLUDE_MAX_CHARS } from '@/lib/health-report-admin/limits';
 import { canonicalizeLabItemName } from '@/lib/chart-extraction/lab-item-normalize';
 import { speciesProfileFromBasicSpecies } from '@/lib/chart-extraction/lab-species-profile';
 import { isParseRunUuid } from '@/lib/chart-extraction/uuid';
+import { BucketDebugPanel } from '@/components/bucket-debug-panel';
 
 type ExtractionSection = 'basicInfo' | 'vaccination' | 'chartBody' | 'plan' | 'lab';
 
@@ -145,6 +149,234 @@ function CopyTextButton({ text, disabled, label = '복사' }: { text: string; di
   );
 }
 
+type CaseImage = {
+  id: string;
+  index: number;
+  fileName: string;
+  signedUrl: string | null;
+  examType: ExamType | null;
+  radiologySub: RadiologySub | null;
+  hasNotableFinding: boolean;
+  isClearFinding: boolean;
+  briefComment: string;
+  findingSpots: FindingSpot[];
+  relatedAssessmentCondition: string | null;
+};
+
+function FindingOverlay({ spots, imageRef }: { spots: FindingSpot[]; imageRef: React.RefObject<HTMLImageElement | null> }) {
+  const [dims, setDims] = useState<{ w: number; h: number } | null>(null);
+
+  useEffect(() => {
+    const img = imageRef.current;
+    if (!img) return;
+    const update = () => setDims({ w: img.offsetWidth, h: img.offsetHeight });
+    if (img.complete) update();
+    img.addEventListener('load', update);
+    return () => img.removeEventListener('load', update);
+  }, [imageRef]);
+
+  if (!dims) return null;
+  return (
+    <svg
+      style={{ position: 'absolute', inset: 0, pointerEvents: 'none', width: '100%', height: '100%' }}
+      viewBox={`0 0 ${dims.w} ${dims.h}`}
+    >
+      {spots.map((s, i) => {
+        const cx = (s.cx / 100) * dims.w;
+        const cy = (s.cy / 100) * dims.h;
+        const r = (s.r / 100) * Math.min(dims.w, dims.h);
+        return (
+          <circle key={i} cx={cx} cy={cy} r={r} fill="rgba(239,68,68,0.25)" stroke="#ef4444" strokeWidth={1.5} />
+        );
+      })}
+    </svg>
+  );
+}
+
+function CaseImageCard({ img }: { img: CaseImage }) {
+  const [open, setOpen] = useState(false);
+  const imgRef = useRef<HTMLImageElement>(null);
+  const examLabel = img.examType ? EXAM_TYPE_LABEL_KO[img.examType] : null;
+  const subLabel = img.radiologySub ? RADIOLOGY_SUB_LABEL_KO[img.radiologySub] : null;
+
+  return (
+    <>
+      <div
+        style={{
+          border: `1px solid ${img.isClearFinding ? '#fca5a5' : img.hasNotableFinding ? '#fde68a' : '#e2e8f0'}`,
+          borderRadius: 8,
+          overflow: 'hidden',
+          background: '#fff',
+          display: 'flex',
+          flexDirection: 'column',
+        }}
+      >
+        {/* Thumbnail */}
+        <div
+          style={{ position: 'relative', background: '#0f172a', cursor: img.signedUrl ? 'pointer' : 'default' }}
+          onClick={() => img.signedUrl && setOpen(true)}
+        >
+          {img.signedUrl ? (
+            <img
+              ref={imgRef}
+              src={img.signedUrl}
+              alt={img.fileName}
+              style={{ width: '100%', height: 160, objectFit: 'contain', display: 'block' }}
+            />
+          ) : (
+            <div style={{ height: 120, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#475569', fontSize: 12 }}>
+              이미지 없음
+            </div>
+          )}
+          {img.hasNotableFinding && img.findingSpots.length > 0 && img.signedUrl && (
+            <FindingOverlay spots={img.findingSpots} imageRef={imgRef} />
+          )}
+          {img.hasNotableFinding && (
+            <div
+              style={{
+                position: 'absolute',
+                top: 6,
+                right: 6,
+                background: img.isClearFinding ? '#dc2626' : '#d97706',
+                color: '#fff',
+                fontSize: 10,
+                fontWeight: 700,
+                padding: '2px 6px',
+                borderRadius: 4,
+              }}
+            >
+              {img.isClearFinding ? '이상 명확' : '이상 의심'}
+            </div>
+          )}
+        </div>
+
+        {/* Info */}
+        <div style={{ padding: '8px 10px', flex: 1, display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+            {examLabel && (
+              <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 6px', borderRadius: 4, background: '#dbeafe', color: '#1d4ed8' }}>
+                {examLabel}{subLabel ? ` · ${subLabel}` : ''}
+              </span>
+            )}
+          </div>
+          {img.briefComment && (
+            <p style={{ margin: 0, fontSize: 12, color: '#334155', lineHeight: 1.5 }}>{img.briefComment}</p>
+          )}
+          <p style={{ margin: 0, fontSize: 11, color: '#94a3b8', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {img.fileName}
+          </p>
+        </div>
+      </div>
+
+      {/* Lightbox */}
+      {open && img.signedUrl && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.85)',
+            zIndex: 9999,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'zoom-out',
+          }}
+          onClick={() => setOpen(false)}
+        >
+          <img
+            src={img.signedUrl}
+            alt={img.fileName}
+            style={{ maxWidth: '90vw', maxHeight: '90vh', objectFit: 'contain', borderRadius: 4 }}
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      )}
+    </>
+  );
+}
+
+function CaseImagesSection({ runId }: { runId: string }) {
+  const [images, setImages] = useState<CaseImage[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/admin/runs/${encodeURIComponent(runId)}/case-images`, {
+        credentials: 'include',
+      });
+      const data = (await res.json()) as { images?: CaseImage[]; error?: string };
+      if (!res.ok) throw new Error(data.error ?? '이미지 조회 실패');
+      setImages(data.images ?? []);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '이미지 조회 실패');
+    } finally {
+      setLoading(false);
+    }
+  }, [runId]);
+
+  useEffect(() => { void load(); }, [load]);
+
+  const sectionStyle = {
+    border: '1px solid #e2e8f0',
+    background: '#fff',
+    borderRadius: 6,
+    overflow: 'hidden',
+  } satisfies React.CSSProperties;
+
+  const summaryStyle: CSSProperties = {
+    cursor: 'pointer',
+    listStyle: 'none',
+    padding: '9px 14px',
+    fontSize: 12.5,
+    fontWeight: 700,
+    color: '#334155',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+    flexWrap: 'wrap' as const,
+    userSelect: 'none' as const,
+    background: '#f1f5f9',
+    borderBottom: '1px solid #e2e8f0',
+    letterSpacing: '0.01em',
+  };
+
+  return (
+    <details open style={{ ...sectionStyle, gridColumn: '1 / -1' }}>
+      <summary style={summaryStyle}>
+        <span>이미지 분석</span>
+        <button
+          type="button"
+          className="adminLegacySmallBtn"
+          onClick={(e) => { e.preventDefault(); void load(); }}
+        >
+          새로고침
+        </button>
+      </summary>
+      <div style={{ padding: '12px 14px' }}>
+        {loading ? (
+          <p style={{ margin: 0, fontSize: 13, color: '#64748b' }}>불러오는 중…</p>
+        ) : error ? (
+          <p style={{ margin: 0, fontSize: 13, color: '#b91c1c' }}>{error}</p>
+        ) : images.length === 0 ? (
+          <p style={{ margin: 0, fontSize: 13, color: '#94a3b8' }}>
+            이미지가 없습니다. 차트 데이터 수집 시 이미지를 첨부하면 여기에 분석 결과가 표시됩니다.
+          </p>
+        ) : (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 12 }}>
+            {images.map((img) => (
+              <CaseImageCard key={img.id} img={img} />
+            ))}
+          </div>
+        )}
+      </div>
+    </details>
+  );
+}
+
 export function AdminRunExtractionDetail({
   runId,
   embedded = false,
@@ -176,6 +408,17 @@ export function AdminRunExtractionDetail({
   const [draftLab, setDraftLab] = useState<DraftLabGroup[] | null>(null);
   const [labDeletedIds, setLabDeletedIds] = useState<string[]>([]);
   const [savingSection, setSavingSection] = useState<ExtractionSection | null>(null);
+
+  const [genModalOpen, setGenModalOpen] = useState(false);
+  const [genCheckupDate, setGenCheckupDate] = useState('');
+  const [genVeterinarian, setGenVeterinarian] = useState('');
+  const [genProgram, setGenProgram] = useState('');
+  const [genMustInclude, setGenMustInclude] = useState('');
+  const [genLoading, setGenLoading] = useState(false);
+  const [genError, setGenError] = useState<string | null>(null);
+  const [genSuccess, setGenSuccess] = useState(false);
+  const [genExistingReport, setGenExistingReport] = useState<boolean | null>(null);
+  const genModalRef = useRef<HTMLDialogElement>(null);
 
   const labSpeciesProfile = useMemo(
     () => speciesProfileFromBasicSpecies(result?.basicInfo?.species ?? null),
@@ -221,6 +464,24 @@ export function AdminRunExtractionDetail({
   useEffect(() => {
     void fetchDetail();
   }, [fetchDetail]);
+
+  useEffect(() => {
+    const dialog = genModalRef.current;
+    if (!dialog) return;
+    if (genModalOpen) {
+      if (!dialog.open) dialog.showModal();
+      setGenExistingReport(null);
+      fetch(`/api/admin/health-report/content?runId=${encodeURIComponent(runId)}`, { credentials: 'include' })
+        .then((r) => r.json())
+        .then((data: { items?: { contentType: string }[] }) => {
+          const exists = Array.isArray(data.items) && data.items.some((i) => i.contentType === 'health_checkup');
+          setGenExistingReport(exists);
+        })
+        .catch(() => setGenExistingReport(false));
+    } else {
+      if (dialog.open) dialog.close();
+    }
+  }, [genModalOpen, runId]);
 
   useEffect(() => {
     setEditing({
@@ -380,6 +641,33 @@ export function AdminRunExtractionDetail({
     }
   }
 
+  async function generateReport() {
+    setGenLoading(true);
+    setGenError(null);
+    try {
+      const res = await fetch('/api/admin/health-report/generate', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          runId,
+          contentType: 'health_checkup',
+          checkupDate: genCheckupDate.trim(),
+          veterinarian: genVeterinarian.trim().slice(0, HEALTH_CHECKUP_MAX_COVER_FIELD_CHARS),
+          mustInclude: genMustInclude.trim().slice(0, HEALTH_CHECKUP_MUST_INCLUDE_MAX_CHARS),
+          coverProgram: genProgram.trim().slice(0, HEALTH_CHECKUP_MAX_COVER_FIELD_CHARS),
+        }),
+      });
+      const data = (await res.json()) as { error?: string };
+      if (!res.ok) throw new Error(data.error ?? '생성 실패');
+      setGenSuccess(true);
+    } catch (e) {
+      setGenError(e instanceof Error ? e.message : '생성 실패');
+    } finally {
+      setGenLoading(false);
+    }
+  }
+
   if (loading && !result) {
     return <p style={{ fontSize: 14, color: '#64748b' }}>상세 불러오는 중…</p>;
   }
@@ -434,7 +722,20 @@ export function AdminRunExtractionDetail({
               {result.run.chartType}
             </span>
           )}
-          <Link href="/admin/chart-data" className="adminLegacySecondaryBtn" style={{ marginLeft: 'auto' }}>
+          {result.run.fromHospitalWeb && (
+            <span style={{ fontSize: 12, fontWeight: 700, color: '#15803d', background: '#dcfce7', padding: '3px 8px', borderRadius: 4, border: '1px solid #bbf7d0' }}>
+              병원제출
+            </span>
+          )}
+          <button
+            type="button"
+            className="adminLegacySecondaryBtn"
+            style={{ marginLeft: 'auto' }}
+            onClick={() => { setGenSuccess(false); setGenError(null); setGenModalOpen(true); }}
+          >
+            건강검진 리포트 생성
+          </button>
+          <Link href="/admin/chart-data" className="adminLegacySecondaryBtn">
             기록 목록
           </Link>
           <button type="button" className="adminLegacySecondaryBtn" onClick={() => void fetchDetail({ silent: true })}>
@@ -477,12 +778,27 @@ export function AdminRunExtractionDetail({
               {result.run.chartType}
             </span>
           )}
-          <span style={{ marginLeft: 'auto', display: 'inline-flex', gap: 6, alignItems: 'center' }}>
-            <Link href={`/admin/runs/${encodeURIComponent(runId)}`} className="adminLegacySmallBtn">
-              전체 페이지로
-            </Link>
-            <button type="button" className="adminLegacySmallBtn" onClick={() => void fetchDetail({ silent: true })}>
-              새로고침
+          {result.run.fromHospitalWeb && (
+            <span style={{
+              fontSize: 11,
+              fontWeight: 700,
+              color: '#15803d',
+              background: '#dcfce7',
+              padding: '2px 8px',
+              borderRadius: 20,
+              border: '1px solid #bbf7d0',
+              letterSpacing: '0.02em',
+            }}>
+              병원제출
+            </span>
+          )}
+          <span style={{ marginLeft: 'auto', display: 'inline-flex', gap: 6, alignItems: 'center', marginRight: 14 }}>
+            <button
+              type="button"
+              className="adminLegacySecondaryBtn"
+              onClick={() => { setGenSuccess(false); setGenError(null); setGenModalOpen(true); }}
+            >
+              건강검진 리포트 생성
             </button>
             {onDelete && (
               <button type="button" className="adminLegacyDangerBtn" onClick={onDelete} disabled={deleting}>
@@ -769,7 +1085,7 @@ export function AdminRunExtractionDetail({
             />
           </span>
         </summary>
-        <div style={{ padding: '8px 12px 12px', borderTop: 'none' }}>
+        <div style={{ borderTop: 'none' }}>
           {(editing.chartBody && draftChart ? draftChart : result.chartBodyByDate).map((c) => (
             <details key={c.id} open style={{ borderBottom: '1px solid #e2e8f0' }}>
               <summary style={{ padding: '7px 12px', fontSize: 12, fontWeight: 700, color: '#475569', cursor: 'pointer', listStyle: 'none', background: '#f8fafc', borderBottom: '1px solid #e2e8f0', userSelect: 'none' }}>
@@ -1324,7 +1640,110 @@ export function AdminRunExtractionDetail({
         </div>
       </details>
 
+      {/* 이미지 분석 — 전체 너비 */}
+      <CaseImagesSection runId={runId} />
+
+      {/* 버킷 디버그 — 전체 너비 */}
+      <BucketDebugPanel key={runId} runId={runId} />
+
       </div>{/* end section grid */}
+
+      <dialog
+        ref={genModalRef}
+        onClose={() => setGenModalOpen(false)}
+        onKeyDown={(e) => { if (e.key === 'Escape') setGenModalOpen(false); }}
+        style={{
+          position: 'fixed',
+          inset: 0,
+          margin: 'auto',
+          width: 'min(96vw, 480px)',
+          border: '1px solid rgba(15,23,42,0.15)',
+          borderRadius: 8,
+          padding: 0,
+          boxShadow: '0 20px 60px rgba(0,0,0,0.25)',
+        }}
+      >
+        <div style={{ background: '#fff', borderRadius: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderBottom: '1px solid rgba(15,23,42,0.1)' }}>
+            <span style={{ fontWeight: 700, fontSize: 15 }}>건강검진 리포트 생성</span>
+            <button type="button" className="adminLegacySmallBtn" onClick={() => setGenModalOpen(false)}>닫기</button>
+          </div>
+          {genSuccess ? (
+            <div style={{ padding: '28px 16px', textAlign: 'center' }}>
+              <p style={{ fontSize: 14, color: '#15803d', fontWeight: 600, marginBottom: 12 }}>생성이 완료되었습니다.</p>
+              <a href="/admin/health-report" style={{ fontSize: 13, color: '#1d4ed8', textDecoration: 'underline' }}>
+                건강검진 리포트 메뉴에서 확인하기 →
+              </a>
+            </div>
+          ) : (
+            <div style={{ padding: '16px 16px 20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+              {genExistingReport === true && (
+                <div style={{ background: '#fef9c3', border: '1px solid #fde68a', borderRadius: 6, padding: '10px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+                  <span style={{ fontSize: 13, color: '#78350f' }}>이 차트로 생성된 건강검진 리포트가 이미 있습니다.</span>
+                  <a
+                    href="/admin/health-report"
+                    style={{ fontSize: 12, fontWeight: 700, color: '#1d4ed8', textDecoration: 'underline', whiteSpace: 'nowrap', flexShrink: 0 }}
+                  >
+                    리포트 확인하기 →
+                  </a>
+                </div>
+              )}
+              <label style={{ fontSize: 13 }}>
+                <div style={{ fontWeight: 600, marginBottom: 4 }}>검진일자</div>
+                <input
+                  type="date"
+                  value={genCheckupDate}
+                  onChange={(e) => setGenCheckupDate(e.target.value)}
+                  style={{ display: 'block', width: '100%', padding: '7px 10px', border: '1px solid #e2e8f0', borderRadius: 4, fontSize: 13, boxSizing: 'border-box' }}
+                />
+              </label>
+              <label style={{ fontSize: 13 }}>
+                <div style={{ fontWeight: 600, marginBottom: 4 }}>담당 수의사</div>
+                <input
+                  type="text"
+                  value={genVeterinarian}
+                  onChange={(e) => setGenVeterinarian(e.target.value)}
+                  placeholder="예: 홍길동"
+                  style={{ display: 'block', width: '100%', padding: '7px 10px', border: '1px solid #e2e8f0', borderRadius: 4, fontSize: 13, boxSizing: 'border-box' }}
+                />
+              </label>
+              <label style={{ fontSize: 13 }}>
+                <div style={{ fontWeight: 600, marginBottom: 4 }}>프로그램</div>
+                <input
+                  type="text"
+                  value={genProgram}
+                  onChange={(e) => setGenProgram(e.target.value)}
+                  placeholder="예: 종합건강검진 A"
+                  style={{ display: 'block', width: '100%', padding: '7px 10px', border: '1px solid #e2e8f0', borderRadius: 4, fontSize: 13, boxSizing: 'border-box' }}
+                />
+              </label>
+              <label style={{ fontSize: 13 }}>
+                <div style={{ fontWeight: 600, marginBottom: 4 }}>반드시 포함되어야 하는 내용</div>
+                <textarea
+                  value={genMustInclude}
+                  onChange={(e) => setGenMustInclude(e.target.value.slice(0, HEALTH_CHECKUP_MUST_INCLUDE_MAX_CHARS))}
+                  placeholder="LLM이 반드시 반영해야 하는 특이사항을 입력하세요"
+                  rows={4}
+                  style={{ display: 'block', width: '100%', padding: '7px 10px', border: '1px solid #e2e8f0', borderRadius: 4, fontSize: 13, resize: 'vertical', fontFamily: 'inherit', boxSizing: 'border-box' }}
+                />
+                <div style={{ fontSize: 11, color: '#94a3b8', textAlign: 'right', marginTop: 2 }}>
+                  {genMustInclude.length} / {HEALTH_CHECKUP_MUST_INCLUDE_MAX_CHARS}
+                </div>
+              </label>
+              {genError && <p style={{ margin: 0, fontSize: 13, color: '#b91c1c' }}>{genError}</p>}
+              <button
+                type="button"
+                className="adminLegacyPrimaryBtn"
+                onClick={() => void generateReport()}
+                disabled={genLoading}
+                style={{ width: '100%', fontSize: 13 }}
+              >
+                {genLoading ? '생성 중…' : '생성하기'}
+              </button>
+            </div>
+          )}
+        </div>
+      </dialog>
     </div>
   );
 }

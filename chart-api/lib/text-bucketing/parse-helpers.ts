@@ -207,27 +207,27 @@ function extractEfriendsSexRaw(filtered: string[], fullBlock: string): string | 
 
 const PLUSVET_HOSPITAL_LINE_HINT = /동물병원|동물메디컬센터|동물의료센터/;
 
-const PLUSVET_BASIC_INFO_STOP_LABELS = [
-  '진단 검사 결과',
-  '동물 등록 번호',
-  '축종/품종',
-  '보호자 성함',
-  '연락처',
-  '동물명',
-  '나이',
-  '주소',
-  '성별',
-];
+/**
+ * 라벨 → 필드명 매핑. OCR이 라벨을 먼저 묶어서 출력한 뒤 값을 묶어 출력하는 경우에도
+ * FIFO 큐로 순서를 보존해 올바르게 매칭한다.
+ */
+const PLUSVET_LABEL_FIELD_MAP: Record<string, string> = {
+  '동물명': 'patientName',
+  '축종/품종': 'speciesBreed',
+  '나이': 'birth',
+  '보호자 성함': 'ownerName',
+  '보호자성함': 'ownerName',
+  '보호자명': 'ownerName',
+  '보호자': 'ownerName',
+  '동물 등록 번호': 'registration',
+  '동물등록번호': 'registration',
+  '연락처': 'contact',
+  '주소': 'address',
+  '성별': 'sex',
+};
 
-const PLUSVET_OWNER_VALUE_EXTRA_STOPS = [
-  '경기도', '강원특별자치도', '강원도', '서울특별시', '서울시', '인천광역시', '인천시',
-  '부산광역시', '부산시', '대구광역시', '대구시', '대전광역시', '대전시', '광주광역시', '광주시',
-  '울산광역시', '울산시', '세종특별자치시', '세종시', '제주특별자치도', '제주시',
-  '충청북도', '충청남도', '전북특별자치도', '전라북도', '전라남도', '경상북도', '경상남도',
-];
-
-function escapeRegExpLiteral(s: string) {
-  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+function normalizeForLabelLookup(s: string): string {
+  return s.replace(/\s*\/\s*/g, '/').replace(/\s+/g, ' ').trim();
 }
 
 function parsePlusVetBasicInfoFromText(block: string): ParsedBasicInfo {
@@ -239,42 +239,49 @@ function parsePlusVetBasicInfoFromText(block: string): ParsedBasicInfo {
   let hospitalName: string | null = null;
   for (const line of rawLines) {
     if (PLUSVET_HOSPITAL_LINE_HINT.test(line)) {
-      const stripped = line.replace(/^진단\s*검사\s*결과\s*/i, '').trim();
-      hospitalName = stripped || line;
+      hospitalName = line;
       break;
     }
   }
 
-  const flat = rawLines.join(' ').replace(/\s+/g, ' ').trim();
-  const stopAlt = [...PLUSVET_BASIC_INFO_STOP_LABELS].sort((a, b) => b.length - a.length).map(escapeRegExpLiteral).join('|');
-  const ownerStopAlt = [...PLUSVET_BASIC_INFO_STOP_LABELS, ...PLUSVET_OWNER_VALUE_EXTRA_STOPS]
-    .sort((a, b) => b.length - a.length)
-    .map(escapeRegExpLiteral)
-    .join('|');
+  // 긴 라벨 먼저 — "보호자"가 "보호자 성함" 앞에 매칭되는 것을 방지
+  const sortedLabels = Object.entries(PLUSVET_LABEL_FIELD_MAP)
+    .sort(([a], [b]) => b.length - a.length);
 
-  const pickField = (labelSource: string): string | null => {
-    const re = new RegExp(
-      `${labelSource}\\s*[:：]?\\s*(.+?)(?=\\s+(?:${stopAlt})(?:\\s|$)|$)`,
-      'is',
-    );
-    const m = flat.match(re);
-    const v = m?.[1]?.trim();
-    return v || null;
-  };
+  const extracted: Record<string, string> = {};
+  const pending: string[] = []; // FIFO 큐: 아직 값을 못 받은 라벨(필드명) 목록
 
-  const pickOwnerName = (): string | null => {
-    const re = new RegExp(
-      `보호자\\s*성함\\s*[:：]?\\s*(.+?)(?=\\s+(?:${ownerStopAlt})(?:\\s|$)|$)`,
-      'is',
-    );
-    const m = flat.match(re);
-    const v = m?.[1]?.trim();
-    return v || null;
-  };
+  for (const line of rawLines) {
+    const normalized = normalizeForLabelLookup(line);
 
-  const ownerName = pickOwnerName();
-  const patientName = pickField('동물명');
-  const speciesBreedRaw = pickField('축종\\s*/\\s*품종');
+    // Case 1: 라벨만 있는 줄 → 큐에 push
+    const exactField = PLUSVET_LABEL_FIELD_MAP[normalized];
+    if (exactField !== undefined) {
+      pending.push(exactField);
+      continue;
+    }
+
+    // Case 2: "라벨 값" 인라인 포맷 — 가장 긴 라벨부터 prefix 매칭
+    let handledInline = false;
+    for (const [label, field] of sortedLabels) {
+      if (normalized.startsWith(`${label} `)) {
+        const value = normalized.slice(label.length + 1).trim();
+        if (value && !extracted[field]) extracted[field] = value;
+        handledInline = true;
+        break;
+      }
+    }
+    if (handledInline) continue;
+
+    // Case 3: 값 줄 → 큐에서 꺼내 매칭
+    if (pending.length > 0) {
+      const target = pending.shift()!;
+      if (!extracted[target]) extracted[target] = line;
+    }
+    // pending이 비어있으면 병원명/주소 등 헤더로 간주하고 무시
+  }
+
+  const speciesBreedRaw = extracted['speciesBreed'] ?? null;
   let species: string | null = null;
   let breed: string | null = null;
   if (speciesBreedRaw) {
@@ -287,10 +294,15 @@ function parsePlusVetBasicInfoFromText(block: string): ParsedBasicInfo {
     }
   }
 
-  const birth = pickField('나이');
-  const sex = normalizeBasicInfoSex(pickField('성별'));
-
-  return { hospitalName, ownerName, patientName, species, breed, birth, sex };
+  return {
+    hospitalName,
+    ownerName: extracted['ownerName'] ?? null,
+    patientName: extracted['patientName'] ?? null,
+    species,
+    breed,
+    birth: extracted['birth'] ?? null,
+    sex: normalizeBasicInfoSex(extracted['sex'] ?? null),
+  };
 }
 
 function parseEfriendsBasicInfoFromText(block: string): ParsedBasicInfo {
