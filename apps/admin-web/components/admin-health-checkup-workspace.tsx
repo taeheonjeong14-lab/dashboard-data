@@ -1,7 +1,6 @@
 'use client';
 
-import Link from 'next/link';
-import { useCallback, useEffect, useMemo, useState, type CSSProperties } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import {
   HEALTH_CHECKUP_DENTAL_SKIN_ROW_MAX_CHARS,
   HEALTH_CHECKUP_LAB_INTERP_MAX_CHARS,
@@ -24,9 +23,11 @@ import { joinTimelineCardText, splitTimelineCardText } from '@/lib/health-report
 import type { HealthSystemsReportBlock } from '@/lib/health-report-admin/health-systems-types';
 import { parseHealthSystemsBlocksFromUnknown } from '@/lib/health-report-admin/health-systems-blocks-parse';
 import { AdminHealthReportImageSlots } from '@/components/admin-health-report-image-slots';
+import { AdminRunExtractionDetail } from '@/components/admin-run-extraction-detail';
 import { HealthReportPreviewModal } from '@/components/health-report-preview-modal';
 
 const divider = 'rgba(15, 23, 42, 0.1)';
+const OVER_MAX_WARNING = ' (최대 글자수를 초과하였습니다. 현재 상태로 보고서를 다운로드할 경우 내용이 잘려 나옵니다.)';
 
 const labelGrid: CSSProperties = { fontSize: 13, display: 'grid', gap: 4 };
 
@@ -43,10 +44,10 @@ const SYSTEM_KEYS = [
 type SystemKey = (typeof SYSTEM_KEYS)[number];
 
 const SYSTEM_PAGE_LABELS: Record<SystemKey, string> = {
-  systemsPage3Blocks: '장기 시트 (3p)',
-  systemsPage3bBlocks: '장기 시트 (3b)',
-  systemsPage4Blocks: '치과·피부 (5p)',
-  systemsPage5Blocks: '영상·초음파 (6p)',
+  systemsPage3Blocks: '장기 시트',
+  systemsPage3bBlocks: '장기 시트',
+  systemsPage4Blocks: '치과·피부',
+  systemsPage5Blocks: '영상·초음파',
 };
 
 function rowMaxCharsForSystemKey(k: SystemKey): number {
@@ -102,13 +103,16 @@ export function AdminHealthCheckupWorkspace({
   const [coverProgram, setCoverProgram] = useState('');
 
   const [saveError, setSaveError] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
+  const [savingSection, setSavingSection] = useState<string | null>(null);
   const [generating, setGenerating] = useState(false);
+  const [generatingSection, setGeneratingSection] = useState<string | null>(null);
   const [genError, setGenError] = useState<string | null>(null);
 
   const [pdfBusy, setPdfBusy] = useState(false);
   const [sharePanel, setSharePanel] = useState<{ shareUrl: string; expiresAt: string } | null>(null);
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [chartHistoryOpen, setChartHistoryOpen] = useState(false);
+  const chartHistoryDialogRef = useRef<HTMLDialogElement>(null);
 
   const healthItem = useMemo(() => items.find((i) => i.contentType === 'health_checkup') ?? null, [items]);
   const hasContent = healthItem != null;
@@ -158,7 +162,18 @@ export function AdminHealthCheckupWorkspace({
   useEffect(() => {
     setSharePanel(null);
     setPreviewOpen(false);
+    setChartHistoryOpen(false);
   }, [runId]);
+
+  useEffect(() => {
+    const dialog = chartHistoryDialogRef.current;
+    if (!dialog) return;
+    if (chartHistoryOpen) {
+      if (!dialog.open) dialog.showModal();
+    } else {
+      if (dialog.open) dialog.close();
+    }
+  }, [chartHistoryOpen]);
 
   function setRecheckField(
     key: keyof Pick<
@@ -172,19 +187,11 @@ export function AdminHealthCheckupWorkspace({
     const { cardTitle, cardBody } = splitTimelineCardText(typeof cur === 'string' ? cur : '');
     const nextTitle = part === 'title' ? value : cardTitle;
     const nextBody = part === 'body' ? value : cardBody;
-    const title = clamp(nextTitle, HEALTH_CHECKUP_MAX_RECHECK_TITLE_CHARS);
-    const body = clamp(nextBody, HEALTH_CHECKUP_MAX_RECHECK_BODY_CHARS);
-    setDraft((d) => ({ ...d, [key]: joinTimelineCardText(title, body) }));
+    setDraft((d) => ({ ...d, [key]: joinTimelineCardText(nextTitle, nextBody) }));
   }
 
-  function buildPayloadForSave(): HealthCheckupGeneratedContent {
-    setSaveError(null);
-    return draft;
-  }
-
-  async function saveReview() {
-    const payload = buildPayloadForSave();
-    setSaving(true);
+  async function saveSectionReview(sectionKey: string) {
+    setSavingSection(sectionKey);
     setSaveError(null);
     try {
       const res = await fetch('/api/admin/health-report/content', {
@@ -194,7 +201,7 @@ export function AdminHealthCheckupWorkspace({
         body: JSON.stringify({
           runId,
           contentType: 'health_checkup',
-          payload,
+          payload: draft,
         }),
       });
       const data = (await res.json()) as { ok?: boolean; error?: string };
@@ -204,7 +211,45 @@ export function AdminHealthCheckupWorkspace({
     } catch (e) {
       setSaveError(e instanceof Error ? e.message : '저장 실패');
     } finally {
-      setSaving(false);
+      setSavingSection(null);
+    }
+  }
+
+  function systemKeyToApiSection(k: SystemKey): string {
+    const map: Record<SystemKey, string> = {
+      systemsPage3Blocks: 'systems3',
+      systemsPage3bBlocks: 'systems3b',
+      systemsPage4Blocks: 'systems4',
+      systemsPage5Blocks: 'systems5',
+    };
+    return map[k];
+  }
+
+  async function generateSection(apiSection: string, uiSectionKey: string) {
+    setGeneratingSection(uiSectionKey);
+    setGenError(null);
+    try {
+      const res = await fetch('/api/admin/health-report/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          runId,
+          contentType: 'health_checkup',
+          section: apiSection,
+          checkupDate: checkupDate.trim(),
+          mustInclude: mustInclude.trim().slice(0, HEALTH_CHECKUP_MUST_INCLUDE_MAX_CHARS),
+        }),
+      });
+      const data = (await res.json()) as { error?: string; generated?: Partial<HealthCheckupGeneratedContent> };
+      if (!res.ok) throw new Error(data.error ?? `재생성 실패 (${res.status})`);
+      if (data.generated) {
+        setDraft((d) => ({ ...d, ...data.generated }));
+      }
+    } catch (e) {
+      setGenError(e instanceof Error ? e.message : '재생성 실패');
+    } finally {
+      setGeneratingSection(null);
     }
   }
 
@@ -323,14 +368,11 @@ export function AdminHealthCheckupWorkspace({
       ) : null}
 
       <div style={{ marginBottom: 14, display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
-        <Link href="/admin/chart-data" className="adminLegacySmallBtn">
-          차트 데이터(이력)
-        </Link>
+        <button type="button" className="adminLegacySmallBtn" onClick={() => setChartHistoryOpen(true)}>
+          차트 기록
+        </button>
         {hasContent ? (
           <>
-            <button type="button" className="adminLegacySecondaryBtn" disabled={saving} onClick={() => void saveReview()}>
-              {saving ? '저장 중…' : '검토 내용 저장'}
-            </button>
             <button type="button" className="adminLegacySmallBtn" disabled={generating} onClick={() => void generateContent()}>
               {generating ? '재생성 중…' : '다시 생성'}
             </button>
@@ -399,10 +441,10 @@ export function AdminHealthCheckupWorkspace({
             <label style={{ fontSize: 13 }}>
               검진일자
               <input
+                type="date"
                 style={{ display: 'block', width: '100%', marginTop: 4, padding: 8 }}
                 value={checkupDate}
                 onChange={(e) => setCheckupDate(e.target.value)}
-                placeholder="YYYY-MM-DD"
               />
             </label>
             <label style={{ fontSize: 13 }}>
@@ -450,7 +492,12 @@ export function AdminHealthCheckupWorkspace({
         <>
 
           <details open style={{ border: `1px solid ${divider}`, marginBottom: 10, background: '#fff' }}>
-            <summary style={{ padding: '10px 12px', fontWeight: 700, cursor: 'pointer' }}>표지 (1p)</summary>
+            <summary style={{ padding: '10px 12px', fontWeight: 700, cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span>표지</span>
+              <button type="button" className="adminLegacySmallBtn" disabled={savingSection !== null} onClick={(e) => { e.preventDefault(); void saveSectionReview('cover'); }}>
+                {savingSection === 'cover' ? '저장 중…' : '저장'}
+              </button>
+            </summary>
             <div style={{ padding: '12px 14px', display: 'grid', gap: 10, gridTemplateColumns: '1fr 1fr' }}>
               <label style={labelGrid}>
                 검진일
@@ -582,37 +629,69 @@ export function AdminHealthCheckupWorkspace({
           </details>
 
           <details open style={{ border: `1px solid ${divider}`, marginBottom: 10, background: '#fff' }}>
-            <summary style={{ padding: '10px 12px', fontWeight: 700, cursor: 'pointer' }}>종합 소견 (2p)</summary>
+            <summary style={{ padding: '10px 12px', fontWeight: 700, cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span>종합 소견</span>
+              <div style={{ display: 'flex', gap: 6 }}>
+                <button type="button" className="adminLegacySmallBtn" disabled={generatingSection !== null || savingSection !== null} onClick={(e) => { e.preventDefault(); void generateSection('overall', 'overall'); }}>
+                  {generatingSection === 'overall' ? '재생성 중…' : '다시 생성'}
+                </button>
+                <button type="button" className="adminLegacySmallBtn" disabled={savingSection !== null || generatingSection !== null} onClick={(e) => { e.preventDefault(); void saveSectionReview('overall'); }}>
+                  {savingSection === 'overall' ? '저장 중…' : '저장'}
+                </button>
+              </div>
+            </summary>
             <div style={{ padding: '12px 14px' }}>
               <textarea
                 rows={10}
                 style={{ width: '100%', fontSize: 13, padding: 10 }}
                 value={draft.overallSummary}
-                onChange={(e) => setDraft((d) => ({ ...d, overallSummary: clamp(e.target.value, HEALTH_CHECKUP_MAX_OVERALL_CHARS) }))}
+                onChange={(e) => setDraft((d) => ({ ...d, overallSummary: e.target.value }))}
               />
               <p style={{ margin: '6px 0 0', fontSize: 12, color: overallLen > HEALTH_CHECKUP_MAX_OVERALL_CHARS ? '#b91c1c' : '#b45309' }}>
                 {overallLen} / {HEALTH_CHECKUP_MAX_OVERALL_CHARS} (권장 최소 {HEALTH_CHECKUP_MIN_OVERALL_CHARS}자)
+                {overallLen > HEALTH_CHECKUP_MAX_OVERALL_CHARS ? OVER_MAX_WARNING : ''}
               </p>
             </div>
           </details>
 
           <details open style={{ border: `1px solid ${divider}`, marginBottom: 10, background: '#fff' }}>
-            <summary style={{ padding: '10px 12px', fontWeight: 700, cursor: 'pointer' }}>사후 관리 (2p)</summary>
+            <summary style={{ padding: '10px 12px', fontWeight: 700, cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span>사후 관리</span>
+              <div style={{ display: 'flex', gap: 6 }}>
+                <button type="button" className="adminLegacySmallBtn" disabled={generatingSection !== null || savingSection !== null} onClick={(e) => { e.preventDefault(); void generateSection('followUp', 'followUp'); }}>
+                  {generatingSection === 'followUp' ? '재생성 중…' : '다시 생성'}
+                </button>
+                <button type="button" className="adminLegacySmallBtn" disabled={savingSection !== null || generatingSection !== null} onClick={(e) => { e.preventDefault(); void saveSectionReview('followUp'); }}>
+                  {savingSection === 'followUp' ? '저장 중…' : '저장'}
+                </button>
+              </div>
+            </summary>
             <div style={{ padding: '12px 14px' }}>
               <textarea
                 rows={8}
                 style={{ width: '100%', fontSize: 13, padding: 10 }}
                 value={draft.followUpCare}
-                onChange={(e) => setDraft((d) => ({ ...d, followUpCare: clamp(e.target.value, HEALTH_CHECKUP_MAX_FOLLOW_UP_CHARS) }))}
+                onChange={(e) => setDraft((d) => ({ ...d, followUpCare: e.target.value }))}
               />
               <p style={{ margin: '6px 0 0', fontSize: 12, color: followLen > HEALTH_CHECKUP_MAX_FOLLOW_UP_CHARS ? '#b91c1c' : '#b45309' }}>
                 {followLen} / {HEALTH_CHECKUP_MAX_FOLLOW_UP_CHARS} (권장 최소 {HEALTH_CHECKUP_MIN_FOLLOW_UP_CHARS}자)
+                {followLen > HEALTH_CHECKUP_MAX_FOLLOW_UP_CHARS ? OVER_MAX_WARNING : ''}
               </p>
             </div>
           </details>
 
           <details open style={{ border: `1px solid ${divider}`, marginBottom: 10, background: '#fff' }}>
-            <summary style={{ padding: '10px 12px', fontWeight: 700, cursor: 'pointer' }}>권장 재검진</summary>
+            <summary style={{ padding: '10px 12px', fontWeight: 700, cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span>권장 재검진</span>
+              <div style={{ display: 'flex', gap: 6 }}>
+                <button type="button" className="adminLegacySmallBtn" disabled={generatingSection !== null || savingSection !== null} onClick={(e) => { e.preventDefault(); void generateSection('recheck', 'recheck'); }}>
+                  {generatingSection === 'recheck' ? '재생성 중…' : '다시 생성'}
+                </button>
+                <button type="button" className="adminLegacySmallBtn" disabled={savingSection !== null || generatingSection !== null} onClick={(e) => { e.preventDefault(); void saveSectionReview('recheck'); }}>
+                  {savingSection === 'recheck' ? '저장 중…' : '저장'}
+                </button>
+              </div>
+            </summary>
             <div style={{ padding: '12px 14px', display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
               {(
                 [
@@ -635,6 +714,7 @@ export function AdminHealthCheckupWorkspace({
                     />
                     <p style={{ margin: 0, fontSize: 11, color: cardTitle.length > HEALTH_CHECKUP_MAX_RECHECK_TITLE_CHARS ? '#b91c1c' : '#b45309', textAlign: 'right' }}>
                       {cardTitle.length} / {HEALTH_CHECKUP_MAX_RECHECK_TITLE_CHARS}
+                      {cardTitle.length > HEALTH_CHECKUP_MAX_RECHECK_TITLE_CHARS ? OVER_MAX_WARNING : ''}
                     </p>
                     <textarea
                       placeholder="본문"
@@ -645,6 +725,7 @@ export function AdminHealthCheckupWorkspace({
                     />
                     <p style={{ margin: 0, fontSize: 11, color: cardBody.length > HEALTH_CHECKUP_MAX_RECHECK_BODY_CHARS ? '#b91c1c' : '#b45309', textAlign: 'right' }}>
                       {cardBody.length} / {HEALTH_CHECKUP_MAX_RECHECK_BODY_CHARS}
+                      {cardBody.length > HEALTH_CHECKUP_MAX_RECHECK_BODY_CHARS ? OVER_MAX_WARNING : ''}
                     </p>
                   </div>
                 );
@@ -652,64 +733,73 @@ export function AdminHealthCheckupWorkspace({
             </div>
           </details>
 
-          {SYSTEM_KEYS.map((k) => {
-            const pageTitle = SYSTEM_PAGE_LABELS[k];
+          {SYSTEM_KEYS.flatMap((k) => {
             const rowMax = rowMaxCharsForSystemKey(k);
             const blocks = getStructuredBlocksFromDraft(draft, k);
-            return (
-              <details key={k} open style={{ border: `1px solid ${divider}`, marginBottom: 10, background: '#fff' }}>
-                <summary style={{ padding: '10px 12px', fontWeight: 700, cursor: 'pointer' }}>{pageTitle}</summary>
-                <div style={{ padding: '12px 14px', display: 'grid', gap: 10 }}>
-                  {blocks.length === 0 ? (
-                    <p style={{ margin: 0, fontSize: 12, color: '#64748b' }}>블록이 비어 있습니다. 컨텐츠 생성 후 채워집니다.</p>
-                  ) : null}
-                  {blocks.map((block, bi) => (
-                    <div key={bi} style={{ marginTop: bi ? 14 : 0, paddingTop: bi ? 14 : 0, borderTop: bi ? `1px solid ${divider}` : undefined }}>
-                      {block.variant === 'rows' ? (
-                        <>
-                          <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 8, color: '#334155' }}>
-                            {(block.titleKo || block.titleEn || `블록 ${bi + 1}`).trim() || `블록 ${bi + 1}`}
-                          </div>
-                          <div style={{ display: 'grid', gap: 10 }}>
-                            {block.rows.map((row, ri) => (
-                              <label key={ri} style={{ fontSize: 12, display: 'grid', gap: 4 }}>
-                                <span style={{ color: '#64748b' }}>{row.label}</span>
-                                <textarea
-                                  rows={3}
-                                  style={{ width: '100%', padding: 8, fontSize: 13 }}
-                                  value={row.content}
-                                  onChange={(e) => {
-                                    const v = clamp(e.target.value, rowMax);
-                                    setDraft((prev) => {
-                                      const cur = getStructuredBlocksFromDraft(prev, k);
-                                      if (!cur[bi] || cur[bi].variant !== 'rows') return prev;
-                                      const nextBlocks = structuredClone(cur) as HealthSystemsReportBlock[];
-                                      const b = nextBlocks[bi];
-                                      if (b.variant !== 'rows') return prev;
-                                      const nr = [...b.rows];
-                                      nr[ri] = { ...nr[ri], content: v };
-                                      nextBlocks[bi] = { ...b, rows: nr };
-                                      return { ...prev, [k]: nextBlocks };
-                                    });
-                                  }}
-                                />
-                                <span style={{ fontSize: 11, color: row.content.length > rowMax ? '#b91c1c' : '#b45309' }}>
-                                  {row.content.length} / {rowMax}
-                                </span>
-                              </label>
-                            ))}
-                          </div>
-                        </>
-                      ) : null}
+            if (blocks.length === 0) return [];
+            return blocks.map((block, bi) => {
+              if (block.variant !== 'rows') return null;
+              const blockTitle = (block.titleKo || block.titleEn || `블록 ${bi + 1}`).trim() || `블록 ${bi + 1}`;
+              return (
+                <details key={`${k}-${bi}`} open style={{ border: `1px solid ${divider}`, marginBottom: 10, background: '#fff' }}>
+                  <summary style={{ padding: '10px 12px', fontWeight: 700, cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span>{blockTitle}</span>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      <button type="button" className="adminLegacySmallBtn" disabled={generatingSection !== null || savingSection !== null} onClick={(e) => { e.preventDefault(); void generateSection(systemKeyToApiSection(k), `${k}-${bi}`); }}>
+                        {generatingSection === `${k}-${bi}` ? '재생성 중…' : '다시 생성'}
+                      </button>
+                      <button type="button" className="adminLegacySmallBtn" disabled={savingSection !== null || generatingSection !== null} onClick={(e) => { e.preventDefault(); void saveSectionReview(`${k}-${bi}`); }}>
+                        {savingSection === `${k}-${bi}` ? '저장 중…' : '저장'}
+                      </button>
                     </div>
-                  ))}
-                </div>
-              </details>
-            );
+                  </summary>
+                  <div style={{ padding: '12px 14px', display: 'grid', gap: 10 }}>
+                    {block.rows.map((row, ri) => (
+                      <label key={ri} style={{ fontSize: 12, display: 'grid', gap: 4 }}>
+                        <span style={{ color: '#64748b' }}>{row.label}</span>
+                        <textarea
+                          rows={3}
+                          style={{ width: '100%', padding: 8, fontSize: 13 }}
+                          value={row.content}
+                          onChange={(e) => {
+                            const v = e.target.value;
+                            setDraft((prev) => {
+                              const cur = getStructuredBlocksFromDraft(prev, k);
+                              if (!cur[bi] || cur[bi].variant !== 'rows') return prev;
+                              const nextBlocks = structuredClone(cur) as HealthSystemsReportBlock[];
+                              const b = nextBlocks[bi];
+                              if (b.variant !== 'rows') return prev;
+                              const nr = [...b.rows];
+                              nr[ri] = { ...nr[ri], content: v };
+                              nextBlocks[bi] = { ...b, rows: nr };
+                              return { ...prev, [k]: nextBlocks };
+                            });
+                          }}
+                        />
+                        <span style={{ fontSize: 11, color: row.content.length > rowMax ? '#b91c1c' : '#b45309' }}>
+                          {row.content.length} / {rowMax}
+                          {row.content.length > rowMax ? OVER_MAX_WARNING : ''}
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                </details>
+              );
+            });
           })}
 
           <details open style={{ border: `1px solid ${divider}`, marginBottom: 10, background: '#fff' }}>
-            <summary style={{ padding: '10px 12px', fontWeight: 700, cursor: 'pointer' }}>혈액검사 해석 (7p)</summary>
+            <summary style={{ padding: '10px 12px', fontWeight: 700, cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span>혈액검사 해석</span>
+              <div style={{ display: 'flex', gap: 6 }}>
+                <button type="button" className="adminLegacySmallBtn" disabled={generatingSection !== null || savingSection !== null} onClick={(e) => { e.preventDefault(); void generateSection('lab', 'lab'); }}>
+                  {generatingSection === 'lab' ? '재생성 중…' : '다시 생성'}
+                </button>
+                <button type="button" className="adminLegacySmallBtn" disabled={savingSection !== null || generatingSection !== null} onClick={(e) => { e.preventDefault(); void saveSectionReview('lab'); }}>
+                  {savingSection === 'lab' ? '저장 중…' : '저장'}
+                </button>
+              </div>
+            </summary>
             <div style={{ padding: '12px 14px' }}>
               <textarea
                 rows={6}
@@ -718,18 +808,24 @@ export function AdminHealthCheckupWorkspace({
                 onChange={(e) =>
                   setDraft((d) => ({
                     ...d,
-                    labInterpretation: clamp(e.target.value, HEALTH_CHECKUP_LAB_INTERP_MAX_CHARS),
+                    labInterpretation: e.target.value,
                   }))
                 }
               />
               <p style={{ margin: '6px 0 0', fontSize: 12, color: (draft.labInterpretation ?? '').length > HEALTH_CHECKUP_LAB_INTERP_MAX_CHARS ? '#b91c1c' : '#b45309' }}>
                 {(draft.labInterpretation ?? '').length} / {HEALTH_CHECKUP_LAB_INTERP_MAX_CHARS}
+                {(draft.labInterpretation ?? '').length > HEALTH_CHECKUP_LAB_INTERP_MAX_CHARS ? OVER_MAX_WARNING : ''}
               </p>
             </div>
           </details>
 
           <details open style={{ border: `1px solid ${divider}`, marginBottom: 10, background: '#fff' }}>
-            <summary style={{ padding: '10px 12px', fontWeight: 700, cursor: 'pointer' }}>이미지 배치 (5p·6p)</summary>
+            <summary style={{ padding: '10px 12px', fontWeight: 700, cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span>이미지 배치</span>
+              <button type="button" className="adminLegacySmallBtn" disabled={savingSection !== null} onClick={(e) => { e.preventDefault(); void saveSectionReview('images'); }}>
+                {savingSection === 'images' ? '저장 중…' : '저장'}
+              </button>
+            </summary>
             <div style={{ padding: '12px 14px' }}>
               <AdminHealthReportImageSlots
                   runId={runId}
@@ -741,14 +837,43 @@ export function AdminHealthCheckupWorkspace({
             </div>
           </details>
 
-          <div style={{ marginTop: 16 }}>
-            <button type="button" className="adminLegacyPrimaryBtn" disabled={saving} onClick={() => void saveReview()}>
-              {saving ? '저장 중…' : '검토 내용 저장'}
-            </button>
-          </div>
         </>
       ) : null}
       </div>
+      <dialog
+        ref={chartHistoryDialogRef}
+        onClose={() => setChartHistoryOpen(false)}
+        onKeyDown={(e) => { if (e.key === 'Escape') setChartHistoryOpen(false); }}
+        style={{
+          position: 'fixed',
+          inset: 0,
+          margin: 'auto',
+          width: 'min(96vw, 1000px)',
+          maxHeight: '90vh',
+          border: '1px solid rgba(15,23,42,0.15)',
+          borderRadius: 8,
+          padding: 0,
+          overflow: 'hidden',
+          boxShadow: '0 20px 60px rgba(0,0,0,0.25)',
+        }}
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', height: '90vh', maxHeight: '90vh' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderBottom: '1px solid rgba(15,23,42,0.1)', flexShrink: 0, background: '#fff' }}>
+            <span style={{ fontWeight: 700, fontSize: 15 }}>차트 기록</span>
+            <button
+              type="button"
+              className="adminLegacySmallBtn"
+              onClick={() => setChartHistoryOpen(false)}
+            >
+              닫기
+            </button>
+          </div>
+          <div style={{ flex: 1, overflowY: 'auto', padding: '16px' }}>
+            <AdminRunExtractionDetail runId={runId} embedded />
+          </div>
+        </div>
+      </dialog>
+
       <HealthReportPreviewModal
         open={previewOpen}
         onClose={() => setPreviewOpen(false)}
