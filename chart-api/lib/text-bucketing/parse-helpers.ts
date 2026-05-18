@@ -472,10 +472,22 @@ export function groupChartBodyByDate(lines: BucketedLine[], chartKind: ChartKind
     .filter(([dateTime, groupLines]) => dateTime !== 'unknown' || groupLines.length > 0)
     .map(([dateTime, groupLines]) => {
       const texts = groupLines.map((line) => line.text);
-      const planStart = findPlanStartIndex(texts, chartKind);
-      const bodyText =
-        planStart >= 0 ? texts.slice(0, planStart).join('\n').trim() : texts.join('\n').trim();
-      const planText = planStart >= 0 ? texts.slice(planStart).join('\n').trim() : '';
+
+      let bodyText: string;
+      let planText: string;
+      let planDetected: boolean;
+
+      if (chartKind === 'plusvet') {
+        const soap = splitPlusVetSoapSections(texts);
+        bodyText = soap.bodyText;
+        planText = soap.planText;
+        planDetected = soap.planDetected;
+      } else {
+        const planStart = findPlanStartIndex(texts, chartKind);
+        bodyText = planStart >= 0 ? texts.slice(0, planStart).join('\n').trim() : texts.join('\n').trim();
+        planText = planStart >= 0 ? texts.slice(planStart).join('\n').trim() : '';
+        planDetected = planStart >= 0;
+      }
 
       return {
         dateTime,
@@ -483,7 +495,7 @@ export function groupChartBodyByDate(lines: BucketedLine[], chartKind: ChartKind
         bodyText,
         planText,
         lineCount: groupLines.length,
-        planDetected: planStart >= 0,
+        planDetected,
       };
     });
 }
@@ -1306,25 +1318,98 @@ function isPlusVetPlanTableHeaderLine(line: string): boolean {
   const lower = t.toLowerCase();
   return (
     t.includes('항목') &&
-    t.includes('용법') &&
+    (t.includes('용법') || t.includes('경로')) && // PDF마다 용법/경로 중 하나 사용
     t.includes('단위') &&
     t.includes('담당의') &&
-    t.includes('일투') &&
-    t.includes('일수') &&
-    t.includes('사용량') &&
     lower.includes('qty')
   );
+}
+
+function isPlusVetPlanNextLineIndicator(next: string): boolean {
+  if (isPlusVetPlanTableHeaderLine(next)) return true;
+  // 헤더가 한 줄씩 분리된 경우: 첫 번째 열 이름(항목/경로/용법/qty)이 오면 Plan으로 인정
+  return /^(항목|경로|용법|qty)$/i.test(next.trim());
 }
 
 function findPlusVetPlanStartIndex(lines: string[]): number {
   for (let i = 0; i < lines.length - 1; i += 1) {
     const cur = (lines[i] ?? '').trim();
     if (!/^plan$/i.test(cur)) continue;
-    if (isPlusVetPlanTableHeaderLine(lines[i + 1] ?? '')) {
+    if (isPlusVetPlanNextLineIndicator(lines[i + 1] ?? '')) {
       return i;
     }
   }
   return -1;
+}
+
+/**
+ * PlusVet SOAP 섹션 분리:
+ * 날짜별 그룹 내에서 Subjective / Objective / Plan 헤더를 찾아
+ * bodyText = Subjective 내용, planText = Plan 이후, Objective는 버린다.
+ * 헤더가 없으면 기존 Plan 탐지로 폴백.
+ */
+function splitPlusVetSoapSections(texts: string[]): {
+  bodyText: string;
+  planText: string;
+  planDetected: boolean;
+} {
+  // "진단 검사 결과"는 lab 전용 섹션 — 이 줄부터는 SOAP 본문/처방에 포함하지 않음
+  let diagnosticResultsIdx = -1;
+  let subjectiveIdx = -1;
+  let objectiveIdx = -1;
+  let planIdx = -1;
+
+  for (let i = 0; i < texts.length; i += 1) {
+    const t = (texts[i] ?? '').trim();
+    if (diagnosticResultsIdx < 0 && /진단\s*검사\s*결과/.test(t)) {
+      diagnosticResultsIdx = i;
+      break; // SOAP 헤더는 항상 이 줄보다 앞에 있으므로 스캔 중단
+    }
+    if (subjectiveIdx < 0 && /^subjective$/i.test(t)) { subjectiveIdx = i; continue; }
+    if (objectiveIdx < 0 && /^objective$/i.test(t)) { objectiveIdx = i; continue; }
+    if (planIdx < 0 && /^plan$/i.test(t)) {
+      // S 또는 O를 이미 찾은 SOAP 문맥에서는 "Plan" 한 줄만으로 신뢰
+      // SOAP 문맥 없을 때만 테이블 헤더 확인 (오탐 방지)
+      const hasSoapContext = subjectiveIdx >= 0 || objectiveIdx >= 0;
+      if (hasSoapContext || (i + 1 < texts.length && isPlusVetPlanNextLineIndicator(texts[i + 1] ?? ''))) {
+        planIdx = i;
+      }
+    }
+  }
+
+  const cutoff = diagnosticResultsIdx >= 0 ? diagnosticResultsIdx : texts.length;
+  const hasSoap = subjectiveIdx >= 0 || objectiveIdx >= 0 || planIdx >= 0;
+
+  if (!hasSoap) {
+    const fallbackPlan = findPlusVetPlanStartIndex(texts.slice(0, cutoff));
+    return {
+      bodyText: fallbackPlan >= 0 ? texts.slice(0, fallbackPlan).join('\n').trim() : texts.slice(0, cutoff).join('\n').trim(),
+      planText: fallbackPlan >= 0 ? texts.slice(fallbackPlan, cutoff).join('\n').trim() : '',
+      planDetected: fallbackPlan >= 0,
+    };
+  }
+
+  // bodyEnd = first marker that terminates the subjective content
+  const bodyEnd = Math.min(
+    objectiveIdx >= 0 ? objectiveIdx : planIdx >= 0 ? planIdx : cutoff,
+    cutoff,
+  );
+
+  let bodyLines: string[];
+  if (subjectiveIdx >= 0) {
+    // Preamble (before Subjective) + Subjective content (skip header line)
+    bodyLines = [...texts.slice(0, subjectiveIdx), ...texts.slice(subjectiveIdx + 1, bodyEnd)];
+  } else {
+    bodyLines = texts.slice(0, bodyEnd);
+  }
+
+  const planText = planIdx >= 0 ? texts.slice(planIdx, cutoff).join('\n').trim() : '';
+
+  return {
+    bodyText: bodyLines.join('\n').trim(),
+    planText,
+    planDetected: planIdx >= 0,
+  };
 }
 
 function findIntoVetStylePlanStartIndex(lines: string[]): number {

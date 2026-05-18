@@ -28,7 +28,11 @@ function shouldSkipPlusVetPlanLine(t: string): boolean {
   if (!t) return true;
   if (/^plan$/i.test(t)) return true;
   if (/^\d+\s*\/\s*\d+번\s*그룹/.test(t)) return true;
-  if (/항목/.test(t) && /용법/.test(t) && /qty/i.test(t)) return true;
+  if (/^새\s*그룹$/.test(t)) return true;
+  // 한 줄 통합 헤더 (용법 or 경로 column)
+  if (/항목/.test(t) && (/용법/.test(t) || /경로/.test(t)) && /qty/i.test(t)) return true;
+  // PDF에서 컬럼 헤더가 한 줄씩 분리되어 있는 경우
+  if (/^(항목|경로|qty|단위|일투|일수|사용량|담당의)$/i.test(t)) return true;
   return false;
 }
 
@@ -43,11 +47,24 @@ function mergePlusVetPlanContinuations(lines: string[]): string[] {
     const t = normalizeLine(line);
     if (!t) continue;
     if (shouldSkipPlusVetPlanLine(t)) continue;
-    if (!lineHasPureNumberToken(t) && out.length > 0) {
-      out[out.length - 1] = normalizeLine(`${out[out.length - 1]} ${t}`);
-      continue;
+    const hasNum = lineHasPureNumberToken(t);
+    if (!hasNum) {
+      // 숫자 없는 줄: 이름(또는 이름 이어쓰기)
+      if (out.length > 0 && !lineHasPureNumberToken(out[out.length - 1] ?? '')) {
+        // 직전 줄도 숫자 없으면 이어쓰기
+        out[out.length - 1] = normalizeLine(`${out[out.length - 1]} ${t}`);
+      } else {
+        out.push(t);
+      }
+    } else {
+      // 숫자 있는 줄: 직전 줄에 숫자가 없으면(=아직 qty 안 붙은 이름 줄) 합체
+      const lastHasNum = out.length > 0 && lineHasPureNumberToken(out[out.length - 1] ?? '');
+      if (!lastHasNum && out.length > 0) {
+        out[out.length - 1] = normalizeLine(`${out[out.length - 1]} ${t}`);
+      } else {
+        out.push(t);
+      }
     }
-    out.push(t);
   }
   return out;
 }

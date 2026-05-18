@@ -10,6 +10,10 @@ const ARROWS = ['↓', '↑', '←', '→'] as const;
 const PLUSVET_UNITS_LONGEST_FIRST = [
   '10*6/uL',
   '10*3/uL',
+  '10×12/L',
+  '10×9/L',
+  '10×3/μL',
+  '10×10/L',
   '10^12/L',
   '10^9/L',
   'mmol/L',
@@ -67,6 +71,28 @@ function mergeContinuationRows(rows: LineIn[]): LineIn[] {
       continue;
     }
     out.push({ page: row.page, text: t });
+  }
+  return out;
+}
+
+/**
+ * 3줄 세로 포맷 병합: 항목명(숫자 없음) + 결과값 줄(숫자로 시작) → 한 줄로 합침.
+ * mergeContinuationRows 이후에 실행해야 ↑↓ 접미사가 이미 앞 줄에 붙어 있음.
+ */
+function mergeVerticalLabItems(rows: LineIn[]): LineIn[] {
+  const out: LineIn[] = [];
+  let i = 0;
+  while (i < rows.length) {
+    const row = rows[i]!;
+    const next = rows[i + 1];
+    // 현재 줄: 숫자·화살표 없음(항목명), 다음 줄: 숫자로 시작(값)
+    if (!/\d/.test(row.text) && row.text.trim() && next && /^[<>≤≥]?\d/.test(next.text.trim())) {
+      out.push({ page: row.page, text: normalizeSpaces(`${row.text} ${next.text}`) });
+      i += 2;
+    } else {
+      out.push(row);
+      i += 1;
+    }
   }
   return out;
 }
@@ -220,7 +246,7 @@ export function parsePlusVetLabBucketLines(lines: LineIn[]): LabItem[] {
     if (isDiagnosisTrendSectionTitle(row.text)) break;
     untilTrend.push(row);
   }
-  const merged = mergeContinuationRows(untilTrend);
+  const merged = mergeVerticalLabItems(mergeContinuationRows(untilTrend));
   const items: LabItem[] = [];
   for (const row of merged) {
     const item = parsePlusVetLabLine(row.text, row.page);
