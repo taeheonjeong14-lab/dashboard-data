@@ -19,6 +19,8 @@ export function buildHealthCheckupInstructionBody(opts: {
   excludedAreaExactPhrase: string;
   checkupDate?: string;
   mustInclude?: string;
+  /** 1 = 종합소견·사후관리·재검진만 (2단계 생성 1단계용). 미지정 시 전체 섹션. */
+  outputStage?: 1;
 }): string {
   const maxOverall = HEALTH_CHECKUP_PROMPT_MAX_OVERALL_CHARS;
   const maxFollow = HEALTH_CHECKUP_PROMPT_MAX_FOLLOW_UP_CHARS;
@@ -30,7 +32,7 @@ export function buildHealthCheckupInstructionBody(opts: {
   const pImpDentalSkin = HEALTH_CHECKUP_PROMPT_DENTAL_SKIN_IMP_MAX_CHARS;
   const pImg = HEALTH_CHECKUP_PROMPT_IMAGING_INTERP_MAX_CHARS;
   const pLab = HEALTH_CHECKUP_PROMPT_LAB_INTERP_MAX_CHARS;
-  const { programPrefixForPhrase, excludedAreaExactPhrase } = opts;
+  const { programPrefixForPhrase, excludedAreaExactPhrase, outputStage } = opts;
   const systemsKeyLines = HEALTH_CHECKUP_SYSTEMS_LLM_FIELD_KEYS.map((k) => `- ${k}`).join('\n');
   const { checkupDate, mustInclude } = opts;
   return [
@@ -100,30 +102,34 @@ export function buildHealthCheckupInstructionBody(opts: {
     '- JSON 필드 recheckWithin1to2Weeks, recheckWithin1Month, recheckWithin3Months, recheckWithin6Months 각각 한 문자열',
     `- 형식: 제목 한 줄(최대 ${HEALTH_CHECKUP_MAX_RECHECK_TITLE_CHARS}자) + 줄바꿈 + 본문 한 줄(최대 ${HEALTH_CHECKUP_MAX_RECHECK_BODY_CHARS}자)`,
     '',
-    '========== 장기/검사 섹션 공통 ==========',    
-    `- 주요 진단 내용 최대 ${pDx}자, 시사점 최대 ${pImp}자`,
-    `- 치과/피부 주요 진단 최대 ${pDxDentalSkin}자, 시사점 최대 ${pImpDentalSkin}자`,
-    `- 영상 해석 필드 최대 ${pImg}자`,
-    '',
-    '========== 미포함 고정 문구 규칙 ==========',
-    `- 프로그램명: ${programPrefixForPhrase}`,
-    `- 근거가 전혀 없는 계통/검사 칸에는 고정 문구만 그대로 사용: ${excludedAreaExactPhrase}`,
-    '',
+    ...(outputStage === 1 ? [] : [
+      '========== 장기/검사 섹션 공통 ==========',
+      `- 주요 진단 내용 최대 ${pDx}자, 시사점 최대 ${pImp}자`,
+      `- 치과/피부 주요 진단 최대 ${pDxDentalSkin}자, 시사점 최대 ${pImpDentalSkin}자`,
+      `- 영상 해석 필드 최대 ${pImg}자`,
+      '',
+      '========== 미포함 고정 문구 규칙 ==========',
+      `- 프로그램명: ${programPrefixForPhrase}`,
+      `- 근거가 전혀 없는 계통/검사 칸에는 고정 문구만 그대로 사용: ${excludedAreaExactPhrase}`,
+      '',
+    ]),
     '========== JSON 키 ↔ 인쇄 시트 (영문 키 이름을 정확히 지킬 것) ==========',
     '- overallSummary, followUpCare',
     '- recheckWithin1to2Weeks, recheckWithin1Month, recheckWithin3Months, recheckWithin6Months',
-    '- hp3_circ_dx, hp3_circ_imp, hp3_digest_dx, hp3_digest_imp, hp3_endo_dx, hp3_endo_imp',
-    '- hp3_renal_uro_dx, hp3_renal_uro_imp, hp3_hepatobiliary_dx, hp3_hepatobiliary_imp, hp3_msk_dx, hp3_msk_imp',
-    '- hp4_dental_dx, hp4_dental_imp, hp4_skin_dx, hp4_skin_imp',
-    '- hp5_rad_interp, hp5_us_interp',
-    '- labInterpretation',
-    '',
-    '========== 혈액검사 해석 (labInterpretation) ==========',
-    '- 혈액검사 결과 페이지 상단에 들어가는 전체 해석 요약',
-    `- 글자 수 제한: 공백 포함 최대 ${pLab}자`,
-    '',
-    '응답 스키마에 포함할 시스템 시트 문자열 키(전부 필수):',
-    systemsKeyLines,
+    ...(outputStage === 1 ? [] : [
+      '- hp3_circ_dx, hp3_circ_imp, hp3_digest_dx, hp3_digest_imp, hp3_endo_dx, hp3_endo_imp',
+      '- hp3_renal_uro_dx, hp3_renal_uro_imp, hp3_hepatobiliary_dx, hp3_hepatobiliary_imp, hp3_msk_dx, hp3_msk_imp',
+      '- hp4_dental_dx, hp4_dental_imp, hp4_skin_dx, hp4_skin_imp',
+      '- hp5_rad_interp, hp5_us_interp',
+      '- labInterpretation',
+      '',
+      '========== 혈액검사 해석 (labInterpretation) ==========',
+      '- 혈액검사 결과 페이지 상단에 들어가는 전체 해석 요약',
+      `- 글자 수 제한: 공백 포함 최대 ${pLab}자`,
+      '',
+      '응답 스키마에 포함할 시스템 시트 문자열 키(전부 필수):',
+      systemsKeyLines,
+    ]),
   ].join('\n');
 }
 

@@ -134,6 +134,7 @@ function matchesCheckupDate(dateTimeStr: string, checkupDate: string): boolean {
 function buildHealthCheckupPrompt(
   source: ReportSourceData,
   options?: { reportProgramName?: string; checkupDate?: string; veterinarian?: string; mustInclude?: string },
+  internal?: { outputStage?: 1 },
 ): string {
   const programName = (options?.reportProgramName ?? '').trim();
   const programPrefixForPhrase = programName.length > 0 ? programName : '해당';
@@ -176,6 +177,7 @@ function buildHealthCheckupPrompt(
     excludedAreaExactPhrase,
     checkupDate: checkupDate || undefined,
     mustInclude: mustInclude || undefined,
+    outputStage: internal?.outputStage,
   });
 
   return [
@@ -212,7 +214,9 @@ function buildHealthCheckupPrompt(
     `- overallSummary는 공백 포함 최소 ${HEALTH_CHECKUP_PROMPT_MIN_OVERALL_CHARS}자·최대 ${HEALTH_CHECKUP_PROMPT_MAX_OVERALL_CHARS}자, followUpCare는 최소 ${HEALTH_CHECKUP_PROMPT_MIN_FOLLOW_UP_CHARS}자·최대 ${HEALTH_CHECKUP_PROMPT_MAX_FOLLOW_UP_CHARS}자.`,
     '- overallSummary, followUpCare·장기·영상 각 칸 문자열은 위 **문단·줄바꿈 공통 규칙**을 따른다(새 문단 앞마다 빈 줄 한 줄, JSON에서는 연속 줄바꿈 두 번). 재검진 필드는 예외.',
     '- 확정 진단·단정적 병명 단정은 피하고, 관찰 소견·해석 가능한 범위·권고 중심으로 쓴다.',
-    '- hp3_* · hp4_* · hp5_* 각 문자열은 인쇄 표 칸에 그대로 들어간다. 완전한 문장으로 쓰고, **문단 사이**는 위와 같이 빈 줄 한 줄로만 구분한다(문단 **내부**에 쓸데없는 빈 줄은 넣지 않는다).',
+    ...(internal?.outputStage === 1 ? [] : [
+      '- hp3_* · hp4_* · hp5_* 각 문자열은 인쇄 표 칸에 그대로 들어간다. 완전한 문장으로 쓰고, **문단 사이**는 위와 같이 빈 줄 한 줄로만 구분한다(문단 **내부**에 쓸데없는 빈 줄은 넣지 않는다).',
+    ]),
   ].join('\n');
 }
 
@@ -258,6 +262,24 @@ function normalizeHealthCheckup(raw: unknown): HealthCheckupGeneratedContent {
   };
 }
 
+type Stage1Result = Pick<
+  HealthCheckupGeneratedContent,
+  'overallSummary' | 'followUpCare' | 'recheckWithin1to2Weeks' | 'recheckWithin1Month' | 'recheckWithin3Months' | 'recheckWithin6Months'
+>;
+
+function normalizeStage1(raw: unknown): Stage1Result {
+  if (!raw || typeof raw !== 'object') throw new Error('Invalid stage 1 response.');
+  const o = raw as Record<string, unknown>;
+  return {
+    overallSummary: clampText(o.overallSummary, MAX_OVERALL),
+    followUpCare: clampText(o.followUpCare, MAX_FOLLOW_UP),
+    recheckWithin1to2Weeks: clampStoredRecheckCard(o.recheckWithin1to2Weeks),
+    recheckWithin1Month: clampStoredRecheckCard(o.recheckWithin1Month),
+    recheckWithin3Months: clampStoredRecheckCard(o.recheckWithin3Months),
+    recheckWithin6Months: clampStoredRecheckCard(o.recheckWithin6Months),
+  };
+}
+
 function isWithinPromptLength(content: HealthCheckupGeneratedContent): boolean {
   return content.overallSummary.length <= PROMPT_MAX_OVERALL && content.followUpCare.length <= PROMPT_MAX_FOLLOW_UP;
 }
@@ -278,8 +300,8 @@ function trimAtSentenceBoundary(text: string, maxChars: number): string {
   return sliced.trim();
 }
 
-async function generateHealthCheckupRawJson(model: string, prompt: string): Promise<unknown> {
-  const schemaHint = [
+async function generateHealthCheckupRawJson(model: string, prompt: string, schemaHint?: string): Promise<unknown> {
+  const hint = schemaHint ?? [
     'Required keys:',
     'overallSummary, followUpCare, recheckWithin1to2Weeks, recheckWithin1Month, recheckWithin3Months, recheckWithin6Months,',
     `${HEALTH_CHECKUP_SYSTEMS_LLM_FIELD_KEYS.join(', ')}, labInterpretation`,
@@ -288,7 +310,7 @@ async function generateHealthCheckupRawJson(model: string, prompt: string): Prom
     '- Return exactly one JSON object (RFC8259). No markdown, no ``` fences, no commentary before or after.',
     '- Use UTF-8 JSON strings only; escape raw line breaks inside string values as \\n.',
   ].join(' ');
-  const output = await geminiGenerateText(`${prompt}\n\n${schemaHint}`, { maxOutputTokens: 16384 });
+  const output = await geminiGenerateText(`${prompt}\n\n${hint}`, { maxOutputTokens: 16384 });
   if (!output.trim()) throw new Error('Gemini returned empty content.');
   try {
     const parsed = tryParseJsonObject(output);
@@ -343,9 +365,10 @@ function buildSectionInstruction(
     excludedAreaExactPhrase: string;
     checkupDate?: string;
     mustInclude?: string;
+    overallContext?: string;
   },
 ): string {
-  const { programPrefixForPhrase, excludedAreaExactPhrase, checkupDate, mustInclude } = opts;
+  const { programPrefixForPhrase, excludedAreaExactPhrase, checkupDate, mustInclude, overallContext } = opts;
   void programPrefixForPhrase;
   const lines: string[] = [
     '너는 세계에서 가장 뛰어난 수의사야.',
@@ -355,6 +378,13 @@ function buildSectionInstruction(
     '확정 진단·단정적 병명 단정은 피하고, 관찰 소견·해석 가능한 범위·권고 중심으로 쓴다.',
     '',
   ];
+  if (overallContext) {
+    lines.push(
+      '========== 1단계 종합소견·사후관리 (스토리 일관성 참고용) ==========',
+      overallContext,
+      '',
+    );
+  }
   if (checkupDate) {
     lines.push(`검진일자: ${checkupDate} 데이터를 우선 참고한다.`, '');
   }
@@ -433,6 +463,7 @@ function buildSectionPrompt(
   section: RegenerateSection,
   source: ReportSourceData,
   options?: { reportProgramName?: string; checkupDate?: string; mustInclude?: string },
+  overallContext?: string,
 ): string {
   const programName = (options?.reportProgramName ?? '').trim();
   const programPrefixForPhrase = programName.length > 0 ? programName : '해당';
@@ -475,6 +506,7 @@ function buildSectionPrompt(
     excludedAreaExactPhrase,
     checkupDate: checkupDate || undefined,
     mustInclude: mustInclude || undefined,
+    overallContext,
   });
 
   return [
@@ -545,13 +577,14 @@ export async function generateHealthCheckupSection(
   section: RegenerateSection,
   source: ReportSourceData,
   options?: { reportProgramName?: string; checkupDate?: string; mustInclude?: string },
+  overallContext?: string,
 ): Promise<Partial<HealthCheckupGeneratedContent>> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) throw new Error('GEMINI_API_KEY is not configured.');
   const model = process.env.GEMINI_REPORT_MODEL?.trim() || process.env.GEMINI_VISION_MODEL?.trim() || 'gemini-2.5-flash';
   void apiKey;
 
-  const prompt = buildSectionPrompt(section, source, options);
+  const prompt = buildSectionPrompt(section, source, options, overallContext);
   const keys = SECTION_LLM_KEYS[section];
   const schemaHint = [
     `Required keys: ${keys.join(', ')}`,
@@ -586,30 +619,60 @@ export async function generateHealthCheckupContent(
   if (!apiKey) throw new Error('GEMINI_API_KEY is not configured.');
   const model = process.env.GEMINI_REPORT_MODEL?.trim() || process.env.GEMINI_VISION_MODEL?.trim() || 'gemini-2.5-flash';
   void apiKey;
-  const prompt = buildHealthCheckupPrompt(source, options);
-  let content = normalizeHealthCheckup(await generateHealthCheckupRawJson(model, prompt));
-  if (isWithinPromptLength(content)) return content;
 
-  const maxRetries = 2;
-  for (let attempt = 1; attempt <= maxRetries; attempt += 1) {
-    const retryPrompt = [
-      '다음 JSON의 의료 의미를 유지한 상태에서 길이만 조정하라.',
-      `- overallSummary는 공백 포함 ${PROMPT_MAX_OVERALL}자 이하`,
-      `- followUpCare는 공백 포함 ${PROMPT_MAX_FOLLOW_UP}자 이하`,
-      '- 두 필드는 문장 중간에서 끊지 말고 완결 문장으로 마무리한다.',
-      '- 다른 필드(재검진 카드/장기별 필드/labInterpretation)는 내용과 형식을 유지한다.',
-      '- 출력은 유효한 JSON 객체 하나만 반환한다.',
-      '',
-      '입력 JSON:',
-      JSON.stringify(content),
-    ].join('\n');
-    content = normalizeHealthCheckup(await generateHealthCheckupRawJson(model, retryPrompt));
-    if (isWithinPromptLength(content)) return content;
+  // Stage 1: generate backbone (overall + followUp + recheck)
+  const stage1Prompt = buildHealthCheckupPrompt(source, options, { outputStage: 1 });
+  const stage1SchemaHint = [
+    'Required keys: overallSummary, followUpCare, recheckWithin1to2Weeks, recheckWithin1Month, recheckWithin3Months, recheckWithin6Months',
+    'Output rules:',
+    '- Return exactly one JSON object (RFC8259). No markdown, no ``` fences, no commentary before or after.',
+    '- Use UTF-8 JSON strings only; escape raw line breaks inside string values as \\n.',
+  ].join('\n');
+  let stage1 = normalizeStage1(await generateHealthCheckupRawJson(model, stage1Prompt, stage1SchemaHint));
+
+  // Trim stage1 backbone if it exceeds limits
+  if (!isWithinPromptLength(stage1 as HealthCheckupGeneratedContent)) {
+    const maxRetries = 2;
+    for (let attempt = 1; attempt <= maxRetries; attempt += 1) {
+      const retryPrompt = [
+        '다음 JSON의 의료 의미를 유지한 상태에서 길이만 조정하라.',
+        `- overallSummary는 공백 포함 ${PROMPT_MAX_OVERALL}자 이하`,
+        `- followUpCare는 공백 포함 ${PROMPT_MAX_FOLLOW_UP}자 이하`,
+        '- 두 필드는 문장 중간에서 끊지 말고 완결 문장으로 마무리한다.',
+        '- 재검진 카드 필드는 내용과 형식을 유지한다.',
+        '- 출력은 유효한 JSON 객체 하나만 반환한다.',
+        '',
+        '입력 JSON:',
+        JSON.stringify(stage1),
+      ].join('\n');
+      stage1 = normalizeStage1(await generateHealthCheckupRawJson(model, retryPrompt, stage1SchemaHint));
+      if (isWithinPromptLength(stage1 as HealthCheckupGeneratedContent)) break;
+    }
+    if (!isWithinPromptLength(stage1 as HealthCheckupGeneratedContent)) {
+      stage1 = {
+        ...stage1,
+        overallSummary: trimAtSentenceBoundary(stage1.overallSummary, PROMPT_MAX_OVERALL),
+        followUpCare: trimAtSentenceBoundary(stage1.followUpCare, PROMPT_MAX_FOLLOW_UP),
+      };
+    }
   }
 
+  // Stage 2: generate detail sections in parallel, injecting stage1 for consistency
+  const overallContext = `종합소견:\n${stage1.overallSummary}\n\n사후관리:\n${stage1.followUpCare}`;
+  const [s3, s3b, s4, s5, lab] = await Promise.all([
+    generateHealthCheckupSection('systems3', source, options, overallContext),
+    generateHealthCheckupSection('systems3b', source, options, overallContext),
+    generateHealthCheckupSection('systems4', source, options, overallContext),
+    generateHealthCheckupSection('systems5', source, options, overallContext),
+    generateHealthCheckupSection('lab', source, options, overallContext),
+  ]);
+
   return {
-    ...content,
-    overallSummary: trimAtSentenceBoundary(content.overallSummary, PROMPT_MAX_OVERALL),
-    followUpCare: trimAtSentenceBoundary(content.followUpCare, PROMPT_MAX_FOLLOW_UP),
+    ...stage1,
+    ...s3,
+    ...s3b,
+    ...s4,
+    ...s5,
+    ...lab,
   };
 }
