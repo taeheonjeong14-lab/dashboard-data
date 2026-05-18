@@ -171,6 +171,19 @@ function stripTrailingUnit(head: string): { head: string; unit: string | null } 
   return { head: h, unit: null };
 }
 
+/** NEG(2) / POS(1) 형태의 키트 정성 결과 파싱 */
+function splitItemAndQualitativeValue(head: string): { itemName: string; valueText: string; flag: LabItem['flag'] } | null {
+  const m = head.trim().match(/^(.+?)\s+((?:NEG|POS|POSITIVE|NEGATIVE|TNTC|\+{1,3})(?:\s*\(\d+\))?)\s*$/i);
+  if (!m?.[1] || !m[2]) return null;
+  const itemName = m[1].trim();
+  const valueText = m[2].trim();
+  let flag: LabItem['flag'];
+  if (/^NEG/i.test(valueText) || /^NEGATIVE/i.test(valueText)) flag = 'normal';
+  else if (/^POS/i.test(valueText) || /^POSITIVE/i.test(valueText) || valueText.startsWith('+')) flag = 'high';
+  else flag = 'unknown';
+  return { itemName, valueText, flag };
+}
+
 /**
  * head에서 맨 끝을 검사값으로 분리 (A/G, BUN/CRE, BE(ecf), f.NT-proBNP 등 슬래시·괄호 보존)
  */
@@ -220,7 +233,22 @@ export function parsePlusVetLabLine(line: string, page: number): LabItem | null 
 
   const { head: hUnit, unit } = stripTrailingUnit(work);
   const split = splitItemAndValue(hUnit);
-  if (!split) return null;
+  if (!split) {
+    // 키트 정성 결과 (NEG/POS) fallback
+    const qual = splitItemAndQualitativeValue(hUnit);
+    if (!qual) return null;
+    return {
+      page,
+      rowY: 0,
+      itemName: qual.itemName,
+      value: null,
+      valueText: qual.valueText,
+      unit,
+      referenceRange,
+      flag: qual.flag,
+      rawRow: s,
+    };
+  }
 
   const { itemName, valueText } = split;
   if (!itemName || !valueText) return null;

@@ -82,6 +82,7 @@ export function isPlusVetLabMachinePanelHeaderLine(text: string): boolean {
   if (/\bCBC\b/i.test(hit.line)) return true;
   if (/Biochemical/i.test(hit.line)) return true;
   if (/Blood\s+Gas/i.test(hit.line)) return true;
+  if (/\bKit\b/i.test(hit.line)) return true;
   return false;
 }
 
