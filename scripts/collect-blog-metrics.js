@@ -216,6 +216,7 @@ async function main() {
     const count = await upsertBlogDailyMetrics(supabase, id, hospitalId, hospitalName, rows);
     console.log("✅ blog_daily_metrics 업서트 완료: %d건 (KST end=%s)", count, endDate);
   } finally {
+    await page.close().catch(() => {});
     await browser.disconnect();
   }
 }
