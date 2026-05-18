@@ -124,7 +124,7 @@ async function scrapeSmartPlaceInflow(page, statUrl, startDate, endDate) {
   for (let i = 0; i < daysToFetch.length; i++) {
     const day = daysToFetch[i];
     const url = setUrlDateParams(statUrl.trim(), day, day);
-    await page.goto(url, { waitUntil: "domcontentloaded", timeout: 20000 });
+    await page.goto(url, { waitUntil: "domcontentloaded", timeout: 45000 });
     await new Promise((r) => setTimeout(r, 2000));
     const body = await getPageBody(page);
     const inflow = parsePlaceInflowSingle(body);
@@ -202,7 +202,7 @@ async function main() {
 
   console.log("Chrome에 연결 중... (포트 %s, hospital_id=%s)", port, hospitalId || "-");
   const browser = await connectBrowser(port);
-  const page = (await browser.pages())[0] || (await browser.newPage());
+  const page = await browser.newPage();
 
   try {
     const rows = await scrapeSmartPlaceInflow(page, smartplaceStatUrl, startDate, endDate);

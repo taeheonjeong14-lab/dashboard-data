@@ -95,13 +95,13 @@ async function scrapeBlogMetrics(page, blogId, config) {
   const uvUrl = config.blog?.uvUrl || `${ADMIN_BASE}/${blogId}/stat/uv`;
 
   console.log("조회수 페이지 로드 중...");
-  await page.goto(visitPvUrl, { waitUntil: "domcontentloaded", timeout: 20000 });
+  await page.goto(visitPvUrl, { waitUntil: "domcontentloaded", timeout: 45000 });
   await new Promise((r) => setTimeout(r, 4000));
   const pvBody = await getPageBody(page);
   const pvRows = parseTableRows(pvBody);
 
   console.log("순방문자수 페이지 로드 중...");
-  await page.goto(uvUrl, { waitUntil: "domcontentloaded", timeout: 20000 });
+  await page.goto(uvUrl, { waitUntil: "domcontentloaded", timeout: 45000 });
   await new Promise((r) => setTimeout(r, 4000));
   const uvBody = await getPageBody(page);
   const uvRows = parseTableRows(uvBody);
@@ -200,7 +200,7 @@ async function main() {
 
   console.log("Chrome에 연결 중... (포트 %s, hospital_id=%s)", port, hospitalId || "-");
   const browser = await connectBrowser(port);
-  const page = (await browser.pages())[0] || (await browser.newPage());
+  const page = await browser.newPage();
 
   try {
     const merged = await scrapeBlogMetrics(page, id, config);

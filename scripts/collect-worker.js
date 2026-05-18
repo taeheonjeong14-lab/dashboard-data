@@ -21,6 +21,9 @@ const { createClient } = require("@supabase/supabase-js");
 
 const ROOT_DIR = path.resolve(__dirname, "..");
 const POLL_INTERVAL_MS = 30_000;
+const MAX_CONCURRENT_JOBS = 3;
+
+let runningJobs = 0;
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
@@ -154,6 +157,8 @@ function spawnAndCapture(scriptPath, args, extraEnv, onBatchHospitalDone) {
 }
 
 async function pollAndRun() {
+  if (runningJobs >= MAX_CONCURRENT_JOBS) return;
+
   const { data: jobs } = await supabase
     .from("collect_jobs")
     .select("*")
@@ -176,7 +181,8 @@ async function pollAndRun() {
 
   if (!claimed) return;
 
-  console.log(`[collect-worker] Job 시작: ${job.id} | hospital_id=${job.hospital_id ?? "전체"}`);
+  runningJobs++;
+  console.log(`[collect-worker] Job 시작: ${job.id} | hospital_id=${job.hospital_id ?? "전체"} (동시 실행: ${runningJobs}/${MAX_CONCURRENT_JOBS})`);
 
   const isBatch = !job.hospital_id;
   const scriptName = isBatch ? "collect-all-batch.js" : "collect-all.js";
@@ -197,23 +203,27 @@ async function pollAndRun() {
     : undefined;
 
   const extraEnv = job.steps_filter ? { COLLECT_STEPS_FILTER: JSON.stringify(job.steps_filter) } : {};
-  const { code, output } = await spawnAndCapture(scriptPath, args, extraEnv, onBatchHospitalDone);
-  const { steps, upserts } = parseCollectOutput(output);
-  const status = code === 0 ? "done" : "failed";
+  try {
+    const { code, output } = await spawnAndCapture(scriptPath, args, extraEnv, onBatchHospitalDone);
+    const { steps, upserts } = parseCollectOutput(output);
+    const status = code === 0 ? "done" : "failed";
 
-  await supabase
-    .from("collect_jobs")
-    .update({
-      status,
-      output,
-      steps,
-      upserts,
-      finished_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", job.id);
+    await supabase
+      .from("collect_jobs")
+      .update({
+        status,
+        output,
+        steps,
+        upserts,
+        finished_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", job.id);
 
-  console.log(`[collect-worker] Job ${status}: ${job.id}`);
+    console.log(`[collect-worker] Job ${status}: ${job.id} (동시 실행: ${runningJobs - 1}/${MAX_CONCURRENT_JOBS})`);
+  } finally {
+    runningJobs--;
+  }
 }
 
 console.log(`[collect-worker] 시작 — Supabase 폴링 간격: ${POLL_INTERVAL_MS / 1000}초`);

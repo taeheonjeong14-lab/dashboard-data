@@ -54,7 +54,8 @@ export async function POST(request: Request) {
     .select('id');
 
   if (insertError || !jobs) {
-    return NextResponse.json({ error: '수집 요청을 생성하지 못했습니다.' }, { status: 500 });
+    console.error('[collect/run] insert error:', insertError);
+    return NextResponse.json({ error: '수집 요청을 생성하지 못했습니다.', detail: insertError?.message }, { status: 500 });
   }
 
   if (jobs.length === 1) {
