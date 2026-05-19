@@ -818,11 +818,11 @@ def try_click_more_and_find_rank_pet_popular(
 
 def try_find_rank_general_search(
     page, target_id: str, integrated_url: str
-) -> tuple[int | None, bool, str | None]:
+) -> tuple[int | None, bool, str | None, bool]:
     """
     일반 검색(rrB_bdR) 섹션에서 순위를 찾는다. 1페이지에서 먼저 확인하고,
     없으면 2페이지로 넘어가며 최대 20개 항목까지만 확인한다.
-    반환: (순위 또는 None, 섹션 존재 여부, 노출 URL 또는 None)
+    반환: (순위 또는 None, 섹션 존재 여부, 노출 URL 또는 None, 페이지 이동 여부)
     """
     max_cards = 20
     container_sel = None
@@ -831,18 +831,18 @@ def try_find_rank_general_search(
             container_sel = sel
             break
     if not container_sel:
-        return None, False, None
+        return None, False, None, False
 
     try:
         rank, url = find_rank_in_cards(
             page, container_sel, CARD_GENERAL_SEARCH, target_id, max_cards=max_cards
         )
         if rank is not None:
-            return rank, True, url
+            return rank, True, url, False  # 1페이지에서 발견 — 이동 없음
 
         count = count_cards(page, container_sel, CARD_GENERAL_SEARCH)
         if count >= max_cards:
-            return None, True, None
+            return None, True, None, False
 
         # 2페이지로 이동 시도 (start=11 또는 페이지 번호 2 링크)
         next_link = page.query_selector(
@@ -852,11 +852,11 @@ def try_find_rank_general_search(
         if not next_link and page.locator('a:has-text("2")').count() > 0:
             next_link = page.locator('a:has-text("2")').first
         if not next_link:
-            return None, True, None
+            return None, True, None, False
         try:
             next_link.click()
         except Exception:
-            return None, True, None
+            return None, True, None, False
 
         page.wait_for_load_state("domcontentloaded", timeout=CURRENT_PAGE_LOAD_TIMEOUT_MS)
         page.wait_for_timeout(100)
@@ -866,17 +866,17 @@ def try_find_rank_general_search(
                 container_sel = sel
                 break
         if not container_sel:
-            return None, True, None
+            return None, True, None, True  # 2페이지로 이동했지만 섹션 없음
 
         remaining = max_cards - count
         rank_on_page, url_on_page = find_rank_in_cards(
             page, container_sel, CARD_GENERAL_SEARCH, target_id, max_cards=remaining
         )
         if rank_on_page is not None:
-            return count + rank_on_page, True, url_on_page
-        return None, True, None
+            return count + rank_on_page, True, url_on_page, True
+        return None, True, None, True
     except Exception:
-        return None, True, None
+        return None, True, None, False
 
 
 def _close_pet_popular_layer_if_open(page) -> None:
@@ -940,6 +940,7 @@ def get_three_section_ranks(page, target_id: str, integrated_url: str) -> dict[s
             page.locator('a:has-text("검색결과 더보기")').first.wait_for(state="visible", timeout=3000)
         except Exception:
             pass
+    search_more_clicked = False
     for sel in SELECTOR_SEARCH_RESULT:
         container = page.query_selector(sel)
         if container:
@@ -952,6 +953,7 @@ def get_three_section_ranks(page, target_id: str, integrated_url: str) -> dict[s
                 result["검색결과"], result["검색결과_URL"] = try_click_more_and_find_rank_search_result(
                     page, more_button_sel, target_id
                 )
+                search_more_clicked = True
             break
     if not search_result_exists:
         if page.query_selector('a[data-heatmap-target=".more2"]') or page.locator('a:has-text("검색결과 더보기")').count() > 0:
@@ -963,10 +965,11 @@ def get_three_section_ranks(page, target_id: str, integrated_url: str) -> dict[s
                 result["검색결과"], result["검색결과_URL"] = try_click_more_and_find_rank_search_result(
                     page, 'a[data-heatmap-target=".more2"]', target_id
                 )
+                search_more_clicked = True
     result["_검색결과_섹션있음"] = search_result_exists
 
-    # 더보기를 눌렀다면 2페이지에 있으므로 1페이지(통합검색)로 복귀
-    if search_result_exists:
+    # 더보기를 실제로 눌러서 페이지를 이동했을 때만 통합검색으로 복귀
+    if search_more_clicked:
         page.goto(integrated_url, wait_until="domcontentloaded", timeout=CURRENT_PAGE_LOAD_TIMEOUT_MS)
         page.wait_for_timeout(100)
 
@@ -995,12 +998,12 @@ def get_three_section_ranks(page, target_id: str, integrated_url: str) -> dict[s
     # --- 3) 일반 검색(rrB_bdR) ---
     result["일반 검색"] = None
     result["일반 검색_URL"] = None
-    general_rank, general_exists, general_url = try_find_rank_general_search(page, target_id, integrated_url)
+    general_rank, general_exists, general_url, general_navigated = try_find_rank_general_search(page, target_id, integrated_url)
     result["일반 검색"] = general_rank
     result["일반 검색_URL"] = general_url
     result["_일반검색_섹션있음"] = general_exists
-    # 일반 검색에서 2페이지로 갔을 수 있으므로 통합검색 1페이지로 복귀
-    if general_exists:
+    # 2페이지로 실제로 이동했을 때만 통합검색 1페이지로 복귀
+    if general_navigated:
         page.goto(integrated_url, wait_until="domcontentloaded", timeout=CURRENT_PAGE_LOAD_TIMEOUT_MS)
         page.wait_for_timeout(100)
 
