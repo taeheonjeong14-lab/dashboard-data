@@ -962,8 +962,8 @@ export function AdminHealthCheckupWorkspace({
                                     ) : src ? (
                                       <div style={{ fontSize: 10, color: '#94a3b8', padding: '6px 0', wordBreak: 'break-all' }}>{src.split('/').pop()}</div>
                                     ) : (
-                                      <div style={{ padding: '16px 8px', textAlign: 'center', border: '1px dashed #cbd5e1', borderRadius: 4, color: '#94a3b8', fontSize: 11 }}>
-                                        클릭하여 선택
+                                      <div style={{ padding: '16px 8px', textAlign: 'center', border: '1px dashed #cbd5e1', borderRadius: 4, color: '#94a3b8', fontSize: 20, lineHeight: 1 }}>
+                                        +
                                       </div>
                                     )}
                                   </div>
@@ -977,11 +977,10 @@ export function AdminHealthCheckupWorkspace({
                                   {src ? (
                                     <button
                                       type="button"
-                                      className="adminLegacySmallBtn"
-                                      style={{ marginTop: 6, fontSize: 10 }}
+                                      style={{ display: 'block', width: '100%', marginTop: 6, padding: '4px 0', fontSize: 11, background: '#fff', color: '#ef4444', border: '1px dashed #ef4444', borderRadius: 4, cursor: 'pointer' }}
                                       onClick={(e) => { e.stopPropagation(); updateImageSlot(k, bi + 1, si, { src: undefined, caption: '' }); }}
                                     >
-                                      슬롯 비우기
+                                      이미지 삭제
                                     </button>
                                   ) : null}
                                 </div>
