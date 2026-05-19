@@ -2,7 +2,6 @@ import { Suspense } from 'react';
 import AdminDataUpload from '@/components/admin-data-upload';
 import { HospitalWebRunsPanel } from '@/components/hospital-web-runs-panel';
 import { HospitalStatsSubmissionsPanel } from '@/components/hospital-stats-submissions-panel';
-import { AdminShell } from '@/components/admin-shell';
 
 export default async function AdminDataUploadPage({
   searchParams,
@@ -40,14 +39,9 @@ export default async function AdminDataUploadPage({
     </div>
   );
 
-  return (
-    <AdminShell title="데이터 수집" description="병원 접수 현황 · PDF 직접 업로드 · 경영통계 수집">
-      {showPdfPanel
-        ? splitLayout(<HospitalWebRunsPanel />)
-        : showStatsPanel
-          ? splitLayout(<HospitalStatsSubmissionsPanel />)
-          : <div style={{ overflowY: 'auto', height: 'calc(100vh - 60px)' }}>{upload}</div>
-      }
-    </AdminShell>
-  );
+  return showPdfPanel
+    ? splitLayout(<HospitalWebRunsPanel />)
+    : showStatsPanel
+      ? splitLayout(<HospitalStatsSubmissionsPanel />)
+      : <div style={{ overflowY: 'auto', height: 'calc(100vh - 60px)' }}>{upload}</div>;
 }

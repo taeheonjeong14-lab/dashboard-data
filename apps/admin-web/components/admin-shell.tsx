@@ -55,7 +55,7 @@ function NavLink({ item, active }: { item: NavItem; active: boolean }) {
   );
 }
 
-export function AdminShell({ title, description, children }: { title: string; description?: string; children: ReactNode }) {
+export function AdminShell({ title, description, children }: { title?: string; description?: string; children: ReactNode }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const currentSection = searchParams.get('section');
