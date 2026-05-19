@@ -931,6 +931,7 @@ def get_three_section_ranks(page, target_id: str, integrated_url: str) -> dict[s
     result: dict[str, int | None] = {}
 
     # --- 1) 검색결과: 통합검색 내 순위 먼저 → 없으면 더보기 후 2페이지에서 20등까지 ---
+    _t0 = time.perf_counter()
     result["검색결과"] = None
     result["검색결과_URL"] = None
     search_result_exists = False
@@ -974,8 +975,10 @@ def get_three_section_ranks(page, target_id: str, integrated_url: str) -> dict[s
     if search_more_clicked:
         page.goto(integrated_url, wait_until="domcontentloaded", timeout=CURRENT_PAGE_LOAD_TIMEOUT_MS)
         page.wait_for_timeout(100)
+    result["_t_검색결과"] = time.perf_counter() - _t0
 
     # --- 2) 반려동물 인기글 ---
+    _t0 = time.perf_counter()
     result["반려동물 인기글"] = None
     result["반려동물 인기글_URL"] = None
     pet_exists = False
@@ -996,8 +999,10 @@ def get_three_section_ranks(page, target_id: str, integrated_url: str) -> dict[s
 
     # 반려동물 인기글 "더보기" 레이어가 열려 있으면 닫기 → 일반 검색은 배경 페이지에서 탐색
     _close_pet_popular_layer_if_open(page)
+    result["_t_반려동물 인기글"] = time.perf_counter() - _t0
 
     # --- 3) 일반 검색(rrB_bdR) ---
+    _t0 = time.perf_counter()
     result["일반 검색"] = None
     result["일반 검색_URL"] = None
     general_rank, general_exists, general_url, general_navigated = try_find_rank_general_search(page, target_id, integrated_url)
@@ -1009,8 +1014,31 @@ def get_three_section_ranks(page, target_id: str, integrated_url: str) -> dict[s
         page.goto(integrated_url, wait_until="domcontentloaded", timeout=CURRENT_PAGE_LOAD_TIMEOUT_MS)
         page.wait_for_timeout(100)
 
+    result["_t_일반 검색"] = time.perf_counter() - _t0
     result["_페이지이동됨"] = False
     return result
+
+
+def _print_timing_summary(blog_id: str, keyword: str, t_goto: float, sections: dict, t_blogtab: float) -> None:
+    label = f"{blog_id} / {keyword}" if blog_id else keyword
+    line_w = max(len(label) + 6, 52)
+    sep = "─" * line_w
+
+    rows = [
+        ("페이지 로드",     t_goto,                                None),
+        ("검색결과",        sections.get("_t_검색결과", 0),        sections.get("검색결과")),
+        ("반려동물 인기글", sections.get("_t_반려동물 인기글", 0), sections.get("반려동물 인기글")),
+        ("일반 검색",       sections.get("_t_일반 검색", 0),       sections.get("일반 검색")),
+        ("블로그(탭)",      t_blogtab,                             sections.get("블로그(탭)")),
+    ]
+    total = sum(t for _, t, _ in rows)
+
+    print(f"\n━━ [{label}] " + "━" * max(0, line_w - len(label) - 5))
+    for name, t, rank in rows:
+        rank_str = f"→ {rank}위" if rank is not None else ("" if name == "페이지 로드" else "→ 없음")
+        print(f"   {name:<16} {t:>5.1f}s  {rank_str}")
+    print(f"   {sep}")
+    print(f"   {'합계':<16} {total:>5.1f}s\n")
 
 
 def check_naver_ranking(
@@ -1062,8 +1090,10 @@ def check_naver_ranking_on_page(page, keyword: str, target_blog_id: str) -> dict
         print(f"🔎 [{target_id} / {keyword}] 시도 {attempt_label} 시작 (timeout={timeout_ms}ms)")
         try:
             print(f"   ↳ [{keyword}] {phase}")
+            _t_goto = time.perf_counter()
             page.goto(integrated_url, wait_until="domcontentloaded", timeout=timeout_ms)
             page.wait_for_timeout(100)
+            _t_goto = time.perf_counter() - _t_goto
 
             phase = "3개 섹션 순위 수집"
             print(f"   ↳ [{keyword}] {phase}")
@@ -1071,6 +1101,7 @@ def check_naver_ranking_on_page(page, keyword: str, target_blog_id: str) -> dict
 
             phase = "블로그 탭 탐색"
             print(f"   ↳ [{keyword}] {phase}")
+            _t_blogtab = time.perf_counter()
             blog_tab_loc = page.locator(SELECTOR_BLOG_TAB)
             if blog_tab_loc.count() > 0:
                 phase = "블로그 탭 클릭/로드"
@@ -1098,8 +1129,10 @@ def check_naver_ranking_on_page(page, keyword: str, target_blog_id: str) -> dict
             else:
                 out["sections"]["블로그(탭)"] = None
                 out["sections"]["블로그(탭)_URL"] = None
+            _t_blogtab = time.perf_counter() - _t_blogtab
 
             out["error"] = None
+            _print_timing_summary(target_id, keyword, _t_goto, out["sections"], _t_blogtab)
             print(f"✅ [{target_id} / {keyword}] 시도 {attempt_label} 완료")
             break
         except PlaywrightTimeout:
