@@ -89,27 +89,46 @@ function parseTableRows(body) {
   return rows;
 }
 
-/** 네이버 통계 표에서 파싱 가능한 날짜는 모두 반환 (증분 필터는 호출 측). */
-async function scrapeBlogMetrics(page, blogId, config) {
+/** startDate까지 이전 버튼을 눌러가며 모든 페이지 수집 */
+async function scrapeWithPagination(page, url, label, startDate) {
+  await page.goto(url, { waitUntil: "domcontentloaded", timeout: 45000 });
+  await new Promise((r) => setTimeout(r, 4000));
+
+  const allRows = [];
+
+  for (let pageNum = 0; pageNum < 10; pageNum++) {
+    const body = await getPageBody(page);
+    const rows = parseTableRows(body);
+    if (rows.length === 0) break;
+    allRows.push(...rows);
+
+    const minDate = rows.reduce((min, r) => (r.date < min ? r.date : min), rows[0].date);
+    if (minDate <= startDate) break;
+
+    const prevBtn = await page.$("a.u_ni_btn_prev.u_ni_is_active").catch(() => null);
+    if (!prevBtn) break;
+
+    console.log("%s 이전 기간으로 이동 (minDate=%s)", label, minDate);
+    await page.click("a.u_ni_btn_prev.u_ni_is_active");
+    await new Promise((r) => setTimeout(r, 3000));
+  }
+
+  return allRows;
+}
+
+/** startDate 이전까지 페이지네이션하며 수집 */
+async function scrapeBlogMetrics(page, blogId, config, startDate) {
   const visitPvUrl = config.blog?.visitPvUrl || `${ADMIN_BASE}/${blogId}/stat/visit_pv`;
   const uvUrl = config.blog?.uvUrl || `${ADMIN_BASE}/${blogId}/stat/uv`;
 
   console.log("조회수 페이지 로드 중...");
-  await page.goto(visitPvUrl, { waitUntil: "domcontentloaded", timeout: 45000 });
-  await new Promise((r) => setTimeout(r, 4000));
-  const pvBody = await getPageBody(page);
-  const pvRows = parseTableRows(pvBody);
+  const pvRows = await scrapeWithPagination(page, visitPvUrl, "조회수", startDate);
 
   console.log("순방문자수 페이지 로드 중...");
-  await page.goto(uvUrl, { waitUntil: "domcontentloaded", timeout: 45000 });
-  await new Promise((r) => setTimeout(r, 4000));
-  const uvBody = await getPageBody(page);
-  const uvRows = parseTableRows(uvBody);
+  const uvRows = await scrapeWithPagination(page, uvUrl, "순방문자수", startDate);
 
   const uvByDate = {};
-  uvRows.forEach((r) => {
-    uvByDate[r.date] = r.value;
-  });
+  uvRows.forEach((r) => { uvByDate[r.date] = r.value; });
 
   const merged = [];
   const seen = new Set();
@@ -203,7 +222,7 @@ async function main() {
   const page = await browser.newPage();
 
   try {
-    const merged = await scrapeBlogMetrics(page, id, config);
+    const merged = await scrapeBlogMetrics(page, id, config, range.startDate);
     const rows = merged.filter((r) => r.metric_date >= range.startDate && r.metric_date <= range.endDate);
     if (rows.length === 0) {
       console.log(
