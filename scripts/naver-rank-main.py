@@ -45,6 +45,8 @@ import time
 import re
 import os
 import json
+import threading
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import suppress
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -1624,6 +1626,54 @@ def upload_place_ranks_to_supabase(place_results: list[dict], metric_date: str |
     return len(payload)
 
 
+def _split_roundrobin(items: list, n: int) -> list[list]:
+    """items를 n개 버킷에 라운드로빈으로 분배. 빈 버킷은 제거."""
+    buckets: list[list] = [[] for _ in range(n)]
+    for i, item in enumerate(items):
+        buckets[i % n].append(item)
+    return [b for b in buckets if b]
+
+
+_print_lock = threading.Lock()
+
+
+def _worker_blog_chunk(worker_id: int, pairs_chunk: list, use_debug_chrome: bool, debug_port: int) -> list[dict]:
+    """
+    워커 스레드: 자신만의 playwright + 브라우저 세션으로 pairs_chunk를 순차 처리.
+    CDP 모드에서는 같은 Chrome 포트에 별도 연결하여 페이지만 신규 생성.
+    """
+    chunk_results: list[dict] = []
+    with sync_playwright() as p:
+        _, context, cleanup = create_browser_session(
+            p,
+            headless=True,
+            use_debug_chrome=use_debug_chrome,
+            debug_port=debug_port,
+        )
+        page = context.new_page()
+        try:
+            for blog_id, kw in pairs_chunk:
+                data = check_naver_ranking_on_page(page, kw, blog_id)
+                data["blog_id"] = blog_id
+                row = {
+                    "blog_id": blog_id,
+                    "keyword": kw,
+                    "sections": data.get("sections"),
+                    "error": data.get("error"),
+                }
+                with _print_lock:
+                    print_result(data)
+                chunk_results.append(row)
+                time.sleep(0.2)
+        finally:
+            with suppress(Exception):
+                page.close()
+            if not use_debug_chrome:
+                with suppress(Exception):
+                    cleanup()
+    return chunk_results
+
+
 def main():
     import sys
     input_path = "input.xlsx"
@@ -1732,91 +1782,43 @@ def main():
             print(f"ℹ️ 키워드 순위 이미 수집됨 (hospital_id={target_hospital_id}, date={check_date}). 스킵합니다.")
             return
 
-    results = []
+    num_workers = int(os.getenv("RANK_PARALLEL_WORKERS", "3"))
+    results: list[dict] = []
     place_results: list[dict] = []
 
-    # Playwright는 한 번만 띄우고 페이지를 재사용한다.
-    # CDP 모드(use_debug_chrome)에서는 사용자의 Chrome 탭을 닫지 않도록 context.close()를 피한다.
-    reset_every = 50
-    processed = 0
+    # 블로그 키워드: 병렬 처리 (워커별 독립 playwright 세션 + 페이지)
+    if pairs:
+        valid_pairs = [(b, k) for b, k in pairs if b and b != "your_blog_id"]
+        skipped = len(pairs) - len(valid_pairs)
+        if skipped:
+            print(f"⚠️ 블로그 ID 없는 {skipped}개 키워드 스킵")
+        chunks = _split_roundrobin(valid_pairs, num_workers)
+        actual_workers = len(chunks)
+        print(f"🚀 네이버 블로그 순위 확인 — {len(valid_pairs)}개 조합 / {actual_workers}개 병렬 워커\n")
+        with ThreadPoolExecutor(max_workers=actual_workers) as executor:
+            futures = [
+                executor.submit(_worker_blog_chunk, i, chunk, use_debug_chrome, debug_port)
+                for i, chunk in enumerate(chunks)
+            ]
+            for future in futures:
+                try:
+                    results.extend(future.result())
+                except Exception as e:
+                    print(f"❌ 워커 실패: {e}")
 
-    def should_reset() -> bool:
-        return processed > 0 and processed % reset_every == 0
-
-    with sync_playwright() as p:
-        browser = None
-        context = None
-        page = None
-        cleanup = None
-
-        def start_session():
-            nonlocal browser, context, page, cleanup
-            browser, context, cleanup = create_browser_session(
+    # 플레이스 키워드: 순차 처리 (건수가 적어 병렬 불필요)
+    if place_pairs:
+        print(f"\n🏪 플레이스 순위 확인 — {len(place_pairs)}개 조합 (광고 제외)\n")
+        with sync_playwright() as p:
+            _, context, cleanup = create_browser_session(
                 p,
                 headless=True,
                 use_debug_chrome=use_debug_chrome,
                 debug_port=debug_port,
             )
             page = context.new_page()
-
-        def reset_session():
-            nonlocal browser, context, page, cleanup
-            with suppress(Exception):
-                if page:
-                    page.close()
-            if not use_debug_chrome and cleanup:
-                cleanup()
-                browser = None
-                context = None
-            # CDP 모드에서는 context/browser를 건드리지 않고 페이지만 교체
-            if context is None and cleanup is None:
-                return
-            page = context.new_page() if context else None
-
-        start_session()
-        try:
-            if pairs:
-                print(f"🚀 네이버 블로그 순위 확인 — {len(pairs)}개 조합 (검색결과 / 반려동물 인기글 / 일반 검색 / 블로그(탭))\n")
-                for blog_id, kw in pairs:
-                    if should_reset():
-                        print(f"ℹ️ 안정화 리셋: {processed}건 처리 후 페이지 재시작")
-                        if use_debug_chrome:
-                            reset_session()
-                        else:
-                            # non-CDP: 세션 전체를 재시작
-                            with suppress(Exception):
-                                cleanup()
-                            start_session()
-
-                    if not blog_id or blog_id == "your_blog_id":
-                        print(f"⚠️ 키워드 '{kw}' 행의 블로그 ID가 비어 있어 스킵합니다.")
-                        processed += 1
-                        continue
-
-                    data = check_naver_ranking_on_page(page, kw, blog_id)
-                    data["blog_id"] = blog_id
-                    results.append({
-                        "blog_id": blog_id,
-                        "keyword": kw,
-                        "sections": data.get("sections"),
-                        "error": data.get("error"),
-                    })
-                    print_result(data)
-                    processed += 1
-                    time.sleep(0.2)
-
-            if place_pairs:
-                print(f"\n🏪 플레이스 순위 확인 — {len(place_pairs)}개 조합 (광고 제외)\n")
+            try:
                 for kw, store, hospital_id in place_pairs:
-                    if should_reset():
-                        print(f"ℹ️ 안정화 리셋: {processed}건 처리 후 페이지 재시작")
-                        if use_debug_chrome:
-                            reset_session()
-                        else:
-                            with suppress(Exception):
-                                cleanup()
-                            start_session()
-
                     data = check_place_ranking_on_page(page, kw, store)
                     data["hospital_id"] = hospital_id
                     place_results.append(data)
@@ -1826,15 +1828,13 @@ def main():
                     else:
                         rank = data.get("rank")
                         print(f"📌 [{kw} / {store}] 플레이스: {rank}위")
-                    processed += 1
                     time.sleep(0.2)
-        finally:
-            with suppress(Exception):
-                if page:
+            finally:
+                with suppress(Exception):
                     page.close()
-            with suppress(Exception):
-                if cleanup:
-                    cleanup()
+                if not use_debug_chrome:
+                    with suppress(Exception):
+                        cleanup()
 
     if upload_db and results:
         try:
