@@ -103,6 +103,7 @@ export function AdminHealthReportImageSlots({
   onChangePage5,
   hideSlots,
   onCandidatesLoaded,
+  refreshKey,
 }: {
   runId: string;
   page4Raw: unknown;
@@ -111,6 +112,7 @@ export function AdminHealthReportImageSlots({
   onChangePage5: (blocks: HealthSystemsReportBlock[]) => void;
   hideSlots?: boolean;
   onCandidatesLoaded?: (candidates: CaseImageCandidate[], pathMap: Map<string, string>) => void;
+  refreshKey?: number;
 }) {
   const [candidates, setCandidates] = useState<CaseImageCandidate[]>([]);
   const [loadErr, setLoadErr] = useState<string | null>(null);
@@ -135,6 +137,7 @@ export function AdminHealthReportImageSlots({
   );
 
   const loadImages = useCallback(async () => {
+    void refreshKey; // trigger re-fetch when refreshKey changes
     const reqId = ++loadRequestId.current;
     setLoading(true);
     setLoadErr(null);
@@ -204,7 +207,7 @@ export function AdminHealthReportImageSlots({
     } finally {
       if (reqId === loadRequestId.current) setLoading(false);
     }
-  }, [runId, page4Raw, page5Raw]);
+  }, [runId, page4Raw, page5Raw, refreshKey]);
 
   useEffect(() => {
     void loadImages();

@@ -141,9 +141,12 @@ export function AdminHealthCheckupWorkspace({
   const [genError, setGenError] = useState<string | null>(null);
 
   const [imageCandidates, setImageCandidates] = useState<CaseImageCandidate[]>([]);
+  const [candidatesRefreshKey, setCandidatesRefreshKey] = useState(0);
   const [imagePickerSlot, setImagePickerSlot] = useState<{
     k: SystemKey; blockIndex: number; slotIndex: number;
   } | null>(null);
+  const [modalDragCount, setModalDragCount] = useState(0);
+  const [modalUploading, setModalUploading] = useState(false);
 
   const [pdfBusy, setPdfBusy] = useState(false);
   const [sharePanel, setSharePanel] = useState<{ shareUrl: string; expiresAt: string } | null>(null);
@@ -1038,6 +1041,7 @@ export function AdminHealthCheckupWorkspace({
               onChangePage4={(blocks) => setDraft((d) => ({ ...d, systemsPage4Blocks: blocks }))}
               onChangePage5={(blocks) => setDraft((d) => ({ ...d, systemsPage5Blocks: blocks }))}
               hideSlots
+              refreshKey={candidatesRefreshKey}
               onCandidatesLoaded={(c) => setImageCandidates(c)}
             />
           </div>
@@ -1055,19 +1059,67 @@ export function AdminHealthCheckupWorkspace({
           const previewCandidate = imageCandidates.find((c) => c.storagePath === currentSrc);
           const previewUrl = previewCandidate?.previewUrl;
           const grouped = groupCandidates(imageCandidates);
+          const isDragOver = modalDragCount > 0;
+
+          async function handleModalDrop(e: React.DragEvent) {
+            e.preventDefault();
+            setModalDragCount(0);
+            const files = Array.from(e.dataTransfer.files).filter((f) =>
+              ['image/jpeg', 'image/png', 'image/webp'].includes(f.type.toLowerCase()),
+            );
+            if (files.length === 0) return;
+            setModalUploading(true);
+            try {
+              const form = new FormData();
+              form.append('mode', 'append');
+              for (const f of files) form.append('images', f);
+              const res = await fetch(`/api/admin/runs/${runId}/case-images`, {
+                method: 'POST',
+                body: form,
+                credentials: 'include',
+              });
+              const d = (await res.json()) as { error?: string };
+              if (!res.ok) { alert(d.error ?? '업로드 실패'); return; }
+              setCandidatesRefreshKey((n) => n + 1);
+            } catch {
+              alert('업로드 중 오류가 발생했습니다.');
+            } finally {
+              setModalUploading(false);
+            }
+          }
+
           return (
             <div
               style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
               onClick={() => setImagePickerSlot(null)}
             >
               <div
-                style={{ background: '#fff', borderRadius: 12, padding: 20, width: 'min(92vw, 860px)', maxHeight: '88vh', overflowY: 'auto', display: 'grid', gap: 16 }}
+                style={{ background: '#fff', borderRadius: 12, padding: 20, width: 'min(92vw, 860px)', maxHeight: '88vh', overflowY: 'auto', display: 'grid', gap: 16, position: 'relative', outline: isDragOver ? '3px dashed #3b82f6' : 'none' }}
                 onClick={(e) => e.stopPropagation()}
+                onDragEnter={(e) => { e.preventDefault(); setModalDragCount((n) => n + 1); }}
+                onDragLeave={() => setModalDragCount((n) => Math.max(0, n - 1))}
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={(e) => { void handleModalDrop(e); }}
               >
+                {/* 드래그 오버레이 */}
+                {isDragOver && (
+                  <div style={{ position: 'absolute', inset: 0, background: 'rgba(59,130,246,0.12)', borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10, pointerEvents: 'none' }}>
+                    <span style={{ fontSize: 18, fontWeight: 700, color: '#3b82f6' }}>이미지를 여기에 놓으세요</span>
+                  </div>
+                )}
+                {/* 업로드 중 오버레이 */}
+                {modalUploading && (
+                  <div style={{ position: 'absolute', inset: 0, background: 'rgba(255,255,255,0.75)', borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10 }}>
+                    <span style={{ fontSize: 14, color: '#475569' }}>업로드 중...</span>
+                  </div>
+                )}
                 {/* 헤더 */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <span style={{ fontWeight: 700, fontSize: 15 }}>이미지 선택</span>
-                  <button type="button" className="adminLegacySmallBtn" onClick={() => setImagePickerSlot(null)}>닫기</button>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button type="button" className="adminLegacySmallBtn" onClick={() => setImagePickerSlot(null)}>저장</button>
+                    <button type="button" className="adminLegacySmallBtn" onClick={() => setImagePickerSlot(null)}>닫기</button>
+                  </div>
                 </div>
 
                 {/* 상단 패널: 좌 - 미리보기 / 우 - 캡션·회전·삭제 */}
