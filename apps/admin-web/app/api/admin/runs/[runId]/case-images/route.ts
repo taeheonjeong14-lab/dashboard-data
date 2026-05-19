@@ -8,10 +8,6 @@ import type { ExamType, RadiologySub, FindingSpot } from '@/lib/chart-case-image
 export const dynamic = 'force-dynamic';
 export const maxDuration = 120;
 
-// Next.js body size limit for this route (50 MB)
-export const config = {
-  api: { bodyParser: { sizeLimit: '50mb' } },
-};
 
 const CASE_IMAGES_BUCKET = 'chart-case-images';
 const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp'] as const;
