@@ -142,7 +142,7 @@ export function AdminHealthCheckupWorkspace({
 
   const [imageCandidates, setImageCandidates] = useState<CaseImageCandidate[]>([]);
   const [imagePickerSlot, setImagePickerSlot] = useState<{
-    k: SystemKey; blockIndex: number; slotIndex: number; currentSrc: string;
+    k: SystemKey; blockIndex: number; slotIndex: number;
   } | null>(null);
 
   const [pdfBusy, setPdfBusy] = useState(false);
@@ -294,7 +294,7 @@ export function AdminHealthCheckupWorkspace({
     k: SystemKey,
     blockIndex: number,
     slotIndex: number,
-    patch: { src?: string; caption?: string },
+    patch: { src?: string; caption?: string; rotationDeg?: number },
   ) {
     setDraft((prev) => {
       const cur = getStructuredBlocksFromDraft(prev, k);
@@ -305,6 +305,7 @@ export function AdminHealthCheckupWorkspace({
       if (!img) return prev;
       if ('src' in patch) img.src = patch.src;
       if ('caption' in patch) img.caption = patch.caption;
+      if ('rotationDeg' in patch) img.rotationDeg = patch.rotationDeg;
       return { ...prev, [k]: nextBlocks };
     });
   }
@@ -948,15 +949,16 @@ export function AdminHealthCheckupWorkspace({
                               const src = slot.src ?? '';
                               const candidate = imageCandidates.find((c) => c.storagePath === src);
                               const previewUrl = candidate?.previewUrl;
+                              const rotDeg = slot.rotationDeg ?? 0;
                               return (
                                 <div key={si} style={{ border: `1px dashed ${divider}`, borderRadius: 6, padding: 8, background: '#fff' }}>
                                   <div
                                     style={{ cursor: 'pointer', borderRadius: 4, overflow: 'hidden' }}
-                                    onClick={() => setImagePickerSlot({ k, blockIndex: bi + 1, slotIndex: si, currentSrc: src })}
+                                    onClick={() => setImagePickerSlot({ k, blockIndex: bi + 1, slotIndex: si })}
                                   >
                                     {previewUrl ? (
                                       // eslint-disable-next-line @next/next/no-img-element
-                                      <img alt="" src={previewUrl} style={{ width: '100%', maxHeight: 80, objectFit: 'cover', display: 'block' }} />
+                                      <img alt="" src={previewUrl} style={{ width: '100%', maxHeight: 80, objectFit: 'cover', display: 'block', transform: `rotate(${rotDeg}deg)`, transition: 'transform 0.25s' }} />
                                     ) : src ? (
                                       <div style={{ fontSize: 10, color: '#94a3b8', padding: '6px 0', wordBreak: 'break-all' }}>{src.split('/').pop()}</div>
                                     ) : (
@@ -976,7 +978,7 @@ export function AdminHealthCheckupWorkspace({
                                     <button
                                       type="button"
                                       style={{ display: 'block', width: '100%', marginTop: 6, padding: '4px 0', fontSize: 11, background: '#fff', color: '#ef4444', border: '1px dashed #ef4444', borderRadius: 4, cursor: 'pointer' }}
-                                      onClick={(e) => { e.stopPropagation(); updateImageSlot(k, bi + 1, si, { src: undefined, caption: '' }); }}
+                                      onClick={(e) => { e.stopPropagation(); updateImageSlot(k, bi + 1, si, { src: undefined, caption: '', rotationDeg: 0 }); }}
                                     >
                                       이미지 삭제
                                     </button>
@@ -1041,32 +1043,79 @@ export function AdminHealthCheckupWorkspace({
           </div>
 
         {imagePickerSlot !== null && (() => {
+          const { k: pk, blockIndex: pbi, slotIndex: psi } = imagePickerSlot;
+          const pickerBlocks = getStructuredBlocksFromDraft(draft, pk);
+          const pickerImgBlock = pickerBlocks[pbi];
+          const pickerSlot = (pickerImgBlock && isImageVariant(pickerImgBlock.variant))
+            ? (pickerImgBlock as { images: HealthSystemsImageSlot[] }).images[psi]
+            : undefined;
+          const currentSrc = pickerSlot?.src ?? '';
+          const currentCaption = pickerSlot?.caption ?? '';
+          const currentRotation = pickerSlot?.rotationDeg ?? 0;
+          const previewCandidate = imageCandidates.find((c) => c.storagePath === currentSrc);
+          const previewUrl = previewCandidate?.previewUrl;
           const grouped = groupCandidates(imageCandidates);
-          const { k: pk, blockIndex: pbi, slotIndex: psi, currentSrc } = imagePickerSlot;
           return (
             <div
               style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
               onClick={() => setImagePickerSlot(null)}
             >
               <div
-                style={{ background: '#fff', borderRadius: 12, padding: 20, width: 'min(92vw, 800px)', maxHeight: '82vh', overflowY: 'auto', display: 'grid', gap: 16 }}
+                style={{ background: '#fff', borderRadius: 12, padding: 20, width: 'min(92vw, 860px)', maxHeight: '88vh', overflowY: 'auto', display: 'grid', gap: 16 }}
                 onClick={(e) => e.stopPropagation()}
               >
+                {/* 헤더 */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <span style={{ fontWeight: 700, fontSize: 15 }}>이미지 선택</span>
-                  <div style={{ display: 'flex', gap: 8 }}>
+                  <button type="button" className="adminLegacySmallBtn" onClick={() => setImagePickerSlot(null)}>닫기</button>
+                </div>
+
+                {/* 상단 패널: 좌 - 미리보기 / 우 - 캡션·회전·삭제 */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, paddingBottom: 16, borderBottom: '1px solid #e2e8f0' }}>
+                  <div style={{ background: '#f8fafc', borderRadius: 8, minHeight: 180, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                    {previewUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        alt=""
+                        src={previewUrl}
+                        style={{ maxWidth: '100%', maxHeight: 220, objectFit: 'contain', transform: `rotate(${currentRotation}deg)`, transition: 'transform 0.25s' }}
+                      />
+                    ) : (
+                      <span style={{ fontSize: 13, color: '#94a3b8' }}>선택된 이미지 없음</span>
+                    )}
+                  </div>
+                  <div style={{ display: 'grid', gap: 10, alignContent: 'start' }}>
+                    <label style={{ fontSize: 12, display: 'grid', gap: 4 }}>
+                      <span style={{ color: '#475569', fontWeight: 600 }}>캡션</span>
+                      <textarea
+                        rows={4}
+                        placeholder="이미지 캡션 입력"
+                        value={currentCaption}
+                        onChange={(e) => updateImageSlot(pk, pbi, psi, { caption: e.target.value })}
+                        style={{ width: '100%', padding: 8, fontSize: 13, borderRadius: 6, border: '1px solid #e2e8f0', resize: 'vertical', boxSizing: 'border-box' }}
+                      />
+                    </label>
+                    <button
+                      type="button"
+                      className="adminLegacySmallBtn"
+                      disabled={!currentSrc}
+                      onClick={() => updateImageSlot(pk, pbi, psi, { rotationDeg: (currentRotation + 90) % 360 })}
+                    >
+                      90° 회전
+                    </button>
                     {currentSrc && (
                       <button
                         type="button"
-                        className="adminLegacySmallBtn"
-                        onClick={() => { updateImageSlot(pk, pbi, psi, { src: undefined, caption: '' }); setImagePickerSlot(null); }}
+                        style={{ padding: '5px 0', fontSize: 12, background: '#fff', color: '#ef4444', border: '1px dashed #ef4444', borderRadius: 4, cursor: 'pointer' }}
+                        onClick={() => updateImageSlot(pk, pbi, psi, { src: undefined, caption: '', rotationDeg: 0 })}
                       >
-                        슬롯 비우기
+                        이미지 삭제
                       </button>
                     )}
-                    <button type="button" className="adminLegacySmallBtn" onClick={() => setImagePickerSlot(null)}>닫기</button>
                   </div>
                 </div>
+
+                {/* 카테고리별 후보 그리드 */}
                 {imageCandidates.length === 0 ? (
                   <p style={{ fontSize: 13, color: '#64748b', margin: 0 }}>
                     후보 이미지가 없습니다. 이미지 추가 분석 탭에서 사진을 먼저 업로드해 주세요.
@@ -1080,10 +1129,7 @@ export function AdminHealthCheckupWorkspace({
                         return (
                           <div
                             key={c.id}
-                            onClick={() => {
-                              if (c.storagePath) updateImageSlot(pk, pbi, psi, { src: c.storagePath });
-                              setImagePickerSlot(null);
-                            }}
+                            onClick={() => { if (c.storagePath) updateImageSlot(pk, pbi, psi, { src: c.storagePath }); }}
                             style={{
                               width: 110, cursor: 'pointer', borderRadius: 8, overflow: 'hidden',
                               border: isSelected ? '3px solid #22c55e' : '1px solid #e2e8f0',
