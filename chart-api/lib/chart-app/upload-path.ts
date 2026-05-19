@@ -18,7 +18,7 @@ export function sanitizePdfFileName(fileName: string): string {
       .split(/[/\\]/)
       .pop()
       ?.trim() || 'upload.pdf';
-  let safe = base.replace(/[^\w.\-가-힣]+/g, '_').slice(0, 200);
+  let safe = base.replace(/[^\w.\-]+/g, '_').slice(0, 200);
   if (!safe.toLowerCase().endsWith('.pdf')) {
     safe = `${safe}.pdf`;
   }
