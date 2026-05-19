@@ -38,10 +38,13 @@ function IndeterminateCheckbox({
 }
 
 const MAX_PDF_BYTES = 30 * 1024 * 1024;
+const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
+const MAX_IMAGES = 10;
+const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 
 type UploadSection = 'pdf' | 'stats' | 'collect';
 
-type CollectStepResult = { index: number; total: number; name: string; durationSec: number; error?: string };
+type CollectStepResult = { index: number; total: number; name: string; durationSec: number; error?: string; hospitalId?: string | null; hospitalName?: string | null };
 type CollectUpsertItem = { label: string; count: number; dateRange?: string | null; skipped?: boolean };
 type CollectJob = {
   id: string;
@@ -93,7 +96,7 @@ const STATUS_COLOR: Record<string, string> = {
 export default function AdminDataUpload() {
   const searchParams = useSearchParams();
   const [section, setSection] = useState<UploadSection>('pdf');
-  const { startExtract, status, error: extractError } = useChartExtraction();
+  const { startExtract, status, lastRunId, error: extractError } = useChartExtraction();
   const [localError, setLocalError] = useState<string | null>(null);
   const [chartType, setChartType] = useState<string>('intovet');
   const [hospitals, setHospitals] = useState<ChartHospitalOption[]>([]);
@@ -105,6 +108,11 @@ export default function AdminDataUpload() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
+  const [imageFiles, setImageFiles] = useState<File[]>([]);
+  const [imageAnalysisStatus, setImageAnalysisStatus] = useState<'idle' | 'uploading' | 'done' | 'error'>('idle');
+  const [imageAnalysisError, setImageAnalysisError] = useState<string | null>(null);
+  const prevLastRunId = useRef<string | null>(null);
 
   // selection: Map<hospitalId, Set<StepKey>> — 병원별 선택된 수집 항목
   const [selection, setSelection] = useState<Map<string, Set<StepKey>>>(new Map());
@@ -194,6 +202,56 @@ export default function AdminDataUpload() {
     prevExtractStatus.current = status;
   }, [status]);
 
+  // After extraction succeeds and we have a runId, auto-upload + analyze images
+  useEffect(() => {
+    if (status !== 'success' || !lastRunId) return;
+    if (lastRunId === prevLastRunId.current) return;
+    prevLastRunId.current = lastRunId;
+    if (imageFiles.length === 0) return;
+
+    const pendingFiles = [...imageFiles];
+    const pendingRunId = lastRunId;
+    setImageAnalysisStatus('uploading');
+    setImageAnalysisError(null);
+
+    void (async () => {
+      try {
+        const formData = new FormData();
+        // Use today as exam date fallback; actual date is in the chart run
+        formData.set('examDate', new Date().toISOString().slice(0, 10));
+        for (const f of pendingFiles) formData.append('images', f);
+        const res = await fetch(`/api/admin/runs/${encodeURIComponent(pendingRunId)}/case-images`, {
+          method: 'POST',
+          body: formData,
+          credentials: 'include',
+        });
+        const data = (await res.json()) as { ok?: boolean; error?: string };
+        if (!res.ok || !data.ok) throw new Error(data.error ?? '이미지 분석 실패');
+        setImageAnalysisStatus('done');
+        setImageFiles([]);
+      } catch (e) {
+        setImageAnalysisError(e instanceof Error ? e.message : '이미지 분석 실패');
+        setImageAnalysisStatus('error');
+      }
+    })();
+  }, [status, lastRunId, imageFiles]);
+
+  function addImageFiles(incoming: File[]) {
+    const valid = incoming.filter((f) => {
+      if (!ALLOWED_IMAGE_TYPES.includes(f.type)) return false;
+      if (f.size > MAX_IMAGE_BYTES) return false;
+      return true;
+    });
+    setImageFiles((prev) => {
+      const combined = [...prev, ...valid];
+      return combined.slice(0, MAX_IMAGES);
+    });
+  }
+
+  function removeImageFile(index: number) {
+    setImageFiles((prev) => prev.filter((_, i) => i !== index));
+  }
+
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setLocalError(null);
@@ -279,7 +337,7 @@ export default function AdminDataUpload() {
       } catch {
         // 폴링 오류는 무시하고 계속 시도
       }
-    }, 5_000);
+    }, 2_000);
     return () => clearInterval(timer);
   }, [collectJob?.id, collectJob?.status]);
 
@@ -479,29 +537,69 @@ export default function AdminDataUpload() {
                   )}
 
                   {/* 실행 단계 */}
-                  {collectJob.steps && collectJob.steps.length > 0 && (
-                    <div className="adminLegacyBlockBleed">
-                      <p style={{ margin: '0 0 10px', fontSize: 13, fontWeight: 600, color: '#334155' }}>
-                        실행 단계{collectJob.status === 'running' ? ' (진행 중)' : ''}
-                      </p>
-                      <ol style={{ margin: 0, padding: 0, listStyle: 'none', display: 'grid', gap: 4 }}>
-                        {collectJob.steps.map((s) => (
-                          <li key={`${s.index}-${s.name}`} style={{ fontSize: 13, padding: '4px 0', borderBottom: '1px solid rgba(15,23,42,0.05)' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                              <span style={{ color: s.error ? '#991b1b' : '#475569' }}>
-                                <span style={{ color: s.error ? '#b91c1c' : '#15803d', marginRight: 6 }}>{s.error ? '✗' : '✓'}</span>
-                                {s.index}. {s.name}
-                              </span>
-                              <span style={{ color: '#94a3b8', fontSize: 12, flexShrink: 0, marginLeft: 8 }}>{s.durationSec.toFixed(1)}s</span>
-                            </div>
-                            {s.error && (
-                              <p style={{ margin: '3px 0 0 18px', fontSize: 12, color: '#b91c1c', lineHeight: 1.4 }}>{s.error}</p>
-                            )}
-                          </li>
-                        ))}
-                      </ol>
-                    </div>
-                  )}
+                  {collectJob.steps && collectJob.steps.length > 0 && (() => {
+                    const steps = collectJob.steps!;
+                    const isBatch = steps.some((s) => s.hospitalId != null);
+
+                    const renderStepRow = (s: CollectStepResult) => (
+                      <li key={`${s.hospitalId ?? ''}-${s.index}-${s.name}`} style={{ fontSize: 13, padding: '4px 0', borderBottom: '1px solid rgba(15,23,42,0.05)' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span style={{ color: s.error ? '#991b1b' : '#475569' }}>
+                            <span style={{ color: s.error ? '#b91c1c' : '#15803d', marginRight: 6 }}>{s.error ? '✗' : '✓'}</span>
+                            {s.index}. {s.name}
+                          </span>
+                          <span style={{ color: '#94a3b8', fontSize: 12, flexShrink: 0, marginLeft: 8 }}>{s.durationSec.toFixed(1)}s</span>
+                        </div>
+                        {s.error && <p style={{ margin: '3px 0 0 18px', fontSize: 12, color: '#b91c1c', lineHeight: 1.4 }}>{s.error}</p>}
+                      </li>
+                    );
+
+                    if (!isBatch) {
+                      return (
+                        <div className="adminLegacyBlockBleed">
+                          <p style={{ margin: '0 0 10px', fontSize: 13, fontWeight: 600, color: '#334155' }}>
+                            실행 단계{collectJob.status === 'running' ? ' (진행 중)' : ''}
+                          </p>
+                          <ol style={{ margin: 0, padding: 0, listStyle: 'none', display: 'grid', gap: 4 }}>{steps.map(renderStepRow)}</ol>
+                        </div>
+                      );
+                    }
+
+                    // 병원별로 그룹핑
+                    const groups: { hospitalId: string; hospitalName: string | null; steps: CollectStepResult[] }[] = [];
+                    const idxMap = new Map<string, number>();
+                    for (const s of steps) {
+                      const hid = s.hospitalId ?? '__none__';
+                      if (!idxMap.has(hid)) {
+                        idxMap.set(hid, groups.length);
+                        groups.push({ hospitalId: hid, hospitalName: s.hospitalName ?? null, steps: [] });
+                      }
+                      groups[idxMap.get(hid)!].steps.push(s);
+                    }
+
+                    return (
+                      <div className="adminLegacyBlockBleed">
+                        <p style={{ margin: '0 0 10px', fontSize: 13, fontWeight: 600, color: '#334155' }}>
+                          실행 단계{collectJob.status === 'running' ? ' (진행 중)' : ''}
+                        </p>
+                        <div style={{ display: 'grid', gap: 6 }}>
+                          {groups.map((g) => {
+                            const anyFail = g.steps.some((s) => s.error);
+                            const doneCount = g.steps.filter((s) => !s.error).length;
+                            return (
+                              <div key={g.hospitalId} style={{ border: `1px solid ${anyFail ? 'rgba(185,28,28,0.3)' : '#e2e8f0'}`, borderRadius: 6, overflow: 'hidden' }}>
+                                <div style={{ background: anyFail ? '#fef2f2' : '#f1f5f9', padding: '6px 12px', fontSize: 12, fontWeight: 600, color: anyFail ? '#991b1b' : '#334155', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                  <span>{g.hospitalName ?? g.hospitalId}</span>
+                                  <span style={{ fontWeight: 400, color: anyFail ? '#b91c1c' : '#15803d', fontSize: 11 }}>{doneCount}/{g.steps.length} 완료</span>
+                                </div>
+                                <ol style={{ margin: 0, padding: '2px 12px', listStyle: 'none', display: 'grid', gap: 0 }}>{g.steps.map(renderStepRow)}</ol>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })()}
 
                   {/* 상세 로그 — 완료/실패 시만 */}
                   {(collectJob.status === 'done' || collectJob.status === 'failed') && (
@@ -679,6 +777,84 @@ export default function AdminDataUpload() {
                         {isExtractRunning ? '처리 중…' : '실행'}
                       </button>
                     </div>
+
+                    {/* 이미지 업로드 */}
+                    <div style={{ marginTop: 4 }}>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: '#64748b', marginBottom: 6 }}>
+                        관련 이미지 (선택) — 추출 완료 후 AI가 자동 분류·분석합니다
+                      </div>
+                      <div
+                        onDragOver={(e) => { e.preventDefault(); }}
+                        onDrop={(e) => {
+                          e.preventDefault();
+                          const files = Array.from(e.dataTransfer.files);
+                          addImageFiles(files);
+                        }}
+                        onClick={() => imageInputRef.current?.click()}
+                        style={{
+                          border: '1.5px dashed #cbd5e1',
+                          borderRadius: 8,
+                          padding: '10px 14px',
+                          cursor: 'pointer',
+                          background: '#f8fafc',
+                          userSelect: 'none',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 10,
+                        }}
+                      >
+                        <Upload size={14} style={{ color: '#94a3b8', flexShrink: 0 }} />
+                        <span style={{ fontSize: 12, color: '#64748b' }}>
+                          이미지 드래그 또는 클릭 · JPEG / PNG / WebP · 최대 {MAX_IMAGES}장 · 장당 10MB
+                        </span>
+                      </div>
+                      <input
+                        ref={imageInputRef}
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp"
+                        multiple
+                        style={{ display: 'none' }}
+                        onChange={(e) => {
+                          const files = Array.from(e.target.files ?? []);
+                          addImageFiles(files);
+                          e.target.value = '';
+                        }}
+                      />
+                      {imageFiles.length > 0 && (
+                        <div style={{ marginTop: 8, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                          {imageFiles.map((f, i) => (
+                            <div
+                              key={i}
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 6,
+                                padding: '4px 8px',
+                                background: '#eff6ff',
+                                border: '1px solid #bfdbfe',
+                                borderRadius: 6,
+                                fontSize: 11,
+                                color: '#1d4ed8',
+                              }}
+                            >
+                              <span style={{ maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {f.name}
+                              </span>
+                              <span style={{ color: '#94a3b8', flexShrink: 0 }}>
+                                {(f.size / 1024 / 1024).toFixed(1)}MB
+                              </span>
+                              <button
+                                type="button"
+                                onClick={(e) => { e.stopPropagation(); removeImageFile(i); }}
+                                style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#94a3b8', padding: 0, fontSize: 13, lineHeight: 1 }}
+                              >
+                                ×
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </form>
               </div>
@@ -696,6 +872,21 @@ export default function AdminDataUpload() {
               {!isExtractRunning && error && (
                 <div className="adminLegacyBlockBleed">
                   <p style={{ margin: 0, fontSize: 13, color: '#b91c1c' }}>{error}</p>
+                </div>
+              )}
+              {imageAnalysisStatus === 'uploading' && (
+                <div className="adminLegacyBlockBleed">
+                  <p style={{ margin: 0, fontSize: 13, color: '#1d4ed8' }}>이미지 분석 중… (OpenAI Vision)</p>
+                </div>
+              )}
+              {imageAnalysisStatus === 'done' && (
+                <div className="adminLegacyBlockBleed">
+                  <p style={{ margin: 0, fontSize: 13, color: '#15803d', fontWeight: 600 }}>✓ 이미지 분석 완료. 추출 결과 하단에서 확인하세요.</p>
+                </div>
+              )}
+              {imageAnalysisStatus === 'error' && imageAnalysisError && (
+                <div className="adminLegacyBlockBleed">
+                  <p style={{ margin: 0, fontSize: 13, color: '#b91c1c' }}>이미지 분석 오류: {imageAnalysisError}</p>
                 </div>
               )}
             </>

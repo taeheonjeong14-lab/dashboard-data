@@ -108,10 +108,12 @@ function parseCollectOutput(output) {
   return { steps, upserts };
 }
 
-function spawnAndCapture(scriptPath, args, extraEnv, onBatchHospitalDone) {
+function spawnAndCapture(scriptPath, args, extraEnv, onBatchHospitalDone, onStepDone) {
   return new Promise((resolve) => {
     const chunks = [];
     let lineBuffer = "";
+    let curHospitalId = null;
+    let curHospitalName = null;
     const env = {
       ...process.env,
       COLLECT_ALL_NO_FILE_LOG: "1",
@@ -127,6 +129,50 @@ function spawnAndCapture(scriptPath, args, extraEnv, onBatchHospitalDone) {
     });
 
     function handleLine(line) {
+      // 배치 병원 헤더에서 현재 hospital_id 추적
+      const batchHeaderM = /########## \(\d+\/\d+\) hospital_id=(\S+) ##########/.exec(line);
+      if (batchHeaderM) {
+        curHospitalId = batchHeaderM[1];
+        curHospitalName = null;
+      }
+
+      // collect-all.js 의 "병원 조회 OK" 줄에서 이름 추적
+      const nameM = /병원 조회 OK.+\| name=([^|]+)/.exec(line);
+      if (nameM) {
+        const n = nameM[1].trim();
+        curHospitalName = n && n !== "-" ? n : null;
+      }
+
+      if (onStepDone) {
+        const okM = /✓\s+(\d+)\/(\d+)\s+완료\s+\(([0-9.]+)s\)\s+[—\-]\s+(.+)/.exec(line);
+        if (okM) {
+          onStepDone({
+            index: parseInt(okM[1], 10),
+            total: parseInt(okM[2], 10),
+            durationSec: parseFloat(okM[3]),
+            name: okM[4].trim(),
+            hospitalId: curHospitalId,
+            hospitalName: curHospitalName,
+          });
+        }
+        const failM = /✗\s+(\d+)\/(\d+)\s+실패\s+\(([0-9.]+)s\)\s+[—\-]\s+(.+)/.exec(line);
+        if (failM) {
+          const raw = failM[4].trim();
+          const colonIdx = raw.indexOf(":");
+          const name = colonIdx > 0 ? raw.slice(0, colonIdx).trim() : raw;
+          const error = colonIdx > 0 ? raw.slice(colonIdx + 1).trim() : "";
+          onStepDone({
+            index: parseInt(failM[1], 10),
+            total: parseInt(failM[2], 10),
+            durationSec: parseFloat(failM[3]),
+            name,
+            error,
+            hospitalId: curHospitalId,
+            hospitalName: curHospitalName,
+          });
+        }
+      }
+
       if (onBatchHospitalDone && line.startsWith("[BATCH_HOSPITAL_DONE] ")) {
         try {
           const marker = JSON.parse(line.slice("[BATCH_HOSPITAL_DONE] ".length));
@@ -203,9 +249,22 @@ async function pollAndRun() {
     : undefined;
 
   const extraEnv = job.steps_filter ? { COLLECT_STEPS_FILTER: JSON.stringify(job.steps_filter) } : {};
+  const accSteps = [];
+  const onStepDone = (step) => {
+    accSteps.push(step);
+    const snapshot = [...accSteps];
+    supabase
+      .from("collect_jobs")
+      .update({ steps: snapshot, updated_at: new Date().toISOString() })
+      .eq("id", job.id)
+      .then(() => {})
+      .catch(() => {});
+  };
   try {
-    const { code, output } = await spawnAndCapture(scriptPath, args, extraEnv, onBatchHospitalDone);
-    const { steps, upserts } = parseCollectOutput(output);
+    const { code, output } = await spawnAndCapture(scriptPath, args, extraEnv, onBatchHospitalDone, onStepDone);
+    const parsed = parseCollectOutput(output);
+    // accSteps에는 hospitalId/hospitalName이 포함되어 있으므로 우선 사용
+    const finalSteps = accSteps.length > 0 ? accSteps : parsed.steps;
     const status = code === 0 ? "done" : "failed";
 
     await supabase
@@ -213,8 +272,8 @@ async function pollAndRun() {
       .update({
         status,
         output,
-        steps,
-        upserts,
+        steps: finalSteps,
+        upserts: parsed.upserts,
         finished_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       })
