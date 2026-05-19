@@ -951,7 +951,6 @@ export function AdminHealthCheckupWorkspace({
                               const previewUrl = candidate?.previewUrl;
                               return (
                                 <div key={si} style={{ border: `1px dashed ${divider}`, borderRadius: 6, padding: 8, background: '#fff' }}>
-                                  <div style={{ fontSize: 11, color: '#64748b', marginBottom: 4 }}>슬롯 {si + 1}</div>
                                   <div
                                     style={{ cursor: 'pointer', borderRadius: 4, overflow: 'hidden' }}
                                     onClick={() => setImagePickerSlot({ k, blockIndex: bi + 1, slotIndex: si, currentSrc: src })}
