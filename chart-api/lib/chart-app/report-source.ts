@@ -49,8 +49,9 @@ export async function loadReportSourceData(runId: string): Promise<ReportSourceD
       [runId],
     ).catch(() => ({ rows: [] as Array<Record<string, unknown>> })),
     pool.query(
-      `select id, exam_date, file_name, exam_type, radiology_sub, brief_comment, has_notable_finding, storage_path, created_at
-       from chart_pdf.report_case_images where parse_run_id = $1::uuid order by created_at`,
+      `select id, (created_at::date)::text as exam_date, file_name, exam_type, radiology_sub,
+              brief_comment, has_notable_finding, related_assessment_condition, storage_path, created_at
+       from chart_pdf.parse_run_case_images where parse_run_id = $1::uuid order by idx`,
       [runId],
     ).catch(() => ({ rows: [] as Array<Record<string, unknown>> })),
   ]);

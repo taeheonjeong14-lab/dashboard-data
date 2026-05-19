@@ -27,9 +27,9 @@ export async function runImagePlacementForRun(
 ): Promise<void> {
   const q = await client.query<ImageRow>(
     `select id, exam_type, radiology_sub, brief_comment, has_notable_finding, related_assessment_condition, storage_path
-     from chart_pdf.report_case_images
+     from chart_pdf.parse_run_case_images
      where parse_run_id = $1::uuid
-     order by created_at`,
+     order by idx`,
     [runId],
   );
   const imageRows = q.rows ?? [];
