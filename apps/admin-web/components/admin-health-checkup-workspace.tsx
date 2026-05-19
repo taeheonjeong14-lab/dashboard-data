@@ -106,6 +106,7 @@ export function AdminHealthCheckupWorkspace({
   const [savingSection, setSavingSection] = useState<string | null>(null);
   const [generating, setGenerating] = useState(false);
   const [generatingSection, setGeneratingSection] = useState<string | null>(null);
+  const [condensingSection, setCondensingSection] = useState<string | null>(null);
   const [genError, setGenError] = useState<string | null>(null);
 
   const [pdfBusy, setPdfBusy] = useState(false);
@@ -250,6 +251,90 @@ export function AdminHealthCheckupWorkspace({
       setGenError(e instanceof Error ? e.message : '재생성 실패');
     } finally {
       setGeneratingSection(null);
+    }
+  }
+
+  async function condenseSection(sectionKey: string) {
+    setCondensingSection(sectionKey);
+    setGenError(null);
+    try {
+      let items: string[] = [];
+
+      if (sectionKey === 'overall') {
+        items = [draft.overallSummary];
+      } else if (sectionKey === 'followUp') {
+        items = [draft.followUpCare];
+      } else if (sectionKey === 'recheck') {
+        const keys = ['recheckWithin1to2Weeks', 'recheckWithin1Month', 'recheckWithin3Months', 'recheckWithin6Months'] as const;
+        items = keys.map((key) => {
+          const { cardBody } = splitTimelineCardText(typeof draft[key] === 'string' ? draft[key] as string : '');
+          return cardBody;
+        });
+      } else if (sectionKey === 'lab') {
+        items = [draft.labInterpretation ?? ''];
+      } else {
+        const match = /^(systemsPage\w+)-(\d+)$/.exec(sectionKey);
+        if (match) {
+          const k = match[1] as SystemKey;
+          const bi = parseInt(match[2], 10);
+          const blocks = getStructuredBlocksFromDraft(draft, k);
+          const block = blocks[bi];
+          if (block?.variant === 'rows') items = block.rows.map((r) => r.content);
+        }
+      }
+
+      if (items.length === 0 || items.every((i) => !i.trim())) return;
+
+      const res = await fetch('/api/admin/health-report/condense', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ items }),
+      });
+      const data = (await res.json()) as { items?: string[]; error?: string };
+      if (!res.ok) throw new Error(data.error ?? `간결 생성 실패 (${res.status})`);
+      if (!Array.isArray(data.items)) throw new Error('잘못된 응답 형식');
+
+      const condensed = data.items as string[];
+
+      if (sectionKey === 'overall') {
+        setDraft((d) => ({ ...d, overallSummary: condensed[0] ?? d.overallSummary }));
+      } else if (sectionKey === 'followUp') {
+        setDraft((d) => ({ ...d, followUpCare: condensed[0] ?? d.followUpCare }));
+      } else if (sectionKey === 'recheck') {
+        const keys = ['recheckWithin1to2Weeks', 'recheckWithin1Month', 'recheckWithin3Months', 'recheckWithin6Months'] as const;
+        setDraft((d) => {
+          const updated = { ...d };
+          keys.forEach((key, i) => {
+            if (condensed[i] !== undefined) {
+              const { cardTitle } = splitTimelineCardText(typeof d[key] === 'string' ? d[key] as string : '');
+              updated[key] = joinTimelineCardText(cardTitle, condensed[i] ?? '');
+            }
+          });
+          return updated;
+        });
+      } else if (sectionKey === 'lab') {
+        setDraft((d) => ({ ...d, labInterpretation: condensed[0] ?? d.labInterpretation }));
+      } else {
+        const match = /^(systemsPage\w+)-(\d+)$/.exec(sectionKey);
+        if (match) {
+          const k = match[1] as SystemKey;
+          const bi = parseInt(match[2], 10);
+          setDraft((prev) => {
+            const cur = getStructuredBlocksFromDraft(prev, k);
+            if (!cur[bi] || cur[bi].variant !== 'rows') return prev;
+            const nextBlocks = structuredClone(cur) as HealthSystemsReportBlock[];
+            const b = nextBlocks[bi];
+            if (b.variant !== 'rows') return prev;
+            nextBlocks[bi] = { ...b, rows: b.rows.map((row, ri) => ({ ...row, content: condensed[ri] ?? row.content })) };
+            return { ...prev, [k]: nextBlocks };
+          });
+        }
+      }
+    } catch (e) {
+      setGenError(e instanceof Error ? e.message : '간결 생성 실패');
+    } finally {
+      setCondensingSection(null);
     }
   }
 
@@ -632,10 +717,13 @@ export function AdminHealthCheckupWorkspace({
             <summary style={{ padding: '10px 12px', fontWeight: 700, cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span>종합 소견</span>
               <div style={{ display: 'flex', gap: 6 }}>
-                <button type="button" className="adminLegacySmallBtn" disabled={generatingSection !== null || savingSection !== null} onClick={(e) => { e.preventDefault(); void generateSection('overall', 'overall'); }}>
+                <button type="button" className="adminLegacySmallBtn" disabled={generatingSection !== null || condensingSection !== null || savingSection !== null} onClick={(e) => { e.preventDefault(); void generateSection('overall', 'overall'); }}>
                   {generatingSection === 'overall' ? '재생성 중…' : '다시 생성'}
                 </button>
-                <button type="button" className="adminLegacySmallBtn" disabled={savingSection !== null || generatingSection !== null} onClick={(e) => { e.preventDefault(); void saveSectionReview('overall'); }}>
+                <button type="button" className="adminLegacySmallBtn" disabled={generatingSection !== null || condensingSection !== null || savingSection !== null} onClick={(e) => { e.preventDefault(); void condenseSection('overall'); }}>
+                  {condensingSection === 'overall' ? '간결화 중…' : '간결 생성'}
+                </button>
+                <button type="button" className="adminLegacySmallBtn" disabled={savingSection !== null || generatingSection !== null || condensingSection !== null} onClick={(e) => { e.preventDefault(); void saveSectionReview('overall'); }}>
                   {savingSection === 'overall' ? '저장 중…' : '저장'}
                 </button>
               </div>
@@ -658,10 +746,13 @@ export function AdminHealthCheckupWorkspace({
             <summary style={{ padding: '10px 12px', fontWeight: 700, cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span>사후 관리</span>
               <div style={{ display: 'flex', gap: 6 }}>
-                <button type="button" className="adminLegacySmallBtn" disabled={generatingSection !== null || savingSection !== null} onClick={(e) => { e.preventDefault(); void generateSection('followUp', 'followUp'); }}>
+                <button type="button" className="adminLegacySmallBtn" disabled={generatingSection !== null || condensingSection !== null || savingSection !== null} onClick={(e) => { e.preventDefault(); void generateSection('followUp', 'followUp'); }}>
                   {generatingSection === 'followUp' ? '재생성 중…' : '다시 생성'}
                 </button>
-                <button type="button" className="adminLegacySmallBtn" disabled={savingSection !== null || generatingSection !== null} onClick={(e) => { e.preventDefault(); void saveSectionReview('followUp'); }}>
+                <button type="button" className="adminLegacySmallBtn" disabled={generatingSection !== null || condensingSection !== null || savingSection !== null} onClick={(e) => { e.preventDefault(); void condenseSection('followUp'); }}>
+                  {condensingSection === 'followUp' ? '간결화 중…' : '간결 생성'}
+                </button>
+                <button type="button" className="adminLegacySmallBtn" disabled={savingSection !== null || generatingSection !== null || condensingSection !== null} onClick={(e) => { e.preventDefault(); void saveSectionReview('followUp'); }}>
                   {savingSection === 'followUp' ? '저장 중…' : '저장'}
                 </button>
               </div>
@@ -684,10 +775,13 @@ export function AdminHealthCheckupWorkspace({
             <summary style={{ padding: '10px 12px', fontWeight: 700, cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span>권장 재검진</span>
               <div style={{ display: 'flex', gap: 6 }}>
-                <button type="button" className="adminLegacySmallBtn" disabled={generatingSection !== null || savingSection !== null} onClick={(e) => { e.preventDefault(); void generateSection('recheck', 'recheck'); }}>
+                <button type="button" className="adminLegacySmallBtn" disabled={generatingSection !== null || condensingSection !== null || savingSection !== null} onClick={(e) => { e.preventDefault(); void generateSection('recheck', 'recheck'); }}>
                   {generatingSection === 'recheck' ? '재생성 중…' : '다시 생성'}
                 </button>
-                <button type="button" className="adminLegacySmallBtn" disabled={savingSection !== null || generatingSection !== null} onClick={(e) => { e.preventDefault(); void saveSectionReview('recheck'); }}>
+                <button type="button" className="adminLegacySmallBtn" disabled={generatingSection !== null || condensingSection !== null || savingSection !== null} onClick={(e) => { e.preventDefault(); void condenseSection('recheck'); }}>
+                  {condensingSection === 'recheck' ? '간결화 중…' : '간결 생성'}
+                </button>
+                <button type="button" className="adminLegacySmallBtn" disabled={savingSection !== null || generatingSection !== null || condensingSection !== null} onClick={(e) => { e.preventDefault(); void saveSectionReview('recheck'); }}>
                   {savingSection === 'recheck' ? '저장 중…' : '저장'}
                 </button>
               </div>
@@ -745,10 +839,13 @@ export function AdminHealthCheckupWorkspace({
                   <summary style={{ padding: '10px 12px', fontWeight: 700, cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <span>{blockTitle}</span>
                     <div style={{ display: 'flex', gap: 6 }}>
-                      <button type="button" className="adminLegacySmallBtn" disabled={generatingSection !== null || savingSection !== null} onClick={(e) => { e.preventDefault(); void generateSection(systemKeyToApiSection(k), `${k}-${bi}`); }}>
+                      <button type="button" className="adminLegacySmallBtn" disabled={generatingSection !== null || condensingSection !== null || savingSection !== null} onClick={(e) => { e.preventDefault(); void generateSection(systemKeyToApiSection(k), `${k}-${bi}`); }}>
                         {generatingSection === `${k}-${bi}` ? '재생성 중…' : '다시 생성'}
                       </button>
-                      <button type="button" className="adminLegacySmallBtn" disabled={savingSection !== null || generatingSection !== null} onClick={(e) => { e.preventDefault(); void saveSectionReview(`${k}-${bi}`); }}>
+                      <button type="button" className="adminLegacySmallBtn" disabled={generatingSection !== null || condensingSection !== null || savingSection !== null} onClick={(e) => { e.preventDefault(); void condenseSection(`${k}-${bi}`); }}>
+                        {condensingSection === `${k}-${bi}` ? '간결화 중…' : '간결 생성'}
+                      </button>
+                      <button type="button" className="adminLegacySmallBtn" disabled={savingSection !== null || generatingSection !== null || condensingSection !== null} onClick={(e) => { e.preventDefault(); void saveSectionReview(`${k}-${bi}`); }}>
                         {savingSection === `${k}-${bi}` ? '저장 중…' : '저장'}
                       </button>
                     </div>
@@ -792,10 +889,13 @@ export function AdminHealthCheckupWorkspace({
             <summary style={{ padding: '10px 12px', fontWeight: 700, cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span>혈액검사 해석</span>
               <div style={{ display: 'flex', gap: 6 }}>
-                <button type="button" className="adminLegacySmallBtn" disabled={generatingSection !== null || savingSection !== null} onClick={(e) => { e.preventDefault(); void generateSection('lab', 'lab'); }}>
+                <button type="button" className="adminLegacySmallBtn" disabled={generatingSection !== null || condensingSection !== null || savingSection !== null} onClick={(e) => { e.preventDefault(); void generateSection('lab', 'lab'); }}>
                   {generatingSection === 'lab' ? '재생성 중…' : '다시 생성'}
                 </button>
-                <button type="button" className="adminLegacySmallBtn" disabled={savingSection !== null || generatingSection !== null} onClick={(e) => { e.preventDefault(); void saveSectionReview('lab'); }}>
+                <button type="button" className="adminLegacySmallBtn" disabled={generatingSection !== null || condensingSection !== null || savingSection !== null} onClick={(e) => { e.preventDefault(); void condenseSection('lab'); }}>
+                  {condensingSection === 'lab' ? '간결화 중…' : '간결 생성'}
+                </button>
+                <button type="button" className="adminLegacySmallBtn" disabled={savingSection !== null || generatingSection !== null || condensingSection !== null} onClick={(e) => { e.preventDefault(); void saveSectionReview('lab'); }}>
                   {savingSection === 'lab' ? '저장 중…' : '저장'}
                 </button>
               </div>
