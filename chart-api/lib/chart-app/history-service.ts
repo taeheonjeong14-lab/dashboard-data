@@ -60,6 +60,70 @@ export async function listRecentRuns(client: pg.PoolClient, limit = 50): Promise
   }));
 }
 
+export type HospitalRunListItem = {
+  id: string;
+  createdAt: string;
+  friendlyId: string | null;
+  patientName: string | null;
+  ownerName: string | null;
+  /** null = 아직 링크 미발급 */
+  shareUrl: string | null;
+  expiresAt: string | null;
+};
+
+export async function listHospitalRuns(
+  client: pg.PoolClient,
+  hospitalId: string,
+  limit = 50,
+): Promise<HospitalRunListItem[]> {
+  const { rows } = await client.query<{
+    id: string;
+    created_at: Date;
+    friendly_id: string | null;
+    patient_name: string | null;
+    owner_name: string | null;
+    share_url: string | null;
+    expires_at: Date | null;
+  }>(
+    `
+    SELECT
+      pr.id,
+      pr.created_at,
+      pr.friendly_id,
+      bi.patient_name,
+      bi.owner_name,
+      s.share_url,
+      s.expires_at
+    FROM chart_pdf.parse_runs pr
+    LEFT JOIN chart_pdf.result_basic_info bi ON bi.parse_run_id = pr.id
+    LEFT JOIN LATERAL (
+      SELECT share_url, expires_at
+      FROM health_report.health_review_share_links
+      WHERE parse_run_id = pr.id
+        AND content_type IN ('health_checkup', 'health-checkup')
+        AND revoked_at IS NULL
+        AND expires_at > now()
+      ORDER BY created_at DESC
+      LIMIT 1
+    ) s ON true
+    WHERE pr.hospital_id = $1::uuid
+    ORDER BY pr.created_at DESC
+    LIMIT $2
+    `,
+    [hospitalId, limit],
+  );
+
+  return rows.map((r) => ({
+    id: r.id,
+    createdAt: r.created_at.toISOString(),
+    friendlyId: r.friendly_id,
+    patientName: r.patient_name,
+    ownerName: r.owner_name,
+    shareUrl: r.share_url,
+    expiresAt: r.expires_at ? r.expires_at.toISOString() : null,
+  }));
+}
+
 /** `raw_item_name` 비었을 때 `item_name` 복사 — 응답에 원문 표시용 값 항상 제공 */
 function ensureLabRawItemName(rows: Record<string, unknown>[]): Record<string, unknown>[] {
   return rows.map((r) => {

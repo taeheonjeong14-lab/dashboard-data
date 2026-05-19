@@ -49,16 +49,19 @@ export async function POST(request: NextRequest) {
     const token = randomShareToken();
     const token_hash = hashShareToken(token);
 
+    const base = shareBaseUrl(new URL(request.url).origin);
+    const shareUrl = `${base}/review/health-checkup/${encodeURIComponent(token)}`;
+
     const ins = await pool.query<{ expires_at: Date }>(
       `
       INSERT INTO health_report.health_review_share_links (
-        parse_run_id, content_type, token_hash, expires_at
+        parse_run_id, content_type, token_hash, expires_at, share_url
       ) VALUES (
-        $1::uuid, $2, $3, now() + interval '7 days'
+        $1::uuid, $2, $3, now() + interval '7 days', $4
       )
       RETURNING expires_at
       `,
-      [runId, LINK_CONTENT_TYPE, token_hash],
+      [runId, LINK_CONTENT_TYPE, token_hash, shareUrl],
     );
 
     const expiresAt = ins.rows[0].expires_at.toISOString();
@@ -67,8 +70,6 @@ export async function POST(request: NextRequest) {
       expiresAt,
       contentTypeDb: LINK_CONTENT_TYPE,
     });
-    const base = shareBaseUrl(new URL(request.url).origin);
-    const shareUrl = `${base}/review/health-checkup/${encodeURIComponent(token)}`;
 
     return applyPublicShareReviewCors(
       NextResponse.json({
