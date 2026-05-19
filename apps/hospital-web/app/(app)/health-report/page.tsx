@@ -13,6 +13,7 @@ type UploadStage =
   | 'getting-url'
   | 'uploading-pdf'
   | 'extracting'
+  | 'saving'
   | 'done'
   | 'error';
 
@@ -26,9 +27,7 @@ type RequestItem = {
   expiresAt: string | null;
 };
 
-// ---------------------------------------------------------------------------
-// Constants
-// ---------------------------------------------------------------------------
+const CASE_IMAGE_BUCKET = 'case-image';
 const MAX_FILE_SIZE = 30 * 1024 * 1024;
 
 const CHART_TYPE_LABELS: Record<ChartType, string> = {
@@ -48,39 +47,42 @@ function formatBytes(bytes: number): string {
 }
 
 function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString('ko-KR', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  });
+  return new Date(iso).toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' });
 }
 
 // ---------------------------------------------------------------------------
 // Main page component
 // ---------------------------------------------------------------------------
 export default function HealthReportPage() {
-  // List state
+  // List
   const [items, setItems] = useState<RequestItem[]>([]);
   const [listLoading, setListLoading] = useState(true);
   const [listError, setListError] = useState<string | null>(null);
 
-  // Form state
+  // Form
   const [chartType, setChartType] = useState<ChartType>('intovet');
   const [pdfFile, setPdfFile] = useState<File | null>(null);
   const [pdfError, setPdfError] = useState<string | null>(null);
+  const [imageFiles, setImageFiles] = useState<File[]>([]);
+  const [imagePreviews, setImagePreviews] = useState<string[]>([]);
   const [emphasisText, setEmphasisText] = useState('');
   const [isDragging, setIsDragging] = useState(false);
 
-  // Upload/processing state
+  // Upload/processing
   const [stage, setStage] = useState<UploadStage>('idle');
   const [uploadProgress, setUploadProgress] = useState(0);
   const [progressMessage, setProgressMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
 
-  // Hospital ID
   const [hospitalId, setHospitalId] = useState<string | null>(null);
 
   const pdfInputRef = useRef<HTMLInputElement>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    return () => { imagePreviews.forEach((u) => URL.revokeObjectURL(u)); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     (async () => {
@@ -88,17 +90,13 @@ export default function HealthReportPage() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
       const { data: profile } = await supabase
-        .schema('core')
-        .from('users')
-        .select('hospital_id')
-        .eq('id', user.id)
-        .single();
+        .schema('core').from('users').select('hospital_id').eq('id', user.id).single();
       if (profile?.hospital_id) setHospitalId(profile.hospital_id as string);
     })();
   }, []);
 
   // ---------------------------------------------------------------------------
-  // List fetching
+  // List
   // ---------------------------------------------------------------------------
   const loadList = useCallback(async () => {
     setListLoading(true);
@@ -118,7 +116,7 @@ export default function HealthReportPage() {
   useEffect(() => { void loadList(); }, [loadList]);
 
   // ---------------------------------------------------------------------------
-  // PDF file handling
+  // PDF handling
   // ---------------------------------------------------------------------------
   const handlePdfFile = useCallback((file: File) => {
     setPdfError(null);
@@ -128,14 +126,30 @@ export default function HealthReportPage() {
   }, []);
 
   const onPdfDrop = useCallback((e: DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    setIsDragging(false);
-    const file = e.dataTransfer.files?.[0];
-    if (file) handlePdfFile(file);
+    e.preventDefault(); setIsDragging(false);
+    const file = e.dataTransfer.files?.[0]; if (file) handlePdfFile(file);
   }, [handlePdfFile]);
 
   // ---------------------------------------------------------------------------
-  // Upload
+  // Image handling
+  // ---------------------------------------------------------------------------
+  const onImageChange = (e: ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? []);
+    if (!files.length) return;
+    const previews = files.map((f) => URL.createObjectURL(f));
+    setImageFiles((prev) => [...prev, ...files]);
+    setImagePreviews((prev) => [...prev, ...previews]);
+    e.target.value = '';
+  };
+
+  const removeImage = (idx: number) => {
+    URL.revokeObjectURL(imagePreviews[idx]);
+    setImageFiles((prev) => prev.filter((_, i) => i !== idx));
+    setImagePreviews((prev) => prev.filter((_, i) => i !== idx));
+  };
+
+  // ---------------------------------------------------------------------------
+  // PDF upload via signed URL
   // ---------------------------------------------------------------------------
   function uploadPdfWithProgress(signedUrl: string, file: File, onProgress: (pct: number) => void): Promise<void> {
     return new Promise((resolve, reject) => {
@@ -157,6 +171,45 @@ export default function HealthReportPage() {
   }
 
   // ---------------------------------------------------------------------------
+  // Image upload to Supabase Storage
+  // ---------------------------------------------------------------------------
+  async function uploadImages(runId: string, hId: string): Promise<string[]> {
+    const supabase = createClient();
+    const paths: string[] = [];
+    await Promise.all(
+      imageFiles.map(async (file, idx) => {
+        const imageId = crypto.randomUUID();
+        const storagePath = `${hId}/${runId}/${imageId}.webp`;
+        const { error } = await supabase.storage
+          .from(CASE_IMAGE_BUCKET)
+          .upload(storagePath, file, { contentType: file.type, upsert: false });
+        if (error) console.error(`Image ${idx} upload error:`, error);
+        else paths.push(storagePath);
+      }),
+    );
+    return paths;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Save hospital_notes — makes the run appear in admin "병원 접수 목록"
+  // ---------------------------------------------------------------------------
+  async function saveHospitalNotes(runId: string, imagePaths: string[]): Promise<void> {
+    const supabase = createClient();
+    await supabase.schema('health_report').from('generated_run_content').upsert(
+      {
+        parse_run_id: runId,
+        content_type: 'hospital_notes',
+        payload: {
+          source: 'hospital_web',
+          emphasis_text: emphasisText,
+          image_paths: imagePaths,
+        },
+      },
+      { onConflict: 'parse_run_id,content_type' },
+    );
+  }
+
+  // ---------------------------------------------------------------------------
   // Submit
   // ---------------------------------------------------------------------------
   const handleSubmit = async () => {
@@ -171,6 +224,7 @@ export default function HealthReportPage() {
     setErrorMessage('');
 
     try {
+      // Step 1 — signed URL
       const urlRes = await fetch('/api/health-report/upload-url', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -180,8 +234,11 @@ export default function HealthReportPage() {
         const err = (await urlRes.json()) as { error?: string };
         throw new Error(err.error ?? '업로드 URL 생성에 실패했습니다.');
       }
-      const { signedUrl, storagePath, bucket } = (await urlRes.json()) as { signedUrl: string; storagePath: string; bucket: string };
+      const { signedUrl, storagePath, bucket } = (await urlRes.json()) as {
+        signedUrl: string; storagePath: string; bucket: string;
+      };
 
+      // Step 2 — PDF upload
       setStage('uploading-pdf');
       setProgressMessage('PDF 업로드 중…');
       await uploadPdfWithProgress(signedUrl, pdfFile, (pct) => {
@@ -190,26 +247,39 @@ export default function HealthReportPage() {
       });
       setUploadProgress(100);
 
+      // Step 3 — extract
       setStage('extracting');
       const msgs = ['텍스트 추출 중…', '데이터 구조화 중…', 'AI 분석 중…', '결과 저장 중…'];
       let mi = 0;
       setProgressMessage(msgs[0]);
       const iv = setInterval(() => { mi = (mi + 1) % msgs.length; setProgressMessage(msgs[mi]); }, 4000);
 
+      let runId: string;
       try {
         const extractRes = await fetch('/api/health-report/extract', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ storagePath, storageBucket: bucket, chartType, hospitalId, emphasisText }),
         });
-        const extractData = (await extractRes.json()) as { error?: string };
+        const extractData = (await extractRes.json()) as { error?: string; runId?: string };
         if (!extractRes.ok) throw new Error(extractData.error ?? '차트 분석에 실패했습니다.');
+        if (!extractData.runId) throw new Error('runId를 받지 못했습니다.');
+        runId = extractData.runId;
       } finally {
         clearInterval(iv);
       }
 
+      // Step 4 — image upload + hospital_notes save (admin 목록에 표시됨)
+      setStage('saving');
+      setProgressMessage('접수 정보 저장 중…');
+      const imagePaths = imageFiles.length > 0 ? await uploadImages(runId, hospitalId) : [];
+      await saveHospitalNotes(runId, imagePaths);
+
       setStage('done');
       setPdfFile(null);
+      setImageFiles([]);
+      imagePreviews.forEach((u) => URL.revokeObjectURL(u));
+      setImagePreviews([]);
       setEmphasisText('');
       setUploadProgress(0);
       setProgressMessage('');
@@ -221,16 +291,13 @@ export default function HealthReportPage() {
   };
 
   function resetForm() {
-    setPdfFile(null);
-    setPdfError(null);
+    setPdfFile(null); setPdfError(null);
+    setImageFiles([]); imagePreviews.forEach((u) => URL.revokeObjectURL(u)); setImagePreviews([]);
     setEmphasisText('');
-    setStage('idle');
-    setUploadProgress(0);
-    setProgressMessage('');
-    setErrorMessage('');
+    setStage('idle'); setUploadProgress(0); setProgressMessage(''); setErrorMessage('');
   }
 
-  const isProcessing = stage === 'getting-url' || stage === 'uploading-pdf' || stage === 'extracting';
+  const isProcessing = stage === 'getting-url' || stage === 'uploading-pdf' || stage === 'extracting' || stage === 'saving';
   const canSubmit = !!pdfFile && !isProcessing;
 
   // ---------------------------------------------------------------------------
@@ -244,9 +311,7 @@ export default function HealthReportPage() {
       {/* ================================================================== */}
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ marginBottom: '16px' }}>
-          <h1 style={{ margin: '0 0 4px', fontSize: '18px', fontWeight: 700, color: 'var(--text)' }}>
-            건강검진 리포트
-          </h1>
+          <h1 style={{ margin: '0 0 4px', fontSize: '18px', fontWeight: 700, color: 'var(--text)' }}>건강검진 리포트</h1>
           <p style={{ margin: 0, fontSize: '13px', color: 'var(--text-secondary)' }}>
             PDF 제출 후 1영업일 내에 검토 링크를 보내드립니다.
           </p>
@@ -255,9 +320,7 @@ export default function HealthReportPage() {
         <div style={{ background: 'var(--bg-raised)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
           <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text)' }}>요청 목록</span>
-            <button onClick={() => void loadList()} style={{ background: 'none', border: 'none', fontSize: '12px', color: 'var(--text-muted)', cursor: 'pointer', padding: '2px 4px' }}>
-              새로고침
-            </button>
+            <button onClick={() => void loadList()} style={{ background: 'none', border: 'none', fontSize: '12px', color: 'var(--text-muted)', cursor: 'pointer', padding: '2px 4px' }}>새로고침</button>
           </div>
 
           {listLoading ? (
@@ -314,8 +377,6 @@ export default function HealthReportPage() {
       {/* ================================================================== */}
       <div style={{ width: '340px', flexShrink: 0, position: 'sticky', top: '24px' }}>
         <div style={{ background: 'var(--bg-raised)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
-
-          {/* Form header */}
           <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--border)' }}>
             <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text)' }}>새 분석 요청</div>
             <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '2px' }}>차트 PDF를 업로드해 주세요</div>
@@ -323,15 +384,15 @@ export default function HealthReportPage() {
 
           <div style={{ padding: '18px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
 
-            {/* Success banner */}
+            {/* Success */}
             {stage === 'done' && (
-              <div style={{ background: 'var(--success-subtle, #f0fdf4)', border: '1px solid var(--success, #16a34a)', borderRadius: 'var(--radius)', padding: '10px 12px', fontSize: '13px', color: 'var(--success, #16a34a)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+              <div style={{ background: '#f0fdf4', border: '1px solid #16a34a', borderRadius: 'var(--radius)', padding: '10px 12px', fontSize: '13px', color: '#16a34a', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
                 <span>✓ 요청이 접수되었습니다</span>
-                <button onClick={resetForm} style={{ background: 'none', border: 'none', fontSize: '11px', color: 'var(--success, #16a34a)', cursor: 'pointer', textDecoration: 'underline', padding: 0, whiteSpace: 'nowrap' }}>새 요청</button>
+                <button onClick={resetForm} style={{ background: 'none', border: 'none', fontSize: '11px', color: '#16a34a', cursor: 'pointer', textDecoration: 'underline', padding: 0, whiteSpace: 'nowrap' }}>새 요청</button>
               </div>
             )}
 
-            {/* Error banner */}
+            {/* Error */}
             {stage === 'error' && (
               <div style={{ background: 'var(--danger-subtle)', border: '1px solid var(--danger)', borderRadius: 'var(--radius)', padding: '10px 12px', fontSize: '12px', color: 'var(--text)' }}>
                 <span style={{ fontWeight: 700, color: 'var(--danger)' }}>오류 </span>{errorMessage}
@@ -348,8 +409,8 @@ export default function HealthReportPage() {
                 </select>
               </FormField>
 
-              {/* PDF upload */}
-              <FormField label="차트 PDF">
+              {/* PDF */}
+              <FormField label="차트 PDF" required>
                 <div
                   onDrop={onPdfDrop}
                   onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
@@ -357,9 +418,7 @@ export default function HealthReportPage() {
                   onClick={() => !isProcessing && pdfInputRef.current?.click()}
                   style={{
                     border: `2px dashed ${isDragging ? 'var(--accent)' : pdfError ? 'var(--danger)' : 'var(--border-strong)'}`,
-                    borderRadius: 'var(--radius)',
-                    padding: '20px 12px',
-                    textAlign: 'center',
+                    borderRadius: 'var(--radius)', padding: '18px 12px', textAlign: 'center',
                     cursor: isProcessing ? 'not-allowed' : 'pointer',
                     background: isDragging ? 'var(--accent-subtle)' : 'var(--bg-subtle)',
                     transition: 'border-color 0.15s',
@@ -368,22 +427,20 @@ export default function HealthReportPage() {
                   <input ref={pdfInputRef} type="file" accept=".pdf,application/pdf" style={{ display: 'none' }}
                     onChange={(e: ChangeEvent<HTMLInputElement>) => { const f = e.target.files?.[0]; if (f) handlePdfFile(f); }} />
                   {pdfFile ? (
-                    <div>
-                      <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text)', marginBottom: '2px', wordBreak: 'break-all' }}>{pdfFile.name}</div>
-                      <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{formatBytes(pdfFile.size)}</div>
+                    <>
+                      <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text)', wordBreak: 'break-all' }}>{pdfFile.name}</div>
+                      <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>{formatBytes(pdfFile.size)}</div>
                       {!isProcessing && <div style={{ fontSize: '11px', color: 'var(--accent)', marginTop: '4px' }}>클릭하여 다시 선택</div>}
-                    </div>
+                    </>
                   ) : (
-                    <div>
+                    <>
                       <div style={{ fontSize: '20px', marginBottom: '5px' }}>📄</div>
                       <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '2px' }}>끌어다 놓거나 클릭하여 선택</div>
                       <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>PDF · 최대 30MB</div>
-                    </div>
+                    </>
                   )}
                 </div>
                 {pdfError && <div style={{ marginTop: '5px', fontSize: '11px', color: 'var(--danger)' }}>{pdfError}</div>}
-
-                {/* Progress bar */}
                 {(stage === 'uploading-pdf' || stage === 'getting-url') && (
                   <div style={{ marginTop: '8px' }}>
                     <div style={{ height: '4px', background: 'var(--bg)', borderRadius: '2px', overflow: 'hidden' }}>
@@ -394,51 +451,71 @@ export default function HealthReportPage() {
                 )}
               </FormField>
 
+              {/* Images */}
+              <FormField label="사진 자료" hint="선택">
+                <div
+                  onClick={() => !isProcessing && imageInputRef.current?.click()}
+                  style={{ border: '1px dashed var(--border-strong)', borderRadius: 'var(--radius)', padding: '10px 12px', textAlign: 'center', cursor: isProcessing ? 'not-allowed' : 'pointer', background: 'var(--bg-subtle)', fontSize: '12px', color: 'var(--text-muted)' }}
+                >
+                  <input ref={imageInputRef} type="file" accept=".jpg,.jpeg,.png,.webp,image/*" multiple style={{ display: 'none' }} onChange={onImageChange} />
+                  클릭하여 이미지 추가 (jpg / png / webp)
+                </div>
+                {imagePreviews.length > 0 && (
+                  <div style={{ marginTop: '8px', display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                    {imagePreviews.map((src, idx) => (
+                      <div key={idx} style={{ position: 'relative', width: '60px', height: '60px' }}>
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={src} alt={imageFiles[idx]?.name ?? `img-${idx}`} style={{ width: '60px', height: '60px', objectFit: 'cover', borderRadius: 'var(--radius)', border: '1px solid var(--border)' }} />
+                        {!isProcessing && (
+                          <button onClick={(e) => { e.stopPropagation(); removeImage(idx); }}
+                            style={{ position: 'absolute', top: '-5px', right: '-5px', width: '18px', height: '18px', borderRadius: '50%', background: 'var(--danger)', color: '#fff', border: 'none', fontSize: '10px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}>
+                            ×
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </FormField>
+
               {/* Emphasis */}
               <FormField label="강조사항" hint="선택">
                 <textarea
-                  value={emphasisText}
-                  onChange={(e) => setEmphasisText(e.target.value)}
-                  disabled={isProcessing}
-                  rows={3}
+                  value={emphasisText} onChange={(e) => setEmphasisText(e.target.value)}
+                  disabled={isProcessing} rows={3}
                   placeholder="보호자에게 강조할 사항을 입력하세요"
                   style={{ width: '100%', padding: '8px 10px', border: '1px solid var(--border)', borderRadius: 'var(--radius)', background: 'var(--bg)', color: 'var(--text)', resize: 'vertical', outline: 'none', fontSize: '13px', boxSizing: 'border-box' }}
                 />
               </FormField>
 
-              {/* Extracting progress */}
-              {stage === 'extracting' && (
+              {/* Processing indicator */}
+              {(stage === 'extracting' || stage === 'saving') && (
                 <div style={{ background: 'var(--accent-subtle)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '10px 12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <Spinner accent />
                   <div>
-                    <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--accent)' }}>분석 진행 중</div>
-                    <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '1px' }}>{progressMessage}</div>
+                    <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--accent)' }}>
+                      {stage === 'saving' ? '접수 처리 중' : '분석 진행 중'}
+                    </div>
+                    <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '1px' }}>
+                      {stage === 'saving' ? progressMessage : `${progressMessage} (30초~2분 소요)`}
+                    </div>
                   </div>
                 </div>
               )}
 
               {/* Submit */}
-              <button
-                onClick={handleSubmit}
-                disabled={!canSubmit}
+              <button onClick={handleSubmit} disabled={!canSubmit}
                 style={{
-                  width: '100%',
-                  padding: '10px',
+                  width: '100%', padding: '10px',
                   background: canSubmit ? 'var(--accent)' : 'var(--bg-subtle)',
                   color: canSubmit ? '#fff' : 'var(--text-muted)',
                   border: `1px solid ${canSubmit ? 'var(--accent)' : 'var(--border)'}`,
-                  borderRadius: 'var(--radius)',
-                  fontSize: '13px',
-                  fontWeight: 600,
+                  borderRadius: 'var(--radius)', fontSize: '13px', fontWeight: 600,
                   cursor: canSubmit ? 'pointer' : 'not-allowed',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '6px',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
                   transition: 'background 0.15s',
-                }}
-              >
-                {isProcessing ? <><Spinner />{' '}요청 중…</> : '분석 요청 제출'}
+                }}>
+                {isProcessing ? <><Spinner />요청 중…</> : '분석 요청 제출'}
               </button>
             </>)}
           </div>
@@ -452,11 +529,13 @@ export default function HealthReportPage() {
 // ---------------------------------------------------------------------------
 // UI helpers
 // ---------------------------------------------------------------------------
-function FormField({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
+function FormField({ label, hint, required, children }: { label: string; hint?: string; required?: boolean; children: React.ReactNode }) {
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: '5px', marginBottom: '6px' }}>
-        <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text)' }}>{label}</label>
+        <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text)' }}>
+          {label}{required && <span style={{ color: 'var(--danger)', marginLeft: '2px' }}>*</span>}
+        </label>
         {hint && <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{hint}</span>}
       </div>
       {children}
@@ -465,19 +544,12 @@ function FormField({ label, hint, children }: { label: string; hint?: string; ch
 }
 
 const selectStyle: React.CSSProperties = {
-  width: '100%',
-  padding: '8px 10px',
-  border: '1px solid var(--border)',
-  borderRadius: 'var(--radius)',
-  background: 'var(--bg)',
-  color: 'var(--text)',
-  fontSize: '13px',
+  width: '100%', padding: '8px 10px',
+  border: '1px solid var(--border)', borderRadius: 'var(--radius)',
+  background: 'var(--bg)', color: 'var(--text)', fontSize: '13px',
   appearance: 'none',
   backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'12\' height=\'8\' viewBox=\'0 0 12 8\'%3E%3Cpath d=\'M1 1l5 5 5-5\' stroke=\'%236b7280\' stroke-width=\'1.5\' fill=\'none\' stroke-linecap=\'round\'/%3E%3C/svg%3E")',
-  backgroundRepeat: 'no-repeat',
-  backgroundPosition: 'right 10px center',
-  paddingRight: '28px',
-  cursor: 'pointer',
+  backgroundRepeat: 'no-repeat', backgroundPosition: 'right 10px center', paddingRight: '28px', cursor: 'pointer',
 };
 
 function Spinner({ accent }: { accent?: boolean }) {
