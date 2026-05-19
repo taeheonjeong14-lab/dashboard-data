@@ -153,8 +153,8 @@ function buildHealthCheckupPrompt(
     : source.physicalExamItemsByDate;
 
   const chartLines = chartSource.slice(0, 20).map((c, i) => {
-    const body = c.bodyText.slice(0, 600);
-    const plan = c.planText?.trim() ? ` [처방/플랜] ${c.planText.slice(0, 400)}` : '';
+    const body = c.bodyText.slice(0, 10000);
+    const plan = c.planText?.trim() ? ` [처방/플랜] ${c.planText.slice(0, 5000)}` : '';
     return `${i + 1}. ${c.dateTime} | ${body}${plan}`;
   });
   const labLines = labSource.slice(0, 20).map((d, i) => {
@@ -550,8 +550,8 @@ function buildSectionPrompt(
     : source.physicalExamItemsByDate;
 
   const chartLines = chartSource.slice(0, 20).map((c, i) => {
-    const body = c.bodyText.slice(0, 600);
-    const plan = c.planText?.trim() ? ` [처방/플랜] ${c.planText.slice(0, 400)}` : '';
+    const body = c.bodyText.slice(0, 10000);
+    const plan = c.planText?.trim() ? ` [처방/플랜] ${c.planText.slice(0, 5000)}` : '';
     return `${i + 1}. ${c.dateTime} | ${body}${plan}`;
   });
   const labLines = labSource.slice(0, 20).map((d, i) => {
