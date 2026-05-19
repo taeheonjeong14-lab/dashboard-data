@@ -662,7 +662,7 @@ export async function generateHealthCheckupSection(
   ].join('\n');
 
   void model;
-  const output = await geminiGenerateText(`${prompt}\n\n${schemaHint}`, { maxOutputTokens: 4096 });
+  const output = await geminiGenerateText(`${prompt}\n\n${schemaHint}`, { maxOutputTokens: 16384 });
   if (!output.trim()) throw new Error('Gemini returned empty content.');
 
   let parsed: unknown;
