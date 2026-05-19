@@ -241,8 +241,14 @@ export async function loadReportCaseImageRowsFromSupabase(
   const pub = await loadPublicReportCaseImageRowsSupabase(sb, runId);
   if (pub.length > 0) {
     console.info('[report-case-images] loaded from public.report_case_images (Supabase)', { runId, count: pub.length });
+    return pub;
   }
-  return pub;
+
+  const parsed = await loadParseRunCaseImageRowsFromSupabase(sb, runId);
+  if (parsed.length > 0) {
+    console.info('[report-case-images] loaded from chart_pdf.parse_run_case_images (Supabase)', { runId, count: parsed.length });
+  }
+  return parsed;
 }
 
 export async function findStoragePathForImageFromSupabase(
@@ -399,6 +405,35 @@ export async function listStoragePathsForRun(pool: Pool, runId: string): Promise
     }
   }
   return [...paths];
+}
+
+async function loadParseRunCaseImageRowsFromSupabase(
+  sb: SupabaseClient,
+  runId: string,
+): Promise<ReportCaseImageRow[]> {
+  const { data, error } = await sb
+    .schema('chart_pdf')
+    .from('parse_run_case_images')
+    .select('id, created_at, file_name, exam_type, radiology_sub, brief_comment, has_notable_finding, storage_path, finding_spots, related_assessment_condition')
+    .eq('parse_run_id', runId)
+    .order('idx', { ascending: true });
+  if (error) {
+    if (/does not exist|schema cache|Could not find the table|relation/i.test(error.message)) return [];
+    throw new Error(error.message);
+  }
+  return (data ?? []).map((r: Record<string, unknown>) => ({
+    id: String(r.id ?? ''),
+    exam_date: r.created_at ? String(r.created_at).slice(0, 10) : '',
+    file_name: String(r.file_name ?? ''),
+    exam_type: String(r.exam_type ?? ''),
+    radiology_sub: r.radiology_sub != null ? String(r.radiology_sub) : null,
+    brief_comment: String(r.brief_comment ?? ''),
+    has_notable_finding: Boolean(r.has_notable_finding),
+    storage_path: String(r.storage_path ?? ''),
+    finding_spots: r.finding_spots ?? null,
+    finding_confidence: null,
+    related_assessment_condition: r.related_assessment_condition != null ? String(r.related_assessment_condition) : null,
+  }));
 }
 
 export async function deleteAllImageRowsForRun(pool: Pool, runId: string): Promise<void> {

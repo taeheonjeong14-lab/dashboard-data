@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { getCaseImageBucket } from '@/lib/chart-extraction/storage-config';
+import { getCaseImageBucket, ADMIN_CASE_IMAGES_BUCKET } from '@/lib/chart-extraction/storage-config';
 
 const DEFAULT_TTL_SEC = 60 * 60 * 24 * 7;
 
@@ -24,7 +24,7 @@ export function caseImageObjectKeyCandidates(raw: string, primaryBucket: string)
 
 export function caseImageCandidateBuckets(): string[] {
   const primary = getCaseImageBucket();
-  return [...new Set([primary, 'case-image', 'image-case'])];
+  return [...new Set([primary, ADMIN_CASE_IMAGES_BUCKET, 'case-image', 'image-case'])];
 }
 
 async function trySignOne(

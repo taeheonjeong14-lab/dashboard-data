@@ -8,3 +8,6 @@ export function getCaseImageBucket(): string {
   return name || 'case-image';
 }
 
+/** Admin case image uploads use this bucket (chart-case-images route). */
+export const ADMIN_CASE_IMAGES_BUCKET = 'chart-case-images';
+
