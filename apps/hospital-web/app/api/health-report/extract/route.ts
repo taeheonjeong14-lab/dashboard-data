@@ -43,18 +43,20 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  const params = new URLSearchParams();
+  params.set('storagePath', storagePath);
+  params.set('storageBucket', storageBucket ?? '');
+  params.set('chartType', chartType);
+  params.set('hospitalId', hospitalId);
+  if (body.emphasisText) params.set('emphasisText', body.emphasisText);
+
   const upstream = await fetch(`${CHART_API_URL}/api/text-bucketing`, {
     method: 'POST',
     headers: {
-      'Content-Type': 'application/json',
+      'Content-Type': 'application/x-www-form-urlencoded',
       Authorization: `Bearer ${CHART_API_KEY}`,
     },
-    body: JSON.stringify({
-      storagePath,
-      storageBucket,
-      chartType,
-      hospitalId,
-    }),
+    body: params.toString(),
   });
 
   const data: unknown = await upstream.json();
