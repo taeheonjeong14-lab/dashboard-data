@@ -120,6 +120,14 @@ export function AdminHealthReportImageSlots({
   const loadRequestId = useRef(0);
 
   const payloadOnlyPaths = useMemo(() => collectPayloadStoragePaths(page4Raw, page5Raw), [page4Raw, page5Raw]);
+  const placedStoragePaths = useMemo(
+    () => new Set(collectPayloadStoragePaths(page4Raw, page5Raw)),
+    [page4Raw, page5Raw],
+  );
+  const unplacedCandidates = useMemo(
+    () => candidates.filter((c) => !c.storagePath || !placedStoragePaths.has(c.storagePath)),
+    [candidates, placedStoragePaths],
+  );
 
   const loadImages = useCallback(async () => {
     const reqId = ++loadRequestId.current;
@@ -353,11 +361,11 @@ export function AdminHealthReportImageSlots({
           이미지 분석 업로드 API를 쓰면 됩니다.
         </p>
       )}
-      {candidates.length > 0 ? (
+      {unplacedCandidates.length > 0 ? (
         <div style={{ border: `1px solid ${divider}`, borderRadius: 8, padding: 12, background: '#f8fafc' }}>
           <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 8 }}>후보 (드래그하여 슬롯에 놓기)</div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-            {candidates.map((c) => (
+            {unplacedCandidates.map((c) => (
               <div
                 key={c.id}
                 draggable
