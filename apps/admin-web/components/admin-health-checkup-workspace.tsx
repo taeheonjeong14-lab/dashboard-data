@@ -960,7 +960,7 @@ export function AdminHealthCheckupWorkspace({
                                     ) : src ? (
                                       <div style={{ fontSize: 10, color: '#94a3b8', padding: '6px 0', wordBreak: 'break-all' }}>{src.split('/').pop()}</div>
                                     ) : (
-                                      <div style={{ padding: '16px 8px', textAlign: 'center', border: '1px dashed #cbd5e1', borderRadius: 4, color: '#94a3b8', fontSize: 20, lineHeight: 1 }}>
+                                      <div style={{ height: 80, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px dashed #cbd5e1', borderRadius: 4, color: '#94a3b8', fontSize: 20, lineHeight: 1 }}>
                                         +
                                       </div>
                                     )}
