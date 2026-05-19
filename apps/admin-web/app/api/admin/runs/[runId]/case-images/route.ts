@@ -3,16 +3,17 @@ import { requireAdminApi } from '@/lib/assert-admin-api';
 import { getAdminWebPgPool } from '@/lib/db';
 import { createServiceRoleClient } from '@/lib/supabase/service-role';
 import { analyzeCaseImages, type ImageInputPart } from '@/lib/chart-case-images/analyze';
+import { prepareImageForAnalysis } from '@/lib/chart-case-images/encode';
 import type { ExamType, RadiologySub, FindingSpot } from '@/lib/chart-case-images/types';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 120;
 
-
 const CASE_IMAGES_BUCKET = 'chart-case-images';
 const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp'] as const;
-const MAX_IMAGE_BYTES = 10 * 1024 * 1024; // 10 MB per image
-const MAX_IMAGES = 10;
+const MAX_IMAGE_BYTES = 8 * 1024 * 1024; // 8 MB per image (upload limit)
+const MAX_IMAGES = 20;
+const MAX_TOTAL_UPLOAD_BYTES = MAX_IMAGE_BYTES * MAX_IMAGES;
 
 type AllowedMime = (typeof ALLOWED_MIME_TYPES)[number];
 
@@ -152,18 +153,46 @@ export async function POST(
     return NextResponse.json({ error: `이미지는 최대 ${MAX_IMAGES}개까지 업로드 가능합니다.` }, { status: 400 });
   }
 
-  // Validate and load image buffers
-  const imageParts: ImageInputPart[] = [];
+  // Validate upload sizes
+  const totalBytes = imageFiles.reduce((s, f) => s + f.size, 0);
+  if (totalBytes > MAX_TOTAL_UPLOAD_BYTES) {
+    return NextResponse.json(
+      { error: `전체 파일 용량이 초과되었습니다. (${Math.round(totalBytes / 1024 / 1024)}MB / 허용 ${MAX_TOTAL_UPLOAD_BYTES / 1024 / 1024}MB)` },
+      { status: 400 },
+    );
+  }
   for (const file of imageFiles) {
     const mime = file.type.toLowerCase();
     if (!isAllowedMime(mime)) {
       return NextResponse.json({ error: `지원하지 않는 이미지 형식입니다: ${mime} (JPEG/PNG/WebP만 가능)` }, { status: 400 });
     }
     if (file.size > MAX_IMAGE_BYTES) {
-      return NextResponse.json({ error: `이미지 파일은 ${MAX_IMAGE_BYTES / 1024 / 1024}MB 이하여야 합니다.` }, { status: 400 });
+      return NextResponse.json({ error: `이미지 파일은 ${MAX_IMAGE_BYTES / 1024 / 1024}MB 이하여야 합니다. (${file.name})` }, { status: 400 });
     }
-    const buffer = Buffer.from(await file.arrayBuffer());
-    imageParts.push({ buffer, fileName: file.name || 'image', mimeType: mime });
+  }
+
+  // Load raw buffers, then compress each to WebP ≤512KB via sharp
+  type RawFile = { rawBuffer: Buffer; fileName: string };
+  const rawFiles: RawFile[] = await Promise.all(
+    imageFiles.map(async (file) => ({
+      rawBuffer: Buffer.from(await file.arrayBuffer()),
+      fileName: file.name || 'image',
+    })),
+  );
+
+  let imageParts: ImageInputPart[];
+  try {
+    imageParts = await Promise.all(
+      rawFiles.map(async ({ rawBuffer, fileName }) => {
+        const compressed = await prepareImageForAnalysis(rawBuffer);
+        return { buffer: compressed.buffer, fileName, mimeType: compressed.mimeType } satisfies ImageInputPart;
+      }),
+    );
+  } catch (e) {
+    return NextResponse.json(
+      { error: e instanceof Error ? e.message : '이미지 압축 실패' },
+      { status: 400 },
+    );
   }
 
   const pool = getAdminWebPgPool();

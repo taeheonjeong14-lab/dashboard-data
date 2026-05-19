@@ -299,9 +299,19 @@ function CaseImagesSection({ runId }: { runId: string }) {
   const [images, setImages] = useState<CaseImage[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [autoRetrying, setAutoRetrying] = useState(false);
+  const didAutoRetry = useRef(false);
+  const autoRetryTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  useEffect(() => {
+    didAutoRetry.current = false;
+    return () => {
+      if (autoRetryTimer.current) clearTimeout(autoRetryTimer.current);
+    };
+  }, [runId]);
+
+  const load = useCallback(async (opts?: { isAutoRetry?: boolean }) => {
+    if (!opts?.isAutoRetry) setLoading(true);
     setError(null);
     try {
       const res = await fetch(`/api/admin/runs/${encodeURIComponent(runId)}/case-images`, {
@@ -309,9 +319,21 @@ function CaseImagesSection({ runId }: { runId: string }) {
       });
       const data = (await res.json()) as { images?: CaseImage[]; error?: string };
       if (!res.ok) throw new Error(data.error ?? '이미지 조회 실패');
-      setImages(data.images ?? []);
+      const imgs = data.images ?? [];
+      setImages(imgs);
+      if (imgs.length === 0 && !didAutoRetry.current) {
+        didAutoRetry.current = true;
+        setAutoRetrying(true);
+        autoRetryTimer.current = setTimeout(() => {
+          setAutoRetrying(false);
+          void load({ isAutoRetry: true });
+        }, 20_000);
+      } else {
+        setAutoRetrying(false);
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : '이미지 조회 실패');
+      setAutoRetrying(false);
     } finally {
       setLoading(false);
     }
@@ -351,7 +373,13 @@ function CaseImagesSection({ runId }: { runId: string }) {
         <button
           type="button"
           className="adminLegacySmallBtn"
-          onClick={(e) => { e.preventDefault(); void load(); }}
+          onClick={(e) => {
+            e.preventDefault();
+            if (autoRetryTimer.current) { clearTimeout(autoRetryTimer.current); autoRetryTimer.current = null; }
+            didAutoRetry.current = true;
+            setAutoRetrying(false);
+            void load();
+          }}
         >
           새로고침
         </button>
@@ -364,6 +392,11 @@ function CaseImagesSection({ runId }: { runId: string }) {
         ) : images.length === 0 ? (
           <p style={{ margin: 0, fontSize: 13, color: '#94a3b8' }}>
             이미지가 없습니다. 차트 데이터 수집 시 이미지를 첨부하면 여기에 분석 결과가 표시됩니다.
+            {autoRetrying && (
+              <span style={{ display: 'block', marginTop: 4, color: '#64748b' }}>
+                분석 중일 수 있습니다 — 20초 후 자동 새로고침…
+              </span>
+            )}
           </p>
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 12 }}>
@@ -419,6 +452,14 @@ export function AdminRunExtractionDetail({
   const [genSuccess, setGenSuccess] = useState(false);
   const [genExistingReport, setGenExistingReport] = useState<boolean | null>(null);
   const genModalRef = useRef<HTMLDialogElement>(null);
+
+  const [imgModalOpen, setImgModalOpen] = useState(false);
+  const [imgModalFiles, setImgModalFiles] = useState<File[]>([]);
+  const [imgModalStatus, setImgModalStatus] = useState<'idle' | 'uploading' | 'done' | 'error'>('idle');
+  const [imgModalError, setImgModalError] = useState<string | null>(null);
+  const [caseImagesRefreshKey, setCaseImagesRefreshKey] = useState(0);
+  const imgModalRef = useRef<HTMLDialogElement>(null);
+  const imgFileInputRef = useRef<HTMLInputElement>(null);
 
   const labSpeciesProfile = useMemo(
     () => speciesProfileFromBasicSpecies(result?.basicInfo?.species ?? null),
@@ -482,6 +523,16 @@ export function AdminRunExtractionDetail({
       if (dialog.open) dialog.close();
     }
   }, [genModalOpen, runId]);
+
+  useEffect(() => {
+    const dialog = imgModalRef.current;
+    if (!dialog) return;
+    if (imgModalOpen) {
+      if (!dialog.open) dialog.showModal();
+    } else {
+      if (dialog.open) dialog.close();
+    }
+  }, [imgModalOpen]);
 
   useEffect(() => {
     setEditing({
@@ -668,6 +719,43 @@ export function AdminRunExtractionDetail({
     }
   }
 
+  function closeImgModal() {
+    setImgModalOpen(false);
+    setImgModalFiles([]);
+    setImgModalStatus('idle');
+    setImgModalError(null);
+  }
+
+  function addImgModalFiles(incoming: File[]) {
+    const valid = incoming.filter(
+      (f) => ['image/jpeg', 'image/png', 'image/webp'].includes(f.type) && f.size <= 8 * 1024 * 1024,
+    );
+    setImgModalFiles((prev) => [...prev, ...valid].slice(0, 20));
+  }
+
+  async function submitImages() {
+    if (imgModalFiles.length === 0) return;
+    setImgModalStatus('uploading');
+    setImgModalError(null);
+    try {
+      const formData = new FormData();
+      formData.set('examDate', new Date().toISOString().slice(0, 10));
+      for (const f of imgModalFiles) formData.append('images', f);
+      const res = await fetch(`/api/admin/runs/${encodeURIComponent(runId)}/case-images`, {
+        method: 'POST',
+        body: formData,
+        credentials: 'include',
+      });
+      const data = (await res.json()) as { ok?: boolean; error?: string };
+      if (!res.ok || !data.ok) throw new Error(data.error ?? '이미지 분석 실패');
+      setImgModalStatus('done');
+      setCaseImagesRefreshKey((k) => k + 1);
+    } catch (e) {
+      setImgModalError(e instanceof Error ? e.message : '이미지 분석 실패');
+      setImgModalStatus('error');
+    }
+  }
+
   if (loading && !result) {
     return <p style={{ fontSize: 14, color: '#64748b' }}>상세 불러오는 중…</p>;
   }
@@ -731,6 +819,13 @@ export function AdminRunExtractionDetail({
             type="button"
             className="adminLegacySecondaryBtn"
             style={{ marginLeft: 'auto' }}
+            onClick={() => setImgModalOpen(true)}
+          >
+            이미지 추가 분석
+          </button>
+          <button
+            type="button"
+            className="adminLegacySecondaryBtn"
             onClick={() => { setGenSuccess(false); setGenError(null); setGenModalOpen(true); }}
           >
             건강검진 리포트 생성
@@ -793,6 +888,13 @@ export function AdminRunExtractionDetail({
             </span>
           )}
           <span style={{ marginLeft: 'auto', display: 'inline-flex', gap: 6, alignItems: 'center', marginRight: 14 }}>
+            <button
+              type="button"
+              className="adminLegacySecondaryBtn"
+              onClick={() => setImgModalOpen(true)}
+            >
+              이미지 추가 분석
+            </button>
             <button
               type="button"
               className="adminLegacySecondaryBtn"
@@ -1641,7 +1743,7 @@ export function AdminRunExtractionDetail({
       </details>
 
       {/* 이미지 분석 — 전체 너비 */}
-      <CaseImagesSection runId={runId} />
+      <CaseImagesSection key={caseImagesRefreshKey} runId={runId} />
 
       {/* 버킷 디버그 — 전체 너비 */}
       <BucketDebugPanel key={runId} runId={runId} />
@@ -1739,6 +1841,107 @@ export function AdminRunExtractionDetail({
                 style={{ width: '100%', fontSize: 13 }}
               >
                 {genLoading ? '생성 중…' : '생성하기'}
+              </button>
+            </div>
+          )}
+        </div>
+      </dialog>
+
+      {/* 이미지 추가 분석 모달 */}
+      <dialog
+        ref={imgModalRef}
+        onClose={closeImgModal}
+        onKeyDown={(e) => { if (e.key === 'Escape') closeImgModal(); }}
+        style={{
+          position: 'fixed',
+          inset: 0,
+          margin: 'auto',
+          width: 'min(96vw, 480px)',
+          border: '1px solid rgba(15,23,42,0.15)',
+          borderRadius: 8,
+          padding: 0,
+          boxShadow: '0 20px 60px rgba(0,0,0,0.25)',
+        }}
+      >
+        <div style={{ background: '#fff', borderRadius: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderBottom: '1px solid rgba(15,23,42,0.1)' }}>
+            <span style={{ fontWeight: 700, fontSize: 15 }}>이미지 추가 분석</span>
+            <button type="button" className="adminLegacySmallBtn" onClick={closeImgModal} disabled={imgModalStatus === 'uploading'}>닫기</button>
+          </div>
+
+          {imgModalStatus === 'done' ? (
+            <div style={{ padding: '28px 16px', textAlign: 'center' }}>
+              <p style={{ fontSize: 14, color: '#15803d', fontWeight: 600, marginBottom: 12 }}>분석이 완료되었습니다.</p>
+              <button type="button" className="adminLegacySecondaryBtn" onClick={closeImgModal}>닫기</button>
+            </div>
+          ) : (
+            <div style={{ padding: '16px 16px 20px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <p style={{ margin: 0, fontSize: 13, color: '#475569', lineHeight: 1.5 }}>
+                이 차트 기록에 연결할 이미지를 선택하세요. 기존에 분석된 이미지는 <strong>모두 교체</strong>됩니다.
+              </p>
+
+              {/* 드롭존 */}
+              <div
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={(e) => { e.preventDefault(); addImgModalFiles(Array.from(e.dataTransfer.files)); }}
+                onClick={() => imgFileInputRef.current?.click()}
+                style={{
+                  border: '1.5px dashed #cbd5e1',
+                  borderRadius: 8,
+                  padding: '14px 16px',
+                  cursor: 'pointer',
+                  background: '#f8fafc',
+                  textAlign: 'center',
+                  userSelect: 'none',
+                }}
+              >
+                <p style={{ margin: 0, fontSize: 13, color: '#64748b' }}>
+                  이미지 드래그 또는 클릭 · JPEG / PNG / WebP
+                </p>
+                <p style={{ margin: '4px 0 0', fontSize: 11, color: '#94a3b8' }}>최대 20장 · 장당 8MB · 자동 압축</p>
+              </div>
+              <input
+                ref={imgFileInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                multiple
+                style={{ display: 'none' }}
+                onChange={(e) => { addImgModalFiles(Array.from(e.target.files ?? [])); e.target.value = ''; }}
+              />
+
+              {/* 선택된 파일 칩 */}
+              {imgModalFiles.length > 0 && (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                  {imgModalFiles.map((f, i) => (
+                    <div
+                      key={i}
+                      style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 8px', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 6, fontSize: 11, color: '#1d4ed8' }}
+                    >
+                      <span style={{ maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.name}</span>
+                      <span style={{ color: '#94a3b8', flexShrink: 0 }}>{(f.size / 1024 / 1024).toFixed(1)}MB</span>
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); setImgModalFiles((prev) => prev.filter((_, ii) => ii !== i)); }}
+                        style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#94a3b8', padding: 0, fontSize: 14, lineHeight: 1 }}
+                        disabled={imgModalStatus === 'uploading'}
+                      >×</button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {imgModalError && (
+                <p style={{ margin: 0, fontSize: 13, color: '#b91c1c' }}>{imgModalError}</p>
+              )}
+
+              <button
+                type="button"
+                className="adminLegacyPrimaryBtn"
+                onClick={() => void submitImages()}
+                disabled={imgModalStatus === 'uploading' || imgModalFiles.length === 0}
+                style={{ width: '100%', fontSize: 13 }}
+              >
+                {imgModalStatus === 'uploading' ? '분석 중… (OpenAI Vision)' : `분석 시작 (${imgModalFiles.length}장)`}
               </button>
             </div>
           )}

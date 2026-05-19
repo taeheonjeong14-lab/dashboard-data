@@ -38,8 +38,8 @@ function IndeterminateCheckbox({
 }
 
 const MAX_PDF_BYTES = 30 * 1024 * 1024;
-const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
-const MAX_IMAGES = 10;
+const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
+const MAX_IMAGES = 20;
 const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 
 type UploadSection = 'pdf' | 'stats' | 'collect';
@@ -208,8 +208,8 @@ export default function AdminDataUpload() {
   useEffect(() => {
     if (status !== 'success' || !lastRunId) return;
     if (lastRunId === prevLastRunId.current) return;
-    prevLastRunId.current = lastRunId;
     if (imageFiles.length === 0) return;
+    prevLastRunId.current = lastRunId;
 
     const pendingFiles = [...imageFiles];
     const pendingRunId = lastRunId;
@@ -817,7 +817,7 @@ export default function AdminDataUpload() {
                       >
                         <Upload size={14} style={{ color: '#94a3b8', flexShrink: 0 }} />
                         <span style={{ fontSize: 12, color: '#64748b' }}>
-                          이미지 드래그 또는 클릭 · JPEG / PNG / WebP · 최대 {MAX_IMAGES}장 · 장당 10MB
+                          이미지 드래그 또는 클릭 · JPEG / PNG / WebP · 최대 {MAX_IMAGES}장 · 장당 8MB · 자동 압축
                         </span>
                       </div>
                       <input
