@@ -144,6 +144,7 @@ export async function POST(
   }
 
   const examDate = (form.get('examDate') as string | null)?.trim() ?? '';
+  const mode = (form.get('mode') as string | null)?.trim(); // 'append' | undefined(replace)
   const imageFiles = form.getAll('images') as File[];
 
   if (imageFiles.length === 0) {
@@ -202,14 +203,23 @@ export async function POST(
     await ensureTable(pool);
     await ensureBucket(supabase);
 
-    // Delete existing images for this run
-    const { rows: existing } = await pool.query<{ storage_path: string }>(
-      'SELECT storage_path FROM chart_pdf.parse_run_case_images WHERE parse_run_id = $1::uuid',
-      [runId],
-    );
-    if (existing.length > 0) {
-      await supabase.storage.from(CASE_IMAGES_BUCKET).remove(existing.map((r) => r.storage_path));
-      await pool.query('DELETE FROM chart_pdf.parse_run_case_images WHERE parse_run_id = $1::uuid', [runId]);
+    // append 모드: 기존 이미지 유지하고 idx 이어받기 / replace 모드: 기존 삭제
+    let idxOffset = 0;
+    if (mode === 'append') {
+      const { rows: idxRows } = await pool.query<{ max_idx: number | null }>(
+        'SELECT MAX(idx) AS max_idx FROM chart_pdf.parse_run_case_images WHERE parse_run_id = $1::uuid',
+        [runId],
+      );
+      idxOffset = (idxRows[0]?.max_idx ?? -1) + 1;
+    } else {
+      const { rows: existing } = await pool.query<{ storage_path: string }>(
+        'SELECT storage_path FROM chart_pdf.parse_run_case_images WHERE parse_run_id = $1::uuid',
+        [runId],
+      );
+      if (existing.length > 0) {
+        await supabase.storage.from(CASE_IMAGES_BUCKET).remove(existing.map((r) => r.storage_path));
+        await pool.query('DELETE FROM chart_pdf.parse_run_case_images WHERE parse_run_id = $1::uuid', [runId]);
+      }
     }
 
     // Analyze with OpenAI
@@ -229,7 +239,7 @@ export async function POST(
       imageParts.map(async (img, i) => {
         const ext = img.mimeType === 'image/png' ? 'png' : img.mimeType === 'image/webp' ? 'webp' : 'jpg';
         const safeFile = sanitizeFilename(img.fileName.replace(/\.[^.]+$/, ''));
-        const storagePath = `${runId}/${i}_${safeFile}.${ext}`;
+        const storagePath = `${runId}/${idxOffset + i}_${safeFile}.${ext}`;
 
         const { error: uploadErr } = await supabase.storage
           .from(CASE_IMAGES_BUCKET)
@@ -242,7 +252,7 @@ export async function POST(
 
         const result = analysis.images[i];
         return {
-          idx: i,
+          idx: idxOffset + i,
           fileName: img.fileName,
           storagePath,
           examType: result?.examType ?? 'other',

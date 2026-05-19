@@ -740,6 +740,7 @@ export function AdminRunExtractionDetail({
     try {
       const formData = new FormData();
       formData.set('examDate', new Date().toISOString().slice(0, 10));
+      formData.set('mode', 'append');
       for (const f of imgModalFiles) formData.append('images', f);
       const res = await fetch(`/api/admin/runs/${encodeURIComponent(runId)}/case-images`, {
         method: 'POST',
@@ -1877,7 +1878,7 @@ export function AdminRunExtractionDetail({
           ) : (
             <div style={{ padding: '16px 16px 20px', display: 'flex', flexDirection: 'column', gap: 12 }}>
               <p style={{ margin: 0, fontSize: 13, color: '#475569', lineHeight: 1.5 }}>
-                이 차트 기록에 연결할 이미지를 선택하세요. 기존에 분석된 이미지는 <strong>모두 교체</strong>됩니다.
+                추가로 분석할 이미지를 선택하세요. 기존 분석 이미지는 유지되고 새 이미지가 추가됩니다.
               </p>
 
               {/* 드롭존 */}
