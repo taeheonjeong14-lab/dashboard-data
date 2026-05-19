@@ -529,6 +529,7 @@ def create_browser_session(playwright, *, headless: bool = True, use_debug_chrom
             ) from e
 
         context = browser.contexts[0] if browser.contexts else browser.new_context()
+        context.route("**/*.{png,jpg,jpeg,gif,webp,svg,ico,woff,woff2,ttf,otf,eot}", lambda route: route.abort())
 
         def cleanup():
             # CDP 모드에서는 기존 사용중인 Chrome(및 기존 탭)을 건드리지 않는다.
@@ -542,6 +543,7 @@ def create_browser_session(playwright, *, headless: bool = True, use_debug_chrom
     context = browser.new_context(
         user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
     )
+    context.route("**/*.{png,jpg,jpeg,gif,webp,svg,ico,woff,woff2,ttf,otf,eot}", lambda route: route.abort())
 
     def cleanup():
         with suppress(Exception):
@@ -709,7 +711,7 @@ def try_click_more_and_find_rank_search_result(
 
         # 컨테이너가 나타날 때까지 대기
         try:
-            page.wait_for_selector(container_sel, timeout=10000)
+            page.wait_for_selector(container_sel, timeout=5000)
         except:
             pass
         
@@ -934,10 +936,10 @@ def get_three_section_ranks(page, target_id: str, integrated_url: str) -> dict[s
     search_result_exists = False
     page.wait_for_timeout(100)
     try:
-        page.wait_for_selector('#main_pack a[data-heatmap-target=".more2"]', state="visible", timeout=8000)
+        page.wait_for_selector('#main_pack a[data-heatmap-target=".more2"]', state="visible", timeout=1500)
     except Exception:
         try:
-            page.locator('a:has-text("검색결과 더보기")').first.wait_for(state="visible", timeout=3000)
+            page.locator('a:has-text("검색결과 더보기")').first.wait_for(state="visible", timeout=1500)
         except Exception:
             pass
     search_more_clicked = False
