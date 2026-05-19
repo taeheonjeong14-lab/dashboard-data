@@ -819,8 +819,15 @@ export function AdminRunExtractionDetail({
         body: formData,
         credentials: 'include',
       });
-      const data = (await res.json()) as { ok?: boolean; error?: string };
+      const data = (await res.json()) as { ok?: boolean; count?: number; skipped?: string[]; allSkipped?: boolean; error?: string };
       if (!res.ok || !data.ok) throw new Error(data.error ?? '이미지 분석 실패');
+      if (data.allSkipped) {
+        throw new Error(`선택한 이미지 ${imgModalFiles.length}장 모두 이미 이 차트에 분석된 이미지와 동일합니다.`);
+      }
+      const skippedCount = data.skipped?.length ?? 0;
+      if (skippedCount > 0) {
+        setImgModalError(`${skippedCount}장은 이미 분석된 이미지와 동일하여 건너뜀.`);
+      }
       setImgModalStatus('done');
       setCaseImagesRefreshKey((k) => k + 1);
     } catch (e) {
@@ -1944,7 +1951,12 @@ export function AdminRunExtractionDetail({
 
           {imgModalStatus === 'done' ? (
             <div style={{ padding: '28px 16px', textAlign: 'center' }}>
-              <p style={{ fontSize: 14, color: '#15803d', fontWeight: 600, marginBottom: 12 }}>분석이 완료되었습니다.</p>
+              <p style={{ fontSize: 14, color: '#15803d', fontWeight: 600, marginBottom: 8 }}>분석이 완료되었습니다.</p>
+              {imgModalError && (
+                <p style={{ fontSize: 12, color: '#92400e', background: '#fef3c7', border: '1px solid #fde68a', borderRadius: 6, padding: '6px 10px', marginBottom: 12 }}>
+                  {imgModalError}
+                </p>
+              )}
               <button type="button" className="adminLegacySecondaryBtn" onClick={closeImgModal}>닫기</button>
             </div>
           ) : (

@@ -1,3 +1,4 @@
+import { createHash } from 'crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdminApi } from '@/lib/assert-admin-api';
 import { getAdminWebPgPool } from '@/lib/db';
@@ -40,9 +41,13 @@ async function ensureTable(pool: ReturnType<typeof getAdminWebPgPool>) {
       brief_comment text,
       finding_spots jsonb,
       related_assessment_condition text,
+      content_hash text,
       created_at timestamptz DEFAULT now()
     )
   `);
+  await pool.query(
+    `ALTER TABLE chart_pdf.parse_run_case_images ADD COLUMN IF NOT EXISTS content_hash text`,
+  );
 }
 
 async function ensureBucket(supabase: ReturnType<typeof createServiceRoleClient>) {
@@ -172,29 +177,17 @@ export async function POST(
     }
   }
 
-  // Load raw buffers, then compress each to WebP ≤512KB via sharp
-  type RawFile = { rawBuffer: Buffer; fileName: string };
+  // Load raw buffers + compute SHA-256 hash for duplicate detection
+  type RawFile = { rawBuffer: Buffer; fileName: string; hash: string };
   const rawFiles: RawFile[] = await Promise.all(
-    imageFiles.map(async (file) => ({
-      rawBuffer: Buffer.from(await file.arrayBuffer()),
-      fileName: file.name || 'image',
-    })),
+    imageFiles.map(async (file) => {
+      const rawBuffer = Buffer.from(await file.arrayBuffer());
+      const hash = createHash('sha256').update(rawBuffer).digest('hex');
+      return { rawBuffer, fileName: file.name || 'image', hash };
+    }),
   );
 
-  let imageParts: ImageInputPart[];
-  try {
-    imageParts = await Promise.all(
-      rawFiles.map(async ({ rawBuffer, fileName }) => {
-        const compressed = await prepareImageForAnalysis(rawBuffer);
-        return { buffer: compressed.buffer, fileName, mimeType: compressed.mimeType } satisfies ImageInputPart;
-      }),
-    );
-  } catch (e) {
-    return NextResponse.json(
-      { error: e instanceof Error ? e.message : '이미지 압축 실패' },
-      { status: 400 },
-    );
-  }
+  // 중복 체크는 DB 접근 후 수행하므로 압축은 deduped 기준으로 아래에서 처리
 
   const pool = getAdminWebPgPool();
   const supabase = createServiceRoleClient();
@@ -205,12 +198,18 @@ export async function POST(
 
     // append 모드: 기존 이미지 유지하고 idx 이어받기 / replace 모드: 기존 삭제
     let idxOffset = 0;
+    const existingHashes = new Set<string>();
     if (mode === 'append') {
       const { rows: idxRows } = await pool.query<{ max_idx: number | null }>(
         'SELECT MAX(idx) AS max_idx FROM chart_pdf.parse_run_case_images WHERE parse_run_id = $1::uuid',
         [runId],
       );
       idxOffset = (idxRows[0]?.max_idx ?? -1) + 1;
+      const { rows: hashRows } = await pool.query<{ content_hash: string | null }>(
+        'SELECT content_hash FROM chart_pdf.parse_run_case_images WHERE parse_run_id = $1::uuid AND content_hash IS NOT NULL',
+        [runId],
+      );
+      for (const r of hashRows) if (r.content_hash) existingHashes.add(r.content_hash);
     } else {
       const { rows: existing } = await pool.query<{ storage_path: string }>(
         'SELECT storage_path FROM chart_pdf.parse_run_case_images WHERE parse_run_id = $1::uuid',
@@ -220,6 +219,39 @@ export async function POST(
         await supabase.storage.from(CASE_IMAGES_BUCKET).remove(existing.map((r) => r.storage_path));
         await pool.query('DELETE FROM chart_pdf.parse_run_case_images WHERE parse_run_id = $1::uuid', [runId]);
       }
+    }
+
+    // 중복 제거: 이미 저장된 해시 + 이번 배치 내 중복
+    const seenHashes = new Set<string>(existingHashes);
+    const deduped: RawFile[] = [];
+    const skipped: string[] = [];
+    for (const f of rawFiles) {
+      if (seenHashes.has(f.hash)) {
+        skipped.push(f.fileName);
+      } else {
+        seenHashes.add(f.hash);
+        deduped.push(f);
+      }
+    }
+    if (deduped.length === 0) {
+      return NextResponse.json({ ok: true, count: 0, skipped, allSkipped: true });
+    }
+
+    // 중복 제거된 파일만 압축
+    type ImagePartWithHash = ImageInputPart & { hash: string };
+    let imageParts: ImagePartWithHash[];
+    try {
+      imageParts = await Promise.all(
+        deduped.map(async ({ rawBuffer, fileName, hash }) => {
+          const compressed = await prepareImageForAnalysis(rawBuffer);
+          return { buffer: compressed.buffer, fileName, mimeType: compressed.mimeType, hash } satisfies ImagePartWithHash;
+        }),
+      );
+    } catch (e) {
+      return NextResponse.json(
+        { error: e instanceof Error ? e.message : '이미지 압축 실패' },
+        { status: 400 },
+      );
     }
 
     // Analyze with OpenAI
@@ -255,6 +287,7 @@ export async function POST(
           idx: idxOffset + i,
           fileName: img.fileName,
           storagePath,
+          contentHash: img.hash,
           examType: result?.examType ?? 'other',
           radiologySub: result?.radiologySub ?? null,
           hasNotableFinding: result?.hasNotableFinding ?? false,
@@ -271,8 +304,9 @@ export async function POST(
       await pool.query(
         `INSERT INTO chart_pdf.parse_run_case_images
           (parse_run_id, idx, file_name, storage_path, exam_type, radiology_sub,
-           has_notable_finding, is_clear_finding, brief_comment, finding_spots, related_assessment_condition)
-         VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+           has_notable_finding, is_clear_finding, brief_comment, finding_spots,
+           related_assessment_condition, content_hash)
+         VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
         [
           runId,
           img.idx,
@@ -285,11 +319,12 @@ export async function POST(
           img.briefComment,
           img.findingSpots ? JSON.stringify(img.findingSpots) : null,
           img.relatedAssessmentCondition,
+          img.contentHash,
         ],
       );
     }
 
-    return NextResponse.json({ ok: true, count: savedImages.length });
+    return NextResponse.json({ ok: true, count: savedImages.length, skipped, allSkipped: false });
   } catch (e) {
     console.error('[case-images] POST error:', e);
     return NextResponse.json(
