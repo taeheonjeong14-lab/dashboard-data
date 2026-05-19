@@ -12,8 +12,8 @@ export const maxDuration = 120;
 const CASE_IMAGES_BUCKET = 'chart-case-images';
 const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp'] as const;
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024; // 8 MB per image (upload limit)
-const MAX_IMAGES = 20;
-const MAX_TOTAL_UPLOAD_BYTES = MAX_IMAGE_BYTES * MAX_IMAGES;
+const MAX_IMAGES = 50;
+const MAX_TOTAL_UPLOAD_BYTES = 160 * 1024 * 1024; // 160 MB total
 
 type AllowedMime = (typeof ALLOWED_MIME_TYPES)[number];
 

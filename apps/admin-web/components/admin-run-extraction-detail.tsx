@@ -730,7 +730,7 @@ export function AdminRunExtractionDetail({
     const valid = incoming.filter(
       (f) => ['image/jpeg', 'image/png', 'image/webp'].includes(f.type) && f.size <= 8 * 1024 * 1024,
     );
-    setImgModalFiles((prev) => [...prev, ...valid].slice(0, 20));
+    setImgModalFiles((prev) => [...prev, ...valid].slice(0, 50));
   }
 
   async function submitImages() {
@@ -1898,7 +1898,7 @@ export function AdminRunExtractionDetail({
                 <p style={{ margin: 0, fontSize: 13, color: '#64748b' }}>
                   이미지 드래그 또는 클릭 · JPEG / PNG / WebP
                 </p>
-                <p style={{ margin: '4px 0 0', fontSize: 11, color: '#94a3b8' }}>최대 20장 · 장당 8MB · 자동 압축</p>
+                <p style={{ margin: '4px 0 0', fontSize: 11, color: '#94a3b8' }}>최대 50장 · 장당 8MB · 자동 압축</p>
               </div>
               <input
                 ref={imgFileInputRef}
