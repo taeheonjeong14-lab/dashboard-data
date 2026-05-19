@@ -295,6 +295,53 @@ function CaseImageCard({ img }: { img: CaseImage }) {
   );
 }
 
+function imageSectionKey(img: Pick<CaseImage, 'examType' | 'radiologySub'>): string {
+  if (img.examType === 'radiology') {
+    if (img.radiologySub === 'thorax') return 'radiology:thorax';
+    if (img.radiologySub === 'abdomen') return 'radiology:abdomen';
+    if (img.radiologySub === 'joint') return 'radiology:joint';
+    if (img.radiologySub === 'dental') return 'radiology:dental';
+    return 'other';
+  }
+  if (img.examType === 'ultrasound') return 'ultrasound';
+  if (img.examType === 'microscopy' || img.examType === 'endoscopy') return 'scope';
+  if (img.examType === 'slit_lamp') return 'slit_lamp';
+  return 'other';
+}
+
+const IMAGE_SECTION_ORDER = [
+  'radiology:thorax',
+  'radiology:abdomen',
+  'radiology:joint',
+  'radiology:dental',
+  'ultrasound',
+  'scope',
+  'slit_lamp',
+  'other',
+] as const;
+
+function imageSectionTitle(key: string): string {
+  if (key === 'radiology:thorax') return '방사선 (흉부)';
+  if (key === 'radiology:abdomen') return '방사선 (복부)';
+  if (key === 'radiology:joint') return '방사선 (관절)';
+  if (key === 'radiology:dental') return '방사선 (치아)';
+  if (key === 'ultrasound') return '초음파';
+  if (key === 'scope') return '현미경 · 검이경';
+  if (key === 'slit_lamp') return '슬릿램프';
+  return '그 외';
+}
+
+function groupImagesBySection(images: CaseImage[]): Array<{ key: string; images: CaseImage[] }> {
+  const map = new Map<string, CaseImage[]>();
+  for (const img of images) {
+    const key = imageSectionKey(img);
+    const group = map.get(key) ?? [];
+    group.push(img);
+    map.set(key, group);
+  }
+  return IMAGE_SECTION_ORDER.filter((key) => map.has(key)).map((key) => ({ key, images: map.get(key)! }));
+}
+
 function CaseImagesSection({ runId }: { runId: string }) {
   const [images, setImages] = useState<CaseImage[]>([]);
   const [loading, setLoading] = useState(true);
@@ -399,9 +446,34 @@ function CaseImagesSection({ runId }: { runId: string }) {
             )}
           </p>
         ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 12 }}>
-            {images.map((img) => (
-              <CaseImageCard key={img.id} img={img} />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            {groupImagesBySection(images).map(({ key, images: sectionImages }) => (
+              <details key={key} open>
+                <summary
+                  style={{
+                    cursor: 'pointer',
+                    listStyle: 'none',
+                    padding: '5px 0',
+                    fontSize: 12,
+                    fontWeight: 700,
+                    color: '#475569',
+                    userSelect: 'none',
+                    borderBottom: '1px solid #e2e8f0',
+                    marginBottom: 8,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                  }}
+                >
+                  <span>{imageSectionTitle(key)}</span>
+                  <span style={{ fontWeight: 400, color: '#94a3b8', fontSize: 11 }}>{sectionImages.length}장</span>
+                </summary>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 12 }}>
+                  {sectionImages.map((img) => (
+                    <CaseImageCard key={img.id} img={img} />
+                  ))}
+                </div>
+              </details>
             ))}
           </div>
         )}
