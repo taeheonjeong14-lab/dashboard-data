@@ -100,12 +100,16 @@ export function AdminHealthReportImageSlots({
   page5Raw,
   onChangePage4,
   onChangePage5,
+  hideSlots,
+  onCandidatesLoaded,
 }: {
   runId: string;
   page4Raw: unknown;
   page5Raw: unknown;
   onChangePage4: (blocks: HealthSystemsReportBlock[]) => void;
   onChangePage5: (blocks: HealthSystemsReportBlock[]) => void;
+  hideSlots?: boolean;
+  onCandidatesLoaded?: (candidates: CaseImageCandidate[], pathMap: Map<string, string>) => void;
 }) {
   const [candidates, setCandidates] = useState<CaseImageCandidate[]>([]);
   const [loadErr, setLoadErr] = useState<string | null>(null);
@@ -188,6 +192,10 @@ export function AdminHealthReportImageSlots({
       if (reqId !== loadRequestId.current) return;
       setSignHint(signHintLocal);
       setCandidates(merged);
+      if (onCandidatesLoaded) {
+        const pathMap = new Map(merged.filter((c) => c.storagePath).map((c) => [c.id, c.storagePath as string]));
+        onCandidatesLoaded(merged, pathMap);
+      }
     } catch (e) {
       if (reqId !== loadRequestId.current) return;
       setLoadErr(e instanceof Error ? e.message : '이미지 목록 실패');
@@ -396,20 +404,20 @@ export function AdminHealthReportImageSlots({
           </div>
         </div>
       ) : null}
-      {p4 === null ? (
+      {!hideSlots && (p4 === null ? (
         <p style={{ margin: 0, fontSize: 13, color: '#b45309' }}>
           systemsPage4Blocks 가 스키마와 맞지 않아 이미지 슬롯 편집을 건너뜁니다. 위 시트에서 원시 JSON을 수정하세요.
         </p>
       ) : (
         renderPage('systemsPage4Blocks (치과·피부 등)', '4', p4, onChangePage4)
-      )}
-      {p5 === null ? (
+      ))}
+      {!hideSlots && (p5 === null ? (
         <p style={{ margin: 0, fontSize: 13, color: '#b45309' }}>
           systemsPage5Blocks 가 스키마와 맞지 않아 이미지 슬롯 편집을 건너뜁니다. 위 시트에서 원시 JSON을 수정하세요.
         </p>
       ) : (
         renderPage('systemsPage5Blocks (방사선·초음파 등)', '5', p5, onChangePage5)
-      )}
+      ))}
     </div>
   );
 }

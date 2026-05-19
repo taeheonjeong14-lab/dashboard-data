@@ -20,9 +20,9 @@ import {
 import { mergeHealthPayloadFromStorage, emptyHealthCheckupPayload } from '@/lib/health-report-admin/payload-defaults';
 import type { HealthCheckupGeneratedContent } from '@/lib/health-report-admin/types';
 import { joinTimelineCardText, splitTimelineCardText } from '@/lib/health-report-admin/timeline-card';
-import type { HealthSystemsReportBlock } from '@/lib/health-report-admin/health-systems-types';
+import type { HealthSystemsReportBlock, HealthSystemsImageSlot } from '@/lib/health-report-admin/health-systems-types';
 import { parseHealthSystemsBlocksFromUnknown } from '@/lib/health-report-admin/health-systems-blocks-parse';
-import { AdminHealthReportImageSlots } from '@/components/admin-health-report-image-slots';
+import { AdminHealthReportImageSlots, type CaseImageCandidate } from '@/components/admin-health-report-image-slots';
 import { AdminRunExtractionDetail } from '@/components/admin-run-extraction-detail';
 import { HealthReportPreviewModal } from '@/components/health-report-preview-modal';
 
@@ -62,6 +62,10 @@ function getStructuredBlocksFromDraft(d: HealthCheckupGeneratedContent, k: Syste
 
 function clamp(s: string, max: number): string {
   return s.length <= max ? s : s.slice(0, max);
+}
+
+function isImageVariant(v: string): boolean {
+  return v === 'images' || v === 'images4' || v === 'imagesGrid2x3' || v === 'imagesGrid3x3';
 }
 
 function appendUnitIfNeeded(value: string, suffix: string): string {
@@ -108,6 +112,9 @@ export function AdminHealthCheckupWorkspace({
   const [generatingSection, setGeneratingSection] = useState<string | null>(null);
   const [condensingSection, setCondensingSection] = useState<string | null>(null);
   const [genError, setGenError] = useState<string | null>(null);
+
+  const [imageCandidates, setImageCandidates] = useState<CaseImageCandidate[]>([]);
+  const [candidatePathMap, setCandidatePathMap] = useState<Map<string, string>>(new Map());
 
   const [pdfBusy, setPdfBusy] = useState(false);
   const [sharePanel, setSharePanel] = useState<{ shareUrl: string; expiresAt: string } | null>(null);
@@ -252,6 +259,25 @@ export function AdminHealthCheckupWorkspace({
     } finally {
       setGeneratingSection(null);
     }
+  }
+
+  function updateImageSlot(
+    k: SystemKey,
+    blockIndex: number,
+    slotIndex: number,
+    patch: { src?: string; caption?: string },
+  ) {
+    setDraft((prev) => {
+      const cur = getStructuredBlocksFromDraft(prev, k);
+      const nextBlocks = structuredClone(cur) as HealthSystemsReportBlock[];
+      const b = nextBlocks[blockIndex];
+      if (!b || b.variant === 'rows') return prev;
+      const img = (b.images as HealthSystemsImageSlot[])[slotIndex];
+      if (!img) return prev;
+      if ('src' in patch) img.src = patch.src;
+      if ('caption' in patch) img.caption = patch.caption;
+      return { ...prev, [k]: nextBlocks };
+    });
   }
 
   async function condenseSection(sectionKey: string) {
@@ -879,6 +905,72 @@ export function AdminHealthCheckupWorkspace({
                         </span>
                       </label>
                     ))}
+                    {(() => {
+                      const imgBlock = blocks[bi + 1];
+                      if (!imgBlock || !isImageVariant(imgBlock.variant)) return null;
+                      const slots = (imgBlock as { images: HealthSystemsImageSlot[] }).images;
+                      return (
+                        <div>
+                          <div style={{ fontSize: 12, fontWeight: 700, color: '#475569', marginTop: 4, marginBottom: 8 }}>
+                            이미지 ({slots.length}장)
+                          </div>
+                          <div style={{ display: 'grid', gap: 8, gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))' }}>
+                            {slots.map((slot, si) => {
+                              const src = slot.src ?? '';
+                              const candidate = imageCandidates.find((c) => c.storagePath === src);
+                              const previewUrl = candidate?.previewUrl;
+                              return (
+                                <div key={si} style={{ border: `1px dashed ${divider}`, borderRadius: 6, padding: 8, background: '#fff' }}>
+                                  <div style={{ fontSize: 11, color: '#64748b', marginBottom: 4 }}>슬롯 {si + 1}</div>
+                                  {previewUrl ? (
+                                    // eslint-disable-next-line @next/next/no-img-element
+                                    <img alt="" src={previewUrl} style={{ width: '100%', maxHeight: 72, objectFit: 'cover', borderRadius: 4 }} />
+                                  ) : src ? (
+                                    <div style={{ fontSize: 10, color: '#94a3b8', padding: '4px 0', wordBreak: 'break-all' }}>
+                                      {src.split('/').pop()}
+                                    </div>
+                                  ) : (
+                                    <div style={{ fontSize: 11, color: '#94a3b8', padding: '8px 0' }}>없음</div>
+                                  )}
+                                  <select
+                                    style={{ width: '100%', marginTop: 6, fontSize: 11 }}
+                                    value={candidate?.id ?? ''}
+                                    onChange={(e) => {
+                                      const id = e.target.value;
+                                      const path = id ? (candidatePathMap.get(id) ?? '') : '';
+                                      updateImageSlot(k, bi + 1, si, { src: path || undefined });
+                                    }}
+                                  >
+                                    <option value="">비움</option>
+                                    {imageCandidates.map((c) => (
+                                      <option key={c.id} value={c.id}>
+                                        {(c.examDate ?? '') + ' ' + (c.fileName ?? c.id).slice(0, 24)}
+                                      </option>
+                                    ))}
+                                  </select>
+                                  <input
+                                    style={{ width: '100%', marginTop: 6, fontSize: 11, padding: 4 }}
+                                    placeholder="캡션"
+                                    value={slot.caption ?? ''}
+                                    onChange={(e) => updateImageSlot(k, bi + 1, si, { caption: e.target.value })}
+                                  />
+                                  {src ? (
+                                    <button
+                                      type="button"
+                                      className="adminLegacySmallBtn"
+                                      style={{ marginTop: 6, fontSize: 10 }}
+                                      onClick={() => updateImageSlot(k, bi + 1, si, { src: undefined, caption: '' })}
+                                    >
+                                      슬롯 비우기
+                                    </button>
+                                  ) : null}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })()}
                   </div>
                 </details>
               );
@@ -921,19 +1013,21 @@ export function AdminHealthCheckupWorkspace({
 
           <details open style={{ border: `1px solid ${divider}`, marginBottom: 10, background: '#fff' }}>
             <summary style={{ padding: '10px 12px', fontWeight: 700, cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span>이미지 배치</span>
+              <span>이미지 후보</span>
               <button type="button" className="adminLegacySmallBtn" disabled={savingSection !== null} onClick={(e) => { e.preventDefault(); void saveSectionReview('images'); }}>
                 {savingSection === 'images' ? '저장 중…' : '저장'}
               </button>
             </summary>
             <div style={{ padding: '12px 14px' }}>
               <AdminHealthReportImageSlots
-                  runId={runId}
-                  page4Raw={draft.systemsPage4Blocks}
-                  page5Raw={draft.systemsPage5Blocks}
-                  onChangePage4={(blocks) => setDraft((d) => ({ ...d, systemsPage4Blocks: blocks }))}
-                  onChangePage5={(blocks) => setDraft((d) => ({ ...d, systemsPage5Blocks: blocks }))}
-                />
+                runId={runId}
+                page4Raw={draft.systemsPage4Blocks}
+                page5Raw={draft.systemsPage5Blocks}
+                onChangePage4={(blocks) => setDraft((d) => ({ ...d, systemsPage4Blocks: blocks }))}
+                onChangePage5={(blocks) => setDraft((d) => ({ ...d, systemsPage5Blocks: blocks }))}
+                hideSlots
+                onCandidatesLoaded={(c, m) => { setImageCandidates(c); setCandidatePathMap(m); }}
+              />
             </div>
           </details>
 
