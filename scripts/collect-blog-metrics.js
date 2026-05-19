@@ -110,11 +110,19 @@ async function scrapeWithPagination(page, url, label, startDate) {
     const minDate = rows.reduce((min, r) => (r.date < min ? r.date : min), rows[0].date);
     if (minDate <= startDate) break;
 
-    const prevBtn = await page.$("a.u_ni_btn_prev.u_ni_is_active").catch(() => null);
+    // iframe 포함 전체 프레임에서 버튼 탐색
+    let prevBtn = null;
+    let prevFrame = null;
+    for (const frame of page.frames()) {
+      try {
+        const btn = await frame.$("a.u_ni_btn_prev.u_ni_is_active").catch(() => null);
+        if (btn) { prevBtn = btn; prevFrame = frame; break; }
+      } catch { /* 무시 */ }
+    }
     if (!prevBtn) break;
 
     if (click % 10 === 0) console.log("%s 이전 이동 중... (%d번째, minDate=%s)", label, click + 1, minDate);
-    await page.click("a.u_ni_btn_prev.u_ni_is_active");
+    await prevBtn.click();
     await new Promise((r) => setTimeout(r, 1500));
   }
 
