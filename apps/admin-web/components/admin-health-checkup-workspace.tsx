@@ -1146,9 +1146,12 @@ export function AdminHealthCheckupWorkspace({
                         style={{ maxWidth: '100%', maxHeight: 220, objectFit: 'contain', transform: `rotate(${currentRotation}deg)`, transition: 'transform 0.25s' }}
                       />
                     ) : (
-                      <span style={{ fontSize: 13, color: previewDropOver ? '#3b82f6' : '#94a3b8' }}>
-                        {previewDropOver ? '여기에 놓기' : '아래 이미지를 드래그하세요'}
-                      </span>
+                      <div style={{ textAlign: 'center', color: previewDropOver ? '#3b82f6' : '#94a3b8', padding: 16 }}>
+                        <div style={{ fontSize: 32, lineHeight: 1, marginBottom: 8 }}>+</div>
+                        <div style={{ fontSize: 13, lineHeight: 1.6 }}>
+                          {previewDropOver ? '여기에 놓기' : <><span>원하시는 사진을</span><br /><span>드래그앤 드랍 해주세요</span></>}
+                        </div>
+                      </div>
                     )}
                   </div>
                   <div style={{ display: 'grid', gap: 10, alignContent: 'start' }}>
