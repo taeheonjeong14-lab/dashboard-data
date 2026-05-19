@@ -45,6 +45,7 @@ const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 type UploadSection = 'pdf' | 'stats' | 'collect';
 
 type CollectStepResult = { index: number; total: number; name: string; durationSec: number; error?: string; hospitalId?: string | null; hospitalName?: string | null };
+type CollectLastSuccess = Record<string, Record<string, string>>; // hospitalId → { stepKey → "YYYY-MM-DD" }
 type CollectUpsertItem = { label: string; count: number; dateRange?: string | null; skipped?: boolean };
 type CollectJob = {
   id: string;
@@ -122,6 +123,7 @@ export default function AdminDataUpload() {
   const [collectError, setCollectError] = useState<string | null>(null);
   const [collectHistory, setCollectHistory] = useState<CollectHistoryItem[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
+  const [collectLastSuccess, setCollectLastSuccess] = useState<CollectLastSuccess | null>(null);
 
   const totalSelected = Array.from(selection.values()).reduce((sum, s) => sum + s.size, 0);
   const totalPossible = hospitals.length * COLLECT_STEPS.length;
@@ -289,7 +291,12 @@ export default function AdminDataUpload() {
   }
 
   useEffect(() => {
-    if (section === 'collect') void loadHistory();
+    if (section !== 'collect') return;
+    void loadHistory();
+    fetch('/api/admin/collect/last-success', { credentials: 'include' })
+      .then((r) => r.ok ? r.json() : null)
+      .then((d) => { if (d) setCollectLastSuccess(d as CollectLastSuccess); })
+      .catch(() => {});
   }, [section]);
 
   async function runCollect() {
@@ -451,7 +458,12 @@ export default function AdminDataUpload() {
                                     checked={hSteps?.has(step.key) ?? false}
                                     onChange={(e) => toggleStep(h.id, step.key, e.target.checked)}
                                   />
-                                  {step.label}
+                                  <span style={{ flex: 1 }}>{step.label}</span>
+                                  {collectLastSuccess?.[h.id]?.[step.key] && (
+                                    <span style={{ fontSize: 11, color: '#94a3b8', marginLeft: 4, whiteSpace: 'nowrap' }}>
+                                      {new Date(collectLastSuccess[h.id][step.key] + 'T00:00:00').toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' })}
+                                    </span>
+                                  )}
                                 </label>
                               ))}
                             </div>
