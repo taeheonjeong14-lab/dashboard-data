@@ -237,12 +237,17 @@ export function AdminHealthReportImageSlots({
     blocks: HealthSystemsReportBlock[],
     onChange: (b: HealthSystemsReportBlock[]) => void,
   ) {
-    const imageBlockIndices: number[] = [];
+    const sections: Array<{ sectionTitle: string; blockIndex: number }> = [];
+    let lastRowsTitle = '';
     blocks.forEach((b, i) => {
-      if (isImageBlock(b)) imageBlockIndices.push(i);
+      if (b.variant === 'rows') {
+        lastRowsTitle = b.titleKo || b.titleEn || `블록 ${i + 1}`;
+      } else if (isImageBlock(b)) {
+        sections.push({ sectionTitle: lastRowsTitle, blockIndex: i });
+      }
     });
 
-    if (imageBlockIndices.length === 0) {
+    if (sections.length === 0) {
       return (
         <p style={{ margin: 0, fontSize: 13, color: '#64748b' }}>
           {label}: 이미지 슬롯 블록이 없습니다 (LLM 생성 후 표시됩니다).
@@ -253,7 +258,7 @@ export function AdminHealthReportImageSlots({
     return (
       <div style={{ display: 'grid', gap: 14 }}>
         <div style={{ fontSize: 13, fontWeight: 700 }}>{label}</div>
-        {imageBlockIndices.map((blockIndex) => {
+        {sections.map(({ sectionTitle, blockIndex }) => {
           const b = blocks[blockIndex]!;
           const n = slotCount(b);
           return (
@@ -262,7 +267,7 @@ export function AdminHealthReportImageSlots({
               style={{ border: `1px solid ${divider}`, borderRadius: 8, padding: 12, background: '#fafafa' }}
             >
               <div style={{ fontSize: 12, color: '#475569', marginBottom: 8 }}>
-                블록 #{blockIndex + 1} · {b.variant} · 슬롯 {n}개
+                {sectionTitle} · 이미지 ({n}장)
               </div>
               <div style={{ display: 'grid', gap: 10, gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))' }}>
                 {Array.from({ length: n }, (_, slotIndex) => {
