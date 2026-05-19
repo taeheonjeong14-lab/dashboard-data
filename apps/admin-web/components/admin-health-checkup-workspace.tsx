@@ -1096,8 +1096,8 @@ export function AdminHealthCheckupWorkspace({
               <div
                 style={{ background: '#fff', borderRadius: 12, padding: 20, width: 'min(92vw, 860px)', maxHeight: '88vh', overflowY: 'auto', display: 'grid', gap: 16, position: 'relative', outline: isDragOver ? '3px dashed #3b82f6' : 'none' }}
                 onClick={(e) => e.stopPropagation()}
-                onDragEnter={(e) => { e.preventDefault(); setModalDragCount((n) => n + 1); }}
-                onDragLeave={() => setModalDragCount((n) => Math.max(0, n - 1))}
+                onDragEnter={(e) => { e.preventDefault(); if (e.dataTransfer.types.includes('Files')) setModalDragCount((n) => n + 1); }}
+                onDragLeave={(e) => { if (e.dataTransfer.types.includes('Files')) setModalDragCount((n) => Math.max(0, n - 1)); }}
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={(e) => { void handleModalDrop(e); }}
               >
@@ -1190,7 +1190,7 @@ export function AdminHealthCheckupWorkspace({
                           >
                             {c.previewUrl ? (
                               // eslint-disable-next-line @next/next/no-img-element
-                              <img alt="" src={c.previewUrl} style={{ width: '100%', height: 84, objectFit: 'cover', display: 'block' }} />
+                              <img alt="" src={c.previewUrl} draggable={false} style={{ width: '100%', height: 84, objectFit: 'cover', display: 'block' }} />
                             ) : (
                               <div style={{ height: 84, background: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, color: '#94a3b8' }}>미리보기 없음</div>
                             )}
