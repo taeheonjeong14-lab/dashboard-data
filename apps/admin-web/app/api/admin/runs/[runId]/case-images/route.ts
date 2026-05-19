@@ -48,6 +48,10 @@ async function ensureTable(pool: ReturnType<typeof getAdminWebPgPool>) {
   await pool.query(
     `ALTER TABLE chart_pdf.parse_run_case_images ADD COLUMN IF NOT EXISTS content_hash text`,
   );
+  await pool.query(`
+    GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE chart_pdf.parse_run_case_images TO service_role;
+    GRANT SELECT ON TABLE chart_pdf.parse_run_case_images TO authenticated;
+  `);
 }
 
 async function ensureBucket(supabase: ReturnType<typeof createServiceRoleClient>) {
