@@ -147,6 +147,7 @@ export function AdminHealthCheckupWorkspace({
   } | null>(null);
   const [modalDragCount, setModalDragCount] = useState(0);
   const [modalUploading, setModalUploading] = useState(false);
+  const [previewDropOver, setPreviewDropOver] = useState(false);
 
   const [pdfBusy, setPdfBusy] = useState(false);
   const [sharePanel, setSharePanel] = useState<{ shareUrl: string; expiresAt: string } | null>(null);
@@ -1124,16 +1125,30 @@ export function AdminHealthCheckupWorkspace({
 
                 {/* 상단 패널: 좌 - 미리보기 / 우 - 캡션·회전·삭제 */}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, paddingBottom: 16, borderBottom: '1px solid #e2e8f0' }}>
-                  <div style={{ background: '#f8fafc', borderRadius: 8, minHeight: 180, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                  <div
+                    style={{ background: previewDropOver ? '#eff6ff' : '#f8fafc', borderRadius: 8, minHeight: 180, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', border: previewDropOver ? '2px dashed #3b82f6' : '2px dashed transparent', transition: 'background 0.15s, border-color 0.15s' }}
+                    onDragOver={(e) => e.preventDefault()}
+                    onDragEnter={(e) => { e.preventDefault(); setPreviewDropOver(true); }}
+                    onDragLeave={() => setPreviewDropOver(false)}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      setPreviewDropOver(false);
+                      const path = e.dataTransfer.getData('text/plain');
+                      if (path) updateImageSlot(pk, pbi, psi, { src: path });
+                    }}
+                  >
                     {previewUrl ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img
                         alt=""
                         src={previewUrl}
+                        draggable={false}
                         style={{ maxWidth: '100%', maxHeight: 220, objectFit: 'contain', transform: `rotate(${currentRotation}deg)`, transition: 'transform 0.25s' }}
                       />
                     ) : (
-                      <span style={{ fontSize: 13, color: '#94a3b8' }}>선택된 이미지 없음</span>
+                      <span style={{ fontSize: 13, color: previewDropOver ? '#3b82f6' : '#94a3b8' }}>
+                        {previewDropOver ? '여기에 놓기' : '아래 이미지를 드래그하세요'}
+                      </span>
                     )}
                   </div>
                   <div style={{ display: 'grid', gap: 10, alignContent: 'start' }}>
@@ -1181,16 +1196,18 @@ export function AdminHealthCheckupWorkspace({
                         return (
                           <div
                             key={c.id}
+                            draggable={!!c.storagePath}
+                            onDragStart={(e) => { if (c.storagePath) { e.dataTransfer.setData('text/plain', c.storagePath); e.dataTransfer.effectAllowed = 'copy'; } }}
                             onClick={() => { if (c.storagePath) updateImageSlot(pk, pbi, psi, { src: c.storagePath }); }}
                             style={{
-                              width: 110, cursor: 'pointer', borderRadius: 8, overflow: 'hidden',
+                              width: 110, cursor: 'grab', borderRadius: 8, overflow: 'hidden',
                               border: isSelected ? '3px solid #22c55e' : '1px solid #e2e8f0',
                               boxSizing: 'border-box',
                             }}
                           >
                             {c.previewUrl ? (
                               // eslint-disable-next-line @next/next/no-img-element
-                              <img alt="" src={c.previewUrl} draggable={false} style={{ width: '100%', height: 84, objectFit: 'cover', display: 'block' }} />
+                              <img alt="" src={c.previewUrl} draggable={false} style={{ width: '100%', height: 84, objectFit: 'cover', display: 'block', pointerEvents: 'none' }} />
                             ) : (
                               <div style={{ height: 84, background: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, color: '#94a3b8' }}>미리보기 없음</div>
                             )}
