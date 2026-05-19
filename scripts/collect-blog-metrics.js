@@ -96,7 +96,12 @@ async function scrapeWithPagination(page, url, label, startDate) {
 
   const allRows = [];
 
-  for (let pageNum = 0; pageNum < 10; pageNum++) {
+  // 버튼 1번 = 하루 이동이므로 90일 백필 시 최대 ~75번 필요. 여유분 포함 200번 상한.
+  const today = new Date().toISOString().slice(0, 10);
+  const totalDays = Math.ceil((new Date(today) - new Date(startDate)) / (24 * 3600 * 1000));
+  const maxClicks = totalDays + 5;
+
+  for (let click = 0; click < maxClicks; click++) {
     const body = await getPageBody(page);
     const rows = parseTableRows(body);
     if (rows.length === 0) break;
@@ -108,9 +113,9 @@ async function scrapeWithPagination(page, url, label, startDate) {
     const prevBtn = await page.$("a.u_ni_btn_prev.u_ni_is_active").catch(() => null);
     if (!prevBtn) break;
 
-    console.log("%s 이전 기간으로 이동 (minDate=%s)", label, minDate);
+    if (click % 10 === 0) console.log("%s 이전 이동 중... (%d번째, minDate=%s)", label, click + 1, minDate);
     await page.click("a.u_ni_btn_prev.u_ni_is_active");
-    await new Promise((r) => setTimeout(r, 3000));
+    await new Promise((r) => setTimeout(r, 1500));
   }
 
   return allRows;
