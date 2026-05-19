@@ -1132,10 +1132,7 @@ export function AdminHealthCheckupWorkspace({
                 {/* 헤더 */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <span style={{ fontWeight: 700, fontSize: 15 }}>이미지 선택</span>
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    <button type="button" className="adminLegacySmallBtn" onClick={() => setImagePickerSlot(null)}>저장</button>
-                    <button type="button" className="adminLegacySmallBtn" onClick={() => setImagePickerSlot(null)}>닫기</button>
-                  </div>
+                  <button type="button" className="adminLegacySmallBtn" onClick={() => setImagePickerSlot(null)}>저장 및 배치 완료</button>
                 </div>
 
                 {/* 상단 패널: 좌 - 미리보기 / 우 - 캡션·회전·삭제 */}
