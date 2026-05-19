@@ -77,6 +77,7 @@ export async function loadAdminRunDetail(runId: string): Promise<RunDetailRespon
     vacRes,
     vitalsRes,
     physicalRes,
+    hospitalWebRes,
   ] = await Promise.all([
     documentId
       ? sb.schema(schema).from('documents').select('file_name, chart_type').eq('id', documentId).maybeSingle()
@@ -119,11 +120,19 @@ export async function loadAdminRunDetail(runId: string): Promise<RunDetailRespon
       .select('*')
       .eq('parse_run_id', runId)
       .order('row_order', { ascending: true, nullsFirst: false }),
+    sb
+      .schema('health_report')
+      .from('generated_run_content')
+      .select('id')
+      .eq('parse_run_id', runId)
+      .eq('content_type', 'hospital_notes')
+      .maybeSingle(),
   ]);
 
   for (const r of [docRes, basicRes, chartsRes, labsRes, plansRes, vacRes, vitalsRes, physicalRes]) {
     if (r.error) throw new Error(r.error.message);
   }
+  const fromHospitalWeb = hospitalWebRes.data != null;
 
   const doc = docRes.data as Record<string, unknown> | null;
   const chartTypeRaw = doc?.chart_type;
@@ -260,6 +269,7 @@ export async function loadAdminRunDetail(runId: string): Promise<RunDetailRespon
       friendlyId: runRow.friendly_id != null ? String(runRow.friendly_id) : null,
       fileName: doc?.file_name != null ? String(doc.file_name) : null,
       chartType,
+      fromHospitalWeb,
     },
     basicInfo,
     chartTypeNotice: chartTypeNoticeFor(chartType),

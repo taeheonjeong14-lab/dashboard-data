@@ -99,7 +99,7 @@ export default function DebugPage() {
         환경변수·DB·chart-api 연결 상태와 마지막 추출 결과를 확인합니다.
       </p>
 
-      <div style={{ display: 'flex', gap: 8, marginBottom: 24 }}>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 24, flexWrap: 'wrap', alignItems: 'center' }}>
         <button onClick={() => void runDiag()} disabled={loading}
           style={{ padding: '8px 18px', background: '#1d4ed8', color: '#fff', border: 'none', borderRadius: 6, cursor: loading ? 'not-allowed' : 'pointer', fontSize: 13, fontFamily: 'sans-serif' }}>
           {loading ? '진단 중…' : '인프라 재진단'}
@@ -108,6 +108,10 @@ export default function DebugPage() {
           style={{ padding: '8px 18px', background: '#334155', color: '#fff', border: 'none', borderRadius: 6, cursor: lastRunLoading ? 'not-allowed' : 'pointer', fontSize: 13, fontFamily: 'sans-serif' }}>
           {lastRunLoading ? '불러오는 중…' : '마지막 추출 새로고침'}
         </button>
+        <a href="/admin/debug/buckets"
+          style={{ padding: '8px 18px', background: '#fff', color: '#1d4ed8', border: '1px solid #93c5fd', borderRadius: 6, fontSize: 13, fontFamily: 'sans-serif', textDecoration: 'none', fontWeight: 600 }}>
+          버킷 상세 디버그 →
+        </a>
       </div>
 
       {/* 마지막 추출 결과 */}

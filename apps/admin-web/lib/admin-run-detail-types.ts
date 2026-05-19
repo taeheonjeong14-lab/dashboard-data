@@ -22,6 +22,7 @@ export type RunDetailResponse = {
     friendlyId: string | null;
     fileName: string | null;
     chartType: RunDetailChartKind;
+    fromHospitalWeb: boolean;
   };
   basicInfo: {
     id: string;

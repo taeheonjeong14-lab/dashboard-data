@@ -746,3 +746,100 @@ export async function deleteKeywordTarget(id: number) {
     .eq("id", id);
   if (error) throw error;
 }
+
+export type SearchAdDailyRow = {
+  /** YYYY-MM-DD (Asia/Seoul 기준) */
+  dateKey: string;
+  campaignId: string;
+  campaignName: string | null;
+  impressions: number | null;
+  clicks: number | null;
+  cost: number | null;
+};
+
+export async function fetchSearchAdDailyMetrics(
+  hospitalId: string
+): Promise<SearchAdDailyRow[]> {
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase
+    .schema("analytics")
+    .from("analytics_searchad_daily_metrics")
+    .select("metric_date,campaign_id,campaign_name,adgroup_id,impressions,clicks,cost")
+    .eq("hospital_id", hospitalId)
+    .eq("keyword_id", "")
+    .order("metric_date", { ascending: true });
+  if (error) throw error;
+
+  type Bucket = {
+    hasCampaignLevel: boolean;
+    campaignVals: { impressions: number | null; clicks: number | null; cost: number | null };
+    adgroupSum: { impressions: number | null; clicks: number | null; cost: number | null };
+    campaignName: string | null;
+  };
+  const byKey = new Map<string, Bucket>();
+
+  for (const row of (data ?? []) as Record<string, unknown>[]) {
+    const raw = row.metric_date;
+    if (!raw) continue;
+    const dateKey = String(raw).slice(0, 10);
+    const campaignId = String(row.campaign_id ?? "");
+    const adgroupId = String(row.adgroup_id ?? "");
+    const key = `${dateKey}::${campaignId}`;
+
+    const impressions = asNumberOrNull(row.impressions);
+    const clicks = asNumberOrNull(row.clicks);
+    const cost = asNumberOrNull(row.cost);
+    const campaignName =
+      typeof row.campaign_name === "string" && row.campaign_name.trim()
+        ? row.campaign_name.trim()
+        : null;
+
+    const prev = byKey.get(key) ?? {
+      hasCampaignLevel: false,
+      campaignVals: { impressions: null, clicks: null, cost: null },
+      adgroupSum: { impressions: null, clicks: null, cost: null },
+      campaignName: null,
+    };
+
+    if (adgroupId === "") {
+      byKey.set(key, {
+        ...prev,
+        hasCampaignLevel: true,
+        campaignVals: {
+          impressions: addNullableKpi(prev.campaignVals.impressions, impressions),
+          clicks: addNullableKpi(prev.campaignVals.clicks, clicks),
+          cost: addNullableKpi(prev.campaignVals.cost, cost),
+        },
+        campaignName: campaignName ?? prev.campaignName,
+      });
+    } else {
+      byKey.set(key, {
+        ...prev,
+        adgroupSum: {
+          impressions: addNullableKpi(prev.adgroupSum.impressions, impressions),
+          clicks: addNullableKpi(prev.adgroupSum.clicks, clicks),
+          cost: addNullableKpi(prev.adgroupSum.cost, cost),
+        },
+        campaignName: campaignName ?? prev.campaignName,
+      });
+    }
+  }
+
+  return Array.from(byKey.entries())
+    .map(([key, bucket]) => {
+      const [dateKey, campaignId] = key.split("::");
+      const vals = bucket.hasCampaignLevel ? bucket.campaignVals : bucket.adgroupSum;
+      return {
+        dateKey,
+        campaignId,
+        campaignName: bucket.campaignName,
+        impressions: vals.impressions,
+        clicks: vals.clicks,
+        cost: vals.cost,
+      };
+    })
+    .sort((a, b) => {
+      if (a.dateKey !== b.dateKey) return a.dateKey.localeCompare(b.dateKey);
+      return a.campaignId.localeCompare(b.campaignId);
+    });
+}
