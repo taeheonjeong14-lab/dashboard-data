@@ -41,12 +41,14 @@
 - 실행: python main.py [입력엑셀] [출력엑셀]
 """
 
+import asyncio
 import time
 import re
 import os
 import json
+import sys
 import threading
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeoutError
 from contextlib import suppress
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -541,7 +543,7 @@ def create_browser_session(playwright, *, headless: bool = True, use_debug_chrom
 
         return browser, context, cleanup
 
-    browser = playwright.chromium.launch(headless=headless)
+    browser = playwright.chromium.launch(headless=headless, timeout=30000)
     context = browser.new_context(
         user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
     )
@@ -1642,6 +1644,9 @@ def _worker_blog_chunk(worker_id: int, pairs_chunk: list, use_debug_chrome: bool
     워커 스레드: 자신만의 playwright + 브라우저 세션으로 pairs_chunk를 순차 처리.
     CDP 모드에서는 같은 Chrome 포트에 별도 연결하여 페이지만 신규 생성.
     """
+    # Windows에서 스레드 내 asyncio ProactorEventLoop 충돌 방지
+    if sys.platform == "win32":
+        asyncio.set_event_loop(asyncio.SelectorEventLoop())
     chunk_results: list[dict] = []
     with sync_playwright() as p:
         _, context, cleanup = create_browser_session(
@@ -1675,7 +1680,7 @@ def _worker_blog_chunk(worker_id: int, pairs_chunk: list, use_debug_chrome: bool
 
 
 def main():
-    import sys
+    print(f"▶ naver-rank-main.py 시작 (Python {sys.version.split()[0]}, platform={sys.platform})")
     input_path = "input.xlsx"
     output_path = "output.xlsx"
     export_excel = False
@@ -1782,7 +1787,8 @@ def main():
             print(f"ℹ️ 키워드 순위 이미 수집됨 (hospital_id={target_hospital_id}, date={check_date}). 스킵합니다.")
             return
 
-    num_workers = int(os.getenv("RANK_PARALLEL_WORKERS", "3"))
+    num_workers = int(os.getenv("RANK_PARALLEL_WORKERS", "1"))
+    print(f"ℹ️ 병렬 워커 수: {num_workers} (RANK_PARALLEL_WORKERS)")
     results: list[dict] = []
     place_results: list[dict] = []
 
@@ -1794,17 +1800,20 @@ def main():
             print(f"⚠️ 블로그 ID 없는 {skipped}개 키워드 스킵")
         chunks = _split_roundrobin(valid_pairs, num_workers)
         actual_workers = len(chunks)
-        print(f"🚀 네이버 블로그 순위 확인 — {len(valid_pairs)}개 조합 / {actual_workers}개 병렬 워커\n")
+        worker_timeout_sec = int(os.getenv("RANK_WORKER_TIMEOUT_SEC", "300"))
+        print(f"🚀 네이버 블로그 순위 확인 — {len(valid_pairs)}개 조합 / {actual_workers}개 병렬 워커 (워커 타임아웃: {worker_timeout_sec}s)\n")
         with ThreadPoolExecutor(max_workers=actual_workers) as executor:
             futures = [
                 executor.submit(_worker_blog_chunk, i, chunk, use_debug_chrome, debug_port)
                 for i, chunk in enumerate(chunks)
             ]
-            for future in futures:
+            for i, future in enumerate(futures):
                 try:
-                    results.extend(future.result())
+                    results.extend(future.result(timeout=worker_timeout_sec))
+                except FutureTimeoutError:
+                    print(f"❌ 워커 {i} 타임아웃 ({worker_timeout_sec}s 초과) — 해당 워커 결과 제외")
                 except Exception as e:
-                    print(f"❌ 워커 실패: {e}")
+                    print(f"❌ 워커 {i} 실패: {e}")
 
     # 플레이스 키워드: 순차 처리 (건수가 적어 병렬 불필요)
     if place_pairs:
