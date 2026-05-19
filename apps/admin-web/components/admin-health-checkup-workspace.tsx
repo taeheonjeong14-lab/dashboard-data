@@ -292,7 +292,7 @@ export function AdminHealthCheckupWorkspace({
         body: JSON.stringify({ items }),
       });
       const data = (await res.json()) as { items?: string[]; error?: string };
-      if (!res.ok) throw new Error(data.error ?? `간결 생성 실패 (${res.status})`);
+      if (!res.ok) throw new Error(data.error ?? `간결화 실패 (${res.status})`);
       if (!Array.isArray(data.items)) throw new Error('잘못된 응답 형식');
 
       const condensed = data.items as string[];
@@ -332,7 +332,7 @@ export function AdminHealthCheckupWorkspace({
         }
       }
     } catch (e) {
-      setGenError(e instanceof Error ? e.message : '간결 생성 실패');
+      setGenError(e instanceof Error ? e.message : '간결화 실패');
     } finally {
       setCondensingSection(null);
     }
@@ -721,7 +721,7 @@ export function AdminHealthCheckupWorkspace({
                   {generatingSection === 'overall' ? '재생성 중…' : '다시 생성'}
                 </button>
                 <button type="button" className="adminLegacySmallBtn" disabled={generatingSection !== null || condensingSection !== null || savingSection !== null} onClick={(e) => { e.preventDefault(); void condenseSection('overall'); }}>
-                  {condensingSection === 'overall' ? '간결화 중…' : '간결 생성'}
+                  {condensingSection === 'overall' ? '간결화 중…' : '간결화'}
                 </button>
                 <button type="button" className="adminLegacySmallBtn" disabled={savingSection !== null || generatingSection !== null || condensingSection !== null} onClick={(e) => { e.preventDefault(); void saveSectionReview('overall'); }}>
                   {savingSection === 'overall' ? '저장 중…' : '저장'}
@@ -750,7 +750,7 @@ export function AdminHealthCheckupWorkspace({
                   {generatingSection === 'followUp' ? '재생성 중…' : '다시 생성'}
                 </button>
                 <button type="button" className="adminLegacySmallBtn" disabled={generatingSection !== null || condensingSection !== null || savingSection !== null} onClick={(e) => { e.preventDefault(); void condenseSection('followUp'); }}>
-                  {condensingSection === 'followUp' ? '간결화 중…' : '간결 생성'}
+                  {condensingSection === 'followUp' ? '간결화 중…' : '간결화'}
                 </button>
                 <button type="button" className="adminLegacySmallBtn" disabled={savingSection !== null || generatingSection !== null || condensingSection !== null} onClick={(e) => { e.preventDefault(); void saveSectionReview('followUp'); }}>
                   {savingSection === 'followUp' ? '저장 중…' : '저장'}
@@ -779,7 +779,7 @@ export function AdminHealthCheckupWorkspace({
                   {generatingSection === 'recheck' ? '재생성 중…' : '다시 생성'}
                 </button>
                 <button type="button" className="adminLegacySmallBtn" disabled={generatingSection !== null || condensingSection !== null || savingSection !== null} onClick={(e) => { e.preventDefault(); void condenseSection('recheck'); }}>
-                  {condensingSection === 'recheck' ? '간결화 중…' : '간결 생성'}
+                  {condensingSection === 'recheck' ? '간결화 중…' : '간결화'}
                 </button>
                 <button type="button" className="adminLegacySmallBtn" disabled={savingSection !== null || generatingSection !== null || condensingSection !== null} onClick={(e) => { e.preventDefault(); void saveSectionReview('recheck'); }}>
                   {savingSection === 'recheck' ? '저장 중…' : '저장'}
@@ -843,7 +843,7 @@ export function AdminHealthCheckupWorkspace({
                         {generatingSection === `${k}-${bi}` ? '재생성 중…' : '다시 생성'}
                       </button>
                       <button type="button" className="adminLegacySmallBtn" disabled={generatingSection !== null || condensingSection !== null || savingSection !== null} onClick={(e) => { e.preventDefault(); void condenseSection(`${k}-${bi}`); }}>
-                        {condensingSection === `${k}-${bi}` ? '간결화 중…' : '간결 생성'}
+                        {condensingSection === `${k}-${bi}` ? '간결화 중…' : '간결화'}
                       </button>
                       <button type="button" className="adminLegacySmallBtn" disabled={savingSection !== null || generatingSection !== null || condensingSection !== null} onClick={(e) => { e.preventDefault(); void saveSectionReview(`${k}-${bi}`); }}>
                         {savingSection === `${k}-${bi}` ? '저장 중…' : '저장'}
@@ -893,7 +893,7 @@ export function AdminHealthCheckupWorkspace({
                   {generatingSection === 'lab' ? '재생성 중…' : '다시 생성'}
                 </button>
                 <button type="button" className="adminLegacySmallBtn" disabled={generatingSection !== null || condensingSection !== null || savingSection !== null} onClick={(e) => { e.preventDefault(); void condenseSection('lab'); }}>
-                  {condensingSection === 'lab' ? '간결화 중…' : '간결 생성'}
+                  {condensingSection === 'lab' ? '간결화 중…' : '간결화'}
                 </button>
                 <button type="button" className="adminLegacySmallBtn" disabled={savingSection !== null || generatingSection !== null || condensingSection !== null} onClick={(e) => { e.preventDefault(); void saveSectionReview('lab'); }}>
                   {savingSection === 'lab' ? '저장 중…' : '저장'}
