@@ -215,7 +215,11 @@ export default function HealthReportPage() {
     return new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest();
       xhr.open('PUT', signedUrl);
-      xhr.setRequestHeader('Content-Type', 'application/pdf');
+      // Supabase signed upload URL expects multipart/form-data (same as uploadToSignedUrl).
+      // Do NOT set Content-Type manually — browser sets it with the multipart boundary.
+      const formData = new FormData();
+      formData.append('cacheControl', '3600');
+      formData.append('', file); // Supabase Storage reads the file from field name ''
       xhr.upload.addEventListener('progress', (ev) => {
         if (ev.lengthComputable) {
           onProgress(Math.round((ev.loaded / ev.total) * 100));
@@ -229,7 +233,7 @@ export default function HealthReportPage() {
         }
       });
       xhr.addEventListener('error', () => reject(new Error('네트워크 오류로 PDF 업로드에 실패했습니다.')));
-      xhr.send(file);
+      xhr.send(formData);
     });
   }
 
@@ -262,13 +266,13 @@ export default function HealthReportPage() {
   // Save metadata to Supabase
   // ---------------------------------------------------------------------------
   async function saveMetadata(runId: string, imagePaths: string[]): Promise<void> {
-    if (!emphasisText && imagePaths.length === 0) return;
     const supabase = createClient();
     await supabase.schema('health_report').from('generated_run_content').upsert(
       {
         parse_run_id: runId,
         content_type: 'hospital_notes',
         payload: {
+          source: 'hospital_web',
           emphasis_text: emphasisText,
           image_paths: imagePaths,
         },
@@ -439,9 +443,9 @@ export default function HealthReportPage() {
   // Render
   // ---------------------------------------------------------------------------
   return (
-    <div style={{ maxWidth: '680px', margin: '0 auto', padding: '32px 16px' }}>
+    <div style={{ maxWidth: '680px' }}>
       {/* Page header */}
-      <div style={{ marginBottom: '28px' }}>
+      <div style={{ marginBottom: '24px' }}>
         <h1
           style={{
             margin: '0 0 6px',
@@ -463,7 +467,7 @@ export default function HealthReportPage() {
       {stage === 'done' && result && (
         <div
           style={{
-            background: 'var(--bg)',
+            background: 'var(--bg-raised)',
             border: '1px solid var(--border)',
             borderRadius: 'var(--radius-lg)',
             overflow: 'hidden',
@@ -642,7 +646,7 @@ export default function HealthReportPage() {
       {stage !== 'done' && (
         <div
           style={{
-            background: 'var(--bg)',
+            background: 'var(--bg-raised)',
             border: '1px solid var(--border)',
             borderRadius: 'var(--radius-lg)',
             padding: '24px',
