@@ -127,8 +127,15 @@ function clampStoredRecheckCard(raw: unknown): string {
   return joinTimelineCardText(title, body);
 }
 
+function extractDatePart(s: string): string {
+  // Normalize separators (dots → hyphens) then extract YYYY-MM-DD
+  const normalized = s.replace(/\./g, '-');
+  const m = normalized.match(/^(\d{4}-\d{2}-\d{2})/);
+  return m ? m[1] : normalized.slice(0, 10);
+}
+
 function matchesCheckupDate(dateTimeStr: string, checkupDate: string): boolean {
-  return dateTimeStr.startsWith(checkupDate);
+  return extractDatePart(dateTimeStr) === extractDatePart(checkupDate);
 }
 
 function buildHealthCheckupPrompt(
