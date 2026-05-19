@@ -231,8 +231,8 @@ function pickCoverFields(o: Record<string, unknown>): Partial<HealthCheckupGener
 
 function healthCheckupFromPlainObject(o: Record<string, unknown>): HealthCheckupGeneratedContent {
   return {
-    overallSummary: clampText(o.overallSummary, MAX_OVERALL),
-    followUpCare: clampText(o.followUpCare, MAX_FOLLOW_UP),
+    overallSummary: typeof o.overallSummary === 'string' ? o.overallSummary.trim() : '',
+    followUpCare: typeof o.followUpCare === 'string' ? o.followUpCare.trim() : '',
     recheckWithin1to2Weeks: clampStoredRecheckCard(o.recheckWithin1to2Weeks),
     recheckWithin1Month: clampStoredRecheckCard(o.recheckWithin1Month),
     recheckWithin3Months: clampStoredRecheckCard(o.recheckWithin3Months),
