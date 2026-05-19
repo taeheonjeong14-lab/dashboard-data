@@ -251,8 +251,8 @@ function normalizeHealthCheckup(raw: unknown): HealthCheckupGeneratedContent {
   const o = raw as Record<string, unknown>;
   const systems = mergeHealthSystemsDemosWithLlmFields(o);
   return {
-    overallSummary: clampText(o.overallSummary, MAX_OVERALL),
-    followUpCare: clampText(o.followUpCare, MAX_FOLLOW_UP),
+    overallSummary: typeof o.overallSummary === 'string' ? o.overallSummary.trim() : '',
+    followUpCare: typeof o.followUpCare === 'string' ? o.followUpCare.trim() : '',
     recheckWithin1to2Weeks: clampStoredRecheckCard(o.recheckWithin1to2Weeks),
     recheckWithin1Month: clampStoredRecheckCard(o.recheckWithin1Month),
     recheckWithin3Months: clampStoredRecheckCard(o.recheckWithin3Months),
@@ -271,8 +271,8 @@ function normalizeStage1(raw: unknown): Stage1Result {
   if (!raw || typeof raw !== 'object') throw new Error('Invalid stage 1 response.');
   const o = raw as Record<string, unknown>;
   return {
-    overallSummary: clampText(o.overallSummary, MAX_OVERALL),
-    followUpCare: clampText(o.followUpCare, MAX_FOLLOW_UP),
+    overallSummary: typeof o.overallSummary === 'string' ? o.overallSummary.trim() : '',
+    followUpCare: typeof o.followUpCare === 'string' ? o.followUpCare.trim() : '',
     recheckWithin1to2Weeks: clampStoredRecheckCard(o.recheckWithin1to2Weeks),
     recheckWithin1Month: clampStoredRecheckCard(o.recheckWithin1Month),
     recheckWithin3Months: clampStoredRecheckCard(o.recheckWithin3Months),
@@ -610,9 +610,9 @@ function normalizeSectionResponse(section: RegenerateSection, raw: unknown): Par
   const o = raw as Record<string, unknown>;
   switch (section) {
     case 'overall':
-      return { overallSummary: clampText(o.overallSummary, MAX_OVERALL) };
+      return { overallSummary: typeof o.overallSummary === 'string' ? o.overallSummary.trim() : '' };
     case 'followUp':
-      return { followUpCare: clampText(o.followUpCare, MAX_FOLLOW_UP) };
+      return { followUpCare: typeof o.followUpCare === 'string' ? o.followUpCare.trim() : '' };
     case 'recheck':
       return {
         recheckWithin1to2Weeks: clampStoredRecheckCard(o.recheckWithin1to2Weeks),
@@ -637,7 +637,7 @@ function normalizeSectionResponse(section: RegenerateSection, raw: unknown): Par
       return { systemsPage5Blocks: merged.systemsPage5Blocks };
     }
     case 'lab':
-      return { labInterpretation: clampText(o.labInterpretation, HEALTH_CHECKUP_PROMPT_LAB_INTERP_MAX_CHARS) };
+      return { labInterpretation: typeof o.labInterpretation === 'string' ? o.labInterpretation.trim() : '' };
   }
 }
 
@@ -698,8 +698,9 @@ export async function generateHealthCheckupContent(
   ].join('\n');
   let stage1 = normalizeStage1(await generateHealthCheckupRawJson(model, stage1Prompt, stage1SchemaHint));
 
-  // Trim stage1 backbone if it exceeds limits
-  if (!isWithinPromptLength(stage1 as HealthCheckupGeneratedContent)) {
+  // Stage 2 컨텍스트용으로만 트림된 버전을 따로 관리 (저장되는 stage1은 원본 유지)
+  let stage1Context = { ...stage1 };
+  if (!isWithinPromptLength(stage1Context as HealthCheckupGeneratedContent)) {
     const maxRetries = 2;
     for (let attempt = 1; attempt <= maxRetries; attempt += 1) {
       const retryPrompt = [
@@ -711,22 +712,22 @@ export async function generateHealthCheckupContent(
         '- 출력은 유효한 JSON 객체 하나만 반환한다.',
         '',
         '입력 JSON:',
-        JSON.stringify(stage1),
+        JSON.stringify(stage1Context),
       ].join('\n');
-      stage1 = normalizeStage1(await generateHealthCheckupRawJson(model, retryPrompt, stage1SchemaHint));
-      if (isWithinPromptLength(stage1 as HealthCheckupGeneratedContent)) break;
+      stage1Context = normalizeStage1(await generateHealthCheckupRawJson(model, retryPrompt, stage1SchemaHint));
+      if (isWithinPromptLength(stage1Context as HealthCheckupGeneratedContent)) break;
     }
-    if (!isWithinPromptLength(stage1 as HealthCheckupGeneratedContent)) {
-      stage1 = {
-        ...stage1,
-        overallSummary: trimAtSentenceBoundary(stage1.overallSummary, PROMPT_MAX_OVERALL),
-        followUpCare: trimAtSentenceBoundary(stage1.followUpCare, PROMPT_MAX_FOLLOW_UP),
+    if (!isWithinPromptLength(stage1Context as HealthCheckupGeneratedContent)) {
+      stage1Context = {
+        ...stage1Context,
+        overallSummary: trimAtSentenceBoundary(stage1Context.overallSummary, PROMPT_MAX_OVERALL),
+        followUpCare: trimAtSentenceBoundary(stage1Context.followUpCare, PROMPT_MAX_FOLLOW_UP),
       };
     }
   }
 
-  // Stage 2: generate detail sections in parallel, injecting stage1 for consistency
-  const overallContext = `종합소견:\n${stage1.overallSummary}\n\n사후관리:\n${stage1.followUpCare}`;
+  // Stage 2: generate detail sections in parallel, injecting stage1Context for consistency
+  const overallContext = `종합소견:\n${stage1Context.overallSummary}\n\n사후관리:\n${stage1Context.followUpCare}`;
   const [s3, s3b, s4, s5, lab] = await Promise.all([
     generateHealthCheckupSection('systems3', source, options, overallContext),
     generateHealthCheckupSection('systems3b', source, options, overallContext),
