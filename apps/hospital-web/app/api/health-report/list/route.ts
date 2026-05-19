@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import { createServiceRoleClient } from '@/lib/supabase/service-role';
 
 const CHART_API_URL = process.env.CHART_API_URL ?? 'https://chart-api-five.vercel.app';
 const CHART_API_KEY = process.env.CHART_API_KEY ?? '';
@@ -16,8 +15,7 @@ export async function GET() {
     return NextResponse.json({ error: '로그인이 필요합니다.' }, { status: 401 });
   }
 
-  const service = createServiceRoleClient();
-  const { data: profile } = await service
+  const { data: profile } = await supabase
     .schema('core')
     .from('users')
     .select('hospital_id')
