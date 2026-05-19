@@ -1161,9 +1161,13 @@ export function AdminHealthCheckupWorkspace({
                         rows={4}
                         placeholder="이미지 캡션 입력"
                         value={currentCaption}
+                        maxLength={10}
                         onChange={(e) => updateImageSlot(pk, pbi, psi, { caption: e.target.value })}
                         style={{ width: '100%', padding: 8, fontSize: 13, borderRadius: 6, border: '1px solid #e2e8f0', resize: 'vertical', boxSizing: 'border-box' }}
                       />
+                      <span style={{ fontSize: 11, color: currentCaption.length >= 10 ? '#ef4444' : '#94a3b8', textAlign: 'right' }}>
+                        {currentCaption.length} / 10
+                      </span>
                     </label>
                     <button
                       type="button"
