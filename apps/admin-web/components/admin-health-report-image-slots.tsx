@@ -11,6 +11,7 @@ export type CaseImageCandidate = {
   examDate?: string;
   fileName?: string;
   examType?: string;
+  radiologySub?: string;
   previewUrl?: string | null;
   storagePath?: string;
 };

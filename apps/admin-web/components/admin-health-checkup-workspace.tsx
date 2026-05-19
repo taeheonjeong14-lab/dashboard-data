@@ -68,6 +68,33 @@ function isImageVariant(v: string): boolean {
   return v === 'images' || v === 'images4' || v === 'imagesGrid2x3' || v === 'imagesGrid3x3';
 }
 
+function candidateCategory(c: CaseImageCandidate): string {
+  const t = c.examType ?? 'other';
+  if (t === 'radiology') {
+    const sub: Record<string, string> = {
+      thorax: '방사선 (흉부)', abdomen: '방사선 (복부)',
+      joint: '방사선 (관절)', dental: '방사선 (치과)',
+    };
+    return sub[c.radiologySub ?? ''] ?? '방사선';
+  }
+  const labels: Record<string, string> = {
+    ultrasound: '초음파', dental: '치과',
+    ophthalmology: '안과', skin: '피부',
+  };
+  return labels[t] ?? (t === 'other' ? '기타' : t);
+}
+
+function groupCandidates(candidates: CaseImageCandidate[]): Array<{ category: string; items: CaseImageCandidate[] }> {
+  const map = new Map<string, CaseImageCandidate[]>();
+  for (const c of candidates) {
+    const cat = candidateCategory(c);
+    const list = map.get(cat) ?? [];
+    list.push(c);
+    map.set(cat, list);
+  }
+  return [...map.entries()].map(([category, items]) => ({ category, items }));
+}
+
 function appendUnitIfNeeded(value: string, suffix: string): string {
   const t = value.trim();
   if (!t) return t;
@@ -115,6 +142,9 @@ export function AdminHealthCheckupWorkspace({
 
   const [imageCandidates, setImageCandidates] = useState<CaseImageCandidate[]>([]);
   const [candidatePathMap, setCandidatePathMap] = useState<Map<string, string>>(new Map());
+  const [imagePickerSlot, setImagePickerSlot] = useState<{
+    k: SystemKey; blockIndex: number; slotIndex: number; currentSrc: string;
+  } | null>(null);
 
   const [pdfBusy, setPdfBusy] = useState(false);
   const [sharePanel, setSharePanel] = useState<{ shareUrl: string; expiresAt: string } | null>(null);
@@ -922,36 +952,26 @@ export function AdminHealthCheckupWorkspace({
                               return (
                                 <div key={si} style={{ border: `1px dashed ${divider}`, borderRadius: 6, padding: 8, background: '#fff' }}>
                                   <div style={{ fontSize: 11, color: '#64748b', marginBottom: 4 }}>슬롯 {si + 1}</div>
-                                  {previewUrl ? (
-                                    // eslint-disable-next-line @next/next/no-img-element
-                                    <img alt="" src={previewUrl} style={{ width: '100%', maxHeight: 72, objectFit: 'cover', borderRadius: 4 }} />
-                                  ) : src ? (
-                                    <div style={{ fontSize: 10, color: '#94a3b8', padding: '4px 0', wordBreak: 'break-all' }}>
-                                      {src.split('/').pop()}
-                                    </div>
-                                  ) : (
-                                    <div style={{ fontSize: 11, color: '#94a3b8', padding: '8px 0' }}>없음</div>
-                                  )}
-                                  <select
-                                    style={{ width: '100%', marginTop: 6, fontSize: 11 }}
-                                    value={candidate?.id ?? ''}
-                                    onChange={(e) => {
-                                      const id = e.target.value;
-                                      const path = id ? (candidatePathMap.get(id) ?? '') : '';
-                                      updateImageSlot(k, bi + 1, si, { src: path || undefined });
-                                    }}
+                                  <div
+                                    style={{ cursor: 'pointer', borderRadius: 4, overflow: 'hidden' }}
+                                    onClick={() => setImagePickerSlot({ k, blockIndex: bi + 1, slotIndex: si, currentSrc: src })}
                                   >
-                                    <option value="">비움</option>
-                                    {imageCandidates.map((c) => (
-                                      <option key={c.id} value={c.id}>
-                                        {(c.examDate ?? '') + ' ' + (c.fileName ?? c.id).slice(0, 24)}
-                                      </option>
-                                    ))}
-                                  </select>
+                                    {previewUrl ? (
+                                      // eslint-disable-next-line @next/next/no-img-element
+                                      <img alt="" src={previewUrl} style={{ width: '100%', maxHeight: 80, objectFit: 'cover', display: 'block' }} />
+                                    ) : src ? (
+                                      <div style={{ fontSize: 10, color: '#94a3b8', padding: '6px 0', wordBreak: 'break-all' }}>{src.split('/').pop()}</div>
+                                    ) : (
+                                      <div style={{ padding: '16px 8px', textAlign: 'center', border: '1px dashed #cbd5e1', borderRadius: 4, color: '#94a3b8', fontSize: 11 }}>
+                                        클릭하여 선택
+                                      </div>
+                                    )}
+                                  </div>
                                   <input
                                     style={{ width: '100%', marginTop: 6, fontSize: 11, padding: 4 }}
                                     placeholder="캡션"
                                     value={slot.caption ?? ''}
+                                    onClick={(e) => e.stopPropagation()}
                                     onChange={(e) => updateImageSlot(k, bi + 1, si, { caption: e.target.value })}
                                   />
                                   {src ? (
@@ -959,7 +979,7 @@ export function AdminHealthCheckupWorkspace({
                                       type="button"
                                       className="adminLegacySmallBtn"
                                       style={{ marginTop: 6, fontSize: 10 }}
-                                      onClick={() => updateImageSlot(k, bi + 1, si, { src: undefined, caption: '' })}
+                                      onClick={(e) => { e.stopPropagation(); updateImageSlot(k, bi + 1, si, { src: undefined, caption: '' }); }}
                                     >
                                       슬롯 비우기
                                     </button>
@@ -1031,6 +1051,75 @@ export function AdminHealthCheckupWorkspace({
             </div>
           </details>
 
+        {imagePickerSlot !== null && (() => {
+          const grouped = groupCandidates(imageCandidates);
+          const { k: pk, blockIndex: pbi, slotIndex: psi, currentSrc } = imagePickerSlot;
+          return (
+            <div
+              style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
+              onClick={() => setImagePickerSlot(null)}
+            >
+              <div
+                style={{ background: '#fff', borderRadius: 12, padding: 20, width: 'min(92vw, 800px)', maxHeight: '82vh', overflowY: 'auto', display: 'grid', gap: 16 }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontWeight: 700, fontSize: 15 }}>이미지 선택</span>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    {currentSrc && (
+                      <button
+                        type="button"
+                        className="adminLegacySmallBtn"
+                        onClick={() => { updateImageSlot(pk, pbi, psi, { src: undefined, caption: '' }); setImagePickerSlot(null); }}
+                      >
+                        슬롯 비우기
+                      </button>
+                    )}
+                    <button type="button" className="adminLegacySmallBtn" onClick={() => setImagePickerSlot(null)}>닫기</button>
+                  </div>
+                </div>
+                {imageCandidates.length === 0 ? (
+                  <p style={{ fontSize: 13, color: '#64748b', margin: 0 }}>
+                    후보 이미지가 없습니다. 아래 &quot;이미지 후보&quot; 섹션에서 새로고침을 눌러 주세요.
+                  </p>
+                ) : grouped.map(({ category, items }) => (
+                  <div key={category}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: '#475569', marginBottom: 8 }}>{category}</div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+                      {items.map((c) => {
+                        const isSelected = !!c.storagePath && c.storagePath === currentSrc;
+                        return (
+                          <div
+                            key={c.id}
+                            onClick={() => {
+                              if (c.storagePath) updateImageSlot(pk, pbi, psi, { src: c.storagePath });
+                              setImagePickerSlot(null);
+                            }}
+                            style={{
+                              width: 110, cursor: 'pointer', borderRadius: 8, overflow: 'hidden',
+                              border: isSelected ? '3px solid #22c55e' : '1px solid #e2e8f0',
+                              boxSizing: 'border-box',
+                            }}
+                          >
+                            {c.previewUrl ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img alt="" src={c.previewUrl} style={{ width: '100%', height: 84, objectFit: 'cover', display: 'block' }} />
+                            ) : (
+                              <div style={{ height: 84, background: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, color: '#94a3b8' }}>미리보기 없음</div>
+                            )}
+                            <div style={{ padding: '4px 6px', fontSize: 9, color: '#64748b', wordBreak: 'break-all', lineHeight: 1.3 }}>
+                              {c.examDate ? c.examDate + ' ' : ''}{(c.fileName ?? '').split('/').pop()}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })()}
         </>
       ) : null}
       </div>
