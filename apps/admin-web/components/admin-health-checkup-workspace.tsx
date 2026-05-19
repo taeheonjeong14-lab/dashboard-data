@@ -158,6 +158,21 @@ export function AdminHealthCheckupWorkspace({
   const healthItem = useMemo(() => items.find((i) => i.contentType === 'health_checkup') ?? null, [items]);
   const hasContent = healthItem != null;
 
+  const allPlacedPaths = useMemo(() => {
+    const paths = new Set<string>();
+    for (const k of SYSTEM_KEYS) {
+      const blocks = getStructuredBlocksFromDraft(draft, k);
+      for (const b of blocks) {
+        if (isImageVariant(b.variant)) {
+          for (const slot of (b as { images: HealthSystemsImageSlot[] }).images) {
+            if (slot.src) paths.add(slot.src);
+          }
+        }
+      }
+    }
+    return paths;
+  }, [draft]);
+
   const loadContent = useCallback(async () => {
     setLoading(true);
     setLoadError(null);
@@ -1200,6 +1215,7 @@ export function AdminHealthCheckupWorkspace({
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
                       {items.map((c) => {
                         const isSelected = !!c.storagePath && c.storagePath === currentSrc;
+                        const isPlaced = !!c.storagePath && allPlacedPaths.has(c.storagePath);
                         return (
                           <div
                             key={c.id}
@@ -1207,11 +1223,16 @@ export function AdminHealthCheckupWorkspace({
                             onDragStart={(e) => { if (c.storagePath) { e.dataTransfer.setData('text/plain', c.storagePath); e.dataTransfer.effectAllowed = 'copy'; } }}
                             onClick={() => { if (c.storagePath) updateImageSlot(pk, pbi, psi, { src: c.storagePath }); }}
                             style={{
-                              width: 110, cursor: 'grab', borderRadius: 8, overflow: 'hidden',
-                              border: isSelected ? '3px solid #22c55e' : '1px solid #e2e8f0',
+                              width: 110, cursor: 'grab', borderRadius: 8, overflow: 'hidden', position: 'relative',
+                              border: isSelected ? '3px solid #22c55e' : isPlaced ? '3px solid #f97316' : '1px solid #e2e8f0',
                               boxSizing: 'border-box',
                             }}
                           >
+                            {isPlaced && !isSelected && (
+                              <div style={{ position: 'absolute', top: 4, right: 4, background: '#f97316', color: '#fff', fontSize: 9, fontWeight: 700, padding: '2px 5px', borderRadius: 4, lineHeight: 1.4, zIndex: 1 }}>
+                                배치 완료
+                              </div>
+                            )}
                             {c.previewUrl ? (
                               // eslint-disable-next-line @next/next/no-img-element
                               <img alt="" src={c.previewUrl} draggable={false} style={{ width: '100%', height: 84, objectFit: 'cover', display: 'block', pointerEvents: 'none' }} />
