@@ -141,7 +141,6 @@ export function AdminHealthCheckupWorkspace({
   const [genError, setGenError] = useState<string | null>(null);
 
   const [imageCandidates, setImageCandidates] = useState<CaseImageCandidate[]>([]);
-  const [candidatePathMap, setCandidatePathMap] = useState<Map<string, string>>(new Map());
   const [imagePickerSlot, setImagePickerSlot] = useState<{
     k: SystemKey; blockIndex: number; slotIndex: number; currentSrc: string;
   } | null>(null);
@@ -1029,25 +1028,17 @@ export function AdminHealthCheckupWorkspace({
             </div>
           </details>
 
-          <details open style={{ border: `1px solid ${divider}`, marginBottom: 10, background: '#fff' }}>
-            <summary style={{ padding: '10px 12px', fontWeight: 700, cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span>이미지 후보</span>
-              <button type="button" className="adminLegacySmallBtn" disabled={savingSection !== null} onClick={(e) => { e.preventDefault(); void saveSectionReview('images'); }}>
-                {savingSection === 'images' ? '저장 중…' : '저장'}
-              </button>
-            </summary>
-            <div style={{ padding: '12px 14px' }}>
-              <AdminHealthReportImageSlots
-                runId={runId}
-                page4Raw={draft.systemsPage4Blocks}
-                page5Raw={draft.systemsPage5Blocks}
-                onChangePage4={(blocks) => setDraft((d) => ({ ...d, systemsPage4Blocks: blocks }))}
-                onChangePage5={(blocks) => setDraft((d) => ({ ...d, systemsPage5Blocks: blocks }))}
-                hideSlots
-                onCandidatesLoaded={(c, m) => { setImageCandidates(c); setCandidatePathMap(m); }}
-              />
-            </div>
-          </details>
+          <div style={{ display: 'none' }}>
+            <AdminHealthReportImageSlots
+              runId={runId}
+              page4Raw={draft.systemsPage4Blocks}
+              page5Raw={draft.systemsPage5Blocks}
+              onChangePage4={(blocks) => setDraft((d) => ({ ...d, systemsPage4Blocks: blocks }))}
+              onChangePage5={(blocks) => setDraft((d) => ({ ...d, systemsPage5Blocks: blocks }))}
+              hideSlots
+              onCandidatesLoaded={(c) => setImageCandidates(c)}
+            />
+          </div>
 
         {imagePickerSlot !== null && (() => {
           const grouped = groupCandidates(imageCandidates);
@@ -1078,7 +1069,7 @@ export function AdminHealthCheckupWorkspace({
                 </div>
                 {imageCandidates.length === 0 ? (
                   <p style={{ fontSize: 13, color: '#64748b', margin: 0 }}>
-                    후보 이미지가 없습니다. 아래 &quot;이미지 후보&quot; 섹션에서 새로고침을 눌러 주세요.
+                    후보 이미지가 없습니다. 이미지 추가 분석 탭에서 사진을 먼저 업로드해 주세요.
                   </p>
                 ) : grouped.map(({ category, items }) => (
                   <div key={category}>
