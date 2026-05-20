@@ -154,6 +154,33 @@ export default function AdminUsersConsole() {
     }
   }
 
+  async function grantTokens(userId: string) {
+    const input = window.prompt('지급할 토큰 수를 입력하세요 (1토큰=100원)');
+    if (input == null) return;
+    const amount = Math.trunc(Number(input.trim()));
+    if (!Number.isFinite(amount) || amount <= 0) {
+      setMessage('토큰 수는 양의 정수여야 합니다.');
+      return;
+    }
+    setLoading(true);
+    setMessage('');
+    try {
+      const res = await fetch(`/api/admin/users/${encodeURIComponent(userId)}/tokens`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ amount }),
+      });
+      const data = (await res.json()) as { success?: boolean; balance?: number; error?: string };
+      if (!res.ok || !data.success) throw new Error(data.error || '토큰 지급 실패');
+      setMessage(`토큰 ${amount} 지급 완료 (현재 잔액: ${data.balance ?? '?'})`);
+      await refresh();
+    } catch (e) {
+      setMessage(`토큰 지급 실패: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setLoading(false);
+    }
+  }
+
   function openEdit(user: ApiUser) {
     setEditingUser(user);
     setEditForm({
@@ -293,6 +320,14 @@ export default function AdminUsersConsole() {
                         disabled={loading}
                       >
                         수정
+                      </button>
+                      <button
+                        type="button"
+                        className="adminLegacySecondaryBtn"
+                        onClick={() => void grantTokens(u.id)}
+                        disabled={loading}
+                      >
+                        토큰 지급
                       </button>
                       <button
                         type="button"

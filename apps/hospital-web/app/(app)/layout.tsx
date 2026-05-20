@@ -124,8 +124,21 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
     (user.user_metadata?.hospital_name as string | undefined)?.trim() ||
     null;
 
+  // 토큰 잔액 — 마이그레이션 전(컬럼 없음)에도 깨지지 않게 별도 방어적 조회
+  let tokenBalance = 0;
+  {
+    const { data: tb } = await supabase
+      .schema('core')
+      .from('users')
+      .select('token_balance')
+      .eq('id', user.id)
+      .single();
+    const v = (tb as { token_balance?: number } | null)?.token_balance;
+    if (typeof v === 'number') tokenBalance = v;
+  }
+
   return (
-    <HospitalShell userName={userName} hospitalName={hospitalName}>
+    <HospitalShell userName={userName} hospitalName={hospitalName} tokenBalance={tokenBalance}>
       {children}
     </HospitalShell>
   );

@@ -3,16 +3,17 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Settings, LogOut } from 'lucide-react';
+import { Settings, LogOut, Coins } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { SettingsModal } from './settings-modal';
 
 interface TopBarProps {
   userName: string | null;
   hospitalName: string | null;
+  tokenBalance?: number;
 }
 
-export function TopBar({ userName, hospitalName }: TopBarProps) {
+export function TopBar({ userName, hospitalName, tokenBalance }: TopBarProps) {
   const router = useRouter();
   const [logoOk, setLogoOk] = useState(true);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -70,8 +71,26 @@ export function TopBar({ userName, hospitalName }: TopBarProps) {
         )}
       </Link>
 
-      {/* Right — user info + settings + logout */}
+      {/* Right — token balance + user info + settings + logout */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <span
+          title="보유 토큰"
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 5,
+            padding: '5px 10px',
+            borderRadius: 'var(--radius)',
+            background: 'var(--accent-subtle)',
+            color: 'var(--accent)',
+            fontSize: 13,
+            fontWeight: 600,
+            whiteSpace: 'nowrap',
+          }}
+        >
+          <Coins size={14} />
+          {(tokenBalance ?? 0).toLocaleString()} 토큰
+        </span>
         <span
           style={{
             fontSize: 13,

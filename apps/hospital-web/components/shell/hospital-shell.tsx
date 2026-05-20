@@ -8,12 +8,13 @@ interface HospitalShellProps {
   children: ReactNode;
   userName: string | null;
   hospitalName: string | null;
+  tokenBalance?: number;
 }
 
-export function HospitalShell({ children, userName, hospitalName }: HospitalShellProps) {
+export function HospitalShell({ children, userName, hospitalName, tokenBalance }: HospitalShellProps) {
   return (
     <div style={{ display: 'flex', minHeight: '100vh' }}>
-      <TopBar userName={userName} hospitalName={hospitalName} />
+      <TopBar userName={userName} hospitalName={hospitalName} tokenBalance={tokenBalance} />
       <Sidebar />
       <div
         style={{
