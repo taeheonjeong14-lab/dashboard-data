@@ -16,7 +16,7 @@ import {
   sharePublicCorsHeadersSnapshot,
 } from '@/lib/chart-app/share-public-cors';
 import { chartExportRequestIdHeaders, resolveChartExportRequestId } from '@/lib/chart-app/export-request-id';
-import { buildHealthCheckupSharePrintUrlForRequest } from '@/lib/chart-app/health-checkup-export-print-url';
+import { buildHealthCheckupPrintUrlForRequest } from '@/lib/chart-app/health-checkup-export-print-url';
 import { buildHealthCheckupSharePrintUrl } from '@/lib/chart-app/health-checkup-print-url';
 
 // POST /api/report/health-checkup/export-by-share — 토큰 검증 후 **토큰 경로** 인쇄 URL → PDF (vet-report 와 동일)
@@ -121,7 +121,7 @@ export async function POST(request: NextRequest) {
       asciiHealthCheckupReportFallback(joinRow?.friendly_id),
     );
 
-    const printUrl = buildHealthCheckupSharePrintUrl(token) ?? buildHealthCheckupSharePrintUrlForRequest(request.url, token);
+    const printUrl = buildHealthCheckupSharePrintUrl(token) ?? buildHealthCheckupPrintUrlForRequest(request.url, runId);
     console.info(`[pdf-export-by-share] rid=${requestId} runId=${runId} stage=before_pdf printUrl=${printUrl}`);
 
     const pdf = await renderPdfFromPageUrl(printUrl, { requestId });
