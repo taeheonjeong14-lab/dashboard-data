@@ -145,7 +145,7 @@ export function TopBar({ userName, hospitalName, tokenBalance }: TopBarProps) {
         </button>
       </div>
     </header>
-    <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+    <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} tokenBalance={tokenBalance} />
     </>
   );
 }

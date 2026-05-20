@@ -21,7 +21,7 @@ const MENU: { key: Tab; label: string; icon: typeof User }[] = [
   { key: 'password', label: '비밀번호 변경', icon: KeyRound },
 ];
 
-export function SettingsModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+export function SettingsModal({ open, onClose, tokenBalance = 0 }: { open: boolean; onClose: () => void; tokenBalance?: number }) {
   const [tab, setTab] = useState<Tab>('basic');
 
   const [profile, setProfile] = useState<Profile>({
@@ -186,9 +186,26 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
             )}
 
             {tab === 'payment' && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                <p style={{ margin: 0, fontSize: 13, color: 'var(--text-secondary)' }}>등록된 결제수단이 없습니다.</p>
-                <button disabled style={primaryBtn(true)}>결제수단 추가 (준비 중)</button>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                <div style={{
+                  display: 'flex', alignItems: 'baseline', justifyContent: 'space-between',
+                  padding: '14px 16px', borderRadius: 'var(--radius)', background: 'var(--bg-raised)',
+                }}>
+                  <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>현재 보유 토큰</span>
+                  <span style={{ fontSize: 18, fontWeight: 700, color: 'var(--text)' }}>
+                    {tokenBalance.toLocaleString()} <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-muted)' }}>토큰</span>
+                  </span>
+                </div>
+                <p style={{ margin: 0, fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.7 }}>
+                  토큰 1개 = 100원 · 건강검진 리포트 1건당 50토큰이 차감됩니다.
+                </p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <p style={{ margin: 0, fontSize: 13, color: 'var(--text-secondary)' }}>등록된 결제수단이 없습니다.</p>
+                  <button disabled style={primaryBtn(true)}>결제수단 등록 / 토큰 충전 (준비 중)</button>
+                  <p style={{ margin: 0, fontSize: 12, color: 'var(--text-muted)' }}>
+                    * 결제수단 등록 및 토큰 충전은 결제 연동(PG) 후 제공됩니다.
+                  </p>
+                </div>
               </div>
             )}
 
