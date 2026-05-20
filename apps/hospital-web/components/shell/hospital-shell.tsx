@@ -2,6 +2,7 @@
 
 import type { ReactNode } from 'react';
 import { Sidebar } from './sidebar';
+import { TopBar } from './top-bar';
 
 interface HospitalShellProps {
   children: ReactNode;
@@ -12,10 +13,12 @@ interface HospitalShellProps {
 export function HospitalShell({ children, userName, hospitalName }: HospitalShellProps) {
   return (
     <div style={{ display: 'flex', minHeight: '100vh' }}>
-      <Sidebar userName={userName} hospitalName={hospitalName} />
+      <TopBar userName={userName} hospitalName={hospitalName} />
+      <Sidebar />
       <div
         style={{
           marginLeft: 'var(--sidebar-width)',
+          marginTop: 'var(--topbar-height)',
           flex: 1,
           display: 'flex',
           flexDirection: 'column',
@@ -27,7 +30,7 @@ export function HospitalShell({ children, userName, hospitalName }: HospitalShel
             flex: 1,
             padding: '28px',
             background: 'var(--bg-subtle)',
-            minHeight: '100vh',
+            minHeight: 'calc(100vh - var(--topbar-height))',
           }}
         >
           {children}
