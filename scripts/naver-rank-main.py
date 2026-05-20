@@ -1679,6 +1679,43 @@ def _worker_blog_chunk(worker_id: int, pairs_chunk: list, use_debug_chrome: bool
     return chunk_results
 
 
+def _worker_place_chunk(worker_id: int, place_chunk: list, use_debug_chrome: bool, debug_port: int) -> list[dict]:
+    """
+    워커 스레드: 자신만의 playwright + 브라우저 세션으로 place_chunk((kw, store, hospital_id))를 순차 처리.
+    _worker_blog_chunk 와 동일 패턴.
+    """
+    if sys.platform == "win32":
+        asyncio.set_event_loop(asyncio.SelectorEventLoop())
+    chunk_results: list[dict] = []
+    with sync_playwright() as p:
+        _, context, cleanup = create_browser_session(
+            p,
+            headless=True,
+            use_debug_chrome=use_debug_chrome,
+            debug_port=debug_port,
+        )
+        page = context.new_page()
+        try:
+            for kw, store, hospital_id in place_chunk:
+                data = check_place_ranking_on_page(page, kw, store)
+                data["hospital_id"] = hospital_id
+                with _print_lock:
+                    err = data.get("error")
+                    if err:
+                        print(f"⚠️ [{kw} / {store}] 에러: {err}")
+                    else:
+                        print(f"📌 [{kw} / {store}] 플레이스: {data.get('rank')}위")
+                chunk_results.append(data)
+                time.sleep(0.2)
+        finally:
+            with suppress(Exception):
+                page.close()
+            if not use_debug_chrome:
+                with suppress(Exception):
+                    cleanup()
+    return chunk_results
+
+
 def main():
     print(f"▶ naver-rank-main.py 시작 (Python {sys.version.split()[0]}, platform={sys.platform})")
     input_path = "input.xlsx"
@@ -1815,35 +1852,24 @@ def main():
                 except Exception as e:
                     print(f"❌ 워커 {i} 실패: {e}")
 
-    # 플레이스 키워드: 순차 처리 (건수가 적어 병렬 불필요)
+    # 플레이스 키워드: 병렬 처리 (블로그와 동일 패턴 — 워커별 독립 세션)
     if place_pairs:
-        print(f"\n🏪 플레이스 순위 확인 — {len(place_pairs)}개 조합 (광고 제외)\n")
-        with sync_playwright() as p:
-            _, context, cleanup = create_browser_session(
-                p,
-                headless=True,
-                use_debug_chrome=use_debug_chrome,
-                debug_port=debug_port,
-            )
-            page = context.new_page()
-            try:
-                for kw, store, hospital_id in place_pairs:
-                    data = check_place_ranking_on_page(page, kw, store)
-                    data["hospital_id"] = hospital_id
-                    place_results.append(data)
-                    err = data.get("error")
-                    if err:
-                        print(f"⚠️ [{kw} / {store}] 에러: {err}")
-                    else:
-                        rank = data.get("rank")
-                        print(f"📌 [{kw} / {store}] 플레이스: {rank}위")
-                    time.sleep(0.2)
-            finally:
-                with suppress(Exception):
-                    page.close()
-                if not use_debug_chrome:
-                    with suppress(Exception):
-                        cleanup()
+        place_chunks = _split_roundrobin(place_pairs, num_workers)
+        actual_place_workers = len(place_chunks)
+        worker_timeout_sec = int(os.getenv("RANK_WORKER_TIMEOUT_SEC", "300"))
+        print(f"\n🏪 플레이스 순위 확인 — {len(place_pairs)}개 조합 / {actual_place_workers}개 병렬 워커 (광고 제외)\n")
+        with ThreadPoolExecutor(max_workers=actual_place_workers) as executor:
+            futures = [
+                executor.submit(_worker_place_chunk, i, chunk, use_debug_chrome, debug_port)
+                for i, chunk in enumerate(place_chunks)
+            ]
+            for i, future in enumerate(futures):
+                try:
+                    place_results.extend(future.result(timeout=worker_timeout_sec))
+                except FutureTimeoutError:
+                    print(f"❌ 플레이스 워커 {i} 타임아웃 ({worker_timeout_sec}s 초과) — 해당 워커 결과 제외")
+                except Exception as e:
+                    print(f"❌ 플레이스 워커 {i} 실패: {e}")
 
     if upload_db and results:
         try:
