@@ -79,9 +79,17 @@ function coverPetImageFromSpecies(speciesLabel: 'DOG' | 'CAT'): string {
   return dog || '/dog_cover.png';
 }
 
-const LAB_ITEMS_PER_PAGE = 50;
+// A4(297mm) lab 시트는 고정 높이 + overflow:hidden 이라, 항목 수만으로 페이지를 나누면
+// 카테고리 헤더/해석 섹션 높이를 무시해 아래쪽 카테고리가 잘린다. 행 단위(≈행 높이)로 환산해 분할.
+const LAB_ROWS_PER_PAGE = 44; // 가용 높이의 보수적 행 환산
+const LAB_CATEGORY_HEADER_ROWS = 2; // 카테고리 라벨 + 표 헤더
+const LAB_INTERPRETATION_ROWS = 7; // 첫 페이지 해석 섹션(≈32mm)
 
-function buildLabPages(source: ReportSourceData, speciesStr: string): LabReportPage[] {
+function buildLabPages(
+  source: ReportSourceData,
+  speciesStr: string,
+  hasInterpretation: boolean,
+): LabReportPage[] {
   // Flatten across dates; last occurrence per item name wins (most recent value).
   const flat = new Map<string, { itemName: string; valueText: string; unit: string | null; referenceRange: string | null; flag: 'low' | 'high' | 'normal' | 'unknown' }>();
   for (const dateGroup of source.labItemsByDate) {
@@ -107,15 +115,20 @@ function buildLabPages(source: ReportSourceData, speciesStr: string): LabReportP
 
   const pages: LabReportPage[] = [];
   let pageGroups: typeof sorted = [];
-  let pageItems = 0;
+  let used = 0;
+  let isFirstPage = true;
+  const budgetFor = (first: boolean) =>
+    LAB_ROWS_PER_PAGE - (first && hasInterpretation ? LAB_INTERPRETATION_ROWS : 0);
   for (const group of sorted) {
-    if (pageItems > 0 && pageItems + group.items.length > LAB_ITEMS_PER_PAGE) {
+    const cost = LAB_CATEGORY_HEADER_ROWS + group.items.length;
+    if (pageGroups.length > 0 && used + cost > budgetFor(isFirstPage)) {
       pages.push({ groups: pageGroups });
       pageGroups = [];
-      pageItems = 0;
+      used = 0;
+      isFirstPage = false;
     }
     pageGroups.push(group);
-    pageItems += group.items.length;
+    used += cost;
   }
   if (pageGroups.length > 0) pages.push({ groups: pageGroups });
   return pages;
@@ -230,7 +243,7 @@ export function buildHealthReportPreviewModel(params: {
     systemsPage3bBlocks,
     systemsPage4Blocks,
     systemsPage5Blocks,
-    labPages: buildLabPages(source, speciesForLabel),
+    labPages: buildLabPages(source, speciesForLabel, Boolean(safeTrim(generated.labInterpretation))),
     labInterpretation: safeTrim(generated.labInterpretation),
   };
 }
