@@ -1,5 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
+  "buildCommand": "node --input-type=module -e \"import chromium from '@sparticuz/chromium'; await chromium.executablePath().catch(()=>{});\" ; npm run build",
   "crons": [
     {
       "path": "/api/cron/recompute-basic-info-ages",

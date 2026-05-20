@@ -35,8 +35,19 @@ export async function launchPlaywrightChromium() {
     import('@sparticuz/chromium'),
     ensureKoreanFonts(),
   ]);
-  const executablePath =
-    process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH ?? (await chromiumBinary.default.executablePath());
+  const executablePath = await (async () => {
+    if (process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH) {
+      return process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH;
+    }
+    try {
+      // Try package-bundled binary first (works when bin/ exists in node_modules)
+      return await chromiumBinary.default.executablePath();
+    } catch {
+      // bin/ directory missing in deployment (v130+ no longer bundles binary in npm).
+      // Pass /tmp so @sparticuz/chromium downloads the binary there at runtime.
+      return await chromiumBinary.default.executablePath('/tmp');
+    }
+  })();
   const baseOptions: Parameters<typeof chromium.launch>[0] = {
     headless: true,
     args: chromiumBinary.default.args,

@@ -4,8 +4,10 @@ const nextConfig: NextConfig = {
   allowedDevOrigins: ['*.ngrok-free.app', '*.ngrok-free.dev', '*.ngrok.io', '*.ngrok.app'],
   serverExternalPackages: ['@sparticuz/chromium', 'playwright-core'],
   outputFileTracingIncludes: {
-    '/api/report/health-checkup/export': ['./node_modules/@sparticuz/chromium/bin/**'],
-    '/api/report/health-checkup/export-by-share': ['./node_modules/@sparticuz/chromium/bin/**'],
+    // Include the whole package so the binary (if present after npm install) is bundled.
+    // v130+ no longer ships the binary in npm; executablePath() downloads to /tmp at runtime.
+    '/api/report/health-checkup/export': ['./node_modules/@sparticuz/chromium/**'],
+    '/api/report/health-checkup/export-by-share': ['./node_modules/@sparticuz/chromium/**'],
   },
 };
 
