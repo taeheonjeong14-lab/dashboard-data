@@ -8,6 +8,7 @@
     "start": "next start -p 3011"
   },
   "dependencies": {
+    "@dashboard/lab-normalize": "*",
     "@fontsource/noto-sans-kr": "^5.2.9",
     "@supabase/ssr": "^0.10.3",
     "@supabase/supabase-js": "^2.57.4",
