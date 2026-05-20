@@ -38,14 +38,20 @@ export async function POST(request: NextRequest) {
   const requestId = resolveChartExportRequestId(request);
   const ridHeaders = chartExportRequestIdHeaders(requestId);
 
-  let body: Record<string, unknown>;
+  let token: string;
   try {
-    body = (await request.json()) as Record<string, unknown>;
+    const contentType = request.headers.get('content-type') ?? '';
+    if (contentType.includes('application/x-www-form-urlencoded') || contentType.includes('multipart/form-data')) {
+      const formData = await request.formData();
+      token = String(formData.get('token') ?? '').trim();
+    } else {
+      const body = (await request.json()) as Record<string, unknown>;
+      token = String(body.token ?? '').trim();
+    }
   } catch {
-    return applyPublicShareReviewCors(NextResponse.json({ error: 'Invalid JSON' }, { status: 400 }), request);
+    return applyPublicShareReviewCors(NextResponse.json({ error: 'Invalid request body' }, { status: 400 }), request);
   }
 
-  const token = String(body.token ?? '').trim();
   if (!token)
     return applyPublicShareReviewCors(NextResponse.json({ error: 'token required' }, { status: 400 }), request);
 
