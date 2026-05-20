@@ -310,8 +310,8 @@ export default function HealthReportPage() {
       {/* LEFT — Request list                                                  */}
       {/* ================================================================== */}
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ background: 'var(--bg-raised)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
-          <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div>
+          <div style={{ padding: '0 0 10px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text)' }}>리포트 목록</span>
             <button onClick={() => void loadList()} style={{ background: 'none', border: 'none', fontSize: '12px', color: 'var(--text-muted)', cursor: 'pointer', padding: '2px 4px' }}>새로고침</button>
           </div>
@@ -369,13 +369,13 @@ export default function HealthReportPage() {
       {/* RIGHT — New request form (sticky)                                    */}
       {/* ================================================================== */}
       <div style={{ width: '340px', flexShrink: 0, position: 'sticky', top: '24px' }}>
-        <div style={{ background: 'var(--bg-raised)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
-          <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--border)' }}>
+        <div>
+          <div style={{ padding: '0 0 10px' }}>
             <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text)' }}>리포트 생성 요청</div>
             <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '2px' }}>차트 PDF를 업로드해 주세요</div>
           </div>
 
-          <div style={{ padding: '18px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
 
             {/* Success */}
             {stage === 'done' && (
