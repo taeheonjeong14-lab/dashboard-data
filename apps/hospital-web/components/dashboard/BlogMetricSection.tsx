@@ -110,7 +110,7 @@ export default function BlogMetricSection({
   const hasData = rows.length > 0 && bounds != null;
 
   return (
-    <section className="border-b border-zinc-800 bg-zinc-950 p-4 sm:p-5 last:border-b-0">
+    <section className="border-b border-[var(--border)] bg-[var(--bg-raised)] p-4 sm:p-5 last:border-b-0">
       <header className="mb-4">
         <h2 className="text-base font-semibold text-zinc-100 sm:text-lg">{title}</h2>
         {description ? (
@@ -119,7 +119,7 @@ export default function BlogMetricSection({
       </header>
 
       {!hasData ? (
-        <p className="border border-zinc-800 bg-zinc-900/50 p-4 text-sm text-zinc-500">
+        <p className="border border-[var(--border)] bg-[var(--bg)] p-4 text-sm text-zinc-500">
           표시할 데이터가 없습니다.
         </p>
       ) : (

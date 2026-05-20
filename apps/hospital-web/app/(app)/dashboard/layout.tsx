@@ -24,44 +24,45 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
 
   return (
     <div>
-      <nav
-        style={{
-          display: "flex",
-          gap: "0",
-          borderBottom: "1px solid var(--border)",
-          marginBottom: "0",
-          background: "var(--bg)",
-          overflowX: "auto",
-        }}
-      >
-        {TABS.map((tab) => {
-          const active = isActive(tab.href);
-          return (
-            <Link
-              key={tab.href}
-              href={tab.href}
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                padding: "10px 16px",
-                fontSize: "13px",
-                fontWeight: active ? 600 : 400,
-                color: active ? "var(--accent)" : "var(--text-secondary)",
-                borderBottom: active
-                  ? "2px solid var(--accent)"
-                  : "2px solid transparent",
-                textDecoration: "none",
-                whiteSpace: "nowrap",
-                transition: "color 0.15s",
-                flexShrink: 0,
-              }}
-            >
-              {tab.label}
-            </Link>
-          );
-        })}
-      </nav>
-      <div style={{ paddingTop: "0" }}>{children}</div>
+      <div style={{ marginBottom: '20px' }}>
+        <nav
+          style={{
+            display: 'inline-flex',
+            gap: '2px',
+            background: 'var(--bg-raised)',
+            border: '1px solid var(--border)',
+            borderRadius: 'var(--radius)',
+            padding: '3px',
+          }}
+        >
+          {TABS.map((tab) => {
+            const active = isActive(tab.href);
+            return (
+              <Link
+                key={tab.href}
+                href={tab.href}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  padding: '6px 14px',
+                  borderRadius: 'calc(var(--radius) - 2px)',
+                  fontSize: '13px',
+                  fontWeight: active ? 600 : 400,
+                  color: active ? '#fff' : 'var(--text-muted)',
+                  background: active ? 'var(--accent)' : 'transparent',
+                  textDecoration: 'none',
+                  whiteSpace: 'nowrap',
+                  transition: 'color 0.15s, background 0.15s',
+                  flexShrink: 0,
+                }}
+              >
+                {tab.label}
+              </Link>
+            );
+          })}
+        </nav>
+      </div>
+      <div>{children}</div>
     </div>
   );
 }

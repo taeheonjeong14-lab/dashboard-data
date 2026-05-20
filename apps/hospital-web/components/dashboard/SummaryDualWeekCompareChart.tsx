@@ -143,13 +143,22 @@ export default function SummaryDualWeekCompareChart({
   };
 
   return (
-    <div className="w-full min-w-0">
+    <div style={{ width: '100%', minWidth: 0 }}>
       <div
-        className="flex h-[240px] w-full flex-col border border-zinc-800 bg-zinc-900/60 p-3 sm:h-[280px]"
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          height: '260px',
+          width: '100%',
+          border: '1px solid var(--border)',
+          background: 'var(--bg-raised)',
+          padding: '12px',
+          borderRadius: 'var(--radius)',
+        }}
         role="img"
         aria-label={ariaLabel}
       >
-        <div className="min-h-0 min-w-0 flex-1">
+        <div style={{ minHeight: 0, minWidth: 0, flex: 1 }}>
           <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={200}>
             <LineChart
               data={data}
@@ -200,3 +209,4 @@ export default function SummaryDualWeekCompareChart({
     </div>
   );
 }
+

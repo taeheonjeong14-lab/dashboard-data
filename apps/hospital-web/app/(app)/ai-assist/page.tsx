@@ -80,7 +80,7 @@ export default function AiAssistPage() {
   }, [userId]);
 
   return (
-    <div style={{ padding: '24px', maxWidth: '900px' }}>
+    <div style={{ maxWidth: '900px' }}>
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px', flexWrap: 'wrap', gap: '12px' }}>
         <div>
@@ -147,7 +147,7 @@ export default function AiAssistPage() {
 
       {/* Recent pre-consultations */}
       <div style={{
-        background: 'var(--bg)',
+        background: 'var(--bg-raised)',
         border: '1px solid var(--border)',
         borderRadius: 'var(--radius-lg)',
         overflow: 'hidden',
@@ -179,10 +179,12 @@ export default function AiAssistPage() {
             <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
           </div>
         ) : sessions.length === 0 ? (
-          <div style={{ padding: '48px', textAlign: 'center' }}>
-            <p style={{ color: 'var(--text-muted)', fontSize: '14px', margin: '0 0 16px' }}>
-              아직 상담 내역이 없습니다
-            </p>
+          <div style={{ padding: '48px 24px', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
+            <div style={{ fontSize: '32px', color: 'var(--text-muted)' }}>🩺</div>
+            <div>
+              <div style={{ fontWeight: 600, fontSize: '14px', color: 'var(--text-secondary)', marginBottom: '4px' }}>아직 상담 내역이 없습니다</div>
+              <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>새 상담을 시작하면 여기에 표시됩니다.</div>
+            </div>
             <Link
               href="/ai-assist/new"
               style={{
@@ -195,6 +197,7 @@ export default function AiAssistPage() {
                 fontSize: '13px',
                 fontWeight: 600,
                 textDecoration: 'none',
+                marginTop: '4px',
               }}
             >
               첫 상담 시작하기
@@ -217,7 +220,7 @@ export default function AiAssistPage() {
                   gap: '16px',
                   transition: 'background 0.15s',
                 }}
-                onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--bg-subtle)')}
+                onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(255,255,255,0.05)')}
                 onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
               >
                 <div style={{ flex: 1, minWidth: 0 }}>

@@ -93,7 +93,7 @@ export default function PlaceInflowSection({
   return (
     <section
       aria-labelledby="place-inflow"
-      className="border-b border-zinc-800 bg-zinc-950 p-4 sm:p-5 last:border-b-0"
+      className="border-b border-[var(--border)] bg-[var(--bg-raised)] p-4 sm:p-5 last:border-b-0"
     >
       <header className="mb-4">
         <h2
@@ -114,7 +114,7 @@ export default function PlaceInflowSection({
       ) : loading ? (
         <p className="text-sm text-zinc-500">불러오는 중&hellip;</p>
       ) : !hasData ? (
-        <p className="border border-zinc-800 bg-zinc-900/50 p-4 text-sm text-zinc-500">
+        <p className="border border-[var(--border)] bg-[var(--bg)] p-4 text-sm text-zinc-500">
           표시할 데이터가 없습니다.
         </p>
       ) : (

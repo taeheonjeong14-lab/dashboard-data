@@ -2,7 +2,6 @@
 
 import type { ReactNode } from 'react';
 import { Sidebar } from './sidebar';
-import { Header } from './header';
 
 interface HospitalShellProps {
   children: ReactNode;
@@ -23,14 +22,12 @@ export function HospitalShell({ children, userName, hospitalName }: HospitalShel
           minWidth: 0,
         }}
       >
-        <Header />
         <main
           style={{
             flex: 1,
-            marginTop: '40px',
-            padding: '24px',
+            padding: '28px',
             background: 'var(--bg-subtle)',
-            minHeight: 'calc(100vh - 40px)',
+            minHeight: '100vh',
           }}
         >
           {children}

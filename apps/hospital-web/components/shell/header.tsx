@@ -1,7 +1,6 @@
 'use client';
 
 import { usePathname } from 'next/navigation';
-import { ThemeToggle } from './theme-toggle';
 
 const pageTitles: Record<string, string> = {
   '/dashboard': '경영 대시보드',
@@ -40,7 +39,7 @@ export function Header() {
         borderBottom: '1px solid var(--border)',
         display: 'flex',
         alignItems: 'center',
-        justifyContent: 'space-between',
+        justifyContent: 'flex-start',
         padding: '0 16px',
         zIndex: 40,
       }}
@@ -54,7 +53,6 @@ export function Header() {
       >
         {title}
       </span>
-      <ThemeToggle />
     </header>
   );
 }

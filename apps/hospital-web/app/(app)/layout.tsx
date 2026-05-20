@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
+import { createServiceRoleClient } from '@/lib/supabase/service-role';
 import { HospitalShell } from '@/components/shell/hospital-shell';
 import type { ReactNode } from 'react';
 
@@ -14,15 +15,44 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   }
 
   // Fetch user profile from core.users
+  // Note: core.users has both camelCase legacy columns and snake_case columns
   const { data: coreUser } = await supabase
     .schema('core')
     .from('users')
-    .select('approved, name, hospital_name')
+    .select('approved, name, customHospitalName, custom_hospital_name, hospital_id')
     .eq('id', user.id)
     .single();
 
+  const cu = coreUser as {
+    approved?: boolean;
+    name?: string | null;
+    customHospitalName?: string | null;
+    custom_hospital_name?: string | null;
+    hospital_id?: string | null;
+  } | null;
+
+  // hospital_name: prefer custom overrides, then fetch from core.hospitals via hospital_id
+  let resolvedHospitalName: string | null =
+    cu?.customHospitalName?.trim() || cu?.custom_hospital_name?.trim() || null;
+
+  if (!resolvedHospitalName && cu?.hospital_id) {
+    try {
+      const srvc = createServiceRoleClient();
+      const { data: hospital } = await srvc
+        .schema('core')
+        .from('hospitals')
+        .select('name')
+        .eq('id', cu.hospital_id)
+        .single();
+      resolvedHospitalName =
+        (hospital as { name?: string | null } | null)?.name?.trim() || null;
+    } catch {
+      // service role key not configured — skip hospital name lookup
+    }
+  }
+
   // Not yet approved — show pending screen inline
-  if (coreUser && coreUser.approved === false) {
+  if (cu && cu.approved === false) {
     return (
       <div
         style={{
@@ -84,9 +114,15 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
     );
   }
 
-  const userName = coreUser?.name ?? user.user_metadata?.name ?? user.email ?? null;
+  const userName =
+    cu?.name?.trim() ||
+    (user.user_metadata?.name as string | undefined)?.trim() ||
+    user.email ||
+    null;
   const hospitalName =
-    coreUser?.hospital_name ?? user.user_metadata?.hospital_name ?? null;
+    resolvedHospitalName ||
+    (user.user_metadata?.hospital_name as string | undefined)?.trim() ||
+    null;
 
   return (
     <HospitalShell userName={userName} hospitalName={hospitalName}>

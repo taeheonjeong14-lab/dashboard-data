@@ -352,22 +352,23 @@ export default function BlogRanksSection({
     <>
       <section
         aria-labelledby={headingId}
-        className={`${variant === "simple" ? "" : "bg-zinc-800/50 "}p-4 sm:p-5`}
+        className={`${variant === "simple" ? "" : "bg-[var(--bg-raised)] "}p-4 sm:p-5`}
       >
-        <h2
-          id={headingId}
-          className="mb-2 text-base font-semibold text-zinc-100 sm:text-lg"
-        >
-          {title}
-        </h2>
-        <p className="mb-3 text-sm text-zinc-500">{description}</p>
+        {title && (
+          <h2 id={headingId} className="mb-2 text-base font-semibold text-zinc-100 sm:text-lg">
+            {title}
+          </h2>
+        )}
+        {description && <p className="mb-3 text-sm text-zinc-500">{description}</p>}
         {loading && (
           <p className="text-sm text-zinc-400">데이터를 불러오는 중...</p>
         )}
         {!loading && rows.length === 0 && (
-          <p className="border border-zinc-800 bg-zinc-900/50 p-4 text-sm text-zinc-500">
-            표시할 순위 데이터가 없습니다.
-          </p>
+          <div className="flex flex-col items-center gap-2 border border-zinc-800 bg-zinc-900/50 px-6 py-9 text-center">
+            <span className="text-3xl text-zinc-600">📝</span>
+            <p className="text-sm font-semibold text-zinc-400">블로그 순위 데이터가 없습니다</p>
+            <p className="text-xs text-zinc-600">수집된 데이터가 있으면 여기에 표시됩니다.</p>
+          </div>
         )}
         {!loading && rows.length > 0 && (
           <>
