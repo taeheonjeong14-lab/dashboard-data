@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { Settings, LogOut } from 'lucide-react';
@@ -13,6 +14,7 @@ interface TopBarProps {
 export function TopBar({ userName, hospitalName }: TopBarProps) {
   const pathname = usePathname();
   const router = useRouter();
+  const [logoOk, setLogoOk] = useState(true);
 
   const handleSignOut = async () => {
     const supabase = createClient();
@@ -39,7 +41,7 @@ export function TopBar({ userName, hospitalName }: TopBarProps) {
         zIndex: 60,
       }}
     >
-      {/* Left — logo */}
+      {/* Left — logo (public/logo.svg 있으면 이미지, 없으면 텍스트 워드마크) */}
       <Link
         href="/dashboard"
         style={{
@@ -53,7 +55,19 @@ export function TopBar({ userName, hospitalName }: TopBarProps) {
           color: 'var(--text)',
         }}
       >
-        <span style={{ color: 'var(--accent)' }}>Vet</span>Solution
+        {logoOk ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src="/logo.svg"
+            alt="VetSolution"
+            style={{ height: 28, width: 'auto', display: 'block' }}
+            onError={() => setLogoOk(false)}
+          />
+        ) : (
+          <>
+            <span style={{ color: 'var(--accent)' }}>Vet</span>Solution
+          </>
+        )}
       </Link>
 
       {/* Right — user info + settings + logout */}
