@@ -12,9 +12,9 @@ export function splitTimelineCardText(raw: string): { cardTitle: string; cardBod
 }
 
 export function joinTimelineCardText(cardTitle: string, cardBody: string): string {
-  const rawTitle = (cardTitle ?? '').trim();
-  const rawBody = (cardBody ?? '').trim();
-  const title = rawTitle || DEFAULT_RECHECK_TITLE;
-  const body = rawBody || DEFAULT_RECHECK_BODY;
+  // 편집 중 공백(스페이스)이 즉시 잘려나가지 않도록 원문을 보존한다(trim 금지).
+  // 내용이 비었을(공백뿐일) 때에만 기본값으로 대체한다.
+  const title = (cardTitle ?? '').trim() ? (cardTitle ?? '') : DEFAULT_RECHECK_TITLE;
+  const body = (cardBody ?? '').trim() ? (cardBody ?? '') : DEFAULT_RECHECK_BODY;
   return `${title}\n${body}`;
 }
