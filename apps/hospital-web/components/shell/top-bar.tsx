@@ -60,7 +60,7 @@ export function TopBar({ userName, hospitalName }: TopBarProps) {
           <img
             src="/logo.png"
             alt="VetSolution"
-            style={{ height: 28, width: 'auto', display: 'block' }}
+            style={{ height: 42, width: 'auto', display: 'block' }}
             onError={() => setLogoOk(false)}
           />
         ) : (
