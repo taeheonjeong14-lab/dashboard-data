@@ -11,6 +11,7 @@ import {
 import { parseHealthSystemsBlocksFromUnknown } from '@/lib/chart-app/health-report-systems-blocks-parse';
 import { resolveHospitalReportTemplate } from '@/lib/chart-app/report-hospital-template';
 import { formatDirectorHospitalLine, spreadKoreanCharsForFooter } from '@/lib/chart-app/report-director-line';
+import { labItemCategory, detectSpeciesProfile, labCategorySortOrder } from '@/lib/lab-category-map';
 
 export type LabReportPage = { groups: unknown[] };
 
@@ -77,9 +78,49 @@ function coverPetImageFromSpecies(speciesLabel: 'DOG' | 'CAT'): string {
   return dog || '/dog_cover.png';
 }
 
+const LAB_ITEMS_PER_PAGE = 50;
+
+function buildLabPages(source: ReportSourceData, speciesStr: string): LabReportPage[] {
+  // Flatten across dates; last occurrence per item name wins (most recent value).
+  const flat = new Map<string, { itemName: string; valueText: string; unit: string | null; referenceRange: string | null; flag: 'low' | 'high' | 'normal' | 'unknown' }>();
+  for (const dateGroup of source.labItemsByDate) {
+    for (const item of dateGroup.items) {
+      if (item.itemName.trim()) flat.set(item.itemName, item);
+    }
+  }
+  if (flat.size === 0) return [];
+
+  const species = detectSpeciesProfile(speciesStr);
+  const groupsByKey = new Map<string, { categoryKey: string; categoryLabel: string; items: unknown[] }>();
+  for (const item of flat.values()) {
+    const cat = labItemCategory(item.itemName, species);
+    const g = groupsByKey.get(cat.key) ?? { categoryKey: cat.key, categoryLabel: cat.label, items: [] };
+    g.items.push({ ...item, categoryKey: cat.key, categoryLabel: cat.label });
+    groupsByKey.set(cat.key, g);
+  }
+
+  const sorted = [...groupsByKey.values()].sort(
+    (a, b) => labCategorySortOrder(a.categoryKey) - labCategorySortOrder(b.categoryKey),
+  );
+
+  const pages: LabReportPage[] = [];
+  let pageGroups: typeof sorted = [];
+  let pageItems = 0;
+  for (const group of sorted) {
+    if (pageItems > 0 && pageItems + group.items.length > LAB_ITEMS_PER_PAGE) {
+      pages.push({ groups: pageGroups });
+      pageGroups = [];
+      pageItems = 0;
+    }
+    pageGroups.push(group);
+    pageItems += group.items.length;
+  }
+  if (pageGroups.length > 0) pages.push({ groups: pageGroups });
+  return pages;
+}
+
 /**
  * vet-report 패리티 목표의 “preview model 조립”.
- * - 현재 chart-api는 lab 시트 카테고리/페이지 빌더까지는 미이식이므로, labPages는 항상 [] (필수 계약).
  * - coverProps/summaryProps/outerCoverProps는 프론트 컴포넌트가 기대하는 키(hospitalName/Logo 등)는 채워준다.
  */
 export function buildHealthReportPreviewModel(params: {
@@ -187,7 +228,7 @@ export function buildHealthReportPreviewModel(params: {
     systemsPage3bBlocks,
     systemsPage4Blocks,
     systemsPage5Blocks,
-    labPages: [],
+    labPages: buildLabPages(source, speciesForLabel),
     labInterpretation: safeTrim(generated.labInterpretation),
   };
 }
