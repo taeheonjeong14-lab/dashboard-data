@@ -85,7 +85,7 @@ export async function POST(request: NextRequest) {
     const token = randomShareToken();
     const token_hash = hashShareToken(token);
 
-    const shareUrl = `${new URL(request.url).origin}/review/health-checkup/${encodeURIComponent(token)}/print`;
+    const shareUrl = `${new URL(request.url).origin}/review/health-checkup/${encodeURIComponent(token)}`;
 
     const ins = await pool.query<{ expires_at: Date }>(
       `
