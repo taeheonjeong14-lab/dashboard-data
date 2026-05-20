@@ -304,12 +304,12 @@ export default function HealthReportPage() {
   // Render
   // ---------------------------------------------------------------------------
   return (
-    <div style={{ display: 'flex', gap: '24px', alignItems: 'flex-start', maxWidth: '1100px' }}>
+    <div style={{ display: 'flex', gap: '0', alignItems: 'flex-start', maxWidth: '1100px' }}>
 
       {/* ================================================================== */}
       {/* LEFT — Request list                                                  */}
       {/* ================================================================== */}
-      <div style={{ flex: 1, minWidth: 0 }}>
+      <div style={{ flex: 1, minWidth: 0, paddingRight: '24px' }}>
         <div>
           <div style={{ padding: '0 0 10px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text)' }}>리포트 목록</span>
@@ -368,7 +368,7 @@ export default function HealthReportPage() {
       {/* ================================================================== */}
       {/* RIGHT — New request form (sticky)                                    */}
       {/* ================================================================== */}
-      <div style={{ width: '340px', flexShrink: 0, position: 'sticky', top: '24px' }}>
+      <div style={{ width: '340px', flexShrink: 0, position: 'sticky', top: '24px', borderLeft: '1px solid var(--border-strong)', paddingLeft: '24px' }}>
         <div>
           <div style={{ padding: '0 0 10px' }}>
             <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text)' }}>리포트 생성 요청</div>
