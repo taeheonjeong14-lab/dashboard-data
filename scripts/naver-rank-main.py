@@ -43,6 +43,7 @@
 
 import asyncio
 import time
+import random
 import re
 import os
 import json
@@ -1636,6 +1637,15 @@ def _split_roundrobin(items: list, n: int) -> list[list]:
     return [b for b in buckets if b]
 
 
+def _human_delay() -> None:
+    """키워드 사이 사람처럼 보이는 랜덤 지연(고정 간격은 봇 신호). RANK_DELAY_MIN/MAX_SEC 로 조정."""
+    lo = float(os.getenv("RANK_DELAY_MIN_SEC", "1.5"))
+    hi = float(os.getenv("RANK_DELAY_MAX_SEC", "4.0"))
+    if hi < lo:
+        hi = lo
+    time.sleep(random.uniform(lo, hi))
+
+
 _print_lock = threading.Lock()
 
 
@@ -1669,7 +1679,7 @@ def _worker_blog_chunk(worker_id: int, pairs_chunk: list, use_debug_chrome: bool
                 with _print_lock:
                     print_result(data)
                 chunk_results.append(row)
-                time.sleep(0.2)
+                _human_delay()
         finally:
             with suppress(Exception):
                 page.close()
@@ -1706,7 +1716,7 @@ def _worker_place_chunk(worker_id: int, place_chunk: list, use_debug_chrome: boo
                     else:
                         print(f"📌 [{kw} / {store}] 플레이스: {data.get('rank')}위")
                 chunk_results.append(data)
-                time.sleep(0.2)
+                _human_delay()
         finally:
             with suppress(Exception):
                 page.close()

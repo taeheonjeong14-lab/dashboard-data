@@ -337,9 +337,9 @@ async function main() {
     // Windows(cp949) 콘솔에서도 파이썬 stdout/stderr 유니코드 출력이 깨지지 않도록 강제 UTF-8.
     PYTHONUTF8: process.env.PYTHONUTF8 || "1",
     PYTHONIOENCODING: process.env.PYTHONIOENCODING || "utf-8",
-    // 블로그 키워드 순위 수집 병렬 워커 수. 미설정 시 4(naver-rank-main.py 기본은 1=순차).
-    // 워커당 독립 Playwright 세션을 띄우므로 머신 사양에 맞춰 RANK_PARALLEL_WORKERS 로 조정 가능.
-    RANK_PARALLEL_WORKERS: process.env.RANK_PARALLEL_WORKERS || "4",
+    // 키워드 순위 수집 병렬 워커 수(=동시 브라우저 수). 미설정 시 2.
+    // 한 IP 동시 요청이 많으면 네이버 탐지 위험 ↑ → 속도 vs 위험 절충으로 2. RANK_PARALLEL_WORKERS 로 조정.
+    RANK_PARALLEL_WORKERS: process.env.RANK_PARALLEL_WORKERS || "2",
     ...(resolvedChromePort == null
       ? {}
       : {
