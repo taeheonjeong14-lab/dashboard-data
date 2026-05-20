@@ -55,10 +55,6 @@ const LEGACY_LINK_CONTENT_TYPE = 'health-checkup';
 const RESPONSE_CONTENT_TYPE = 'health-checkup';
 const GENERATED_CONTENT_TYPE = 'health_checkup';
 
-function shareBaseUrl(origin: string): string {
-  const configured = (process.env.CHART_APP_SHARE_PUBLIC_BASE_URL ?? '').trim();
-  return (configured || origin).replace(/\/$/, '');
-}
 
 export async function OPTIONS(request: NextRequest) {
   return new NextResponse(null, { status: 204, headers: sharePublicCorsHeadersSnapshot(request) });
@@ -89,8 +85,7 @@ export async function POST(request: NextRequest) {
     const token = randomShareToken();
     const token_hash = hashShareToken(token);
 
-    const base = shareBaseUrl(new URL(request.url).origin);
-    const shareUrl = `${base}/review/health-checkup/${encodeURIComponent(token)}`;
+    const shareUrl = `${new URL(request.url).origin}/review/health-checkup/${encodeURIComponent(token)}/print`;
 
     const ins = await pool.query<{ expires_at: Date }>(
       `

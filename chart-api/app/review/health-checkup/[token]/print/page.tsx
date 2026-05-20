@@ -16,6 +16,7 @@ import type { HospitalRow } from '@/lib/chart-app/hospitals-types';
 import { loadReportSourceData } from '@/lib/chart-app/report-source';
 import { buildHealthReportPreviewModel } from '@/lib/chart-app/health-report-preview-model';
 import { signImageSlotsInBlocks } from '@/lib/chart-app/health-report-blocks-sign-images';
+import { getHealthCheckupGeneratedContentForRun } from '@/lib/generated-run-content';
 import type { HealthReportCoverSheetProps } from '@/app/components/report/health-report-cover-sheet';
 import { HealthReportCoverSheet } from '@/app/components/report/health-report-cover-sheet';
 import type { HealthReportOuterCoverSheetProps } from '@/app/components/report/health-report-outer-cover-sheet';
@@ -31,11 +32,9 @@ import {
 } from '@/app/components/report/health-systems-report-sheet';
 import type { LabReportCategoryGroup } from '@/app/components/report/health-lab-report-sheet';
 import { HealthLabReportSheet } from '@/app/components/report/health-lab-report-sheet';
-import type { HealthCheckupGeneratedContent } from '@/lib/chart-app/health-checkup-content-llm';
 
 const LINK_CONTENT_TYPE = 'health_checkup';
 const LEGACY_LINK_CONTENT_TYPE = 'health-checkup';
-const GENERATED_CONTENT_TYPE = 'health_checkup';
 
 export default async function HealthReportSharePrintPage({
   params,
@@ -60,14 +59,8 @@ export default async function HealthReportSharePrintPage({
 
   const runId = row.parse_run_id;
 
-  const gen = await pool.query<{ payload: unknown }>(
-    `SELECT payload FROM health_report.generated_run_content
-     WHERE parse_run_id = $1::uuid AND content_type = $2
-     LIMIT 1`,
-    [runId, GENERATED_CONTENT_TYPE],
-  );
-  const generatedPayload = gen.rows[0]?.payload as HealthCheckupGeneratedContent | undefined;
-  if (!generatedPayload) notFound();
+  const generatedRow = await getHealthCheckupGeneratedContentForRun(null, runId);
+  if (!generatedRow) notFound();
 
   const { rows: prRows } = await pool.query<{ hospital_id: string | null }>(
     `SELECT hospital_id FROM chart_pdf.parse_runs WHERE id = $1::uuid LIMIT 1`,
@@ -86,7 +79,7 @@ export default async function HealthReportSharePrintPage({
   const source = await loadReportSourceData(runId);
   const model = buildHealthReportPreviewModel({
     source,
-    generated: generatedPayload,
+    generated: generatedRow.payload,
     hospital: hospitalRow,
   });
 
