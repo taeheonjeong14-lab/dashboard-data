@@ -4,8 +4,7 @@
  * 이미지 슬롯을 항상 새로 서명(signImageSlotsInBlocks)하므로
  * DB에 만료된 서명 URL이 저장된 경우에도 올바르게 동작합니다.
  */
-export const metadata = { title: '건강검진 결과보고서' };
-
+import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import '@fontsource/noto-sans-kr/400.css';
 import '@fontsource/noto-sans-kr/500.css';
@@ -37,6 +36,38 @@ import { HealthLabReportSheet } from '@/app/components/report/health-lab-report-
 
 const LINK_CONTENT_TYPE = 'health_checkup';
 const LEGACY_LINK_CONTENT_TYPE = 'health-checkup';
+const GENERATED_CONTENT_TYPE = 'health_checkup';
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ token: string }>;
+}): Promise<Metadata> {
+  const fallback: Metadata = { title: '건강검진 결과보고서' };
+  try {
+    const { token } = await params;
+    if (!token) return fallback;
+    const pool = getChartPgPool();
+    const hash = hashShareToken(token);
+    const link = await pool.query<{ parse_run_id: string; expires_at: Date; revoked_at: Date | null }>(
+      `SELECT parse_run_id, expires_at, revoked_at FROM health_report.health_review_share_links WHERE token_hash = $1 AND content_type IN ($2, $3) LIMIT 1`,
+      [hash, LINK_CONTENT_TYPE, LEGACY_LINK_CONTENT_TYPE],
+    );
+    const row = link.rows[0];
+    if (!row || row.revoked_at || row.expires_at.getTime() < Date.now()) return fallback;
+    const gen = await pool.query<{ payload: { coverPatientName?: string; coverCheckupDate?: string } }>(
+      `SELECT payload FROM health_report.generated_run_content WHERE parse_run_id = $1::uuid AND content_type = $2 LIMIT 1`,
+      [row.parse_run_id, GENERATED_CONTENT_TYPE],
+    );
+    const payload = gen.rows[0]?.payload;
+    const name = payload?.coverPatientName?.trim();
+    const date = payload?.coverCheckupDate?.trim();
+    const suffix = [name, date].filter(Boolean).join(' / ');
+    return { title: suffix ? `건강검진 결과보고서 — ${suffix}` : '건강검진 결과보고서' };
+  } catch {
+    return fallback;
+  }
+}
 
 export default async function HealthReportSharePrintPage({
   params,
