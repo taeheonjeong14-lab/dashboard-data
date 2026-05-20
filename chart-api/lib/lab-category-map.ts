@@ -17,7 +17,7 @@ export type { LabCategory, SpeciesProfile };
 
 const CBC_LAB_SHEET_FIXED: readonly string[] = [
   'RBC', 'HGB', 'HCT', 'MCV', 'MCH', 'MCHC', 'RDW',
-  'WBC', 'NEU', '%NEU', 'LYM', '%LYM', 'MONO', '%MONO', 'MON', 'GRA', 'EOS', '%EOS', 'BASO', '%BASO',
+  'WBC', 'NEU', 'NEU(%)', 'LYM', 'LYM(%)', 'MONO', 'MONO(%)', 'MON', 'MON(%)', 'GRA', 'GRA(%)', 'EOS', 'EOS(%)', 'BASO', 'BASO(%)',
   'PLT', 'MPV',
 ];
 const CBC_LAB_SHEET_SUPPLEMENTARY: readonly string[] = [

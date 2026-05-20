@@ -9,8 +9,6 @@ type CanonicalRule = {
 };
 
 const PRIORITY_RULES: CanonicalRule[] = [
-  { canonical: '%RETIC', pattern: /(?:^|[^A-Z])%+\s*RETIC(?:[^A-Z]|$)/i },
-  { canonical: 'RETIC', pattern: /(?:^|[^A-Z])RETIC(?:[^A-Z]|$)/i },
   { canonical: 'ALB/GLOB', pattern: /ALBUMIN\s*\/\s*GLOBULIN/i },
   { canonical: 'ALB/GLOB', pattern: /ALB\s*\/\s*GLOB(?:ULIN)?/i },
   { canonical: 'ALB/GLOB', pattern: /ALB\s*\/\s*GL\b/i },
@@ -193,6 +191,38 @@ function pancreaticLipaseImmunoCanonical(
   return null;
 }
 
+/**
+ * CBC 차등 항목: 같은 분석물질이 절대값/백분율 두 가지로 들어옴.
+ * 절대값 → 'NEU', 백분율 → 'NEU(%)' 로 통일.
+ * 원문 변형(NEU, NEU#, NEU %, WBC-NEU#, WBC-NEU%, %NEU, Neutrophils, ABS-NEU 등) 흡수.
+ */
+const CBC_DIFF_BASE: Record<string, string> = {
+  NEU: 'NEU', NEUT: 'NEU', NEUTS: 'NEU', NEUTROPHIL: 'NEU', NEUTROPHILS: 'NEU',
+  LYM: 'LYM', LYMS: 'LYM', LYMPH: 'LYM', LYMPHS: 'LYM', LYMPHO: 'LYM', LYMPHOCYTE: 'LYM', LYMPHOCYTES: 'LYM',
+  MONO: 'MONO', MONOS: 'MONO', MONOCYTE: 'MONO', MONOCYTES: 'MONO',
+  MON: 'MON',
+  EOS: 'EOS', EOSIN: 'EOS', EOSINOPHIL: 'EOS', EOSINOPHILS: 'EOS',
+  BASO: 'BASO', BASOS: 'BASO', BASOPHIL: 'BASO', BASOPHILS: 'BASO',
+  RETIC: 'RETIC', RETICS: 'RETIC', RET: 'RETIC', RETICULOCYTE: 'RETIC', RETICULOCYTES: 'RETIC',
+  GRA: 'GRA', GRAN: 'GRA', GRANS: 'GRA', GRANULOCYTE: 'GRA', GRANULOCYTES: 'GRA',
+};
+
+function cbcDifferentialCanonical(raw: string): string | null {
+  const hasPercent = raw.includes('%');
+  // 괄호내용·기호 제거 → 영숫자 stem. 그 후 WBC 접두 / ABS·COUNT 접두·접미 제거.
+  const stem = raw
+    .toUpperCase()
+    .replace(/\(.*?\)/g, '')
+    .replace(/[^A-Z0-9]/g, '')
+    .replace(/^WBC/, '')
+    .replace(/^ABS/, '')
+    .replace(/(?:ABS|COUNT)$/, '');
+  if (!stem) return null;
+  const base = CBC_DIFF_BASE[stem];
+  if (!base) return null;
+  return hasPercent ? `${base}(%)` : base;
+}
+
 export type LabCanonicalizeSpecies = 'dog' | 'cat';
 
 export function canonicalizeLabItemName(
@@ -205,6 +235,9 @@ export function canonicalizeLabItemName(
   for (const rule of PRIORITY_RULES) {
     if (rule.pattern.test(raw)) return rule.canonical;
   }
+
+  const cbcDiff = cbcDifferentialCanonical(raw);
+  if (cbcDiff) return cbcDiff;
 
   const normalized = normalizeToken(raw);
   const out = DIRECT_ALIASES[normalized] ?? normalized;
@@ -233,6 +266,7 @@ const RECOGNIZED_LAB_ITEMS: ReadonlySet<string> = new Set(
     'WBC', 'RBC', 'HGB', 'HCT', 'PLT', 'MCV', 'MCH', 'MCHC', 'RDW', 'RDW-CV', 'RDW-SD', 'PDW', 'PDW-CV', 'MPV',
     'NEU', 'LYM', 'MONO', 'MON', 'GRA', 'EOS', 'BASO', 'RETIC', 'RET-He', 'IRF', 'LFR', 'MFR', 'HFR', 'PCT', 'PLT-LCR',
     '%NEU', '%LYM', '%MONO', '%EOS', '%BASO', '%RETIC', 'NRBC', 'BANDS', 'Blood smear',
+    'NEU(%)', 'LYM(%)', 'MONO(%)', 'MON(%)', 'GRA(%)', 'EOS(%)', 'BASO(%)', 'RETIC(%)',
     // Chemistry
     'ALT', 'AST', 'ALP', 'GGT', 'ALB', 'TP', 'GLOB', 'ALB/GLOB', 'BUN', 'CREA', 'BUN/CREA', 'SDMA', 'GLU',
     'TBIL', 'DBIL', 'TBA', 'TCHO', 'CHOL', 'TRIG', 'AMYL', 'LIPA', 'CK', 'TLI', 'NH3', 'FRUC', 'OSM', 'OSM CA',
@@ -322,6 +356,15 @@ const ITEM_TO_CATEGORY: Record<string, string> = {
   GRA: 'cbc',
   EOS: 'cbc',
   BASO: 'cbc',
+  // CBC 차등 백분율 (canonical: X(%))
+  'NEU(%)': 'cbc',
+  'LYM(%)': 'cbc',
+  'MONO(%)': 'cbc',
+  'MON(%)': 'cbc',
+  'GRA(%)': 'cbc',
+  'EOS(%)': 'cbc',
+  'BASO(%)': 'cbc',
+  'RETIC(%)': 'cbc',
   RETIC: 'cbc',
   'RET-He': 'cbc',
   IRF: 'cbc',
