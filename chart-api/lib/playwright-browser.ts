@@ -1,4 +1,5 @@
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 
 const KOREAN_FONT_URLS = [
   'https://cdn.jsdelivr.net/gh/googlefonts/noto-cjk@main/Sans/OTF/Korean/NotoSansCJKkr-Regular.otf',
@@ -40,12 +41,17 @@ export async function launchPlaywrightChromium() {
       return process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH;
     }
     try {
-      // Try package-bundled binary first (works when bin/ exists in node_modules)
+      // Happy path: binary is bundled in node_modules (works locally or on Pro plan).
       return await chromiumBinary.default.executablePath();
     } catch {
-      // bin/ directory missing in deployment (v130+ no longer bundles binary in npm).
-      // Pass /tmp so @sparticuz/chromium downloads the binary there at runtime.
-      return await chromiumBinary.default.executablePath('/tmp');
+      // Binary not in node_modules (Vercel Hobby excludes files >50 MB from the bundle).
+      // Fall back to downloading from GitHub Releases at runtime.
+      // executablePath(url) downloads the pack.tar, caches in /tmp, returns the path.
+      const pkgJson = JSON.parse(
+        readFileSync(resolve(require.resolve('@sparticuz/chromium'), '../../package.json'), 'utf-8'),
+      ) as { version: string };
+      const url = `https://github.com/Sparticuz/chromium/releases/download/v${pkgJson.version}/chromium-v${pkgJson.version}-pack.tar`;
+      return await chromiumBinary.default.executablePath(url);
     }
   })();
   const baseOptions: Parameters<typeof chromium.launch>[0] = {
