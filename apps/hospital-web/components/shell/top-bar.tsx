@@ -58,7 +58,7 @@ export function TopBar({ userName, hospitalName }: TopBarProps) {
         {logoOk ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
-            src="/logo.svg"
+            src="/logo.png"
             alt="VetSolution"
             style={{ height: 28, width: 'auto', display: 'block' }}
             onError={() => setLogoOk(false)}
