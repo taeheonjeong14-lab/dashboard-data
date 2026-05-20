@@ -13,6 +13,29 @@ import { resolveHospitalReportTemplate } from '@/lib/chart-app/report-hospital-t
 import { formatDirectorHospitalLine, spreadKoreanCharsForFooter } from '@/lib/chart-app/report-director-line';
 import { labItemCategory, detectSpeciesProfile, labCategorySortOrder } from '@/lib/lab-category-map';
 import { refineLabFlag } from '@dashboard/lab-normalize';
+import {
+  HEALTH_CHECKUP_MAX_OVERALL_CHARS,
+  HEALTH_CHECKUP_MAX_FOLLOW_UP_CHARS,
+  HEALTH_CHECKUP_MAX_RECHECK_TITLE_CHARS,
+  HEALTH_CHECKUP_MAX_RECHECK_BODY_CHARS,
+} from '@/lib/chart-app/health-checkup-limits';
+
+// 섹션별 최대 글자수 초과분은 PDF·미리보기에서 잘라낸다(에디터 경고와 동일 동작).
+const SYSTEMS_P34_ROW_MAX = 320;
+const SYSTEMS_P5_ROW_MAX = 250;
+const LAB_INTERPRETATION_MAX = 250;
+
+function clampChars(s: string, max: number): string {
+  return s.length > max ? s.slice(0, max) : s;
+}
+
+function clampSystemsBlocks(blocks: HealthSystemsReportBlock[], max: number): HealthSystemsReportBlock[] {
+  return blocks.map((b) =>
+    b.variant === 'rows'
+      ? { ...b, rows: b.rows.map((r) => ({ ...r, content: clampChars(r.content, max) })) }
+      : b,
+  );
+}
 
 export type LabReportPage = { groups: unknown[] };
 
@@ -47,7 +70,11 @@ function timelineItemsFromGenerated(g: HealthCheckupGeneratedContent): Array<Rec
   ];
   return rows.map(([intervalLabel, raw]) => {
     const { cardTitle, cardBody } = splitTimelineCardText(raw ?? '');
-    return { intervalLabel, cardTitle, cardBody };
+    return {
+      intervalLabel,
+      cardTitle: clampChars(cardTitle, HEALTH_CHECKUP_MAX_RECHECK_TITLE_CHARS),
+      cardBody: clampChars(cardBody, HEALTH_CHECKUP_MAX_RECHECK_BODY_CHARS),
+    };
   });
 }
 
@@ -201,8 +228,8 @@ export function buildHealthReportPreviewModel(params: {
     hospitalLogoSrc: coverProps.hospitalLogoSrc,
     sealImageSrc: sealImageSrc || undefined,
     tokenOverrides: tokenOverrides ?? undefined,
-    overallSummary: generated.overallSummary,
-    followUpPlan: generated.followUpCare,
+    overallSummary: clampChars(generated.overallSummary ?? '', HEALTH_CHECKUP_MAX_OVERALL_CHARS),
+    followUpPlan: clampChars(generated.followUpCare ?? '', HEALTH_CHECKUP_MAX_FOLLOW_UP_CHARS),
     timelineItems: timelineItemsFromGenerated(generated),
     directorTitleLine: formatDirectorHospitalLine(hospitalNameKo, hospital?.director_title),
     directorNameSpread: spreadKoreanCharsForFooter(hospital?.director_name_ko ?? '') || undefined,
@@ -222,16 +249,24 @@ export function buildHealthReportPreviewModel(params: {
     tokenOverrides: tokenOverrides ?? undefined,
   };
 
-  const systemsPage3Blocks =
-    parseHealthSystemsBlocksFromUnknown(generated.systemsPage3Blocks) ?? structuredClone(DEMO_HEALTH_SYSTEMS_BLOCKS);
-  const systemsPage3bBlocks =
+  const systemsPage3Blocks = clampSystemsBlocks(
+    parseHealthSystemsBlocksFromUnknown(generated.systemsPage3Blocks) ?? structuredClone(DEMO_HEALTH_SYSTEMS_BLOCKS),
+    SYSTEMS_P34_ROW_MAX,
+  );
+  const systemsPage3bBlocks = clampSystemsBlocks(
     parseHealthSystemsBlocksFromUnknown(generated.systemsPage3bBlocks) ??
-    structuredClone(DEMO_HEALTH_SYSTEMS_PAGE_B_BLOCKS);
-  const systemsPage4Blocks =
-    parseHealthSystemsBlocksFromUnknown(generated.systemsPage4Blocks) ?? structuredClone(DEMO_HEALTH_DENTAL_SKIN_BLOCKS);
-  const systemsPage5Blocks =
+      structuredClone(DEMO_HEALTH_SYSTEMS_PAGE_B_BLOCKS),
+    SYSTEMS_P34_ROW_MAX,
+  );
+  const systemsPage4Blocks = clampSystemsBlocks(
+    parseHealthSystemsBlocksFromUnknown(generated.systemsPage4Blocks) ?? structuredClone(DEMO_HEALTH_DENTAL_SKIN_BLOCKS),
+    SYSTEMS_P34_ROW_MAX,
+  );
+  const systemsPage5Blocks = clampSystemsBlocks(
     parseHealthSystemsBlocksFromUnknown(generated.systemsPage5Blocks) ??
-    structuredClone(DEMO_RADIOLOGY_ULTRASOUND_BLOCKS);
+      structuredClone(DEMO_RADIOLOGY_ULTRASOUND_BLOCKS),
+    SYSTEMS_P5_ROW_MAX,
+  );
 
   return {
     hospital,
@@ -244,7 +279,7 @@ export function buildHealthReportPreviewModel(params: {
     systemsPage4Blocks,
     systemsPage5Blocks,
     labPages: buildLabPages(source, speciesForLabel, Boolean(safeTrim(generated.labInterpretation))),
-    labInterpretation: safeTrim(generated.labInterpretation),
+    labInterpretation: clampChars(safeTrim(generated.labInterpretation), LAB_INTERPRETATION_MAX),
   };
 }
 
