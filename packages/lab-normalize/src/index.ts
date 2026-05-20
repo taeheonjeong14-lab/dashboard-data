@@ -664,3 +664,64 @@ export function labItemCategory(itemName: string, species?: SpeciesProfile): Lab
 export function labCategorySortOrder(categoryKey: string): number {
   return CATEGORY_BY_KEY.get(categoryKey)?.order ?? 99;
 }
+
+// ===== 플래그 보정 (부등호 값) =====
+
+export type LabFlag = 'low' | 'high' | 'normal' | 'unknown';
+
+function parseRefRange(ref: string | null | undefined): { low: number | null; high: number | null } {
+  if (!ref) return { low: null, high: null };
+  const m = ref.replace(/,/g, '').match(/(-?\d+(?:\.\d+)?)\s*[-~–—]\s*(-?\d+(?:\.\d+)?)/);
+  if (!m) return { low: null, high: null };
+  const low = Number.parseFloat(m[1]);
+  const high = Number.parseFloat(m[2]);
+  return {
+    low: Number.isFinite(low) ? low : null,
+    high: Number.isFinite(high) ? high : null,
+  };
+}
+
+/** 부등호 값 해석: ">N"/"N<" → 값이 N 초과(gt), "<N"/"N>" → 값이 N 미만(lt). */
+function parseInequalityValue(valueText: string): { gt?: number; lt?: number } | null {
+  const t = (valueText ?? '').replace(/,/g, '').trim();
+  if (!t) return null;
+  let m: RegExpMatchArray | null;
+  // 초과: >N, ≥N, N<, N≤
+  if ((m = t.match(/^[>≥]\s*=?\s*(\d+(?:\.\d+)?)/))) return { gt: Number.parseFloat(m[1]) };
+  if ((m = t.match(/(\d+(?:\.\d+)?)\s*[<≤]\s*$/))) return { gt: Number.parseFloat(m[1]) };
+  // 미만: <N, ≤N, N>, N≥
+  if ((m = t.match(/^[<≤]\s*=?\s*(\d+(?:\.\d+)?)/))) return { lt: Number.parseFloat(m[1]) };
+  if ((m = t.match(/(\d+(?:\.\d+)?)\s*[>≥]\s*$/))) return { lt: Number.parseFloat(m[1]) };
+  return null;
+}
+
+/**
+ * 부등호 값(>N, <N, N>, N<)을 참고범위와 비교해 플래그를 보정한다.
+ * - 기존 플래그가 unknown 일 때만 동작 (차트 자체 H/L 마커가 있으면 그대로 둔다).
+ * - 혈액검사 값은 음수가 없다고 가정한다.
+ *   · 값 > N 이고 N ≥ 상한 → high
+ *   · 값 < N 이고 N ≤ 하한 → low
+ *   · 값 < N 이고 하한 ≤ 0 이고 N ≤ 상한 → normal ([0,N) ⊆ 범위)
+ *   · 그 외(판정 불가) → 그대로 unknown
+ */
+export function refineLabFlag(
+  currentFlag: LabFlag,
+  valueText: string,
+  referenceRange: string | null | undefined,
+): LabFlag {
+  if (currentFlag !== 'unknown') return currentFlag;
+  const ineq = parseInequalityValue(valueText);
+  if (!ineq) return currentFlag;
+  const { low, high } = parseRefRange(referenceRange);
+
+  if (ineq.gt !== undefined) {
+    if (high !== null && ineq.gt >= high) return 'high';
+    return 'unknown';
+  }
+  if (ineq.lt !== undefined) {
+    if (low !== null && ineq.lt <= low) return 'low';
+    if (high !== null && ineq.lt <= high && (low === null || low <= 0)) return 'normal';
+    return 'unknown';
+  }
+  return currentFlag;
+}

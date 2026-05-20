@@ -40,6 +40,7 @@ import { hospitalsDbUsesCamelCase } from "@/lib/hospital-db";
 import { dbChartPdf, dbCore, getSupabaseCoreSchema } from "@/lib/supabase-db-schema";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { canonicalizeLabItemName } from "@/lib/lab-item-normalize";
+import { refineLabFlag } from "@dashboard/lab-normalize";
 import { detectSpeciesProfile } from "@/lib/lab-category-map";
 import {
   efriendsChartBodyByDateFromBlocks,
@@ -2757,7 +2758,7 @@ export async function POST(request: NextRequest) {
           valueText: item.valueText,
           unit: item.unit,
           referenceRange: item.referenceRange,
-          flag: item.flag,
+          flag: refineLabFlag(item.flag, item.valueText, item.referenceRange),
           page: item.page,
         })),
         source: labItemsSource,
