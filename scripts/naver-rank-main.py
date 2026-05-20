@@ -49,6 +49,7 @@ import os
 import json
 import sys
 import threading
+import urllib.request
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeoutError
 from contextlib import suppress
 from datetime import datetime, timedelta
@@ -1646,6 +1647,40 @@ def _human_delay() -> None:
     time.sleep(random.uniform(lo, hi))
 
 
+# 차단/캡차 감지 시 전 워커가 공유하는 정지 신호 (감지되면 그날 수집 중단 → IP 평판 보호)
+_blocked_event = threading.Event()
+
+_BLOCK_URL_MARKERS = ("captcha", "nid.naver.com/nidlogin", "/n/captcha", "blockmiddle")
+_BLOCK_TEXT_MARKERS = (
+    "자동 등록 방지", "비정상적", "보안문자", "캡차", "captcha",
+    "일시적으로 제한", "접근이 제한",
+)
+
+
+def _detect_block(page) -> bool:
+    """현재 페이지가 네이버 차단/캡차 페이지인지 빠르게 판별."""
+    try:
+        url = (page.url or "").lower()
+        if any(m in url for m in _BLOCK_URL_MARKERS):
+            return True
+    except Exception:
+        pass
+    try:
+        body = (page.inner_text("body", timeout=1500) or "").lower()
+        return any(m.lower() in body for m in _BLOCK_TEXT_MARKERS)
+    except Exception:
+        return False
+
+
+def _probe_cdp(port: int) -> bool:
+    """디버그 Chrome(CDP)이 해당 포트에 떠 있는지 확인."""
+    try:
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}/json/version", timeout=1.5) as resp:
+            return getattr(resp, "status", 200) == 200
+    except Exception:
+        return False
+
+
 _print_lock = threading.Lock()
 
 
@@ -1668,6 +1703,8 @@ def _worker_blog_chunk(worker_id: int, pairs_chunk: list, use_debug_chrome: bool
         page = context.new_page()
         try:
             for blog_id, kw in pairs_chunk:
+                if _blocked_event.is_set():
+                    break
                 data = check_naver_ranking_on_page(page, kw, blog_id)
                 data["blog_id"] = blog_id
                 row = {
@@ -1679,6 +1716,11 @@ def _worker_blog_chunk(worker_id: int, pairs_chunk: list, use_debug_chrome: bool
                 with _print_lock:
                     print_result(data)
                 chunk_results.append(row)
+                if _detect_block(page):
+                    _blocked_event.set()
+                    with _print_lock:
+                        print(f"🛑 워커 {worker_id}: 네이버 차단/캡차 감지 — 수집 중단")
+                    break
                 _human_delay()
         finally:
             with suppress(Exception):
@@ -1707,6 +1749,8 @@ def _worker_place_chunk(worker_id: int, place_chunk: list, use_debug_chrome: boo
         page = context.new_page()
         try:
             for kw, store, hospital_id in place_chunk:
+                if _blocked_event.is_set():
+                    break
                 data = check_place_ranking_on_page(page, kw, store)
                 data["hospital_id"] = hospital_id
                 with _print_lock:
@@ -1716,6 +1760,11 @@ def _worker_place_chunk(worker_id: int, place_chunk: list, use_debug_chrome: boo
                     else:
                         print(f"📌 [{kw} / {store}] 플레이스: {data.get('rank')}위")
                 chunk_results.append(data)
+                if _detect_block(page):
+                    _blocked_event.set()
+                    with _print_lock:
+                        print(f"🛑 워커 {worker_id}: 네이버 차단/캡차 감지 — 수집 중단")
+                    break
                 _human_delay()
         finally:
             with suppress(Exception):
@@ -1733,7 +1782,6 @@ def main():
     export_excel = False
     upload_db = True
     metric_date = None
-    use_debug_chrome = _is_truthy_env("RANK_USE_DEBUG_CHROME")
     raw_debug_port = os.getenv("CHROME_DEBUGGING_PORT", "9222")
     input_source = os.getenv("RANK_INPUT_SOURCE", "db").strip().lower()
     try:
@@ -1741,6 +1789,19 @@ def main():
     except ValueError:
         print(f"❌ CHROME_DEBUGGING_PORT 값이 잘못되었습니다: {raw_debug_port}")
         return
+
+    # CDP(실 Chrome) 가 가장 탐지에 안전 → 디버그 Chrome 이 떠 있으면 자동으로 사용.
+    # RANK_USE_DEBUG_CHROME 를 명시하면 그 값을 우선(강제 on/off).
+    _explicit_cdp = os.getenv("RANK_USE_DEBUG_CHROME")
+    if _explicit_cdp is not None:
+        use_debug_chrome = _is_truthy_env("RANK_USE_DEBUG_CHROME")
+    else:
+        use_debug_chrome = _probe_cdp(debug_port)
+    if use_debug_chrome:
+        print(f"ℹ️ CDP 모드(실 Chrome, port={debug_port}) 사용 — 탐지 위험 최소")
+    else:
+        print("ℹ️ 독립 Chromium launch 모드 (디버그 Chrome 미감지). CDP를 쓰려면 "
+              f"Chrome 을 --remote-debugging-port={debug_port} 로 실행하세요.")
 
     positional = []
     args = sys.argv[1:]
@@ -1822,8 +1883,6 @@ def main():
             print("❌ 확인할 (블로그 ID, 키워드) 또는 (키워드, 상호명)이 없습니다. input.xlsx를 확인하세요.")
         return
     print(f"ℹ️ 입력 소스: {input_source}")
-    if use_debug_chrome:
-        print(f"ℹ️ CDP 모드: 디버깅 Chrome 세션 공유 사용 (port={debug_port})")
 
     supabase_url = os.getenv("SUPABASE_URL", "")
     service_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
@@ -1897,6 +1956,9 @@ def main():
         print(f"\n✅ 결과 저장: {output_path}")
     else:
         print("\nℹ️ 기본 모드(DB 직적재)로 엑셀 저장을 건너뜁니다. 필요 시 --export-excel 사용")
+    if _blocked_event.is_set():
+        print("🛑 네이버 차단/캡차 감지로 수집을 중단했습니다 — 일부만 수집됨. "
+              "잠시 후(가능하면 IP/시간대 변경) 재시도하세요.")
     print("✅ 끝.")
 
 
