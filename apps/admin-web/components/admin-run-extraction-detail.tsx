@@ -6,12 +6,24 @@ import type { ExamType, FindingSpot, RadiologySub } from '@/lib/chart-case-image
 import { EXAM_TYPE_LABEL_KO, RADIOLOGY_SUB_LABEL_KO } from '@/lib/chart-case-images/types';
 import type { PlanRow, RunDetailResponse } from '@/lib/admin-run-detail-types';
 import { HEALTH_CHECKUP_MAX_COVER_FIELD_CHARS, HEALTH_CHECKUP_MUST_INCLUDE_MAX_CHARS } from '@/lib/health-report-admin/limits';
-import { canonicalizeLabItemName, isRecognizedLabItem } from '@/lib/chart-extraction/lab-item-normalize';
+import { canonicalizeLabItemName, isRecognizedLabItem, type LabCanonicalizeSpecies } from '@/lib/chart-extraction/lab-item-normalize';
+import { labItemCategory } from '@dashboard/lab-normalize';
 import { speciesProfileFromBasicSpecies } from '@/lib/chart-extraction/lab-species-profile';
 import { isParseRunUuid } from '@/lib/chart-extraction/uuid';
 import { BucketDebugPanel } from '@/components/bucket-debug-panel';
 
 type ExtractionSection = 'basicInfo' | 'vaccination' | 'chartBody' | 'plan' | 'lab';
+
+/** 카테고리 셀 — item_name 으로 런타임 계산 (DB 저장 안 됨). 짧은 영문 라벨 표시. */
+function CategoryLabCell({ name, species }: { name: string; species: LabCanonicalizeSpecies }) {
+  const cat = labItemCategory(name, species);
+  const isOther = cat.key === 'other';
+  return (
+    <td style={{ padding: 4, fontSize: 11, whiteSpace: 'nowrap', color: isOther ? '#dc2626' : '#475569' }}>
+      {cat.shortLabel}
+    </td>
+  );
+}
 
 /** 정규화 결과 셀 — 표준 미인식 항목(리포트 Other 로 분류)은 빨간색으로 강조. */
 function NormalizedLabCell({ name }: { name: string }) {
@@ -1520,6 +1532,7 @@ export function AdminRunExtractionDetail({
               <table className="adminDetailTable">
                 <thead>
                   <tr>
+                    <th style={{ textAlign: 'left', padding: 4 }}>카테고리</th>
                     <th style={{ textAlign: 'left', padding: 4 }}>원문(OCR)</th>
                     <th style={{ textAlign: 'left', padding: 4 }}>정규화</th>
                     <th style={{ textAlign: 'left', padding: 4 }}>값</th>
@@ -1534,6 +1547,7 @@ export function AdminRunExtractionDetail({
                     <tr key={it.id || `nl-${gi}-${ii}`}>
                       {editing.lab && draftLab ? (
                         <>
+                          <CategoryLabCell name={draftLab[gi]!.items[ii]!.itemName} species={labSpeciesProfile} />
                           <td style={{ padding: 2 }}>
                             <input
                               style={{ width: '100%', minWidth: 80, fontSize: 11, padding: 4 }}
@@ -1665,6 +1679,7 @@ export function AdminRunExtractionDetail({
                         </>
                       ) : (
                         <>
+                          <CategoryLabCell name={it.itemName} species={labSpeciesProfile} />
                           <td style={{ padding: 4 }}>{it.itemRawName}</td>
                           <NormalizedLabCell name={it.itemName} />
                           <td style={{ padding: 4 }}>{it.valueText}</td>
