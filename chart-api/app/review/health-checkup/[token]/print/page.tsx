@@ -4,6 +4,8 @@
  * 이미지 슬롯을 항상 새로 서명(signImageSlotsInBlocks)하므로
  * DB에 만료된 서명 URL이 저장된 경우에도 올바르게 동작합니다.
  */
+export const metadata = { title: '건강검진 결과보고서' };
+
 import { notFound } from 'next/navigation';
 import '@fontsource/noto-sans-kr/400.css';
 import '@fontsource/noto-sans-kr/500.css';
