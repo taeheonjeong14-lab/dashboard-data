@@ -9,11 +9,16 @@ export async function signCaseImageStoragePaths(paths: string[]): Promise<Map<st
   if (uniq.length === 0) return out;
 
   const supabase = getChartAppSupabaseService();
-  const bucket = getCaseImageBucket();
+  const primaryBucket = getCaseImageBucket();
+  // admin-web uploads land in chart-case-images; try both buckets
+  const buckets = [...new Set([primaryBucket, 'chart-case-images'])];
+
   await Promise.all(
     uniq.map(async (p) => {
-      const { data, error } = await supabase.storage.from(bucket).createSignedUrl(p, PREVIEW_TTL_SEC);
-      if (!error && data?.signedUrl) out.set(p, data.signedUrl);
+      for (const bucket of buckets) {
+        const { data, error } = await supabase.storage.from(bucket).createSignedUrl(p, PREVIEW_TTL_SEC);
+        if (!error && data?.signedUrl) { out.set(p, data.signedUrl); return; }
+      }
     }),
   );
   return out;
