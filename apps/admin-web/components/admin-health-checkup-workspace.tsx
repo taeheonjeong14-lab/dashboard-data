@@ -151,6 +151,7 @@ export function AdminHealthCheckupWorkspace({
 
   const [pdfBusy, setPdfBusy] = useState(false);
   const [sharePanel, setSharePanel] = useState<{ shareUrl: string; expiresAt: string } | null>(null);
+  const [shareReissuing, setShareReissuing] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [chartHistoryOpen, setChartHistoryOpen] = useState(false);
   const chartHistoryDialogRef = useRef<HTMLDialogElement>(null);
@@ -574,6 +575,31 @@ export function AdminHealthCheckupWorkspace({
             }}
           >
             복사
+          </button>
+          <button
+            type="button"
+            className="adminLegacySmallBtn"
+            disabled={shareReissuing}
+            onClick={async () => {
+              setShareReissuing(true);
+              try {
+                const res = await fetch('/api/admin/health-report/review-share', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  credentials: 'include',
+                  body: JSON.stringify({ runId }),
+                });
+                const data = (await res.json()) as { shareUrl?: string; expiresAt?: string; error?: string };
+                if (!res.ok) throw new Error(data.error ?? '재발급 실패');
+                if (data.shareUrl) setSharePanel({ shareUrl: data.shareUrl, expiresAt: data.expiresAt ?? '' });
+              } catch (e) {
+                window.alert(e instanceof Error ? e.message : '재발급에 실패했습니다.');
+              } finally {
+                setShareReissuing(false);
+              }
+            }}
+          >
+            {shareReissuing ? '재발급 중…' : '재발급'}
           </button>
         </div>
       ) : null}
