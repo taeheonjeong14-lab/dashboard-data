@@ -231,7 +231,7 @@ const RECOGNIZED_LAB_ITEMS: ReadonlySet<string> = new Set(
   [
     // CBC
     'WBC', 'RBC', 'HGB', 'HCT', 'PLT', 'MCV', 'MCH', 'MCHC', 'RDW', 'RDW-CV', 'RDW-SD', 'PDW', 'PDW-CV', 'MPV',
-    'NEU', 'LYM', 'MONO', 'EOS', 'BASO', 'RETIC', 'RET-He', 'IRF', 'LFR', 'MFR', 'HFR', 'PCT', 'PLT-LCR',
+    'NEU', 'LYM', 'MONO', 'MON', 'GRA', 'EOS', 'BASO', 'RETIC', 'RET-He', 'IRF', 'LFR', 'MFR', 'HFR', 'PCT', 'PLT-LCR',
     '%NEU', '%LYM', '%MONO', '%EOS', '%BASO', '%RETIC', 'NRBC', 'BANDS', 'Blood smear',
     // Chemistry
     'ALT', 'AST', 'ALP', 'GGT', 'ALB', 'TP', 'GLOB', 'ALB/GLOB', 'BUN', 'CREA', 'BUN/CREA', 'SDMA', 'GLU',
@@ -318,6 +318,8 @@ const ITEM_TO_CATEGORY: Record<string, string> = {
   NEU: 'cbc',
   LYM: 'cbc',
   MONO: 'cbc',
+  MON: 'cbc',
+  GRA: 'cbc',
   EOS: 'cbc',
   BASO: 'cbc',
   RETIC: 'cbc',
