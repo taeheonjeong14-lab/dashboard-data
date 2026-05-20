@@ -310,16 +310,9 @@ export default function HealthReportPage() {
       {/* LEFT — Request list                                                  */}
       {/* ================================================================== */}
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ marginBottom: '16px' }}>
-          <h1 style={{ margin: '0 0 4px', fontSize: '18px', fontWeight: 700, color: 'var(--text)' }}>건강검진 리포트</h1>
-          <p style={{ margin: 0, fontSize: '13px', color: 'var(--text-secondary)' }}>
-            PDF 제출 후 1영업일 내에 검토 링크를 보내드립니다.
-          </p>
-        </div>
-
         <div style={{ background: 'var(--bg-raised)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
           <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text)' }}>요청 목록</span>
+            <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text)' }}>리포트 목록</span>
             <button onClick={() => void loadList()} style={{ background: 'none', border: 'none', fontSize: '12px', color: 'var(--text-muted)', cursor: 'pointer', padding: '2px 4px' }}>새로고침</button>
           </div>
 
@@ -378,7 +371,7 @@ export default function HealthReportPage() {
       <div style={{ width: '340px', flexShrink: 0, position: 'sticky', top: '24px' }}>
         <div style={{ background: 'var(--bg-raised)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
           <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--border)' }}>
-            <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text)' }}>새 분석 요청</div>
+            <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text)' }}>리포트 생성 요청</div>
             <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '2px' }}>차트 PDF를 업로드해 주세요</div>
           </div>
 
