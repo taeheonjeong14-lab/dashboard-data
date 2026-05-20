@@ -3,7 +3,6 @@ import { PARSE_RUN_UUID_RE, parseRunExists } from '@/lib/parse-run-check';
 import { hospitalRowFromDb } from '@/lib/chart-app/hospital-db';
 import { chartExportRequestIdHeaders, resolveChartExportRequestId } from '@/lib/chart-app/export-request-id';
 import { buildHealthCheckupPrintUrlForRequest } from '@/lib/chart-app/health-checkup-export-print-url';
-import { buildHealthCheckupPrintUrl } from '@/lib/chart-app/health-checkup-print-url';
 import { getChartPgPool } from '@/lib/db';
 import type { HospitalRow } from '@/lib/chart-app/hospitals-types';
 import { getHealthCheckupGeneratedContentForRun } from '@/lib/generated-run-content';
@@ -116,7 +115,7 @@ async function healthCheckupExportPdf(
       asciiHealthCheckupReportFallback(joinRow?.friendly_id),
     );
 
-    const printUrl = buildHealthCheckupPrintUrl(runId) ?? buildHealthCheckupPrintUrlForRequest(request.url, runId);
+    const printUrl = buildHealthCheckupPrintUrlForRequest(request.url, runId);
     console.info(
       `[export-pdf] rid=${requestId} runId=${runId} stage=before_pdf printUrl=${printUrl}`,
     );
