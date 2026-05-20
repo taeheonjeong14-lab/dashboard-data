@@ -2,9 +2,10 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { Settings, LogOut } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
+import { SettingsModal } from './settings-modal';
 
 interface TopBarProps {
   userName: string | null;
@@ -12,9 +13,9 @@ interface TopBarProps {
 }
 
 export function TopBar({ userName, hospitalName }: TopBarProps) {
-  const pathname = usePathname();
   const router = useRouter();
   const [logoOk, setLogoOk] = useState(true);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   const handleSignOut = async () => {
     const supabase = createClient();
@@ -22,9 +23,8 @@ export function TopBar({ userName, hospitalName }: TopBarProps) {
     router.push('/login');
   };
 
-  const settingsActive = pathname.startsWith('/settings');
-
   return (
+    <>
     <header
       style={{
         position: 'fixed',
@@ -86,8 +86,8 @@ export function TopBar({ userName, hospitalName }: TopBarProps) {
           {hospitalName && <span style={{ color: 'var(--text-muted)' }}> ({hospitalName})</span>}
         </span>
 
-        <Link
-          href="/settings"
+        <button
+          onClick={() => setSettingsOpen(true)}
           title="설정"
           style={{
             display: 'flex',
@@ -96,13 +96,14 @@ export function TopBar({ userName, hospitalName }: TopBarProps) {
             width: 30,
             height: 30,
             borderRadius: 'var(--radius)',
-            color: settingsActive ? 'var(--accent)' : 'var(--text-muted)',
-            background: settingsActive ? 'var(--accent-subtle)' : 'transparent',
-            textDecoration: 'none',
+            color: 'var(--text-muted)',
+            background: 'transparent',
+            border: 'none',
+            cursor: 'pointer',
           }}
         >
           <Settings size={16} />
-        </Link>
+        </button>
 
         <button
           onClick={handleSignOut}
@@ -125,5 +126,7 @@ export function TopBar({ userName, hospitalName }: TopBarProps) {
         </button>
       </div>
     </header>
+    <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+    </>
   );
 }
