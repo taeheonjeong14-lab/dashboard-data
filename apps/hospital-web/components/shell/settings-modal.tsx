@@ -129,7 +129,7 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
           <button onClick={onClose} title="닫기" style={closeBtn}><X size={18} /></button>
         </div>
 
-        <div style={{ display: 'flex', minHeight: 360 }}>
+        <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
           {/* Left menu */}
           <nav style={leftMenu}>
             {MENU.map(({ key, label, icon: Icon }) => {
@@ -244,7 +244,7 @@ const overlay: React.CSSProperties = {
   display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20,
 };
 const dialog: React.CSSProperties = {
-  width: '100%', maxWidth: 720, maxHeight: '85vh', overflow: 'hidden',
+  width: '100%', maxWidth: 720, height: 'min(600px, 85vh)', overflow: 'hidden',
   background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)',
   display: 'flex', flexDirection: 'column', boxShadow: '0 12px 48px rgba(0,0,0,0.4)',
 };
@@ -265,7 +265,7 @@ const menuItem: React.CSSProperties = {
   border: 'none', borderRadius: 'var(--radius)', fontSize: 13, textAlign: 'left',
   cursor: 'pointer', width: '100%',
 };
-const content: React.CSSProperties = { flex: 1, minWidth: 0, padding: '20px 22px', overflowY: 'auto' };
+const content: React.CSSProperties = { flex: 1, minWidth: 0, minHeight: 0, padding: '20px 22px', overflowY: 'auto' };
 const formStyle: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: 16 };
 const inputStyle: React.CSSProperties = {
   width: '100%', padding: '9px 12px', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
