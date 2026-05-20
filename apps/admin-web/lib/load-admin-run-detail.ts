@@ -1,5 +1,6 @@
 import { createServiceRoleClient } from '@/lib/supabase/service-role';
 import { parseChartKind, type ChartKind } from '@/lib/chart-extraction/chart-kind';
+import { refineLabFlag } from '@dashboard/lab-normalize';
 import type { PlanRow, RunDetailResponse } from '@/lib/admin-run-detail-types';
 
 function lineCount(text: string): number {
@@ -193,14 +194,16 @@ export async function loadAdminRunDetail(runId: string): Promise<RunDetailRespon
   for (const r of labRows) {
     const dt = String(r.date_time ?? '');
     const labNames = ensureLabRaw(r.item_name, r.raw_item_name);
+    const valueText = String(r.value_text ?? '');
+    const referenceRange = r.reference_range != null ? String(r.reference_range) : null;
     const item = {
       id: String(r.id ?? ''),
       itemName: labNames.itemName,
       itemRawName: labNames.itemRawName,
-      valueText: String(r.value_text ?? ''),
+      valueText,
       unit: r.unit != null ? String(r.unit) : null,
-      referenceRange: r.reference_range != null ? String(r.reference_range) : null,
-      flag: normFlag(r.flag),
+      referenceRange,
+      flag: refineLabFlag(normFlag(r.flag), valueText, referenceRange),
     };
     const list = labByDate.get(dt) ?? [];
     list.push(item);

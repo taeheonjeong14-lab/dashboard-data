@@ -12,6 +12,7 @@ import { parseHealthSystemsBlocksFromUnknown } from '@/lib/chart-app/health-repo
 import { resolveHospitalReportTemplate } from '@/lib/chart-app/report-hospital-template';
 import { formatDirectorHospitalLine, spreadKoreanCharsForFooter } from '@/lib/chart-app/report-director-line';
 import { labItemCategory, detectSpeciesProfile, labCategorySortOrder } from '@/lib/lab-category-map';
+import { refineLabFlag } from '@dashboard/lab-normalize';
 
 export type LabReportPage = { groups: unknown[] };
 
@@ -94,8 +95,9 @@ function buildLabPages(source: ReportSourceData, speciesStr: string): LabReportP
   const groupsByKey = new Map<string, { categoryKey: string; categoryLabel: string; items: unknown[] }>();
   for (const item of flat.values()) {
     const cat = labItemCategory(item.itemName, species);
+    const flag = refineLabFlag(item.flag, item.valueText, item.referenceRange);
     const g = groupsByKey.get(cat.key) ?? { categoryKey: cat.key, categoryLabel: cat.label, items: [] };
-    g.items.push({ ...item, categoryKey: cat.key, categoryLabel: cat.label });
+    g.items.push({ ...item, flag, categoryKey: cat.key, categoryLabel: cat.label });
     groupsByKey.set(cat.key, g);
   }
 
