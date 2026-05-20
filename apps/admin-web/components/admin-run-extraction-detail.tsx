@@ -6,12 +6,25 @@ import type { ExamType, FindingSpot, RadiologySub } from '@/lib/chart-case-image
 import { EXAM_TYPE_LABEL_KO, RADIOLOGY_SUB_LABEL_KO } from '@/lib/chart-case-images/types';
 import type { PlanRow, RunDetailResponse } from '@/lib/admin-run-detail-types';
 import { HEALTH_CHECKUP_MAX_COVER_FIELD_CHARS, HEALTH_CHECKUP_MUST_INCLUDE_MAX_CHARS } from '@/lib/health-report-admin/limits';
-import { canonicalizeLabItemName } from '@/lib/chart-extraction/lab-item-normalize';
+import { canonicalizeLabItemName, isRecognizedLabItem } from '@/lib/chart-extraction/lab-item-normalize';
 import { speciesProfileFromBasicSpecies } from '@/lib/chart-extraction/lab-species-profile';
 import { isParseRunUuid } from '@/lib/chart-extraction/uuid';
 import { BucketDebugPanel } from '@/components/bucket-debug-panel';
 
 type ExtractionSection = 'basicInfo' | 'vaccination' | 'chartBody' | 'plan' | 'lab';
+
+/** 정규화 결과 셀 — 표준 미인식 항목(리포트 Other 로 분류)은 빨간색으로 강조. */
+function NormalizedLabCell({ name }: { name: string }) {
+  const recognized = isRecognizedLabItem(name);
+  return (
+    <td
+      style={{ padding: 4, color: recognized ? '#64748b' : '#dc2626', fontWeight: recognized ? 400 : 700 }}
+      title={recognized ? undefined : '정규화 실패: 표준 항목으로 인식되지 않아 리포트에서 Other 로 분류됩니다.'}
+    >
+      {name}
+    </td>
+  );
+}
 
 type DraftBasicInfo = {
   id: string | null;
@@ -1543,7 +1556,7 @@ export function AdminRunExtractionDetail({
                               }}
                             />
                           </td>
-                          <td style={{ padding: 4, color: '#64748b' }}>{draftLab[gi]!.items[ii]!.itemName}</td>
+                          <NormalizedLabCell name={draftLab[gi]!.items[ii]!.itemName} />
                           <td style={{ padding: 2 }}>
                             <input
                               style={{ width: '100%', fontSize: 11, padding: 4 }}
@@ -1653,7 +1666,7 @@ export function AdminRunExtractionDetail({
                       ) : (
                         <>
                           <td style={{ padding: 4 }}>{it.itemRawName}</td>
-                          <td style={{ padding: 4, color: '#64748b' }}>{it.itemName}</td>
+                          <NormalizedLabCell name={it.itemName} />
                           <td style={{ padding: 4 }}>{it.valueText}</td>
                           <td style={{ padding: 4 }}>{it.unit ?? '—'}</td>
                           <td style={{ padding: 4 }}>{it.referenceRange ?? '—'}</td>

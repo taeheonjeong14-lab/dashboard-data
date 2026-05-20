@@ -17,6 +17,7 @@ const CATEGORIES: LabCategory[] = [
   { key: 'blood_gas', label: 'Blood Gas (혈액가스 검사)', order: 7 },
   { key: 'immunologic', label: 'Immunologic Test (면역 및 특수 검사)', order: 8 },
   { key: 'tumor_marker', label: 'Tumor Marker (종양 검사)', order: 9 },
+  { key: 'kit', label: 'Kit (키트 검사)', order: 10 },
   { key: 'other', label: 'Other (기타)', order: 99 },
 ];
 
