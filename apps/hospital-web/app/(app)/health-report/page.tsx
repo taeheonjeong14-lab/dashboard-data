@@ -172,42 +172,52 @@ export default function HealthReportPage() {
   }
 
   // ---------------------------------------------------------------------------
-  // Image upload to Supabase Storage
+  // Image upload — 서버에서 발급한 서명 URL로 case-image 버킷에 직접 업로드.
+  // (서비스 롤이 경로/URL을 발급하므로 클라이언트 스토리지 RLS·함수 본문 크기 제한에 의존하지 않음)
   // ---------------------------------------------------------------------------
-  async function uploadImages(runId: string, hId: string): Promise<string[]> {
+  async function uploadImages(runId: string): Promise<string[]> {
+    if (imageFiles.length === 0) return [];
     const supabase = createClient();
+    const exts = imageFiles.map((f) => (f.name.split('.').pop() || 'jpg').toLowerCase());
+    const signRes = await fetch('/api/health-report/case-images/sign', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ runId, exts }),
+    });
+    const signData = (await signRes.json()) as {
+      uploads?: { path: string; token: string }[]; error?: string;
+    };
+    if (!signRes.ok) throw new Error(signData.error ?? '이미지 업로드 URL 생성에 실패했습니다.');
+    const uploads = signData.uploads ?? [];
+
     const paths: string[] = [];
     await Promise.all(
-      imageFiles.map(async (file, idx) => {
-        const imageId = crypto.randomUUID();
-        const storagePath = `${hId}/${runId}/${imageId}.webp`;
+      uploads.map(async ({ path, token }, idx) => {
+        const file = imageFiles[idx];
+        if (!file) return;
         const { error } = await supabase.storage
           .from(CASE_IMAGE_BUCKET)
-          .upload(storagePath, file, { contentType: file.type, upsert: false });
-        if (error) console.error(`Image ${idx} upload error:`, error);
-        else paths.push(storagePath);
+          .uploadToSignedUrl(path, token, file, { contentType: file.type });
+        if (error) throw new Error(`이미지 업로드에 실패했습니다: ${error.message}`);
+        paths.push(path);
       }),
     );
     return paths;
   }
 
   // ---------------------------------------------------------------------------
-  // Save hospital_notes — makes the run appear in admin "병원 접수 목록"
+  // Save hospital_notes — 서버(서비스 롤)에서 저장. admin 강조사항 pre-fill / 이미지 분류 트리거의 소스.
   // ---------------------------------------------------------------------------
   async function saveHospitalNotes(runId: string, imagePaths: string[]): Promise<void> {
-    const supabase = createClient();
-    await supabase.schema('health_report').from('generated_run_content').upsert(
-      {
-        parse_run_id: runId,
-        content_type: 'hospital_notes',
-        payload: {
-          source: 'hospital_web',
-          emphasis_text: emphasisText,
-          image_paths: imagePaths,
-        },
-      },
-      { onConflict: 'parse_run_id,content_type' },
-    );
+    const res = await fetch('/api/health-report/hospital-notes', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ runId, emphasisText, imagePaths }),
+    });
+    if (!res.ok) {
+      const err = (await res.json().catch(() => ({}))) as { error?: string };
+      throw new Error(err.error ?? '접수 정보 저장에 실패했습니다.');
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -260,10 +270,10 @@ export default function HealthReportPage() {
       if (!extractData.runId) throw new Error('runId를 받지 못했습니다.');
       const runId = extractData.runId;
 
-      // Step 4 — image upload + hospital_notes save (admin 목록에 표시됨)
+      // Step 4 — image upload + hospital_notes save (서버/서비스 롤; admin 목록·pre-fill에 표시됨)
       setStage('saving');
       setProgressMessage('접수 정보 저장 중…');
-      const imagePaths = imageFiles.length > 0 ? await uploadImages(runId, hospitalId) : [];
+      const imagePaths = await uploadImages(runId);
       await saveHospitalNotes(runId, imagePaths);
 
       setStage('done');
