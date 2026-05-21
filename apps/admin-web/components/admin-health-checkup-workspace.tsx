@@ -174,6 +174,8 @@ export function AdminHealthCheckupWorkspace({
     return paths;
   }, [draft]);
 
+  const hospitalImgTriggeredRef = useRef<Set<string>>(new Set());
+
   const loadContent = useCallback(async () => {
     setLoading(true);
     setLoadError(null);
@@ -190,6 +192,15 @@ export function AdminHealthCheckupWorkspace({
       const emphasis = (notes?.payload as { emphasis_text?: string } | null)?.emphasis_text;
       if (typeof emphasis === 'string' && emphasis.trim()) {
         setMustInclude((prev) => (prev.trim() ? prev : emphasis));
+      }
+      // 병원 제출 이미지 분류 트리거(멱등). run 당 1회만, 백그라운드.
+      const imgPaths = (notes?.payload as { image_paths?: unknown } | null)?.image_paths;
+      if (Array.isArray(imgPaths) && imgPaths.length > 0 && !hospitalImgTriggeredRef.current.has(runId)) {
+        hospitalImgTriggeredRef.current.add(runId);
+        void fetch(`/api/admin/runs/${encodeURIComponent(runId)}/case-images/from-hospital`, {
+          method: 'POST',
+          credentials: 'include',
+        }).catch(() => {});
       }
       const hc = list.find((i) => i.contentType === 'health_checkup');
       if (hc) {
