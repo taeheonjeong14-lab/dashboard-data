@@ -7,12 +7,17 @@ import {
 } from '@/lib/chart-app/generated-content';
 import {
   generateHealthCheckupContent,
+  generateHealthCheckupSection,
+  isRegenerateSection,
   HEALTH_CHECKUP_COVER_STORAGE_KEYS,
   parseHealthCheckupPayloadFromStorage,
   type HealthCheckupGeneratedContent,
 } from '@/lib/chart-app/health-checkup-content-llm';
 import { validateHealthCheckupGeneratedContent } from '@/lib/chart-app/health-checkup-content-schema';
-import { runImagePlacementForRun } from '@/lib/chart-app/health-report-image-placement-run';
+import {
+  applyImagePlacementForSection,
+  runImagePlacementForRun,
+} from '@/lib/chart-app/health-report-image-placement-run';
 import { isParseRunUuid } from '@/lib/chart-app/uuid';
 import { getChartPgPool } from '@/lib/db';
 import { applyHealthCheckupCoverFromSource } from '@/lib/chart-app/health-checkup-cover-from-source';
@@ -118,6 +123,55 @@ export async function POST(request: NextRequest) {
     const source = await loadReportSourceData(runId);
 
     if (contentType === HEALTH_CHECKUP) {
+      const sectionRaw = typeof body.section === 'string' ? body.section.trim() : '';
+      if (sectionRaw) {
+        if (!isRegenerateSection(sectionRaw)) {
+          return NextResponse.json({ error: `invalid section: ${sectionRaw}` }, { status: 400 });
+        }
+        try {
+          const checkupDate = typeof body.checkupDate === 'string' ? body.checkupDate.trim() : '';
+          const must = typeof body.mustInclude === 'string' ? body.mustInclude.trim().slice(0, 1000) : '';
+          const prior = await getHealthCheckupGeneratedContentForRun(pool, runId);
+          const priorPayload = parseHealthCheckupPayloadFromStorage(prior?.payload ?? {});
+          const coverProgramFromBody = typeof body.coverProgram === 'string' ? body.coverProgram.trim() : '';
+          const reportProgramForPrompt =
+            coverProgramFromBody ||
+            (typeof priorPayload.coverProgram === 'string' ? priorPayload.coverProgram.trim() : '') ||
+            '';
+          const partial = await generateHealthCheckupSection(sectionRaw, source, {
+            reportProgramName: reportProgramForPrompt || undefined,
+            checkupDate: checkupDate || undefined,
+            mustInclude: must || undefined,
+          });
+
+          // 이미지 페이지(치과·피부 / 방사선·초음파)는 텍스트만 재생성하면 이미지 슬롯이 빈
+          // 데모 블록으로 덮인다. 현재 run 의 케이스 이미지(나중에 추가된 것 포함)를 다시 배치한다.
+          if (sectionRaw === 'systems4' || sectionRaw === 'systems5') {
+            const blocksKey = sectionRaw === 'systems4' ? 'systemsPage4Blocks' : 'systemsPage5Blocks';
+            const partialRecord = partial as Record<string, unknown>;
+            try {
+              partialRecord[blocksKey] = await applyImagePlacementForSection(
+                pool,
+                runId,
+                sectionRaw,
+                partialRecord[blocksKey],
+              );
+            } catch (placementErr) {
+              console.error('[content/generate] section image placement failed (non-blocking):', placementErr);
+            }
+          }
+
+          return NextResponse.json({ runId, contentType, section: sectionRaw, generated: partial, saved: false });
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : String(e);
+          if (msg.includes('GEMINI_API_KEY')) {
+            return NextResponse.json({ error: 'LLM not configured (GEMINI_API_KEY)' }, { status: 503 });
+          }
+          console.error('[content/generate] section regen error:', e);
+          return NextResponse.json({ error: msg }, { status: 500 });
+        }
+      }
+
       try {
         const prior = await getHealthCheckupGeneratedContentForRun(pool, runId);
         const priorPayload = parseHealthCheckupPayloadFromStorage(prior?.payload ?? {});
