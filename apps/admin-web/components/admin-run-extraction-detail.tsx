@@ -630,9 +630,14 @@ export function AdminRunExtractionDetail({
       setGenExistingReport(null);
       fetch(`/api/admin/health-report/content?runId=${encodeURIComponent(runId)}`, { credentials: 'include' })
         .then((r) => r.json())
-        .then((data: { items?: { contentType: string }[] }) => {
-          const exists = Array.isArray(data.items) && data.items.some((i) => i.contentType === 'health_checkup');
-          setGenExistingReport(exists);
+        .then((data: { items?: { contentType: string; payload?: { emphasis_text?: string } }[] }) => {
+          const items = Array.isArray(data.items) ? data.items : [];
+          setGenExistingReport(items.some((i) => i.contentType === 'health_checkup'));
+          // 병원(hospital-ui) 제출 강조사항을 '반드시 포함' 칸에 pre-fill (admin 입력값은 보존).
+          const emphasis = items.find((i) => i.contentType === 'hospital_notes')?.payload?.emphasis_text;
+          if (typeof emphasis === 'string' && emphasis.trim()) {
+            setGenMustInclude((prev) => (prev.trim() ? prev : emphasis));
+          }
         })
         .catch(() => setGenExistingReport(false));
     } else {
