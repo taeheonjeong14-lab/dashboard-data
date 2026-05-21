@@ -10,6 +10,7 @@ export type ParseRunListItem = {
   hospitalName: string | null;
   ownerName: string | null;
   patientName: string | null;
+  fromHospital: boolean;
 };
 
 function nonEmptyText(v: unknown): string | null {
@@ -41,6 +42,7 @@ function mapParseRunRow(row: Record<string, unknown>): ParseRunListItem | null {
     hospitalName: nonEmptyText(basic?.hospital_name),
     ownerName: nonEmptyText(basic?.owner_name),
     patientName: nonEmptyText(basic?.patient_name),
+    fromHospital: false,
   };
 }
 
@@ -72,5 +74,21 @@ export async function listRecentParseRuns(limit = 80): Promise<ParseRunListItem[
     .limit(limit);
   if (error) throw new Error(error.message);
   const rows = (data ?? []) as Record<string, unknown>[];
-  return rows.map(mapParseRunRow).filter((r): r is ParseRunListItem => r != null);
+  const items = rows.map(mapParseRunRow).filter((r): r is ParseRunListItem => r != null);
+
+  // 병원(hospital-ui) 제출 여부: hospital_notes content 가 있으면 표시
+  const ids = items.map((i) => i.id);
+  if (ids.length > 0) {
+    const { data: notes } = await supabase
+      .schema('health_report')
+      .from('generated_run_content')
+      .select('parse_run_id')
+      .eq('content_type', 'hospital_notes')
+      .in('parse_run_id', ids);
+    const hospitalSet = new Set(
+      (notes ?? []).map((n) => String((n as { parse_run_id?: unknown }).parse_run_id ?? '')),
+    );
+    for (const it of items) it.fromHospital = hospitalSet.has(it.id);
+  }
+  return items;
 }

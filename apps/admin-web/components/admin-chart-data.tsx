@@ -272,6 +272,23 @@ export default function AdminChartData() {
                 <span className="adminRailSub">
                   {item.patientName?.trim() ? `${item.patientName.trim()} · ` : ''}
                   {item.friendlyId?.trim() ?? '—'}
+                  {item.fromHospital ? (
+                    <span
+                      style={{
+                        marginLeft: 6,
+                        display: 'inline-block',
+                        padding: '1px 6px',
+                        borderRadius: 4,
+                        background: '#dbeafe',
+                        color: '#1d4ed8',
+                        fontSize: 10,
+                        fontWeight: 700,
+                        verticalAlign: 'middle',
+                      }}
+                    >
+                      병원 제출
+                    </span>
+                  ) : null}
                 </span>
               </button>
             ))

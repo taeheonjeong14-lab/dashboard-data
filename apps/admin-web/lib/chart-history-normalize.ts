@@ -7,6 +7,7 @@ export type HistoryItem = {
   hospitalName: string | null;
   ownerName: string | null;
   patientName: string | null;
+  fromHospital: boolean;
 };
 
 export function pickNonEmptyString(...vals: unknown[]): string | null {
@@ -75,7 +76,8 @@ export function normalizeHistoryApiItem(raw: unknown): HistoryItem | null {
   );
   const ownerName = pickNonEmptyString(o.ownerName, o.owner_name, basic?.owner_name, basic?.ownerName);
   const patientName = pickNonEmptyString(o.patientName, o.patient_name, basic?.patient_name, basic?.patientName);
-  return { id, createdAt, friendlyId, hospitalName, ownerName, patientName };
+  const fromHospital = o.fromHospital === true;
+  return { id, createdAt, friendlyId, hospitalName, ownerName, patientName, fromHospital };
 }
 
 export function extractHospitalId(raw: unknown): string | null {
