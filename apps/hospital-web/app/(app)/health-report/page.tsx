@@ -123,6 +123,7 @@ export default function HealthReportPage() {
     if (file.type !== 'application/pdf') { setPdfError('PDF 파일만 업로드할 수 있습니다.'); return; }
     if (file.size > MAX_FILE_SIZE) { setPdfError(`파일 크기는 30MB 이하여야 합니다. (현재: ${formatBytes(file.size)})`); return; }
     setPdfFile(file);
+    setStage('idle');
   }, []);
 
   const onPdfDrop = useCallback((e: DragEvent<HTMLDivElement>) => {
@@ -247,27 +248,17 @@ export default function HealthReportPage() {
       });
       setUploadProgress(100);
 
-      // Step 3 — extract
+      // Step 3 — extract (병원에는 "분석 중" 노출 안 함, 버튼은 "파일 업로드 중"만)
       setStage('extracting');
-      const msgs = ['텍스트 추출 중…', '데이터 구조화 중…', 'AI 분석 중…', '결과 저장 중…'];
-      let mi = 0;
-      setProgressMessage(msgs[0]);
-      const iv = setInterval(() => { mi = (mi + 1) % msgs.length; setProgressMessage(msgs[mi]); }, 4000);
-
-      let runId: string;
-      try {
-        const extractRes = await fetch('/api/health-report/extract', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ storagePath, storageBucket: bucket, chartType, hospitalId, emphasisText }),
-        });
-        const extractData = (await extractRes.json()) as { error?: string; runId?: string };
-        if (!extractRes.ok) throw new Error(extractData.error ?? '차트 분석에 실패했습니다.');
-        if (!extractData.runId) throw new Error('runId를 받지 못했습니다.');
-        runId = extractData.runId;
-      } finally {
-        clearInterval(iv);
-      }
+      const extractRes = await fetch('/api/health-report/extract', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ storagePath, storageBucket: bucket, chartType, hospitalId, emphasisText }),
+      });
+      const extractData = (await extractRes.json()) as { error?: string; runId?: string };
+      if (!extractRes.ok) throw new Error(extractData.error ?? '요청 처리에 실패했습니다.');
+      if (!extractData.runId) throw new Error('runId를 받지 못했습니다.');
+      const runId = extractData.runId;
 
       // Step 4 — image upload + hospital_notes save (admin 목록에 표시됨)
       setStage('saving');
@@ -289,13 +280,6 @@ export default function HealthReportPage() {
       setStage('error');
     }
   };
-
-  function resetForm() {
-    setPdfFile(null); setPdfError(null);
-    setImageFiles([]); imagePreviews.forEach((u) => URL.revokeObjectURL(u)); setImagePreviews([]);
-    setEmphasisText('');
-    setStage('idle'); setUploadProgress(0); setProgressMessage(''); setErrorMessage('');
-  }
 
   const isProcessing = stage === 'getting-url' || stage === 'uploading-pdf' || stage === 'extracting' || stage === 'saving';
   const canSubmit = !!pdfFile && !isProcessing;
@@ -377,14 +361,6 @@ export default function HealthReportPage() {
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
 
-            {/* Success */}
-            {stage === 'done' && (
-              <div style={{ background: '#f0fdf4', border: '1px solid #16a34a', borderRadius: 'var(--radius)', padding: '10px 12px', fontSize: '13px', color: '#16a34a', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
-                <span>✓ 요청이 접수되었습니다</span>
-                <button onClick={resetForm} style={{ background: 'none', border: 'none', fontSize: '11px', color: '#16a34a', cursor: 'pointer', textDecoration: 'underline', padding: 0, whiteSpace: 'nowrap' }}>새 요청</button>
-              </div>
-            )}
-
             {/* Error */}
             {stage === 'error' && (
               <div style={{ background: 'var(--danger-subtle)', border: '1px solid var(--danger)', borderRadius: 'var(--radius)', padding: '10px 12px', fontSize: '12px', color: 'var(--text)' }}>
@@ -392,7 +368,7 @@ export default function HealthReportPage() {
               </div>
             )}
 
-            {stage !== 'done' && (<>
+            <>
               {/* Chart type */}
               <FormField label="차트 종류">
                 <select value={chartType} onChange={(e) => setChartType(e.target.value as ChartType)} disabled={isProcessing} style={selectStyle}>
@@ -434,14 +410,6 @@ export default function HealthReportPage() {
                   )}
                 </div>
                 {pdfError && <div style={{ marginTop: '5px', fontSize: '11px', color: 'var(--danger)' }}>{pdfError}</div>}
-                {(stage === 'uploading-pdf' || stage === 'getting-url') && (
-                  <div style={{ marginTop: '8px' }}>
-                    <div style={{ height: '4px', background: 'var(--bg)', borderRadius: '2px', overflow: 'hidden' }}>
-                      <div style={{ height: '100%', width: `${uploadProgress}%`, background: 'var(--accent)', transition: 'width 0.2s' }} />
-                    </div>
-                    <div style={{ marginTop: '3px', fontSize: '11px', color: 'var(--text-muted)' }}>{progressMessage}</div>
-                  </div>
-                )}
               </FormField>
 
               {/* Images */}
@@ -481,21 +449,6 @@ export default function HealthReportPage() {
                 />
               </FormField>
 
-              {/* Processing indicator */}
-              {(stage === 'extracting' || stage === 'saving') && (
-                <div style={{ background: 'var(--accent-subtle)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '10px 12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <Spinner accent />
-                  <div>
-                    <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--accent)' }}>
-                      {stage === 'saving' ? '접수 처리 중' : '분석 진행 중'}
-                    </div>
-                    <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '1px' }}>
-                      {stage === 'saving' ? progressMessage : `${progressMessage} (30초~2분 소요)`}
-                    </div>
-                  </div>
-                </div>
-              )}
-
               {/* Submit */}
               <button onClick={handleSubmit} disabled={!canSubmit}
                 style={{
@@ -508,9 +461,14 @@ export default function HealthReportPage() {
                   display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
                   transition: 'background 0.15s',
                 }}>
-                {isProcessing ? <><Spinner />요청 중…</> : '분석 요청 제출'}
+                {isProcessing ? <><Spinner />파일 업로드 중…</> : '리포트 생성 요청'}
               </button>
-            </>)}
+              {stage === 'done' && (
+                <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--success)', textAlign: 'center' }}>
+                  요청 완료
+                </div>
+              )}
+            </>
           </div>
         </div>
       </div>
