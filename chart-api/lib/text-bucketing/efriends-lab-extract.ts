@@ -160,6 +160,21 @@ function normalizeEfriendsAnalyteName(raw: string): string {
     .trim();
 }
 
+/**
+ * 이프렌즈: 항목명 끝에 붙어 들어온 정상범위(숫자-숫자 구간)를 떼어낸다.
+ * gap 분할에서 `RBC(idexx) 6.54-12.2` 처럼 이름·범위가 한 칸으로 묶여 들어온 경우 대비.
+ * 보수적으로 **양쪽 숫자-숫자 구간만** 분리한다 (단방향 `<N`/`>N` 등은 건드리지 않음).
+ */
+function splitEfriendsTrailingRefRange(rawName: string): { name: string; ref: string | null } {
+  const s = rawName.trim();
+  const m = s.match(/^(.*?\S)\s+(\d+(?:[.,]\d+)?\s*[-~–]\s*\d+(?:[.,]\d+)?)\s*$/);
+  if (!m) return { name: s, ref: null };
+  const head = m[1].trim();
+  // 괄호를 떼고도 글자가 남아야 진짜 "이름 + 범위" (값/단위 행 오인 방지)
+  if (!/[A-Za-z가-힣]/.test(head.replace(/\([^)]*\)/g, ""))) return { name: s, ref: null };
+  return { name: head, ref: m[2].replace(/\s+/g, "") };
+}
+
 function buildLabItem(
   itemName: string,
   referenceRange: string,
@@ -173,8 +188,12 @@ function buildLabItem(
   const vt = valueStored.replace(/\s+/g, "").replace(",", ".");
   const num = Number.parseFloat(vt.replace(/^</, ""));
   const value = Number.isFinite(num) ? num : null;
-  const normalizedItemName = normalizeEfriendsAnalyteName(itemName);
-  const refTrim = isEfriendsEmptyCell(referenceRange) ? "" : referenceRange.trim();
+  // 이름에 붙어 들어온 정상범위(숫자-숫자)를 먼저 떼어낸다.
+  const peeled = splitEfriendsTrailingRefRange(itemName);
+  const normalizedItemName = normalizeEfriendsAnalyteName(peeled.name);
+  // 참고구간이 비어 있을 때만 떼어낸 범위로 채운다 (기존 Reference 칸을 덮어쓰지 않음).
+  const refExplicit = isEfriendsEmptyCell(referenceRange) ? "" : referenceRange.trim();
+  const refTrim = refExplicit || (peeled.ref ?? "");
   const unitTrim = isEfriendsEmptyCell(unit) ? "" : unit.trim();
   return {
     page,
