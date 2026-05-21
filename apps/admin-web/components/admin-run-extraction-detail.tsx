@@ -391,15 +391,34 @@ function CaseImagesSection({ runId }: { runId: string }) {
       });
       const data = (await res.json()) as { images?: CaseImage[]; error?: string };
       if (!res.ok) throw new Error(data.error ?? '이미지 조회 실패');
-      const imgs = data.images ?? [];
+      let imgs = data.images ?? [];
       setImages(imgs);
+      // 병원(hospital-ui) 제출 이미지 자동 분류·import (멱등). case images 가 비어있으면 run 당 1회 시도.
+      // 트리거를 차트 상세에 둔다 — admin 검토 워크플로가 차트 목록 → 차트 상세이기 때문.
+      // (분류 결과는 from-hospital 라우트가 parse_run_case_images 에 적재 → 재조회로 표시)
       if (imgs.length === 0 && !didAutoRetry.current) {
         didAutoRetry.current = true;
         setAutoRetrying(true);
-        autoRetryTimer.current = setTimeout(() => {
-          setAutoRetrying(false);
-          void load({ isAutoRetry: true });
-        }, 20_000);
+        try {
+          const imp = await fetch(
+            `/api/admin/runs/${encodeURIComponent(runId)}/case-images/from-hospital`,
+            { method: 'POST', credentials: 'include' },
+          );
+          const impData = (await imp.json().catch(() => ({}))) as { count?: number };
+          if (imp.ok && (impData.count ?? 0) > 0) {
+            const res2 = await fetch(`/api/admin/runs/${encodeURIComponent(runId)}/case-images`, {
+              credentials: 'include',
+            });
+            const data2 = (await res2.json().catch(() => ({}))) as { images?: CaseImage[] };
+            if (res2.ok && Array.isArray(data2.images)) {
+              imgs = data2.images;
+              setImages(imgs);
+            }
+          }
+        } catch {
+          /* 자동 import 실패는 조용히 무시 — 수동 '이미지 추가 분석'으로 대체 가능 */
+        }
+        setAutoRetrying(false);
       } else {
         setAutoRetrying(false);
       }
