@@ -5,6 +5,7 @@ import { getAdminWebPgPool } from '@/lib/db';
 import { createServiceRoleClient } from '@/lib/supabase/service-role';
 import { analyzeCaseImages, type ImageInputPart } from '@/lib/chart-case-images/analyze';
 import { prepareImageForAnalysis } from '@/lib/chart-case-images/encode';
+import { ensureCaseImagesTable } from '@/lib/chart-case-images/ensure-table';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 120;
@@ -27,6 +28,10 @@ export async function POST(
   const supabase = createServiceRoleClient();
 
   try {
+    // 테이블/누락 컬럼(content_hash)/grant self-heal — 일반 업로드 라우트와 동일.
+    // 이게 없으면 content_hash 누락 DB 에서 아래 INSERT 가 전량 실패한다.
+    await ensureCaseImagesTable(pool);
+
     // 멱등: 이미 case images 가 있으면 스킵
     const { rows: existing } = await pool.query<{ n: string }>(
       'SELECT COUNT(*)::text AS n FROM chart_pdf.parse_run_case_images WHERE parse_run_id = $1::uuid',
