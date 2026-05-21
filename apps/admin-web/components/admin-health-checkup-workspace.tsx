@@ -185,6 +185,12 @@ export function AdminHealthCheckupWorkspace({
       if (!res.ok) throw new Error(data.error ?? '불러오기 실패');
       const list = Array.isArray(data.items) ? data.items : [];
       setItems(list);
+      // 병원(hospital-ui)에서 제출한 강조사항을 강조사항 입력란에 pre-fill (admin 편집값은 보존).
+      const notes = list.find((i) => i.contentType === 'hospital_notes');
+      const emphasis = (notes?.payload as { emphasis_text?: string } | null)?.emphasis_text;
+      if (typeof emphasis === 'string' && emphasis.trim()) {
+        setMustInclude((prev) => (prev.trim() ? prev : emphasis));
+      }
       const hc = list.find((i) => i.contentType === 'health_checkup');
       if (hc) {
         setDraft(mergeHealthPayloadFromStorage(hc.payload));
