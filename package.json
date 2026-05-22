@@ -35,8 +35,6 @@
     "dashboard-api:build": "npm --prefix dashboard-api run build",
     "chart-api:dev": "npm --prefix chart-api run dev",
     "chart-api:build": "npm --prefix chart-api run build",
-    "dashboard-ui:dev": "npm --prefix apps/dashboard-ui run dev",
-    "dashboard-ui:build": "npm --prefix apps/dashboard-ui run build",
     "sql:decode-batch": "node scripts/sql/decode-supabase-batch.mjs",
     "sql:split-inserts": "node scripts/sql/split-staging-inserts-into-batches.mjs",
     "storage:migrate": "node scripts/storage-migrate-supabase.mjs",
