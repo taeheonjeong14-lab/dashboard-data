@@ -67,6 +67,7 @@ export default function HealthReportPage() {
   const [imagePreviews, setImagePreviews] = useState<string[]>([]);
   const [emphasisText, setEmphasisText] = useState('');
   const [isDragging, setIsDragging] = useState(false);
+  const [isImageDragging, setIsImageDragging] = useState(false);
 
   // Upload/processing
   const [stage, setStage] = useState<UploadStage>('idle');
@@ -134,14 +135,23 @@ export default function HealthReportPage() {
   // ---------------------------------------------------------------------------
   // Image handling
   // ---------------------------------------------------------------------------
-  const onImageChange = (e: ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files ?? []);
-    if (!files.length) return;
-    const previews = files.map((f) => URL.createObjectURL(f));
-    setImageFiles((prev) => [...prev, ...files]);
+  const addImageFiles = useCallback((files: File[]) => {
+    const images = files.filter((f) => f.type.startsWith('image/'));
+    if (!images.length) return;
+    const previews = images.map((f) => URL.createObjectURL(f));
+    setImageFiles((prev) => [...prev, ...images]);
     setImagePreviews((prev) => [...prev, ...previews]);
+  }, []);
+
+  const onImageChange = (e: ChangeEvent<HTMLInputElement>) => {
+    addImageFiles(Array.from(e.target.files ?? []));
     e.target.value = '';
   };
+
+  const onImageDrop = useCallback((e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault(); setIsImageDragging(false);
+    addImageFiles(Array.from(e.dataTransfer.files ?? []));
+  }, [addImageFiles]);
 
   const removeImage = (idx: number) => {
     URL.revokeObjectURL(imagePreviews[idx]);
@@ -425,11 +435,22 @@ export default function HealthReportPage() {
               {/* Images */}
               <FormField label="사진 자료" hint="선택">
                 <div
+                  onDrop={onImageDrop}
+                  onDragOver={(e) => { e.preventDefault(); if (!isProcessing) setIsImageDragging(true); }}
+                  onDragLeave={() => setIsImageDragging(false)}
                   onClick={() => !isProcessing && imageInputRef.current?.click()}
-                  style={{ border: '1px dashed var(--border-strong)', borderRadius: 'var(--radius)', padding: '10px 12px', textAlign: 'center', cursor: isProcessing ? 'not-allowed' : 'pointer', background: 'var(--bg-subtle)', fontSize: '12px', color: 'var(--text-muted)' }}
+                  style={{
+                    border: `2px dashed ${isImageDragging ? 'var(--accent)' : 'var(--border-strong)'}`,
+                    borderRadius: 'var(--radius)', padding: '18px 12px', textAlign: 'center',
+                    cursor: isProcessing ? 'not-allowed' : 'pointer',
+                    background: isImageDragging ? 'var(--accent-subtle)' : 'var(--bg-subtle)',
+                    transition: 'border-color 0.15s',
+                  }}
                 >
                   <input ref={imageInputRef} type="file" accept=".jpg,.jpeg,.png,.webp,image/*" multiple style={{ display: 'none' }} onChange={onImageChange} />
-                  클릭하여 이미지 추가 (jpg / png / webp)
+                  <div style={{ fontSize: '20px', marginBottom: '5px' }}>🖼️</div>
+                  <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '2px' }}>끌어다 놓거나 클릭하여 선택</div>
+                  <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>여러 장 가능 · jpg / png / webp</div>
                 </div>
                 {imagePreviews.length > 0 && (
                   <div style={{ marginTop: '8px', display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
