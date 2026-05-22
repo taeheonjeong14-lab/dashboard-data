@@ -60,6 +60,11 @@ export async function POST(request: NextRequest) {
       throw new Error('Gemini response is not a JSON array.');
     }
     if (parsed.length !== (items as string[]).length) {
+      // 단일 항목인데 모델이 문단별로 쪼개 보낸 경우 → 다시 하나로 합친다.
+      // (다중 항목 섹션은 위치 매핑이 중요하므로 엄격하게 길이 검사를 유지한다.)
+      if ((items as string[]).length === 1 && parsed.every((x) => typeof x === 'string')) {
+        return NextResponse.json({ items: [(parsed as string[]).join('\n\n')] });
+      }
       throw new Error(`Array length mismatch: expected ${(items as string[]).length}, got ${parsed.length}`);
     }
 
