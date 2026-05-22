@@ -349,17 +349,13 @@ export default function HealthReportPage() {
                     <td style={{ padding: '11px 14px', color: 'var(--text)' }}>{item.patientName ?? '—'}</td>
                     <td style={{ padding: '11px 14px', color: 'var(--text)' }}>{item.ownerName ?? '—'}</td>
                     <td style={{ padding: '11px 14px' }}>
+                      {/* 활성 검토 링크가 있을 때만 버튼 표시. 검토 중·삭제 등 그 외 상태는 모두 빈칸. */}
                       {item.shareUrl ? (
                         <a href={item.shareUrl} target="_blank" rel="noopener noreferrer"
                           style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '4px 10px', background: 'var(--accent)', color: '#fff', borderRadius: 'var(--radius)', fontSize: '12px', fontWeight: 600, textDecoration: 'none', whiteSpace: 'nowrap' }}>
                           검토 링크 →
                         </a>
-                      ) : (
-                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontSize: '12px', color: 'var(--text-muted)' }}>
-                          <span style={{ display: 'inline-block', width: '6px', height: '6px', borderRadius: '50%', background: '#f59e0b', flexShrink: 0 }} />
-                          검토 중
-                        </span>
-                      )}
+                      ) : null}
                     </td>
                   </tr>
                 ))}
