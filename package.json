@@ -5,7 +5,6 @@
   "description": "네이버 블로그 조회수·순방문자 수집 (Chrome 디버깅 모드 연동)",
   "main": "index.js",
   "workspaces": [
-    "admin-ui",
     "chart-api",
     "dashboard-api",
     "ddx-api",
@@ -26,8 +25,6 @@
     "collect:searchad": "python scripts/naver-searchad-main.py",
     "collect:googleads": "node scripts/googleads-collect-main.js",
     "auth:googleads": "node scripts/googleads-oauth-token.js",
-    "admin:dev": "npm --prefix admin-ui run dev",
-    "admin:build": "npm --prefix admin-ui run build",
     "hospital:dev": "npm --prefix apps/hospital-web run dev",
     "hospital:build": "npm --prefix apps/hospital-web run build",
     "admin-web:dev": "npm --prefix apps/admin-web run dev",

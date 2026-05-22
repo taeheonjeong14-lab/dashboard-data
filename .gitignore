@@ -10,7 +10,15 @@ data/*.json
 .env
 .env.local
 .env.storage-migrate
-admin-ui/.env.local
 dashboard/.env.local
 *.log
 scripts/sql/decode-supabase-batch.config.json
+scripts/sql/tmp/
+
+# 빌드 산출물 (자동 생성 — 추적하지 않음)
+*.tsbuildinfo
+next-env.d.ts
+__pycache__/
+*.pyc
+
+.vercel
