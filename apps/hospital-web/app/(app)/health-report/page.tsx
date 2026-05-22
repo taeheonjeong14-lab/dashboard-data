@@ -353,7 +353,7 @@ export default function HealthReportPage() {
                       {item.shareUrl ? (
                         <a href={item.shareUrl} target="_blank" rel="noopener noreferrer"
                           style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '4px 10px', background: 'var(--accent)', color: '#fff', borderRadius: 'var(--radius)', fontSize: '12px', fontWeight: 600, textDecoration: 'none', whiteSpace: 'nowrap' }}>
-                          검토 링크 →
+                          리포트 확인
                         </a>
                       ) : null}
                     </td>
