@@ -28,6 +28,8 @@ export default function AdminHealthReport() {
   const [runsLoading, setRunsLoading] = useState(true);
   const [runsError, setRunsError] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [filterHospital, setFilterHospital] = useState('');
   const [filterCheckupMonth, setFilterCheckupMonth] = useState('');
@@ -73,6 +75,38 @@ export default function AdminHealthReport() {
   useEffect(() => {
     void loadRuns();
   }, [loadRuns]);
+
+  const deleteReport = useCallback(
+    async (parseRunId: string) => {
+      const target = runs.find((r) => r.parseRunId === parseRunId);
+      const label =
+        target?.hospitalName?.trim() || target?.patientName?.trim() || parseRunId.slice(0, 8);
+      if (
+        !window.confirm(
+          `이 건강검진 리포트를 삭제할까요?\n(${label})\n\n생성된 리포트 내용이 삭제됩니다. 차트 추출 데이터는 유지되어 다시 생성할 수 있습니다.`,
+        )
+      ) {
+        return;
+      }
+      setDeleting(true);
+      setDeleteError(null);
+      try {
+        const res = await fetch(
+          `/api/admin/health-report/content?runId=${encodeURIComponent(parseRunId)}`,
+          { method: 'DELETE', credentials: 'include' },
+        );
+        const data = (await res.json()) as { ok?: boolean; error?: string };
+        if (!res.ok || !data.ok) throw new Error(data.error ?? '삭제 실패');
+        if (selectedId === parseRunId) setSelectedId(null);
+        await loadRuns();
+      } catch (e) {
+        setDeleteError(e instanceof Error ? e.message : '삭제 실패');
+      } finally {
+        setDeleting(false);
+      }
+    },
+    [runs, loadRuns, selectedId],
+  );
 
   const loadChartRuns = useCallback(async () => {
     setChartRunsLoading(true);
@@ -318,6 +352,21 @@ export default function AdminHealthReport() {
         <div className="adminLayoutMainColumnInset">
           {selectedId ? (
             <div style={{ borderTop: `1px solid ${divider}`, paddingTop: 12 }}>
+              {runs.some((r) => r.parseRunId === selectedId) && (
+                <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                  {deleteError && <span style={{ fontSize: 12, color: '#b91c1c' }}>{deleteError}</span>}
+                  <button
+                    type="button"
+                    className="adminLegacySmallBtn"
+                    style={{ color: '#b91c1c', borderColor: '#fecaca' }}
+                    disabled={deleting}
+                    onClick={() => void deleteReport(selectedId)}
+                    title="이 건강검진 리포트만 삭제 (차트 추출 데이터는 유지)"
+                  >
+                    {deleting ? '삭제 중…' : '리포트 삭제'}
+                  </button>
+                </div>
+              )}
               <AdminHealthCheckupWorkspace
                 runId={selectedId}
                 hospitalName={runs.find((r) => r.parseRunId === selectedId)?.hospitalName ?? newRunSelection?.hospitalName}

@@ -127,3 +127,50 @@ export async function PATCH(request: NextRequest) {
     );
   }
 }
+
+/**
+ * DELETE ?runId= — 해당 run 의 건강검진 리포트(생성 컨텐츠)만 삭제한다.
+ * 차트 추출 데이터(parse_run/extraction)는 유지되므로 다시 생성 가능하다.
+ * 만료되지 않은 외부 검토 공유 링크가 있으면 함께 폐기한다(삭제된 리포트가 링크로 열리지 않도록).
+ */
+export async function DELETE(request: NextRequest) {
+  const gate = await requireAdminApi();
+  if (!gate.ok) return gate.response;
+
+  const runId = request.nextUrl.searchParams.get('runId')?.trim();
+  if (!isParseRunUuid(runId)) {
+    return NextResponse.json({ error: 'runId query parameter must be a valid UUID' }, { status: 400 });
+  }
+
+  try {
+    const sb = createServiceRoleClient();
+    const { data: deleted, error } = await sb
+      .schema('health_report')
+      .from('generated_run_content')
+      .delete()
+      .eq('parse_run_id', runId!)
+      .eq('content_type', 'health_checkup')
+      .select('id');
+    if (error) throw new Error(error.message);
+
+    // 남은 검토 공유 링크 폐기(존재할 때만; 실패해도 리포트 삭제는 성공 처리).
+    const { error: revokeErr } = await sb
+      .schema('health_report')
+      .from('health_review_share_links')
+      .update({ revoked_at: new Date().toISOString() })
+      .eq('parse_run_id', runId!)
+      .in('content_type', ['health_checkup', 'health-checkup'])
+      .is('revoked_at', null);
+    if (revokeErr) {
+      console.error('DELETE /api/admin/health-report/content (revoke links):', revokeErr.message);
+    }
+
+    return NextResponse.json({ ok: true, deleted: (deleted ?? []).length });
+  } catch (e) {
+    console.error('DELETE /api/admin/health-report/content:', e);
+    return NextResponse.json(
+      { error: e instanceof Error ? e.message : 'Unknown error' },
+      { status: 500 },
+    );
+  }
+}
