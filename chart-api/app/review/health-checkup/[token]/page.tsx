@@ -4,6 +4,7 @@ import '@fontsource/noto-sans-kr/500.css';
 import '@fontsource/noto-sans-kr/700.css';
 import { getChartPgPool } from '@/lib/db';
 import { hashShareToken } from '@/lib/chart-app/share-token';
+import { hospitalRowFromDb } from '@/lib/chart-app/hospital-db';
 import HealthCheckupShareReviewClient from './share-review-client';
 
 const LINK_CONTENT_TYPE = 'health_checkup';
@@ -39,35 +40,54 @@ export async function generateMetadata({
     if (!row || row.revoked_at || row.expires_at.getTime() < Date.now()) return fallback;
 
     const runId = row.parse_run_id;
-    const [runBasic, gen] = await Promise.all([
-      pool.query<{ hospital_id: string | null; basic_hospital: string | null; basic_patient: string | null }>(
+    const trim = (v: unknown): string => (typeof v === 'string' ? v.trim() : '');
+
+    // 표지 payload(환자명·검진일자) — 가장 중요한 소스. 이 조회가 되면 최소 환자·날짜는 노출된다.
+    const gen = await pool.query<{ payload: { coverPatientName?: string; coverCheckupDate?: string } | null }>(
+      `SELECT payload FROM health_report.generated_run_content WHERE parse_run_id = $1::uuid AND content_type = $2 LIMIT 1`,
+      [runId, GENERATED_CONTENT_TYPE],
+    );
+    const payload = gen.rows[0]?.payload ?? null;
+
+    // 추출 기본정보(병원명·환자명 보조) — 실패해도 전체 미리보기를 막지 않도록 개별 격리.
+    let basicHospital = '';
+    let basicPatient = '';
+    let hospitalId: string | null = null;
+    try {
+      const rb = await pool.query<{
+        hospital_id: string | null;
+        basic_hospital: string | null;
+        basic_patient: string | null;
+      }>(
         `SELECT pr.hospital_id, b.hospital_name AS basic_hospital, b.patient_name AS basic_patient
          FROM chart_pdf.parse_runs pr
          LEFT JOIN chart_pdf.result_basic_info b ON b.parse_run_id = pr.id
          WHERE pr.id = $1::uuid LIMIT 1`,
         [runId],
-      ),
-      pool.query<{ payload: { coverPatientName?: string; coverCheckupDate?: string } | null }>(
-        `SELECT payload FROM health_report.generated_run_content WHERE parse_run_id = $1::uuid AND content_type = $2 LIMIT 1`,
-        [runId, GENERATED_CONTENT_TYPE],
-      ),
-    ]);
-
-    const trim = (v: unknown): string => (typeof v === 'string' ? v.trim() : '');
-
-    const hospitalId = runBasic.rows[0]?.hospital_id ?? null;
-    let hospitalNameKo = '';
-    if (hospitalId) {
-      const h = await pool.query<{ name_ko: string | null }>(
-        `SELECT name_ko FROM core.hospitals WHERE id::text = $1 LIMIT 1`,
-        [String(hospitalId)],
       );
-      hospitalNameKo = trim(h.rows[0]?.name_ko);
+      hospitalId = rb.rows[0]?.hospital_id ?? null;
+      basicHospital = trim(rb.rows[0]?.basic_hospital);
+      basicPatient = trim(rb.rows[0]?.basic_patient);
+    } catch (e) {
+      console.error('[review/health-checkup] basic info lookup failed:', e);
     }
 
-    const payload = gen.rows[0]?.payload ?? null;
-    const hospital = hospitalNameKo || trim(runBasic.rows[0]?.basic_hospital);
-    const patient = trim(payload?.coverPatientName) || trim(runBasic.rows[0]?.basic_patient);
+    // 등록 병원명(리포트 표지와 동일 소스). 컬럼명 차이(name_ko/name 등)·오류에도 안전하게
+    // SELECT * 후 검증된 매퍼로 읽고, 실패해도 환자·날짜는 살린다.
+    let hospitalNameKo = '';
+    if (hospitalId) {
+      try {
+        const h = await pool.query(`SELECT * FROM core.hospitals WHERE id::text = $1 LIMIT 1`, [
+          String(hospitalId),
+        ]);
+        hospitalNameKo = trim(hospitalRowFromDb(h.rows[0] ?? null)?.name_ko);
+      } catch (e) {
+        console.error('[review/health-checkup] hospital lookup failed:', e);
+      }
+    }
+
+    const hospital = hospitalNameKo || basicHospital;
+    const patient = trim(payload?.coverPatientName) || basicPatient;
     const checkupDate = trim(payload?.coverCheckupDate);
 
     const titleParts = [hospital, patient, checkupDate].filter(Boolean);
