@@ -98,17 +98,30 @@ async function searchGoogleAdsAllPages({
   return rows;
 }
 
-function mapDailyMetricRow(r, hospitalId, customerId) {
-  const segments = r.segments ?? {};
-  const metrics = r.metrics ?? {};
-  const metricDate = segments.date;
+// 캠페인/광고그룹/키워드 어느 레벨이든 한 매퍼로 처리.
+// 상위 레벨 쿼리는 하위 필드가 없으므로 `?? ""` 로 빈값 처리됨
+// (예: campaign 쿼리 → ad_group_id="", keyword_id="").
+function mapMetricRow(r, hospitalId, customerId) {
+  const seg = r.segments ?? {};
+  const m = r.metrics ?? {};
+  const camp = r.campaign ?? {};
+  const ag = r.adGroup ?? {};
+  const crit = r.adGroupCriterion ?? {};
+  const kw = crit.keyword ?? {};
   return {
-    metric_date: metricDate,
+    metric_date: seg.date,
     hospital_id: hospitalId,
     customer_id: customerId,
-    impressions: Number(metrics.impressions ?? 0),
-    clicks: Number(metrics.clicks ?? 0),
-    cost_micros: Number(metrics.costMicros ?? metrics.cost_micros ?? 0),
+    campaign_id: String(camp.id ?? ""),
+    campaign_name: camp.name ?? null,
+    ad_group_id: String(ag.id ?? ""),
+    ad_group_name: ag.name ?? null,
+    keyword_id: String(crit.criterionId ?? ""),
+    keyword_name: kw.text ?? null,
+    impressions: Number(m.impressions ?? 0),
+    clicks: Number(m.clicks ?? 0),
+    cost_micros: Number(m.costMicros ?? m.cost_micros ?? 0),
+    conversions: m.conversions != null ? Number(m.conversions) : null,
     raw_payload: r,
     collected_at: new Date().toISOString(),
   };
@@ -186,32 +199,39 @@ async function main() {
       continue;
     }
 
-    const query = `
-      SELECT
-        segments.date,
-        metrics.impressions,
-        metrics.clicks,
-        metrics.cost_micros
-      FROM customer
-      WHERE segments.date BETWEEN '${effectiveStart}' AND '${endDate}'
-    `;
-
     const meta = acc.metadata && typeof acc.metadata === "object" ? acc.metadata : {};
     const loginFromDb = meta.login_customer_id || meta.loginCustomerId || "";
     const loginFromEnv = String(process.env.GOOGLEADS_LOGIN_CUSTOMER_ID || "").trim();
     const loginCustomerId = normalizeDigits(loginFromDb) || normalizeDigits(loginFromEnv) || "";
 
-    const rows = await searchGoogleAdsAllPages({
-      developerToken,
-      clientId: oauthClientId,
-      clientSecret: oauthClientSecret,
-      refreshToken,
-      customerId,
-      loginCustomerId,
-      gaql: query,
-    });
+    // 캠페인 → 광고그룹 → 키워드 3단계 (네이버 SearchAd와 동일하게 한 테이블에 적재)
+    const dateClause = `WHERE segments.date BETWEEN '${effectiveStart}' AND '${endDate}'`;
+    const levelQueries = [
+      `SELECT segments.date, campaign.id, campaign.name,
+              metrics.impressions, metrics.clicks, metrics.cost_micros, metrics.conversions
+       FROM campaign ${dateClause}`,
+      `SELECT segments.date, campaign.id, campaign.name, ad_group.id, ad_group.name,
+              metrics.impressions, metrics.clicks, metrics.cost_micros, metrics.conversions
+       FROM ad_group ${dateClause}`,
+      `SELECT segments.date, campaign.id, campaign.name, ad_group.id, ad_group.name,
+              ad_group_criterion.criterion_id, ad_group_criterion.keyword.text,
+              metrics.impressions, metrics.clicks, metrics.cost_micros, metrics.conversions
+       FROM keyword_view ${dateClause}`,
+    ];
 
-    const payload = (rows || []).map((r) => mapDailyMetricRow(r, acc.hospital_id, customerId));
+    const payload = [];
+    for (const gaql of levelQueries) {
+      const rows = await searchGoogleAdsAllPages({
+        developerToken,
+        clientId: oauthClientId,
+        clientSecret: oauthClientSecret,
+        refreshToken,
+        customerId,
+        loginCustomerId,
+        gaql,
+      });
+      for (const r of rows || []) payload.push(mapMetricRow(r, acc.hospital_id, customerId));
+    }
 
     if (!payload.length) {
       console.log(`No rows: hospital_id=${acc.hospital_id}, customer_id=${customerId}, range=${effectiveStart}..${endDate}`);
@@ -221,7 +241,7 @@ async function main() {
     const { error: upErr } = await supabase
       .schema("analytics")
       .from("analytics_googleads_daily_metrics")
-      .upsert(payload, { onConflict: "metric_date,hospital_id,customer_id" });
+      .upsert(payload, { onConflict: "metric_date,hospital_id,customer_id,campaign_id,ad_group_id,keyword_id" });
     if (upErr) throw upErr;
 
     // Primary touch: core.hospitals
@@ -233,7 +253,7 @@ async function main() {
     if (touchCoreErr) throw touchCoreErr;
 
     console.log(
-      `OK: hospital_id=${acc.hospital_id}, customer_id=${customerId}, days=${payload.length}, range=${effectiveStart}..${endDate}`
+      `OK: hospital_id=${acc.hospital_id}, customer_id=${customerId}, rows=${payload.length}, range=${effectiveStart}..${endDate}`
     );
   }
 }
