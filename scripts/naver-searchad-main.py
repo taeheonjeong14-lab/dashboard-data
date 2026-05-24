@@ -274,6 +274,24 @@ def fetch_campaign_stats(
     return {}
 
 
+def fetch_keywords(
+    base_url: str,
+    api_license: str,
+    secret_key: str,
+    customer_id: str,
+    adgroup_id: str,
+) -> list[dict[str, Any]]:
+    data = searchad_get(
+        base_url,
+        "/ncc/keywords",
+        {"nccAdgroupId": adgroup_id},
+        api_license,
+        secret_key,
+        customer_id,
+    )
+    return data if isinstance(data, list) else []
+
+
 def fetch_adgroup_stats(
     base_url: str,
     api_license: str,
@@ -289,6 +307,35 @@ def fetch_adgroup_stats(
         "/stats",
         {
             "ids": adgroup_id,
+            "fields": fields,
+            "timeRange": time_range,
+        },
+        api_license,
+        secret_key,
+        customer_id,
+    )
+    if isinstance(data, list) and data:
+        return data[0] if isinstance(data[0], dict) else {}
+    if isinstance(data, dict):
+        return data
+    return {}
+
+
+def fetch_keyword_stats(
+    base_url: str,
+    api_license: str,
+    secret_key: str,
+    customer_id: str,
+    keyword_id: str,
+    metric_date: str,
+) -> dict[str, Any]:
+    time_range = json.dumps({"since": metric_date, "until": metric_date}, separators=(",", ":"))
+    fields = json.dumps(["impCnt", "clkCnt", "salesAmt", "ccnt", "ctr", "cpc"], separators=(",", ":"))
+    data = searchad_get(
+        base_url,
+        "/stats",
+        {
+            "ids": keyword_id,
             "fields": fields,
             "timeRange": time_range,
         },
@@ -328,6 +375,8 @@ def build_metric_row(
     campaign_name: str | None,
     adgroup_id: str,
     adgroup_name: str | None,
+    keyword_id: str,
+    keyword_name: str | None,
     metric_date: str,
     stats: dict[str, Any],
 ) -> dict[str, Any]:
@@ -340,7 +389,8 @@ def build_metric_row(
         "campaign_name": campaign_name,
         "adgroup_id": adgroup_id,
         "adgroup_name": adgroup_name,
-        "keyword_id": "",
+        "keyword_id": keyword_id,
+        "keyword_name": keyword_name,
         "impressions": int(_to_num(stat.get("impCnt")) or 0),
         "clicks": int(_to_num(stat.get("clkCnt")) or 0),
         "cost": _to_num(stat.get("salesAmt")),
@@ -418,6 +468,8 @@ def collect_one_account(
                     campaign_name=campaign_name,
                     adgroup_id="",
                     adgroup_name=None,
+                    keyword_id="",
+                    keyword_name=None,
                     metric_date=metric_date,
                     stats=stats,
                 )
@@ -449,6 +501,8 @@ def collect_one_account(
                         campaign_name=campaign_name,
                         adgroup_id=adgroup_id,
                         adgroup_name=adgroup_name,
+                        keyword_id="",
+                        keyword_name=None,
                         metric_date=metric_date,
                         stats=adgroup_stats,
                     )
@@ -459,6 +513,43 @@ def collect_one_account(
                     f"hospital_id={hospital_id} customer_id={customer_id} campaign_id={campaign_id} "
                     f"adgroup_id={adgroup_id} err={e}"
                 )
+
+            keywords = fetch_keywords(searchad_base_url, api_license, secret_key, customer_id, adgroup_id)
+            for keyword in keywords:
+                keyword_id = str(keyword.get("nccKeywordId") or keyword.get("id") or "").strip()
+                keyword_name = str(keyword.get("keyword") or "").strip() or None
+                if not keyword_id:
+                    continue
+                try:
+                    time.sleep(0.05)  # rate limit 여유
+                    keyword_stats = fetch_keyword_stats(
+                        searchad_base_url,
+                        api_license,
+                        secret_key,
+                        customer_id,
+                        keyword_id,
+                        metric_date,
+                    )
+                    rows.append(
+                        build_metric_row(
+                            hospital_id=hospital_id,
+                            customer_id=customer_id,
+                            campaign_id=campaign_id,
+                            campaign_name=campaign_name,
+                            adgroup_id=adgroup_id,
+                            adgroup_name=adgroup_name,
+                            keyword_id=keyword_id,
+                            keyword_name=keyword_name,
+                            metric_date=metric_date,
+                            stats=keyword_stats,
+                        )
+                    )
+                except Exception as e:
+                    print(
+                        "⚠️ keyword 통계 조회 실패: "
+                        f"hospital_id={hospital_id} customer_id={customer_id} campaign_id={campaign_id} "
+                        f"adgroup_id={adgroup_id} keyword_id={keyword_id} err={e}"
+                    )
     return rows
 
 
