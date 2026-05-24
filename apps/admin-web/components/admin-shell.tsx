@@ -6,7 +6,6 @@ import { usePathname, useSearchParams } from 'next/navigation';
 import {
   BarChart2,
   FileText,
-  Upload,
   HeartPulse,
   Users,
   Building2,
@@ -35,7 +34,6 @@ const BUSINESS_NAV: NavItem[] = [
 const CHART_NAV: NavItem[] = [
   { href: '/admin/chart-data', label: '차트 목록', icon: <FileText size={17} /> },
   { href: '/admin/health-report', label: '건강검진 리포트', icon: <HeartPulse size={17} /> },
-  { href: '/admin/data-upload', label: '차트 데이터 수집', icon: <Upload size={17} />, section: null },
 ];
 
 const MANAGE_NAV: NavItem[] = [

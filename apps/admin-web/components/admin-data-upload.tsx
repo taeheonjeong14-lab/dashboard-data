@@ -363,6 +363,24 @@ export default function AdminDataUpload() {
     width: '100%',
   };
 
+  // PDF·이미지 드롭존 공용 스타일 — 두 박스를 동일한 모양/크기로
+  const dropzoneBaseStyle: CSSProperties = {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    textAlign: 'center',
+    gap: 8,
+    minHeight: 132,
+    border: '1.5px dashed #cbd5e1',
+    borderRadius: 10,
+    padding: '22px 20px',
+    cursor: 'pointer',
+    background: '#f8fafc',
+    userSelect: 'none',
+    transition: 'border-color 0.15s, background 0.15s',
+  };
+
   return (
     <div className="adminLayoutMainPane">
       <div className="adminLayoutMainColumnInset">
@@ -739,56 +757,43 @@ export default function AdminDataUpload() {
                       </div>
                     </div>
 
-                    {/* 드롭존 + 실행 버튼 */}
-                    <div style={{ display: 'flex', gap: 10, alignItems: 'stretch' }}>
-                      <div
-                        onDragOver={(e) => { e.preventDefault(); setIsDragOver(true); }}
-                        onDragLeave={() => setIsDragOver(false)}
-                        onDrop={(e) => {
-                          e.preventDefault();
-                          setIsDragOver(false);
-                          const file = e.dataTransfer.files[0];
-                          if (file) setSelectedFile(file);
-                        }}
-                        onClick={() => fileInputRef.current?.click()}
-                        style={{
-                          flex: 1,
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 12,
-                          border: `1.5px dashed ${isDragOver ? '#3b82f6' : selectedFile ? '#22c55e' : '#cbd5e1'}`,
-                          borderRadius: 8,
-                          padding: '12px 16px',
-                          cursor: 'pointer',
-                          background: isDragOver ? '#eff6ff' : selectedFile ? '#f0fdf4' : '#f8fafc',
-                          transition: 'border-color 0.15s, background 0.15s',
-                          userSelect: 'none',
-                        }}
-                      >
-                        <Upload size={18} style={{ color: isDragOver ? '#3b82f6' : selectedFile ? '#16a34a' : '#94a3b8', flexShrink: 0 }} />
-                        {selectedFile ? (
-                          <div>
-                            <p style={{ margin: 0, fontSize: 13, fontWeight: 600, color: '#15803d' }}>{selectedFile.name}</p>
-                            <p style={{ margin: 0, fontSize: 12, color: '#64748b' }}>{(selectedFile.size / 1024 / 1024).toFixed(1)} MB · 클릭해서 다시 선택</p>
-                          </div>
-                        ) : (
-                          <div>
-                            <p style={{ margin: 0, fontSize: 13, fontWeight: 600, color: '#334155' }}>PDF 드래그 또는 클릭해서 선택</p>
-                            <p style={{ margin: 0, fontSize: 12, color: '#94a3b8' }}>최대 30MB · 텍스트 기반 PDF</p>
-                          </div>
-                        )}
-                      </div>
-                      <input
-                        ref={fileInputRef}
-                        type="file"
-                        accept=".pdf,application/pdf"
-                        style={{ display: 'none' }}
-                        onChange={(e) => { const f = e.target.files?.[0]; if (f) setSelectedFile(f); }}
-                      />
-                      <button type="submit" className="adminLegacyPrimaryBtn" disabled={!canSubmit} style={{ alignSelf: 'stretch', padding: '0 22px', whiteSpace: 'nowrap' }}>
-                        {isExtractRunning ? '처리 중…' : '실행'}
-                      </button>
+                    {/* PDF 드롭존 */}
+                    <div
+                      onDragOver={(e) => { e.preventDefault(); setIsDragOver(true); }}
+                      onDragLeave={() => setIsDragOver(false)}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        setIsDragOver(false);
+                        const file = e.dataTransfer.files[0];
+                        if (file) setSelectedFile(file);
+                      }}
+                      onClick={() => fileInputRef.current?.click()}
+                      style={{
+                        ...dropzoneBaseStyle,
+                        border: `1.5px dashed ${isDragOver ? '#3b82f6' : selectedFile ? '#22c55e' : '#cbd5e1'}`,
+                        background: isDragOver ? '#eff6ff' : selectedFile ? '#f0fdf4' : '#f8fafc',
+                      }}
+                    >
+                      <Upload size={26} style={{ color: isDragOver ? '#3b82f6' : selectedFile ? '#16a34a' : '#94a3b8' }} />
+                      {selectedFile ? (
+                        <div>
+                          <p style={{ margin: 0, fontSize: 14, fontWeight: 600, color: '#15803d' }}>{selectedFile.name}</p>
+                          <p style={{ margin: '2px 0 0', fontSize: 12, color: '#64748b' }}>{(selectedFile.size / 1024 / 1024).toFixed(1)} MB · 클릭해서 다시 선택</p>
+                        </div>
+                      ) : (
+                        <div>
+                          <p style={{ margin: 0, fontSize: 14, fontWeight: 600, color: '#334155' }}>PDF 드래그 또는 클릭해서 선택</p>
+                          <p style={{ margin: '2px 0 0', fontSize: 12, color: '#94a3b8' }}>최대 30MB · 텍스트 기반 PDF</p>
+                        </div>
+                      )}
                     </div>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept=".pdf,application/pdf"
+                      style={{ display: 'none' }}
+                      onChange={(e) => { const f = e.target.files?.[0]; if (f) setSelectedFile(f); }}
+                    />
 
                     {/* 이미지 업로드 */}
                     <div style={{ marginTop: 4 }}>
@@ -803,22 +808,13 @@ export default function AdminDataUpload() {
                           addImageFiles(files);
                         }}
                         onClick={() => imageInputRef.current?.click()}
-                        style={{
-                          border: '1.5px dashed #cbd5e1',
-                          borderRadius: 8,
-                          padding: '10px 14px',
-                          cursor: 'pointer',
-                          background: '#f8fafc',
-                          userSelect: 'none',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 10,
-                        }}
+                        style={dropzoneBaseStyle}
                       >
-                        <Upload size={14} style={{ color: '#94a3b8', flexShrink: 0 }} />
-                        <span style={{ fontSize: 12, color: '#64748b' }}>
-                          이미지 드래그 또는 클릭 · JPEG / PNG / WebP · 최대 {MAX_IMAGES}장 · 장당 8MB · 자동 압축 후 분석
-                        </span>
+                        <Upload size={26} style={{ color: '#94a3b8' }} />
+                        <div>
+                          <p style={{ margin: 0, fontSize: 14, fontWeight: 600, color: '#334155' }}>이미지 드래그 또는 클릭해서 선택</p>
+                          <p style={{ margin: '2px 0 0', fontSize: 12, color: '#94a3b8' }}>JPEG / PNG / WebP · 최대 {MAX_IMAGES}장 · 장당 8MB · 자동 압축 후 분석</p>
+                        </div>
                       </div>
                       <input
                         ref={imageInputRef}
@@ -867,6 +863,10 @@ export default function AdminDataUpload() {
                         </div>
                       )}
                     </div>
+
+                    <button type="submit" className="adminLegacyPrimaryBtn" disabled={!canSubmit} style={{ width: '100%' }}>
+                      {isExtractRunning ? '처리 중…' : '실행'}
+                    </button>
                   </div>
                 </form>
               </div>

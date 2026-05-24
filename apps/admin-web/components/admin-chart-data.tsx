@@ -1,9 +1,9 @@
 'use client';
 
-import Link from 'next/link';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useChartExtraction } from '@/components/chart-extraction-provider';
 import { AdminRunExtractionDetail } from '@/components/admin-run-extraction-detail';
+import AdminDataUpload from '@/components/admin-data-upload';
 import {
   extractHospitalId,
   fetchHospitalNameMapById,
@@ -36,6 +36,10 @@ export default function AdminChartData() {
   const [filterMonth, setFilterMonth] = useState('');
   const [serverMeta, setServerMeta] = useState<{ totalParseRuns: number; limit: number } | null>(null);
   const [selectedId, setSelectedId] = useState('');
+
+  // 차트 데이터 수집(PDF 업로드) 모달
+  const [uploadModalOpen, setUploadModalOpen] = useState(false);
+  const uploadModalRef = useRef<HTMLDialogElement>(null);
 
   const loadHistoryList = useCallback(async () => {
     setHistoryLoading(true);
@@ -104,6 +108,16 @@ export default function AdminChartData() {
   useEffect(() => {
     if (lastRunId) void loadHistoryList();
   }, [lastRunId, loadHistoryList]);
+
+  useEffect(() => {
+    const dialog = uploadModalRef.current;
+    if (!dialog) return;
+    if (uploadModalOpen) {
+      if (!dialog.open) dialog.showModal();
+    } else if (dialog.open) {
+      dialog.close();
+    }
+  }, [uploadModalOpen]);
 
   const hospitalOptions = useMemo(
     () => [...new Set(history.map((h) => h.hospitalName?.trim() ?? '').filter(Boolean))].sort(),
@@ -294,6 +308,17 @@ export default function AdminChartData() {
             ))
           )}
         </div>
+
+        <div style={{ padding: '10px 10px 6px', borderTop: `1px solid ${divider}` }}>
+          <button
+            type="button"
+            className="adminLegacyPrimaryBtn"
+            style={{ width: '100%', fontSize: 13 }}
+            onClick={() => setUploadModalOpen(true)}
+          >
+            + 차트 데이터 수집
+          </button>
+        </div>
       </aside>
 
       <div className="adminLayoutMainPane">
@@ -330,9 +355,22 @@ export default function AdminChartData() {
               ) : null}
               저장된 이력이 없습니다. Supabase 프로젝트에 데이터가 있는지,{' '}
               <code style={{ fontSize: 12 }}>NEXT_PUBLIC_SUPABASE_URL</code>·서비스 롤 키가 맞는지 확인해 주세요.{' '}
-              <Link href="/admin/data-upload" style={{ fontWeight: 700, color: '#0f172a' }}>
-                데이터 수집
-              </Link>
+              <button
+                type="button"
+                onClick={() => setUploadModalOpen(true)}
+                style={{
+                  fontWeight: 700,
+                  color: '#0f172a',
+                  background: 'none',
+                  border: 'none',
+                  padding: 0,
+                  font: 'inherit',
+                  cursor: 'pointer',
+                  textDecoration: 'underline',
+                }}
+              >
+                차트 데이터 수집
+              </button>
               에서 PDF를 올려 보세요.
             </div>
           ) : filteredHistory.length === 0 ? (
@@ -351,6 +389,34 @@ export default function AdminChartData() {
           )}
         </div>
       </div>
+
+      <dialog
+        ref={uploadModalRef}
+        onClose={() => setUploadModalOpen(false)}
+        onKeyDown={(e) => { if (e.key === 'Escape') setUploadModalOpen(false); }}
+        style={{
+          position: 'fixed',
+          inset: 0,
+          margin: 'auto',
+          width: 'min(96vw, 720px)',
+          maxHeight: '88vh',
+          border: '1px solid rgba(15,23,42,0.15)',
+          borderRadius: 8,
+          padding: 0,
+          overflow: 'hidden',
+          boxShadow: '0 20px 60px rgba(0,0,0,0.25)',
+        }}
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', maxHeight: '88vh', background: '#fff' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderBottom: `1px solid ${divider}`, flexShrink: 0 }}>
+            <span style={{ fontWeight: 700, fontSize: 15 }}>차트 데이터 수집</span>
+            <button type="button" className="adminLegacySmallBtn" onClick={() => setUploadModalOpen(false)}>닫기</button>
+          </div>
+          <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
+            {uploadModalOpen && <AdminDataUpload />}
+          </div>
+        </div>
+      </dialog>
     </div>
   );
 }
