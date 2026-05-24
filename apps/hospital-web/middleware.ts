@@ -34,7 +34,10 @@ export async function middleware(request: NextRequest) {
   const isPublic =
     isAuthPage ||
     pathname.startsWith('/auth') ||
-    pathname.startsWith('/verify-email');
+    pathname.startsWith('/verify-email') ||
+    // 보호자용 초진 접수증(공개 폼) + 제출 API — 로그인 없이 접근
+    pathname.startsWith('/intake') ||
+    pathname.startsWith('/api/intake');
 
   if (!user && !isPublic) {
     return NextResponse.redirect(new URL('/login', request.url));
