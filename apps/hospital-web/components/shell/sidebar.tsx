@@ -2,7 +2,7 @@
 
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
-import { BarChart2, FileHeart, Stethoscope, FileSpreadsheet } from 'lucide-react';
+import { BarChart2, FileHeart, Stethoscope, FileSpreadsheet, ClipboardList } from 'lucide-react';
 
 const navItems = [
   {
@@ -10,6 +10,12 @@ const navItems = [
     label: '경영 대시보드',
     icon: BarChart2,
     matchPrefix: '/dashboard',
+  },
+  {
+    href: '/reception',
+    label: '초진 접수',
+    icon: ClipboardList,
+    matchPrefix: '/reception',
   },
   {
     href: '/health-report',
@@ -84,24 +90,24 @@ const styles: Record<string, React.CSSProperties> = {
   nav: {
     display: 'flex',
     flexDirection: 'column',
-    padding: '12px 8px 4px',
-    gap: '1px',
+    padding: '14px 10px 4px',
+    gap: '2px',
   },
   navItem: {
     display: 'flex',
     alignItems: 'center',
-    gap: '9px',
-    padding: '7px 10px',
+    gap: '10px',
+    padding: '10px 12px',
     borderRadius: 'var(--radius)',
-    fontSize: '13px',
-    fontWeight: 400,
+    fontSize: '13.5px',
+    fontWeight: 500,
     textDecoration: 'none',
     color: 'var(--text-secondary)',
     transition: 'background 0.15s',
   },
   navItemActive: {
     background: 'var(--accent-subtle)',
-    fontWeight: 500,
+    fontWeight: 600,
   },
   navIcon: {
     flexShrink: 0,

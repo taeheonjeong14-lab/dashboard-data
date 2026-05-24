@@ -8,8 +8,15 @@ export const metadata = {
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="ko" className="dark">
-      <body>{children}</body>
+    <html lang="ko">
+      <body>
+        <link
+          rel="stylesheet"
+          href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard-dynamic-subset.css"
+          precedence="default"
+        />
+        {children}
+      </body>
     </html>
   );
 }
