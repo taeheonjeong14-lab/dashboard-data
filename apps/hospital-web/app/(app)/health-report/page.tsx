@@ -3,6 +3,7 @@
 import { useState, useRef, useCallback, useEffect, type DragEvent, type ChangeEvent } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useHospital } from '@/components/shell/hospital-context';
+import { CenteredSpinner } from '@/components/ui/loading-spinner';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -320,7 +321,7 @@ export default function HealthReportPage() {
           </div>
 
           {listLoading ? (
-            <div style={{ padding: '40px 18px', textAlign: 'center', fontSize: '13px', color: 'var(--text-muted)' }}>불러오는 중…</div>
+            <CenteredSpinner minHeight={200} />
           ) : listError ? (
             <div style={{ padding: '20px 18px', fontSize: '13px', color: 'var(--danger)' }}>{listError}</div>
           ) : items.length === 0 ? (

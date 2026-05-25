@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useHospital } from '@/components/shell/hospital-context';
+import { CenteredSpinner } from '@/components/ui/loading-spinner';
 import { ddxGet, DdxApiForbiddenError } from '@/lib/ddx-api';
 
 type Consultation = {
@@ -103,11 +104,7 @@ export default function AiAssistPage() {
         </div>
 
         {loading ? (
-          <div style={{ padding: 44, textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>
-            <div style={{ width: 20, height: 20, border: '2px solid var(--border)', borderTopColor: 'var(--accent)', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 12px' }} />
-            불러오는 중...
-            <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-          </div>
+          <CenteredSpinner minHeight={220} />
         ) : filtered.length === 0 ? (
           <div style={{ padding: '48px 24px', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
             <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-secondary)' }}>

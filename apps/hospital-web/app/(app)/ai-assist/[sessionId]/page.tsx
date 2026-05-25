@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useHospital } from '@/components/shell/hospital-context';
+import { CenteredSpinner } from '@/components/ui/loading-spinner';
 import { ddxGet, ddxPost, ddxPostStream, DdxApiForbiddenError } from '@/lib/ddx-api';
 
 type Consultation = {
@@ -341,17 +342,7 @@ export default function ConsultationDetailPage() {
   }
 
   if (loading) {
-    return (
-      <div style={{ padding: '24px', display: 'flex', alignItems: 'center', gap: '12px' }}>
-        <div style={{
-          width: '18px', height: '18px', border: '2px solid var(--border)',
-          borderTopColor: 'var(--accent)', borderRadius: '50%',
-          animation: 'spin 0.8s linear infinite',
-        }} />
-        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-        <span style={{ color: 'var(--text-muted)', fontSize: '13px' }}>불러오는 중...</span>
-      </div>
-    );
+    return <CenteredSpinner />;
   }
 
   if (error || !consultation) {

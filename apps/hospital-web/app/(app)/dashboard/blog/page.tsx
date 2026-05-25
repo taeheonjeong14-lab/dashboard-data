@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useHospital } from "@/components/shell/hospital-context";
+import { CenteredSpinner } from "@/components/ui/loading-spinner";
 import {
   fetchBlogPeriodKpis,
   fetchSummaryBlogRanks,
@@ -66,20 +67,7 @@ export default function BlogDashboardPage() {
   }, [ctxHospitalId]);
 
   if (loadState === "loading") {
-    return (
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          minHeight: "300px",
-          color: "var(--text-muted)",
-          fontSize: "14px",
-        }}
-      >
-        데이터를 불러오는 중...
-      </div>
-    );
+    return <CenteredSpinner minHeight="60vh" />;
   }
 
   if (loadState === "error") {

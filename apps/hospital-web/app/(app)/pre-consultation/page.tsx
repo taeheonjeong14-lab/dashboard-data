@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
 import { Copy, Check } from 'lucide-react';
 import { useHospital } from '@/components/shell/hospital-context';
+import { CenteredSpinner } from '@/components/ui/loading-spinner';
 import { ddxGet, ddxPost, DdxApiForbiddenError } from '@/lib/ddx-api';
 
 // ─── 타입 ────────────────────────────────────────────────
@@ -560,13 +561,7 @@ function SendModal({ userId, origin, onClose, onCreated }: {
 
 // ─── 공용 컴포넌트 ───────────────────────────────────────
 function Spinner() {
-  return (
-    <div style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>
-      <div style={{ width: 20, height: 20, border: '2px solid var(--border)', borderTopColor: 'var(--accent)', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 12px' }} />
-      불러오는 중...
-      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-    </div>
-  );
+  return <CenteredSpinner minHeight={240} />;
 }
 
 function Section({ title, right, children }: { title: string; right?: React.ReactNode; children: React.ReactNode }) {
