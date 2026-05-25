@@ -32,49 +32,77 @@ type SurveySession = {
   answers?: ServerAnswer[];
 };
 
-// ─── 헬퍼 ────────────────────────────────────────────────
+type Cond = { on?: number; value?: string; answered?: boolean };
+
+// ─── 옵션/조건 파싱 헬퍼 ──────────────────────────────────
+function optObj(q: Question): Record<string, unknown> | null {
+  const o = q.options;
+  if (o && typeof o === 'object' && !Array.isArray(o)) return o as Record<string, unknown>;
+  return null;
+}
+
 function getChoices(q: Question): string[] {
-  const opts = q.options;
-  if (!opts) return [];
-  if (Array.isArray(opts)) return opts as string[];
-  const c = (opts as Record<string, unknown>).choices;
+  const o = q.options;
+  if (!o) return [];
+  if (Array.isArray(o)) return o as string[];
+  const c = (o as Record<string, unknown>).choices;
   if (Array.isArray(c)) return c as string[];
   return [];
 }
 
-function getScaleMeta(q: Question): { min: number; max: number; minLabel: string; maxLabel: string } | null {
-  if (q.type !== 'scale') return null;
-  const opts = q.options as Record<string, unknown> | null | undefined;
-  if (!opts) return { min: 0, max: 10, minLabel: '', maxLabel: '' };
+function getScaleMeta(q: Question): { min: number; max: number; minLabel: string; maxLabel: string } {
+  const o = optObj(q);
   return {
-    min: typeof opts.min === 'number' ? opts.min : 0,
-    max: typeof opts.max === 'number' ? opts.max : 10,
-    minLabel: typeof opts.minLabel === 'string' ? opts.minLabel : '',
-    maxLabel: typeof opts.maxLabel === 'string' ? opts.maxLabel : '',
+    min: typeof o?.min === 'number' ? o.min : 0,
+    max: typeof o?.max === 'number' ? o.max : 10,
+    minLabel: typeof o?.minLabel === 'string' ? o.minLabel : '',
+    maxLabel: typeof o?.maxLabel === 'string' ? o.maxLabel : '',
   };
 }
 
-const OTHER_RE = /기타|직접\s*입력/;
-function isOtherChoice(opt: string): boolean { return OTHER_RE.test(opt); }
+function getMaxSelections(q: Question): number | null {
+  const o = optObj(q);
+  return typeof o?.maxSelections === 'number' ? o.maxSelections : null;
+}
 
-function formatScheduledDate(iso?: string | null): string {
-  if (!iso) return '';
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return '';
-  return d.toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' });
+function getCond(q: Question): Cond {
+  const o = optObj(q);
+  if (!o) return {};
+  return {
+    on: typeof o.conditionalOn === 'number' ? o.conditionalOn : undefined,
+    value: typeof o.conditionalValue === 'string' ? o.conditionalValue : undefined,
+    answered: o.conditionalAnswered === true,
+  };
+}
+
+// conditional_select: 이전 답변(종류)에 따라 품종 보기 매핑
+function getConditionalChoices(q: Question): { on?: number; map: Record<string, string[] | null> } {
+  const o = optObj(q);
+  const map = (o?.choices && typeof o.choices === 'object' && !Array.isArray(o.choices)) ? (o.choices as Record<string, string[] | null>) : {};
+  return { on: typeof o?.conditionalOn === 'number' ? o.conditionalOn : undefined, map };
+}
+
+function isFreeOption(opt: string, qType: string): boolean {
+  if (qType === 'conditional_select') return /기타|직접\s*입력|그\s*외/.test(opt);
+  return /기타|직접\s*입력/.test(opt);
+}
+
+function answerNonEmpty(a: string | string[] | undefined): boolean {
+  if (a == null) return false;
+  if (Array.isArray(a)) return a.length > 0;
+  return typeof a === 'string' && a.trim().length > 0;
+}
+
+function answerMatches(a: string | string[] | undefined, value: string): boolean {
+  const opts = value.split('||');
+  if (Array.isArray(a)) return a.some((x) => opts.includes(x));
+  return opts.includes(String(a ?? ''));
 }
 
 // ─── 라이트 고정 팔레트 (초진 접수증과 동일 톤) ─────────────
 const C = {
-  bg: '#ffffff',
-  subtle: '#f7f7f8',
-  border: '#e8e8eb',
-  borderStrong: '#d8d9dd',
-  text: '#18181b',
-  textSec: '#71717a',
-  muted: '#a1a1aa',
-  ink: '#18181b',
-  danger: '#dc2626',
+  bg: '#ffffff', subtle: '#f7f7f8', border: '#e8e8eb', borderStrong: '#d8d9dd',
+  text: '#18181b', textSec: '#71717a', muted: '#a1a1aa', ink: '#18181b', danger: '#dc2626',
 };
 
 type Accent = { base: string; on: string; tint: string };
@@ -86,6 +114,13 @@ function readableOn(hex: string): string {
 function buildAccent(hex: string | null | undefined): Accent {
   const base = hex && /^#[0-9a-f]{6}$/i.test(hex) ? hex : C.ink;
   return { base, on: readableOn(base), tint: base + '1a' };
+}
+
+function formatScheduledDate(iso?: string | null): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  return d.toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' });
 }
 
 type Step = 'loading' | 'error' | 'already' | 'intro' | 'survey' | 'submitting' | 'done';
@@ -128,65 +163,103 @@ export default function PublicSurveyPage() {
       .catch(() => { setStep('error'); setErrorMsg('문진을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.'); });
   }, [token]);
 
-  const questions = session?.questions ?? [];
-  const totalQ = questions.length;
-  const question = questions[currentQ] ?? null;
+  const allQuestions = session?.questions ?? [];
+  const byOrder = useMemo(() => {
+    const m = new Map<number, Question>();
+    for (const q of allQuestions) m.set(q.order, q);
+    return m;
+  }, [allQuestions]);
+
+  // 조건부 분기: 이전 답변에 따라 보일 질문만 추림
+  const isVisible = useMemo(() => {
+    return (q: Question): boolean => {
+      const c = getCond(q);
+      const condOn = q.type === 'conditional_select' ? getConditionalChoices(q).on : c.on;
+      if (condOn === undefined) return true;
+      const condQ = byOrder.get(condOn);
+      if (!condQ) return true;
+      const ans = answers[condQ.id];
+      if (!answerNonEmpty(ans)) return false;
+      if (q.type === 'conditional_select') return true;
+      if (c.answered) return true;
+      if (c.value !== undefined) return answerMatches(ans, c.value);
+      return true;
+    };
+  }, [answers, byOrder]);
+
+  const visible = useMemo(() => allQuestions.filter(isVisible), [allQuestions, isVisible]);
+  const totalQ = visible.length;
+  const clampedIdx = Math.min(currentQ, Math.max(0, totalQ - 1));
+  const question = visible[clampedIdx] ?? null;
   const currentAnswer = question ? (answers[question.id] ?? '') : '';
 
-  const needsOtherText = useMemo(() => {
+  // conditional_select: 현재 종류 답변 → 품종 보기 결정
+  const condSelect = useMemo(() => {
+    if (!question || question.type !== 'conditional_select') return null;
+    const { on, map } = getConditionalChoices(question);
+    const condQ = on !== undefined ? byOrder.get(on) : undefined;
+    const speciesAns = condQ ? answers[condQ.id] : undefined;
+    const key = Array.isArray(speciesAns) ? speciesAns[0] : (typeof speciesAns === 'string' ? speciesAns : '');
+    const list = map[key];
+    return { list: Array.isArray(list) ? list : null }; // null → 자유 입력
+  }, [question, byOrder, answers]);
+
+  const needsFreeText = useMemo(() => {
     if (!question) return false;
-    if (question.type === 'single_choice') return typeof currentAnswer === 'string' && isOtherChoice(currentAnswer);
-    if (question.type === 'multi_choice') return Array.isArray(currentAnswer) && currentAnswer.some(isOtherChoice);
+    if (question.type === 'single_choice') return typeof currentAnswer === 'string' && isFreeOption(currentAnswer, 'single_choice');
+    if (question.type === 'multi_choice') return Array.isArray(currentAnswer) && currentAnswer.some((o) => isFreeOption(o, 'multi_choice'));
+    if (question.type === 'conditional_select') {
+      if (condSelect && condSelect.list === null) return false; // 직접 입력 자체가 답변
+      return typeof currentAnswer === 'string' && isFreeOption(currentAnswer, 'conditional_select');
+    }
     return false;
-  }, [question, currentAnswer]);
+  }, [question, currentAnswer, condSelect]);
 
   const canGoNext = (() => {
     if (!question) return false;
-    const a = answers[question.id];
-    if (a == null) return false;
-    if (Array.isArray(a)) {
-      if (a.length === 0) return false;
-      if (needsOtherText && !(otherText[question.id]?.trim())) return false;
-      return true;
+    // conditional_select 자유 입력형: answers 에 직접 입력
+    if (question.type === 'conditional_select' && condSelect && condSelect.list === null) {
+      return typeof currentAnswer === 'string' && currentAnswer.trim().length > 0;
     }
-    if (typeof a === 'string') {
-      if (!a.trim()) return false;
-      if (needsOtherText && !(otherText[question.id]?.trim())) return false;
-      return true;
-    }
-    return false;
+    if (!answerNonEmpty(currentAnswer as string | string[])) return false;
+    if (needsFreeText && !(otherText[question.id]?.trim())) return false;
+    return true;
   })();
 
   const setAns = (qid: string, value: string | string[]) => setAnswers((p) => ({ ...p, [qid]: value }));
-  const toggleMulti = (qid: string, option: string) => {
+  const toggleMulti = (qid: string, option: string, max: number | null) => {
     setAnswers((p) => {
       const cur = Array.isArray(p[qid]) ? (p[qid] as string[]) : [];
       const has = cur.includes(option);
-      return { ...p, [qid]: has ? cur.filter((v) => v !== option) : [...cur, option] };
+      if (has) return { ...p, [qid]: cur.filter((v) => v !== option) };
+      if (max != null && cur.length >= max) return p; // 최대 선택 제한
+      return { ...p, [qid]: [...cur, option] };
     });
   };
 
   const handleNext = () => {
     if (!canGoNext) return;
-    if (currentQ < totalQ - 1) setCurrentQ((i) => i + 1);
+    if (clampedIdx < totalQ - 1) setCurrentQ(clampedIdx + 1);
     else handleSubmit();
   };
-  const handlePrev = () => { if (currentQ > 0) setCurrentQ((i) => i - 1); };
+  const handlePrev = () => { if (clampedIdx > 0) setCurrentQ(clampedIdx - 1); };
 
   const buildPayload = () => {
-    const applyOther = (qid: string, opt: string) => (isOtherChoice(opt) && otherText[qid]?.trim() ? otherText[qid].trim() : opt);
-    return questions
+    const applyFree = (qid: string, opt: string, qType: string) =>
+      (isFreeOption(opt, qType) && otherText[qid]?.trim() ? otherText[qid].trim() : opt);
+    return allQuestions
+      .filter(isVisible)
       .map((q) => {
         const a = answers[q.id];
         if (a == null) return null;
         if (Array.isArray(a)) {
           if (a.length === 0) return null;
-          const mapped = a.map((opt) => applyOther(q.id, opt));
+          const mapped = a.map((opt) => applyFree(q.id, opt, q.type));
           return { questionInstanceId: q.id, answerJson: mapped, answerText: mapped.join(', ') };
         }
         const s = String(a).trim();
         if (!s) return null;
-        const finalText = q.type === 'single_choice' ? applyOther(q.id, s) : s;
+        const finalText = (q.type === 'single_choice' || q.type === 'conditional_select') ? applyFree(q.id, s, q.type) : s;
         return { questionInstanceId: q.id, answerText: finalText };
       })
       .filter((x): x is { questionInstanceId: string; answerText: string; answerJson?: string[] } => x !== null);
@@ -197,9 +270,7 @@ export default function PublicSurveyPage() {
     setStep('submitting');
     try {
       const res = await ddxPostPublic<{ success: boolean; error?: string }>('/api/survey', {
-        token,
-        answers: buildPayload(),
-        complete: true,
+        token, answers: buildPayload(), complete: true,
       });
       if (res.success) setStep('done');
       else if (res.error === 'already_completed') setStep('already');
@@ -215,7 +286,7 @@ export default function PublicSurveyPage() {
     return (
       <Screen accent={ac}>
         <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <span style={{ width: 28, height: 28, border: `2.5px solid ${C.border}`, borderTopColor: ac.base, borderRadius: '50%', display: 'inline-block', animation: 'sv-spin 0.7s linear infinite' }} />
+          <span style={spinnerStyle(ac)} />
         </div>
       </Screen>
     );
@@ -242,10 +313,8 @@ export default function PublicSurveyPage() {
           <h1 style={{ fontSize: 24, fontWeight: 600, letterSpacing: '-0.02em', margin: '0 0 10px', color: C.text }}>
             {isDone ? '제출이 완료되었어요' : '이미 제출된 문진이에요'}
           </h1>
-          <p style={{ fontSize: 16, color: C.textSec, lineHeight: 1.7, margin: 0 }}>
-            {isDone
-              ? '소중한 답변 감사합니다.\n진료 시 참고하겠습니다.'
-              : '이 문진은 이미 작성이 완료되었습니다.\n이 창은 닫으셔도 됩니다.'}
+          <p style={{ fontSize: 16, color: C.textSec, lineHeight: 1.7, margin: 0, whiteSpace: 'pre-line' }}>
+            {isDone ? '소중한 답변 감사합니다.\n진료 시 참고하겠습니다.' : '이 문진은 이미 작성이 완료되었습니다.\n이 창은 닫으셔도 됩니다.'}
           </p>
         </div>
       </Screen>
@@ -256,14 +325,13 @@ export default function PublicSurveyPage() {
     return (
       <Screen accent={ac}>
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16 }}>
-          <span style={{ width: 28, height: 28, border: `2.5px solid ${C.border}`, borderTopColor: ac.base, borderRadius: '50%', display: 'inline-block', animation: 'sv-spin 0.7s linear infinite' }} />
+          <span style={spinnerStyle(ac)} />
           <p style={{ fontSize: 16, color: C.textSec, margin: 0 }}>제출하는 중…</p>
         </div>
       </Screen>
     );
   }
 
-  // 인트로(웰컴)
   if (step === 'intro') {
     const patient = session?.patientName?.trim() || '';
     const scheduledText = formatScheduledDate(session?.scheduledDate);
@@ -301,10 +369,8 @@ export default function PublicSurveyPage() {
 
   // 설문
   if (!question) return <Screen accent={ac}><div /></Screen>;
-  const progress = totalQ > 1 ? currentQ / (totalQ - 1) : 0;
-  const choices = getChoices(question);
-  const scaleMeta = getScaleMeta(question);
-  const isLast = currentQ === totalQ - 1;
+  const progress = totalQ > 1 ? clampedIdx / (totalQ - 1) : 0;
+  const isLast = clampedIdx === totalQ - 1;
 
   return (
     <Screen accent={ac}>
@@ -312,9 +378,7 @@ export default function PublicSurveyPage() {
         <div style={{ height: '100%', width: `${Math.round(progress * 100)}%`, background: 'var(--ac)', transition: 'width .25s' }} />
       </div>
       {hospitalName && (
-        <div style={{ fontSize: 13, color: C.muted, marginTop: 10, flexShrink: 0, letterSpacing: '0.01em' }}>
-          {hospitalName}
-        </div>
+        <div style={{ fontSize: 13, color: C.muted, marginTop: 10, flexShrink: 0, letterSpacing: '0.01em' }}>{hospitalName}</div>
       )}
 
       <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
@@ -323,9 +387,12 @@ export default function PublicSurveyPage() {
             {question.text}
           </h2>
 
-          {question.type === 'short_text' && (
+          {(question.type === 'short_text' || question.type === 'phone') && (
             <input autoFocus value={typeof currentAnswer === 'string' ? currentAnswer : ''}
-              onChange={(e) => setAns(question.id, e.target.value)} placeholder="답변을 입력해 주세요" style={inputStyle} />
+              onChange={(e) => setAns(question.id, e.target.value)}
+              inputMode={question.type === 'phone' ? 'tel' : undefined}
+              type={question.type === 'phone' ? 'tel' : 'text'}
+              placeholder={question.type === 'phone' ? '연락처를 입력해 주세요' : '답변을 입력해 주세요'} style={inputStyle} />
           )}
 
           {question.type === 'long_text' && (
@@ -333,39 +400,45 @@ export default function PublicSurveyPage() {
               onChange={(e) => setAns(question.id, e.target.value)} placeholder="자유롭게 적어 주세요" rows={4} style={textareaStyle} />
           )}
 
+          {question.type === 'pet_birthday' && (
+            <input autoFocus type="date" max={new Date().toISOString().slice(0, 10)}
+              value={typeof currentAnswer === 'string' ? currentAnswer : ''}
+              onChange={(e) => setAns(question.id, e.target.value)} style={inputStyle} />
+          )}
+
           {question.type === 'single_choice' && (
-            <div style={{ display: 'grid', gap: 7 }}>
-              {choices.map((opt) => {
-                const active = currentAnswer === opt;
-                return (
-                  <div key={opt}>
-                    <button type="button" className="sv-press" onClick={() => setAns(question.id, opt)} style={cardStyle(active)}>{opt}</button>
-                    {active && isOtherChoice(opt) && (
-                      <input autoFocus value={otherText[question.id] ?? ''} onChange={(e) => setOtherText((p) => ({ ...p, [question.id]: e.target.value }))}
-                        placeholder="직접 입력해 주세요" style={{ ...inputStyle, marginTop: 10 }} />
-                    )}
-                  </div>
-                );
-              })}
-            </div>
+            <ChoiceList options={getChoices(question)} qid={question.id} qType="single_choice"
+              currentAnswer={currentAnswer} otherText={otherText} setAns={setAns} setOtherText={setOtherText} />
+          )}
+
+          {question.type === 'conditional_select' && (
+            condSelect && condSelect.list === null ? (
+              <input autoFocus value={typeof currentAnswer === 'string' ? currentAnswer : ''}
+                onChange={(e) => setAns(question.id, e.target.value)} placeholder="품종을 직접 입력해 주세요" style={inputStyle} />
+            ) : (
+              <ChoiceList options={condSelect?.list ?? []} qid={question.id} qType="conditional_select"
+                currentAnswer={currentAnswer} otherText={otherText} setAns={setAns} setOtherText={setOtherText} columns={2} />
+            )
           )}
 
           {question.type === 'multi_choice' && (
             <div style={{ display: 'grid', gap: 6 }}>
-              <p style={{ margin: '0 0 4px', fontSize: 14, color: C.muted }}>여러 개 선택 가능</p>
-              {choices.map((opt) => {
+              <p style={{ margin: '0 0 4px', fontSize: 14, color: C.muted }}>
+                여러 개 선택 가능{getMaxSelections(question) ? ` (최대 ${getMaxSelections(question)}개)` : ''}
+              </p>
+              {getChoices(question).map((opt) => {
                 const arr = Array.isArray(currentAnswer) ? currentAnswer : [];
                 const active = arr.includes(opt);
                 return (
                   <div key={opt}>
-                    <button type="button" className="sv-press" onClick={() => toggleMulti(question.id, opt)}
+                    <button type="button" className="sv-press" onClick={() => toggleMulti(question.id, opt, getMaxSelections(question))}
                       style={{ ...cardStyle(active), textAlign: 'left', display: 'flex', alignItems: 'center', gap: 12 }}>
                       <span style={{ width: 20, height: 20, borderRadius: 6, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: active ? 'var(--ac)' : '#e4e4e7', color: 'var(--ac-on)', fontSize: 12 }}>
                         {active ? '✓' : ''}
                       </span>
                       <span>{opt}</span>
                     </button>
-                    {active && isOtherChoice(opt) && (
+                    {active && isFreeOption(opt, 'multi_choice') && (
                       <input autoFocus value={otherText[question.id] ?? ''} onChange={(e) => setOtherText((p) => ({ ...p, [question.id]: e.target.value }))}
                         placeholder="직접 입력해 주세요" style={{ ...inputStyle, marginTop: 10 }} />
                     )}
@@ -375,35 +448,64 @@ export default function PublicSurveyPage() {
             </div>
           )}
 
-          {question.type === 'scale' && scaleMeta && (
-            <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, color: C.textSec, marginBottom: 14 }}>
-                <span>{scaleMeta.minLabel || scaleMeta.min}</span>
-                <span>{scaleMeta.maxLabel || scaleMeta.max}</span>
+          {question.type === 'scale' && (() => {
+            const m = getScaleMeta(question);
+            return (
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, color: C.textSec, marginBottom: 14 }}>
+                  <span>{m.minLabel || m.min}</span>
+                  <span>{m.maxLabel || m.max}</span>
+                </div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7 }}>
+                  {Array.from({ length: m.max - m.min + 1 }, (_, i) => m.min + i).map((n) => {
+                    const active = currentAnswer === String(n);
+                    return (
+                      <button key={n} type="button" className="sv-press" onClick={() => setAns(question.id, String(n))}
+                        style={{ ...cardStyle(active), flex: '1 1 44px', minWidth: 44, padding: '14px 0' }}>{n}</button>
+                    );
+                  })}
+                </div>
               </div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7 }}>
-                {Array.from({ length: scaleMeta.max - scaleMeta.min + 1 }, (_, i) => scaleMeta.min + i).map((n) => {
-                  const active = currentAnswer === String(n);
-                  return (
-                    <button key={n} type="button" className="sv-press" onClick={() => setAns(question.id, String(n))}
-                      style={{ ...cardStyle(active), flex: '1 1 44px', minWidth: 44, padding: '14px 0' }}>
-                      {n}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
+            );
+          })()}
         </div>
       </div>
 
       <div style={{ display: 'flex', gap: 10, flexShrink: 0, paddingTop: 8 }}>
-        {currentQ > 0 && <button type="button" className="sv-press" onClick={handlePrev} style={btnSecondary}>이전</button>}
+        {clampedIdx > 0 && <button type="button" className="sv-press" onClick={handlePrev} style={btnSecondary}>이전</button>}
         <button type="button" className="sv-press" onClick={handleNext} disabled={!canGoNext} style={btnPrimary(!canGoNext)}>
           {isLast ? '제출하기' : '다음'}
         </button>
       </div>
     </Screen>
+  );
+}
+
+// 단일선택/품종 선택 카드 리스트 (+ 기타/그 외 직접 입력)
+function ChoiceList({ options, qid, qType, currentAnswer, otherText, setAns, setOtherText, columns = 1 }: {
+  options: string[]; qid: string; qType: string;
+  currentAnswer: string | string[];
+  otherText: Record<string, string>;
+  setAns: (qid: string, v: string | string[]) => void;
+  setOtherText: React.Dispatch<React.SetStateAction<Record<string, string>>>;
+  columns?: number;
+}) {
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: `repeat(${columns}, 1fr)`, gap: 7 }}>
+      {options.map((opt) => {
+        const active = currentAnswer === opt;
+        const free = active && isFreeOption(opt, qType);
+        return (
+          <div key={opt} style={{ gridColumn: free ? `1 / -1` : undefined }}>
+            <button type="button" className="sv-press" onClick={() => setAns(qid, opt)} style={cardStyle(active)}>{opt}</button>
+            {free && (
+              <input autoFocus value={otherText[qid] ?? ''} onChange={(e) => setOtherText((p) => ({ ...p, [qid]: e.target.value }))}
+                placeholder="직접 입력해 주세요" style={{ ...inputStyle, marginTop: 10 }} />
+            )}
+          </div>
+        );
+      })}
+    </div>
   );
 }
 
@@ -425,6 +527,10 @@ function Screen({ children, accent }: { children: React.ReactNode; accent: Accen
   );
 }
 
+function spinnerStyle(ac: Accent): CSSProperties {
+  return { width: 28, height: 28, border: `2.5px solid ${C.border}`, borderTopColor: ac.base, borderRadius: '50%', display: 'inline-block', animation: 'sv-spin 0.7s linear infinite' };
+}
+
 // ─── 스타일 ──────────────────────────────────────────────
 const inputStyle: CSSProperties = {
   width: '100%', padding: '12px 2px', fontSize: 17, color: C.text, background: 'transparent',
@@ -437,7 +543,7 @@ const textareaStyle: CSSProperties = {
 };
 function cardStyle(active: boolean): CSSProperties {
   return {
-    padding: '15px 16px', fontSize: 16.5, fontWeight: active ? 600 : 500,
+    width: '100%', padding: '15px 16px', fontSize: 16.5, fontWeight: active ? 600 : 500,
     color: C.text, textAlign: 'center', background: active ? 'var(--ac-tint)' : C.subtle,
     border: `1.5px solid ${active ? 'var(--ac)' : 'transparent'}`, borderRadius: 12, cursor: 'pointer', transition: 'all .12s',
   };
