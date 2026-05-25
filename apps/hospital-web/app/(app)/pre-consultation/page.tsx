@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
 import { Copy, Check } from 'lucide-react';
-import { createClient } from '@/lib/supabase/client';
+import { useHospital } from '@/components/shell/hospital-context';
 import { ddxGet, ddxPost, DdxApiForbiddenError } from '@/lib/ddx-api';
 
 // ─── 타입 ────────────────────────────────────────────────
@@ -104,7 +104,7 @@ function followUpList(raw: unknown): string[] {
 
 // ─── 페이지 ──────────────────────────────────────────────
 export default function PreConsultationPage() {
-  const [userId, setUserId] = useState<string | null>(null);
+  const { userId } = useHospital();
   const [sessions, setSessions] = useState<SessionListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -118,14 +118,6 @@ export default function PreConsultationPage() {
   const [origin, setOrigin] = useState('');
 
   useEffect(() => { setOrigin(window.location.origin); }, []);
-
-  useEffect(() => {
-    const supabase = createClient();
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      if (user?.id) setUserId(user.id);
-      else setLoading(false);
-    });
-  }, []);
 
   const loadSessions = useCallback((uid: string) => {
     return ddxGet<{ success: boolean; sessions: SessionListItem[]; error?: string }>(

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { createClient } from "@/lib/supabase/client";
+import { useHospital } from "@/components/shell/hospital-context";
 import {
   fetchPlacePeriodKpis,
   fetchSummaryPlaceRanks,
@@ -19,25 +19,14 @@ export default function PlaceDashboardPage() {
   const [placeRows, setPlaceRows] = useState<PlacePeriodDayRow[]>([]);
   const [rankRows, setRankRows] = useState<PlaceRankSummaryRow[]>([]);
 
+  const { hospitalId: ctxHospitalId } = useHospital();
+
   useEffect(() => {
     let cancelled = false;
 
     async function load() {
       try {
-        const supabase = createClient();
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
-        if (!user) throw new Error("로그인이 필요합니다.");
-
-        const { data: profile } = await supabase
-          .schema("core")
-          .from("users")
-          .select("hospital_id")
-          .eq("id", user.id)
-          .maybeSingle();
-
-        const hid = profile?.hospital_id ? String(profile.hospital_id) : null;
+        const hid = ctxHospitalId;
         if (!hid) {
           if (!cancelled) {
             setHospitalId(null);
@@ -73,7 +62,7 @@ export default function PlaceDashboardPage() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [ctxHospitalId]);
 
   if (loadState === "loading") {
     return (

@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import type { CSSProperties } from 'react';
-import { createClient } from '@/lib/supabase/client';
+import { useHospital } from '@/components/shell/hospital-context';
 import { ddxGet, ddxPost, DdxApiForbiddenError } from '@/lib/ddx-api';
 
 type SessionListItem = {
@@ -45,7 +45,7 @@ function fmtDate(iso: string): string {
 
 export default function StartConsultationPage() {
   const router = useRouter();
-  const [userId, setUserId] = useState<string | null>(null);
+  const { userId } = useHospital();
 
   const [surveys, setSurveys] = useState<SessionListItem[]>([]);
   const [surveysLoading, setSurveysLoading] = useState(true);
@@ -58,13 +58,6 @@ export default function StartConsultationPage() {
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
-
-  useEffect(() => {
-    const supabase = createClient();
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      if (user?.id) setUserId(user.id);
-    });
-  }, []);
 
   // 완료된 미사용 사전문진 목록
   useEffect(() => {

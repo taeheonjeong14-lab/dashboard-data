@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { createClient } from '@/lib/supabase/client';
+import { useHospital } from '@/components/shell/hospital-context';
 import { ddxGet, ddxPost, ddxPostStream, DdxApiForbiddenError } from '@/lib/ddx-api';
 
 type Consultation = {
@@ -130,7 +130,7 @@ export default function ConsultationDetailPage() {
   const params = useParams();
   const sessionId = typeof params.sessionId === 'string' ? params.sessionId : '';
 
-  const [userId, setUserId] = useState<string | null>(null);
+  const { userId } = useHospital();
   const [consultation, setConsultation] = useState<Consultation | null>(null);
   const [surveyDetail, setSurveyDetail] = useState<SurveyDetail>(null);
   const [loading, setLoading] = useState(true);
@@ -148,14 +148,6 @@ export default function ConsultationDetailPage() {
   const [followupResult, setFollowupResult] = useState<string[]>([]);
   const [followupLoading, setFollowupLoading] = useState(false);
   const [followupError, setFollowupError] = useState('');
-
-  useEffect(() => {
-    const supabase = createClient();
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      if (user?.id) setUserId(user.id);
-      else setLoading(false);
-    });
-  }, []);
 
   const fetchConsultation = useCallback(async (uid: string) => {
     if (!sessionId) return;

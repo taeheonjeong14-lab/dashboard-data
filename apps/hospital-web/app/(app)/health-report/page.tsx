@@ -2,6 +2,7 @@
 
 import { useState, useRef, useCallback, useEffect, type DragEvent, type ChangeEvent } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import { useHospital } from '@/components/shell/hospital-context';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -75,7 +76,7 @@ export default function HealthReportPage() {
   const [progressMessage, setProgressMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
 
-  const [hospitalId, setHospitalId] = useState<string | null>(null);
+  const { hospitalId } = useHospital();
 
   const pdfInputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
@@ -83,17 +84,6 @@ export default function HealthReportPage() {
   useEffect(() => {
     return () => { imagePreviews.forEach((u) => URL.revokeObjectURL(u)); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  useEffect(() => {
-    (async () => {
-      const supabase = createClient();
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-      const { data: profile } = await supabase
-        .schema('core').from('users').select('hospital_id').eq('id', user.id).single();
-      if (profile?.hospital_id) setHospitalId(profile.hospital_id as string);
-    })();
   }, []);
 
   // ---------------------------------------------------------------------------

@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { createClient } from '@/lib/supabase/client';
+import { useHospital } from '@/components/shell/hospital-context';
 import { ddxGet, DdxApiForbiddenError } from '@/lib/ddx-api';
 
 type Consultation = {
@@ -36,19 +36,11 @@ function fmtDateTime(iso: string): string {
 
 export default function AiAssistPage() {
   const router = useRouter();
-  const [userId, setUserId] = useState<string | null>(null);
+  const { userId } = useHospital();
   const [items, setItems] = useState<Consultation[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
-
-  useEffect(() => {
-    const supabase = createClient();
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      if (user?.id) setUserId(user.id);
-      else setLoading(false);
-    });
-  }, []);
 
   useEffect(() => {
     if (!userId) return;

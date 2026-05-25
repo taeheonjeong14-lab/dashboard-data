@@ -138,7 +138,13 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   }
 
   return (
-    <HospitalShell userName={userName} hospitalName={hospitalName} tokenBalance={tokenBalance}>
+    <HospitalShell
+      userName={userName}
+      hospitalName={hospitalName}
+      tokenBalance={tokenBalance}
+      userId={user.id}
+      hospitalId={cu?.hospital_id ?? null}
+    >
       {children}
     </HospitalShell>
   );
