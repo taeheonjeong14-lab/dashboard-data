@@ -273,13 +273,22 @@ export default function PublicSurveyPage() {
           <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--ac)', marginBottom: 14, letterSpacing: '-0.01em' }}>
             {hospitalName ? `${hospitalName} 사전문진` : '사전문진'}
           </div>
-          <h1 style={{ fontSize: 34, fontWeight: 700, letterSpacing: '-0.035em', lineHeight: 1.32, color: C.text, margin: 0 }}>
-            진료 전 사전문진을<br />작성해 주세요
+          <h1 style={{ fontSize: 30, fontWeight: 700, letterSpacing: '-0.035em', lineHeight: 1.32, color: C.text, margin: 0 }}>
+            사전문진을 작성해주세요
           </h1>
-          <p style={{ fontSize: 16, fontWeight: 500, color: C.textSec, letterSpacing: '-0.01em', lineHeight: 1.7, margin: '20px 0 0' }}>
-            {patient ? <><b style={{ color: C.text, fontWeight: 600 }}>{patient}</b> 보호자님, </> : null}
-            {scheduledText ? `${scheduledText}에 예정되어있는 ` : ''}{patient ? `${patient}의 ` : ''}진료에 앞서 보다 정확한 진료를 위하여 사전문진을 통해 {patient ? `${patient}의 ` : ''}상태를 파악하고자 합니다. 5분 이내로 완료 가능하시니 번거로우시더라도 내원 전 사전문진 부탁 드릴게요.
+          <p style={{ fontSize: 16, fontWeight: 500, color: C.textSec, letterSpacing: '-0.01em', lineHeight: 1.7, margin: '18px 0 0' }}>
+            보다 정확한 환자 상태 파악과 진료를 위해 내원 전 사전문진을 진행하고 있습니다.
           </p>
+          <div style={{ marginTop: 22, background: C.subtle, borderRadius: 12, padding: '16px 18px', display: 'grid', gap: 10 }}>
+            <div style={{ display: 'flex', gap: 10, fontSize: 16 }}>
+              <span style={{ color: C.muted, minWidth: 82, flexShrink: 0 }}>환자명</span>
+              <span style={{ color: C.text, fontWeight: 600 }}>{patient || '—'}</span>
+            </div>
+            <div style={{ display: 'flex', gap: 10, fontSize: 16 }}>
+              <span style={{ color: C.muted, minWidth: 82, flexShrink: 0 }}>내원 예정일</span>
+              <span style={{ color: C.text, fontWeight: 600 }}>{scheduledText || '—'}</span>
+            </div>
+          </div>
         </div>
         <div style={{ flexShrink: 0 }}>
           <button type="button" className="sv-press" onClick={() => setStep('survey')} style={{ ...btnPrimary(false), width: '100%', padding: '17px', fontSize: 17 }}>
