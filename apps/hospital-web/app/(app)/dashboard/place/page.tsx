@@ -106,41 +106,12 @@ export default function PlaceDashboardPage() {
 
   return (
     <div>
-      <div style={{ padding: "20px 20px 8px" }}>
-        <h1
-          style={{
-            fontSize: "16px",
-            fontWeight: 700,
-            color: "var(--text)",
-            margin: 0,
-          }}
-        >
-          플레이스
-        </h1>
-        <p
-          style={{
-            marginTop: "4px",
-            fontSize: "13px",
-            color: "var(--text-secondary)",
-          }}
-        >
-          네이버 스마트플레이스 유입 현황과 키워드 순위입니다.
-        </p>
-      </div>
-
-      <div
-        style={{
-          border: "1px solid var(--border)",
-          borderRadius: "var(--radius)",
-          overflow: "hidden",
-          margin: "0 20px 16px",
-        }}
-      >
+      <div style={{ marginBottom: 24 }}>
         <PlaceInflowSection rows={placeRows} />
       </div>
 
       {/* 플레이스 키워드 순위 */}
-      <section style={{ padding: "0 20px 24px" }}>
+      <section style={{ paddingBottom: 24 }}>
         <h2
           style={{
             fontSize: "15px",

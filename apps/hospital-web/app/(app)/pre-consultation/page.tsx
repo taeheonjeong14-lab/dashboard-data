@@ -5,6 +5,7 @@ import type { CSSProperties } from 'react';
 import { Copy, Check } from 'lucide-react';
 import { useHospital } from '@/components/shell/hospital-context';
 import { CenteredSpinner } from '@/components/ui/loading-spinner';
+import { StickyHeader } from '@/components/ui/sticky-header';
 import { ddxGet, ddxPost, DdxApiForbiddenError } from '@/lib/ddx-api';
 
 // ─── 타입 ────────────────────────────────────────────────
@@ -186,8 +187,9 @@ export default function PreConsultationPage() {
 
   return (
     <div>
+      <StickyHeader>
       {/* 헤더 */}
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 20, gap: 12, flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 0, gap: 12, flexWrap: 'wrap' }}>
         <div>
           <h1 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: 'var(--text)' }}>사전문진</h1>
           <p style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--text-secondary)' }}>
@@ -205,6 +207,7 @@ export default function PreConsultationPage() {
           + 사전문진 발송
         </button>
       </div>
+      </StickyHeader>
 
       {error && (
         <div style={{ padding: '12px 16px', background: 'var(--danger-subtle)', border: '1px solid var(--danger)', borderRadius: 'var(--radius)', color: 'var(--danger)', fontSize: 13, marginBottom: 16 }}>
@@ -485,7 +488,7 @@ function SendModal({ userId, origin, onClose, onCreated }: {
       style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: 16 }}
     >
       <div onClick={(e) => e.stopPropagation()}
-        style={{ width: '100%', maxWidth: 440, background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: 24, boxShadow: '0 8px 32px rgba(0,0,0,0.18)', maxHeight: '90vh', overflowY: 'auto' }}>
+        style={{ width: '100%', maxWidth: 520, background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: 24, boxShadow: '0 8px 32px rgba(0,0,0,0.18)', maxHeight: '90vh', overflowY: 'auto' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
           <h2 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: 'var(--text)' }}>{created ? '사전문진 발송 완료' : '사전문진 발송'}</h2>
           <button type="button" onClick={onClose} style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 18, color: 'var(--text-muted)', lineHeight: 1 }}>×</button>
@@ -496,8 +499,8 @@ function SendModal({ userId, origin, onClose, onCreated }: {
             <p style={{ margin: 0, fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
               아래 작성 링크를 보호자에게 전달하세요. 보호자가 작성을 완료하면 자동으로 AI 사전 분석이 진행됩니다.
             </p>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: 'var(--bg-subtle)', border: '1px solid var(--border)', borderRadius: 'var(--radius)' }}>
-              <span style={{ flex: 1, minWidth: 0, fontSize: 12.5, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{shareUrl || '링크 생성 실패'}</span>
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '10px 14px', background: 'var(--bg-subtle)', border: '1px solid var(--border)', borderRadius: 'var(--radius)' }}>
+              <span style={{ flex: 1, minWidth: 0, fontSize: 12.5, color: 'var(--text)', wordBreak: 'break-all', lineHeight: 1.6 }}>{shareUrl || '링크 생성 실패'}</span>
               {shareUrl && <CopyBtn text={shareUrl} label="복사" />}
             </div>
             <button type="button" onClick={onClose}

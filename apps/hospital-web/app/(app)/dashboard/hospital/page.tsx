@@ -99,36 +99,7 @@ export default function HospitalDashboardPage() {
 
   return (
     <div>
-      <div style={{ padding: "20px 20px 8px" }}>
-        <h1
-          style={{
-            fontSize: "16px",
-            fontWeight: 700,
-            color: "var(--text)",
-            margin: 0,
-          }}
-        >
-          경영 통계
-        </h1>
-        <p
-          style={{
-            marginTop: "4px",
-            fontSize: "13px",
-            color: "var(--text-secondary)",
-          }}
-        >
-          일별·월별·연별 매출, 내원 건수, 신규 고객 추이를 분석합니다.
-        </p>
-      </div>
-
-      <div
-        style={{
-          border: "1px solid var(--border)",
-          borderRadius: "var(--radius)",
-          overflow: "hidden",
-          margin: "0 20px 24px",
-        }}
-      >
+      <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
         <ManagementMetricSection
           title="매출"
           description="일별·월별·연별 매출 추이입니다."

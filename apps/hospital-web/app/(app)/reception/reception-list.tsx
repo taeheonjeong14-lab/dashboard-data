@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { CSSProperties } from 'react';
 import { Copy, Check } from 'lucide-react';
+import { StickyHeader } from '@/components/ui/sticky-header';
 import {
   SPECIES_OPTIONS, SEX_OPTIONS, REGISTRATION_OPTIONS, INSURANCE_OPTIONS,
   SYMPTOM_OPTIONS, REFERRAL_CHANNEL_OPTIONS, ONLINE_MEDIA_OPTIONS, labelOf,
@@ -90,8 +91,9 @@ export function ReceptionList({ items, hasHospital, loadError, hospitalId }: {
 
   return (
     <div>
+      <StickyHeader>
       {/* 헤더 */}
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 20, gap: 12, flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 0, gap: 12, flexWrap: 'wrap' }}>
         <div>
           <h1 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: 'var(--text)' }}>초진 접수</h1>
           <p style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--text-secondary)' }}>
@@ -108,6 +110,7 @@ export function ReceptionList({ items, hasHospital, loadError, hospitalId }: {
           </button>
         )}
       </div>
+      </StickyHeader>
 
       <div style={{ display: 'flex', gap: 0, alignItems: 'stretch' }}>
       {/* ── 좌측: 접수 목록 ── */}

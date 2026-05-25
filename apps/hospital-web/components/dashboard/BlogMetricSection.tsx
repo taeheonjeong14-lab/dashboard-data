@@ -20,9 +20,9 @@ import {
 } from "@/lib/blog-aggregates";
 
 const tooltipStyle = {
-  backgroundColor: "#18181b",
-  border: "1px solid #27272a",
-  borderRadius: "0",
+  backgroundColor: "#ffffff",
+  border: "1px solid #e5e8eb",
+  borderRadius: "8px",
 };
 
 function clipRange(
@@ -110,38 +110,38 @@ export default function BlogMetricSection({
   const hasData = rows.length > 0 && bounds != null;
 
   return (
-    <section className="border-b border-[var(--border)] bg-[var(--bg-raised)] p-4 sm:p-5 last:border-b-0">
+    <section>
       <header className="mb-4">
-        <h2 className="text-base font-semibold text-zinc-100 sm:text-lg">{title}</h2>
+        <h2 className="text-base font-semibold text-[var(--text)] sm:text-lg">{title}</h2>
         {description ? (
-          <p className="mt-1 text-sm text-zinc-500">{description}</p>
+          <p className="mt-1 text-sm text-[var(--text-muted)]">{description}</p>
         ) : null}
       </header>
 
       {!hasData ? (
-        <p className="border border-[var(--border)] bg-[var(--bg)] p-4 text-sm text-zinc-500">
+        <p className="border border-[var(--border)] bg-[var(--bg)] p-4 text-sm text-[var(--text-muted)]">
           표시할 데이터가 없습니다.
         </p>
       ) : (
         <div className="flex flex-col gap-3">
           <div className="flex flex-wrap items-end gap-3">
             <div className="flex flex-wrap gap-2">
-              <label className="flex flex-col gap-0.5 text-xs text-zinc-500">
+              <label className="flex flex-col gap-0.5 text-xs text-[var(--text-muted)]">
                 시작
                 <input
                   type="date"
-                  className="h-8 border border-zinc-700 bg-zinc-900 px-2 text-xs text-zinc-100"
+                  className="h-8 border border-[var(--border-strong)] bg-[var(--bg)] px-2 text-xs text-[var(--text)]"
                   min={minB}
                   max={maxB}
                   value={rangeStart || minB}
                   onChange={(e) => setRangeStart(e.target.value)}
                 />
               </label>
-              <label className="flex flex-col gap-0.5 text-xs text-zinc-500">
+              <label className="flex flex-col gap-0.5 text-xs text-[var(--text-muted)]">
                 종료
                 <input
                   type="date"
-                  className="h-8 border border-zinc-700 bg-zinc-900 px-2 text-xs text-zinc-100"
+                  className="h-8 border border-[var(--border-strong)] bg-[var(--bg)] px-2 text-xs text-[var(--text)]"
                   min={minB}
                   max={maxB}
                   value={rangeEnd || maxB}
@@ -161,13 +161,13 @@ export default function BlogMetricSection({
                   key={key}
                   type="button"
                   onClick={() => setPreset(key)}
-                  className="h-8 border border-zinc-700 bg-zinc-900 px-2.5 text-xs text-zinc-300 hover:bg-zinc-800"
+                  className="h-8 border border-[var(--border-strong)] bg-[var(--bg)] px-2.5 text-xs text-[var(--text-secondary)] hover:bg-[var(--bg-subtle)]"
                 >
                   {label}
                 </button>
               ))}
             </div>
-            <div className="ml-auto flex rounded border border-zinc-700 p-0.5">
+            <div className="ml-auto flex rounded border border-[var(--border-strong)] p-0.5">
               {(
                 [
                   ["day", "일간"],
@@ -181,8 +181,8 @@ export default function BlogMetricSection({
                   onClick={() => setGranularity(g)}
                   className={`px-2.5 py-1 text-xs ${
                     granularity === g
-                      ? "bg-zinc-100 text-zinc-900"
-                      : "text-zinc-400 hover:text-zinc-200"
+                      ? "bg-[var(--accent)] text-white"
+                      : "text-[var(--text-secondary)] hover:text-[var(--text)]"
                   }`}
                 >
                   {label}
@@ -194,22 +194,22 @@ export default function BlogMetricSection({
           <div className="h-[280px] w-full min-w-0">
             <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={200}>
               <LineChart data={chartData} margin={{ top: 8, right: 12, bottom: 8, left: 4 }}>
-                <CartesianGrid stroke="#27272a" strokeDasharray="3 3" />
+                <CartesianGrid stroke="#e5e8eb" strokeDasharray="3 3" />
                 <XAxis
                   dataKey="label"
-                  stroke="#52525b"
-                  tick={{ fill: "#a1a1aa", fontSize: 11 }}
+                  stroke="#d1d6db"
+                  tick={{ fill: "#8b95a1", fontSize: 11 }}
                   interval="preserveStartEnd"
                   minTickGap={24}
                 />
                 <YAxis
-                  stroke="#52525b"
-                  tick={{ fill: "#a1a1aa", fontSize: 11 }}
+                  stroke="#d1d6db"
+                  tick={{ fill: "#8b95a1", fontSize: 11 }}
                   tickFormatter={(val) => formatAxis(Number(val))}
                 />
                 <Tooltip
                   contentStyle={tooltipStyle}
-                  labelStyle={{ color: "#fafafa" }}
+                  labelStyle={{ color: "#191f28" }}
                   content={({ payload, label }) => {
                     const raw = payload?.[0]?.value;
                     const n =
@@ -221,11 +221,11 @@ export default function BlogMetricSection({
                     const text = formatNumber(Number.isFinite(n) ? n : null);
                     const suffix = valueSuffix ?? "";
                     return (
-                      <div className="rounded border border-zinc-700 bg-zinc-950 px-2.5 py-1.5 text-xs shadow-lg">
-                        <p className="mb-1 text-zinc-400">{label}</p>
-                        <p className="text-zinc-100">
+                      <div className="rounded border border-[var(--border-strong)] bg-white px-2.5 py-1.5 text-xs shadow-lg">
+                        <p className="mb-1 text-[var(--text-secondary)]">{label}</p>
+                        <p className="text-[var(--text)]">
                           값{" "}
-                          <span className="text-zinc-300">
+                          <span className="text-[var(--text-secondary)]">
                             {text}
                             {suffix}
                           </span>
@@ -238,19 +238,19 @@ export default function BlogMetricSection({
                   type="monotone"
                   dataKey="value"
                   name={title}
-                  stroke="#60a5fa"
+                  stroke="#3182F6"
                   strokeWidth={2}
                   dot={
                     granularity === "day"
                       ? false
-                      : { r: 3, fill: "#60a5fa", strokeWidth: 0 }
+                      : { r: 3, fill: "#3182F6", strokeWidth: 0 }
                   }
                   connectNulls
                 />
               </LineChart>
             </ResponsiveContainer>
           </div>
-          <p className="text-xs italic text-zinc-600">
+          <p className="text-xs italic text-[var(--text-muted)]">
             기간은 서울 기준 날짜이며, 차트에 값이 없는 구간은 선이 끊깁니다.
             {footnote ? ` ${footnote}` : ""}
           </p>

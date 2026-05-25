@@ -4,6 +4,7 @@ import { useState, useRef, useCallback, useEffect, type DragEvent, type ChangeEv
 import { createClient } from '@/lib/supabase/client';
 import { useHospital } from '@/components/shell/hospital-context';
 import { CenteredSpinner } from '@/components/ui/loading-spinner';
+import { StickyHeader } from '@/components/ui/sticky-header';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -300,13 +301,15 @@ export default function HealthReportPage() {
   // ---------------------------------------------------------------------------
   return (
     <div>
-      {/* 헤더 */}
-      <div style={{ marginBottom: '20px' }}>
-        <h1 style={{ margin: 0, fontSize: '20px', fontWeight: 700, color: 'var(--text)' }}>건강검진 리포트</h1>
-        <p style={{ margin: '4px 0 0', fontSize: '13px', color: 'var(--text-secondary)' }}>
-          차트 PDF를 업로드해 보호자용 건강검진 리포트 생성을 요청하고, 진행 상태를 확인합니다.
-        </p>
-      </div>
+      <StickyHeader>
+        {/* 헤더 */}
+        <div>
+          <h1 style={{ margin: 0, fontSize: '20px', fontWeight: 700, color: 'var(--text)' }}>건강검진 리포트</h1>
+          <p style={{ margin: '4px 0 0', fontSize: '13px', color: 'var(--text-secondary)' }}>
+            차트 PDF를 업로드해 보호자용 건강검진 리포트 생성을 요청하고, 진행 상태를 확인합니다.
+          </p>
+        </div>
+      </StickyHeader>
 
       <div style={{ display: 'flex', gap: '0', alignItems: 'stretch', maxWidth: '1100px' }}>
 
@@ -349,13 +352,17 @@ export default function HealthReportPage() {
                     <td style={{ padding: '11px 14px', color: 'var(--text)' }}>{item.patientName ?? '—'}</td>
                     <td style={{ padding: '11px 14px', color: 'var(--text)' }}>{item.ownerName ?? '—'}</td>
                     <td style={{ padding: '11px 14px' }}>
-                      {/* 활성 검토 링크가 있을 때만 버튼 표시. 검토 중·삭제 등 그 외 상태는 모두 빈칸. */}
+                      {/* 활성 검토 링크가 있으면 '리포트 확인' 버튼, 아직 링크 생성 전이면 '요청 완료' 표시. */}
                       {item.shareUrl ? (
                         <a href={item.shareUrl} target="_blank" rel="noopener noreferrer"
                           style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '4px 10px', background: 'var(--accent)', color: '#fff', borderRadius: 'var(--radius)', fontSize: '12px', fontWeight: 600, textDecoration: 'none', whiteSpace: 'nowrap' }}>
                           리포트 확인
                         </a>
-                      ) : null}
+                      ) : (
+                        <span style={{ display: 'inline-block', padding: '3px 10px', background: 'var(--bg-subtle)', color: 'var(--text-secondary)', borderRadius: '999px', fontSize: '11px', fontWeight: 500, whiteSpace: 'nowrap' }}>
+                          요청 완료
+                        </span>
+                      )}
                     </td>
                   </tr>
                 ))}

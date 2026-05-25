@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import type { ReactNode } from "react";
+import type { ReactNode, CSSProperties } from "react";
 import { StatsUploadButton } from "@/components/dashboard/StatsUploadButton";
+import { StickyHeader } from "@/components/ui/sticky-header";
 
 const TABS = [
   { href: "/dashboard", label: "요약" },
@@ -25,45 +26,48 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
 
   return (
     <div>
-      <div style={{ marginBottom: '20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap' }}>
-        <nav
-          style={{
-            display: 'inline-flex',
-            gap: '2px',
-            background: 'var(--bg-raised)',
-            border: '1px solid var(--border)',
-            borderRadius: 'var(--radius)',
-            padding: '3px',
-          }}
-        >
+      <StickyHeader>
+        {/* 헤더: 제목 + 액션 */}
+        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, flexWrap: "wrap", marginBottom: 16 }}>
+          <div>
+            <h1 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: "var(--text)" }}>경영 대시보드</h1>
+            <p style={{ margin: "4px 0 0", fontSize: 13, color: "var(--text-secondary)" }}>
+              매출·신규 고객·블로그·플레이스·광고 성과를 한눈에 확인합니다.
+            </p>
+          </div>
+          <StatsUploadButton />
+        </div>
+
+        {/* 탭 (언더라인 스타일) */}
+        <div style={{ display: "flex", gap: 4, borderBottom: "1px solid var(--border)", overflowX: "auto" }}>
           {TABS.map((tab) => {
             const active = isActive(tab.href);
+            const base: CSSProperties = {
+              padding: "9px 12px",
+              fontSize: 14,
+              fontWeight: active ? 600 : 500,
+              color: active ? "var(--accent)" : "var(--text-muted)",
+              borderBottom: `2px solid ${active ? "var(--accent)" : "transparent"}`,
+              marginBottom: -1,
+              textDecoration: "none",
+              whiteSpace: "nowrap",
+              transition: "color 0.15s",
+            };
             return (
               <Link
                 key={tab.href}
                 href={tab.href}
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  padding: '6px 14px',
-                  borderRadius: 'calc(var(--radius) - 2px)',
-                  fontSize: '13px',
-                  fontWeight: active ? 600 : 400,
-                  color: active ? '#fff' : 'var(--text-muted)',
-                  background: active ? 'var(--accent)' : 'transparent',
-                  textDecoration: 'none',
-                  whiteSpace: 'nowrap',
-                  transition: 'color 0.15s, background 0.15s',
-                  flexShrink: 0,
-                }}
+                style={base}
+                onMouseEnter={active ? undefined : (e) => { e.currentTarget.style.color = "var(--text)"; }}
+                onMouseLeave={active ? undefined : (e) => { e.currentTarget.style.color = "var(--text-muted)"; }}
               >
                 {tab.label}
               </Link>
             );
           })}
-        </nav>
-        <StatsUploadButton />
-      </div>
+        </div>
+      </StickyHeader>
+
       <div>{children}</div>
     </div>
   );

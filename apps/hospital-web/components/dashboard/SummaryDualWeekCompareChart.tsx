@@ -12,14 +12,14 @@ import {
 } from "recharts";
 
 const SERIES = [
-  { key: "current", name: "최근 7일", color: "#60a5fa" },
-  { key: "previous", name: "직전 7일", color: "#c084fc" },
+  { key: "current", name: "최근 7일", color: "#3182F6" },
+  { key: "previous", name: "직전 7일", color: "#FF9500" },
 ] as const;
 
 const tooltipStyle = {
-  backgroundColor: "#18181b",
-  border: "1px solid #27272a",
-  borderRadius: "0",
+  backgroundColor: "#ffffff",
+  border: "1px solid #e5e8eb",
+  borderRadius: "8px",
 };
 
 type ChartTooltipProps = {
@@ -99,10 +99,10 @@ export default function SummaryDualWeekCompareChart({
     const row = data[idx];
     return (
       <g transform={`translate(${Number(x)},${Number(y)})`}>
-        <text x={0} y={0} dy={12} textAnchor="middle" fill="#93c5fd" fontSize={11}>
+        <text x={0} y={0} dy={12} textAnchor="middle" fill="#3182F6" fontSize={11}>
           {row?.dayLabelTop ?? ""}
         </text>
-        <text x={0} y={0} dy={26} textAnchor="middle" fill="#c4b5fd" fontSize={11}>
+        <text x={0} y={0} dy={26} textAnchor="middle" fill="#D97706" fontSize={11}>
           {row?.dayLabelBottom ?? ""}
         </text>
       </g>
@@ -133,11 +133,11 @@ export default function SummaryDualWeekCompareChart({
           ? `${new Intl.NumberFormat("ko-KR").format(previousNum)}명`
           : "—";
     return (
-      <div className="rounded border border-zinc-700 bg-zinc-950 px-2.5 py-1.5 text-xs shadow-lg">
-        <p className="mb-1 text-zinc-400">최근: {row?.currentDate || "—"}</p>
-        <p className="mb-2 text-zinc-500">직전: {row?.previousDate || "—"}</p>
-        <p className="text-zinc-100">최근 7일: {currentText}</p>
-        <p className="text-zinc-200">직전 7일: {previousText}</p>
+      <div className="rounded border border-[var(--border)] bg-white px-2.5 py-1.5 text-xs shadow-lg">
+        <p className="mb-1 text-[var(--text-secondary)]">최근: {row?.currentDate || "—"}</p>
+        <p className="mb-2 text-[var(--text-muted)]">직전: {row?.previousDate || "—"}</p>
+        <p className="text-[var(--text)]">최근 7일: {currentText}</p>
+        <p className="text-[var(--text)]">직전 7일: {previousText}</p>
       </div>
     );
   };
@@ -164,31 +164,31 @@ export default function SummaryDualWeekCompareChart({
               data={data}
               margin={{ top: 8, right: 12, bottom: 8, left: 4 }}
             >
-              <CartesianGrid stroke="#27272a" strokeDasharray="3 3" />
+              <CartesianGrid stroke="#e5e8eb" strokeDasharray="3 3" />
               <XAxis
                 dataKey="dayLabelTop"
-                stroke="#52525b"
-                tickLine={{ stroke: "#3f3f46" }}
+                stroke="#d1d6db"
+                tickLine={{ stroke: "#d1d6db" }}
                 tick={renderTwoLineTick}
                 interval={0}
                 height={42}
               />
               <YAxis
-                stroke="#52525b"
-                tick={{ fill: "#a1a1aa", fontSize: 11 }}
-                tickLine={{ stroke: "#3f3f46" }}
+                stroke="#d1d6db"
+                tick={{ fill: "#8b95a1", fontSize: 11 }}
+                tickLine={{ stroke: "#d1d6db" }}
                 tickFormatter={(val) => formatTick(variant, Number(val))}
               />
               <Tooltip
                 contentStyle={tooltipStyle}
-                labelStyle={{ color: "#fafafa" }}
-                itemStyle={{ color: "#d4d4d8" }}
+                labelStyle={{ color: "#191f28" }}
+                itemStyle={{ color: "#4e5968" }}
                 content={renderTooltip}
               />
               <Legend
                 wrapperStyle={{ fontSize: "12px", paddingTop: "8px" }}
                 formatter={(value) => (
-                  <span style={{ color: "#d4d4d8" }}>{value}</span>
+                  <span style={{ color: "#4e5968" }}>{value}</span>
                 )}
               />
               {SERIES.map(({ key, name, color }) => (

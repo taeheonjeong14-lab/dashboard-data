@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useHospital } from '@/components/shell/hospital-context';
 import { CenteredSpinner } from '@/components/ui/loading-spinner';
+import { StickyHeader } from '@/components/ui/sticky-header';
 import { ddxGet, DdxApiForbiddenError } from '@/lib/ddx-api';
 
 type Consultation = {
@@ -67,8 +68,9 @@ export default function AiAssistPage() {
 
   return (
     <div style={{ maxWidth: 960 }}>
+      <StickyHeader>
       {/* 헤더 */}
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 20, gap: 12, flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 0, gap: 12, flexWrap: 'wrap' }}>
         <div>
           <h1 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: 'var(--text)' }}>AI 진료 보조</h1>
           <p style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--text-secondary)' }}>
@@ -80,6 +82,7 @@ export default function AiAssistPage() {
           + 진료 시작
         </Link>
       </div>
+      </StickyHeader>
 
       {error && (
         <div style={{ padding: '12px 16px', background: 'var(--danger-subtle)', border: '1px solid var(--danger)', borderRadius: 'var(--radius)', color: 'var(--danger)', fontSize: 13, marginBottom: 16 }}>

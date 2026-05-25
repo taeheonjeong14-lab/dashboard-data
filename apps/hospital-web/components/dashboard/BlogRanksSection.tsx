@@ -118,20 +118,20 @@ function truncateText(value: string, maxLength: number): string {
 function TrendIcon({ trend }: { trend: -1 | 0 | 1 }) {
   if (trend > 0) {
     return (
-      <span className="text-xs font-semibold text-emerald-300" title="상승">
+      <span className="text-xs font-semibold text-[var(--success)]" title="상승">
         &uarr;
       </span>
     );
   }
   if (trend < 0) {
     return (
-      <span className="text-xs font-semibold text-red-300" title="하락">
+      <span className="text-xs font-semibold text-[var(--danger)]" title="하락">
         &darr;
       </span>
     );
   }
   return (
-    <span className="text-xs font-semibold text-zinc-400" title="변동 없음">
+    <span className="text-xs font-semibold text-[var(--text-secondary)]" title="변동 없음">
       &mdash;
     </span>
   );
@@ -232,7 +232,7 @@ export default function BlogRanksSection({
     const text = formatRank(entry.rank);
     return (
       <span
-        className="inline-flex items-center gap-1.5 text-zinc-200"
+        className="inline-flex items-center gap-1.5 text-[var(--text)]"
         onMouseEnter={(event) => {
           ensureTrendLoaded(keyword);
           setHoveredRank({
@@ -258,19 +258,19 @@ export default function BlogRanksSection({
   };
 
   const renderContentCell = (entry: RankEntry) => {
-    if (!entry.url) return <span className="text-zinc-500">-</span>;
+    if (!entry.url) return <span className="text-[var(--text-muted)]">-</span>;
     const preview = previewTitles[entry.url];
-    if (!preview) return <span className="text-zinc-500">불러오는 중&hellip;</span>;
+    if (!preview) return <span className="text-[var(--text-muted)]">불러오는 중&hellip;</span>;
 
     const previewTitle = preview.title?.trim();
-    if (!previewTitle) return <span className="text-zinc-500">-</span>;
+    if (!previewTitle) return <span className="text-[var(--text-muted)]">-</span>;
 
     return (
       <a
         href={preview.finalUrl || entry.url}
         target="_blank"
         rel="noreferrer"
-        className="underline underline-offset-2 text-sky-300 decoration-sky-500/60 hover:text-sky-200 hover:decoration-sky-300 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-sky-400/60"
+        className="underline underline-offset-2 text-[var(--accent)] hover:opacity-80 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent)]"
         title={previewTitle}
       >
         {truncateText(previewTitle, 22)}
@@ -318,27 +318,27 @@ export default function BlogRanksSection({
 
     return (
       <div
-        className="pointer-events-none fixed z-[60] w-[250px] border border-zinc-700 bg-zinc-950/95 p-2.5 shadow-xl"
+        className="pointer-events-none fixed z-[60] w-[250px] border border-[var(--border-strong)] bg-white/95 p-2.5 shadow-xl"
         style={{ left, top }}
       >
-        <p className="text-xs font-medium text-zinc-200">{hoveredRank.keyword}</p>
-        <p className="mb-2 text-[11px] text-zinc-500">
+        <p className="text-xs font-medium text-[var(--text)]">{hoveredRank.keyword}</p>
+        <p className="mb-2 text-[11px] text-[var(--text-muted)]">
           {part.title} &middot; 최근 6개월
         </p>
         {loadingTrend && (
-          <p className="text-xs text-zinc-500">불러오는 중&hellip;</p>
+          <p className="text-xs text-[var(--text-muted)]">불러오는 중&hellip;</p>
         )}
         {!loadingTrend && series.length < 2 && (
-          <p className="text-xs italic text-zinc-500">
+          <p className="text-xs italic text-[var(--text-muted)]">
             추세를 그릴 데이터가 부족합니다.
           </p>
         )}
         {!loadingTrend && series.length >= 2 && (
           <>
             <svg viewBox={`0 0 ${width} ${height}`} className="h-[92px] w-full">
-              <path d={d} fill="none" stroke="#60a5fa" strokeWidth="2" />
+              <path d={d} fill="none" stroke="#3182F6" strokeWidth="2" />
             </svg>
-            <div className="mt-1 flex justify-between text-[10px] text-zinc-500">
+            <div className="mt-1 flex justify-between text-[10px] text-[var(--text-muted)]">
               <span>{series[0].dateKey}</span>
               <span>{series.at(-1)?.dateKey}</span>
             </div>
@@ -355,19 +355,19 @@ export default function BlogRanksSection({
         className={`${variant === "simple" ? "" : "bg-[var(--bg-raised)] "}p-4 sm:p-5`}
       >
         {title && (
-          <h2 id={headingId} className="mb-2 text-base font-semibold text-zinc-100 sm:text-lg">
+          <h2 id={headingId} className="mb-2 text-base font-semibold text-[var(--text)] sm:text-lg">
             {title}
           </h2>
         )}
-        {description && <p className="mb-3 text-sm text-zinc-500">{description}</p>}
+        {description && <p className="mb-3 text-sm text-[var(--text-muted)]">{description}</p>}
         {loading && (
-          <p className="text-sm text-zinc-400">데이터를 불러오는 중...</p>
+          <p className="text-sm text-[var(--text-secondary)]">데이터를 불러오는 중...</p>
         )}
         {!loading && rows.length === 0 && (
-          <div className="flex flex-col items-center gap-2 border border-zinc-800 bg-zinc-900/50 px-6 py-9 text-center">
-            <span className="text-3xl text-zinc-600">📝</span>
-            <p className="text-sm font-semibold text-zinc-400">블로그 순위 데이터가 없습니다</p>
-            <p className="text-xs text-zinc-600">수집된 데이터가 있으면 여기에 표시됩니다.</p>
+          <div className="flex flex-col items-center gap-2 border border-[var(--border)] bg-[var(--bg-subtle)] px-6 py-9 text-center">
+            <span className="text-3xl text-[var(--text-muted)]">📝</span>
+            <p className="text-sm font-semibold text-[var(--text-secondary)]">블로그 순위 데이터가 없습니다</p>
+            <p className="text-xs text-[var(--text-muted)]">수집된 데이터가 있으면 여기에 표시됩니다.</p>
           </div>
         )}
         {!loading && rows.length > 0 && (
@@ -376,7 +376,7 @@ export default function BlogRanksSection({
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[620px] border-collapse text-left text-sm">
                   <thead>
-                    <tr className="border-b border-zinc-800 text-zinc-400">
+                    <tr className="border-b border-[var(--border)] text-[var(--text-secondary)]">
                       <th className="py-1.5 pr-2 font-medium">검색어</th>
                       {PARTS.map((part) => (
                         <th key={part.id} className="py-1.5 px-2 font-medium">
@@ -389,7 +389,7 @@ export default function BlogRanksSection({
                     {rows.map((row) => (
                       <tr
                         key={row.keyword}
-                        className="border-b border-zinc-800/70 text-zinc-200"
+                        className="border-b border-[var(--border)] text-[var(--text)]"
                       >
                         <td className="py-1.5 pr-2">{row.keyword}</td>
                         {PARTS.map((part) => {
@@ -400,7 +400,7 @@ export default function BlogRanksSection({
                               className="py-1.5 px-2"
                             >
                               {rank == null ? (
-                                <span className="text-zinc-500">-</span>
+                                <span className="text-[var(--text-muted)]">-</span>
                               ) : (
                                 formatRank(rank)
                               )}
@@ -418,18 +418,18 @@ export default function BlogRanksSection({
                   const entries = pickPartEntries(rows, part);
                   return (
                     <div key={part.id}>
-                      <h3 className="mb-1 text-sm font-semibold text-zinc-200">
+                      <h3 className="mb-1 text-sm font-semibold text-[var(--text)]">
                         {part.title}
                       </h3>
                       {entries.length === 0 ? (
-                        <p className="text-xs italic text-zinc-600">
+                        <p className="text-xs italic text-[var(--text-muted)]">
                           표시할 키워드가 없습니다.
                         </p>
                       ) : (
                         <div className="overflow-x-auto">
                           <table className="w-full border-collapse text-left text-sm">
                             <thead>
-                              <tr className="border-b border-zinc-800 text-zinc-400">
+                              <tr className="border-b border-[var(--border)] text-[var(--text-secondary)]">
                                 <th className="py-1.5 pr-2 font-medium">검색어</th>
                                 <th className="py-1.5 px-2 font-medium">순위</th>
                                 <th className="py-1.5 pl-2 font-medium">컨텐츠</th>
@@ -439,7 +439,7 @@ export default function BlogRanksSection({
                               {entries.map((entry) => (
                                 <tr
                                   key={`${part.id}:${entry.keyword}`}
-                                  className="border-b border-zinc-800/70 text-zinc-200"
+                                  className="border-b border-[var(--border)] text-[var(--text)]"
                                 >
                                   <td className="py-1.5 pr-2">{entry.keyword}</td>
                                   <td className="py-1.5 px-2">
