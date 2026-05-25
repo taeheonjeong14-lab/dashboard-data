@@ -343,6 +343,7 @@ function Detail({ detail, origin, onReanalyze }: { detail: SessionDetail; origin
       {completed && (
         <Section
           title="AI 사전 분석"
+          tone="accent"
           right={
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               {detail.analysisStatus && (
@@ -572,9 +573,10 @@ function Spinner() {
   return <CenteredSpinner minHeight={240} />;
 }
 
-function Section({ title, right, children }: { title: string; right?: React.ReactNode; children: React.ReactNode }) {
+function Section({ title, right, children, tone = 'default' }: { title: string; right?: React.ReactNode; children: React.ReactNode; tone?: 'default' | 'accent' }) {
+  const isAccent = tone === 'accent';
   return (
-    <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '14px 16px', background: 'var(--bg)' }}>
+    <div style={{ border: `1px solid ${isAccent ? 'var(--accent)' : 'var(--border)'}`, borderRadius: 'var(--radius-lg)', padding: '14px 16px', background: isAccent ? 'var(--accent-subtle)' : 'var(--bg)' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
         <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{title}</div>
         {right}

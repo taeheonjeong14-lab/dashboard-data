@@ -115,6 +115,8 @@ export type PetAnswer = {
   insurance: string;
   symptoms: string[];     // 복수
   symptomOther: string;   // 증상 '기타' 직접입력
+  surveyLinked?: boolean;   // 사전문진에서 프리필됨 (증상은 사전문진에서 상세 수집 → 접수증선 생략)
+  surveySessionId?: string; // 연결된 사전문진 세션 id
 };
 
 export type ReferralAnswer = {
@@ -133,6 +135,7 @@ export type IntakeAnswers = {
   referral: ReferralAnswer;
   consentRequired: boolean;
   consentMarketing: boolean;
+  linkedSurveySessionIds?: string[]; // 이번 접수에 연결된 사전문진 세션 id (중복 매칭 방지용)
 };
 
 export function emptyPet(): PetAnswer {
@@ -156,6 +159,21 @@ export function emptyAnswers(): IntakeAnswers {
 // ── 라벨 조회(직원 열람·요약용) ──────────────────────────
 export function labelOf(options: Option[], value: string): string {
   return options.find((o) => o.value === value)?.label ?? value;
+}
+
+// ── 사전문진 답변 → 초진 접수 값 매핑 ────────────────────
+export function speciesFromSurvey(v: string): Species | '' {
+  if (!v) return '';
+  if (v.includes('강아지') || v.includes('개')) return 'dog';
+  if (v.includes('고양이') || v.includes('묘')) return 'cat';
+  return 'other';
+}
+export function sexFromSurvey(v: string): string {
+  if (!v) return '';
+  const neutered = v.includes('중성화');
+  if (v.includes('수') || v.includes('남')) return neutered ? 'male_neutered' : 'male_intact';
+  if (v.includes('암') || v.includes('여')) return neutered ? 'female_neutered' : 'female_intact';
+  return '';
 }
 
 // ── 안내 문구 ──────────────────────────────────────────

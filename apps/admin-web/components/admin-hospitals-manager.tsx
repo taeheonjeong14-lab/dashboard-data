@@ -40,6 +40,7 @@ const EMPTY_FORM = {
   searchad_secret_key_encrypted: '',
   googleads_customer_id: '',
   googleads_refresh_token_encrypted: '',
+  intake_survey_enabled: false,
 };
 
 const fieldLabelStyle: React.CSSProperties = {
@@ -390,6 +391,23 @@ export default function AdminHospitalsManager() {
               <LabeledField label="브랜드 색상 (#hex)">
                 <input placeholder="#1d4ed8" value={form.brandColor} onChange={(e) => setForm((f) => ({ ...f, brandColor: e.target.value }))} style={fieldStyle} />
               </LabeledField>
+            </section>
+          </details>
+
+          <details open className="adminMainAccordion adminHospitalFormAccordion">
+            <summary className="adminAccordionSummary" style={summaryStyle}>
+              Robovet AI · 사전문진
+            </summary>
+            <section style={sectionStyle}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: '#334155', cursor: 'pointer' }}>
+                <input
+                  type="checkbox"
+                  checked={form.intake_survey_enabled}
+                  onChange={(e) => setForm((f) => ({ ...f, intake_survey_enabled: e.target.checked }))}
+                  style={{ width: 16, height: 16, flexShrink: 0 }}
+                />
+                초진 접수 ↔ 사전문진 연동 사용 (연락처로 매칭해 겹치는 질문 자동 스킵·프리필)
+              </label>
             </section>
           </details>
 

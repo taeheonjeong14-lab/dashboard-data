@@ -314,7 +314,7 @@ export default function PublicSurveyPage() {
             {isDone ? '제출이 완료되었어요' : '이미 제출된 문진이에요'}
           </h1>
           <p style={{ fontSize: 16, color: C.textSec, lineHeight: 1.7, margin: 0, whiteSpace: 'pre-line' }}>
-            {isDone ? '소중한 답변 감사합니다.\n진료 시 참고하겠습니다.' : '이 문진은 이미 작성이 완료되었습니다.\n이 창은 닫으셔도 됩니다.'}
+            {isDone ? '사전문진 작성 감사합니다.\n꼼꼼하게 진료 준비하도록 하겠습니다.' : '이 문진은 이미 작성이 완료되었습니다.\n이 창은 닫으셔도 됩니다.'}
           </p>
         </div>
       </Screen>
