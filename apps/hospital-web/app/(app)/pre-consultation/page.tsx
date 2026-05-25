@@ -442,6 +442,7 @@ function SendModal({ userId, origin, onClose, onCreated }: {
   const [patientName, setPatientName] = useState('');
   const [guardianName, setGuardianName] = useState('');
   const [contact, setContact] = useState('');
+  const [scheduledDate, setScheduledDate] = useState('');
   const [visitType, setVisitType] = useState('초진');
   const [previousChart, setPreviousChart] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -463,6 +464,7 @@ function SendModal({ userId, origin, onClose, onCreated }: {
       };
       if (patientName.trim()) body.patientName = patientName.trim();
       if (guardianName.trim()) body.guardianName = guardianName.trim();
+      if (scheduledDate) body.scheduledDate = scheduledDate;
       if (visitType === '재진' && previousChart.trim()) body.previousChart = previousChart.trim();
 
       const res = await ddxPost<{ success: boolean; session?: { id: string; token?: string | null }; error?: string }>(
@@ -523,6 +525,9 @@ function SendModal({ userId, origin, onClose, onCreated }: {
             </div>
             <Field label="연락처" required>
               <input style={inputStyle} value={contact} onChange={(e) => setContact(e.target.value)} placeholder="010-0000-0000" type="tel" />
+            </Field>
+            <Field label="내원 예정일">
+              <input style={inputStyle} type="date" value={scheduledDate} onChange={(e) => setScheduledDate(e.target.value)} />
             </Field>
             <Field label="방문 유형">
               <div style={{ display: 'flex', gap: 8 }}>

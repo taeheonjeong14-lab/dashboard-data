@@ -25,6 +25,7 @@ type SurveySession = {
   patientName: string | null;
   guardianName: string | null;
   visitType: string | null;
+  scheduledDate?: string | null;
   status: string;
   hospital?: { name?: string | null; logoUrl?: string | null; brandColor?: string | null } | null;
   questions: Question[];
@@ -55,6 +56,13 @@ function getScaleMeta(q: Question): { min: number; max: number; minLabel: string
 
 const OTHER_RE = /기타|직접\s*입력/;
 function isOtherChoice(opt: string): boolean { return OTHER_RE.test(opt); }
+
+function formatScheduledDate(iso?: string | null): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  return d.toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' });
+}
 
 // ─── 라이트 고정 팔레트 (초진 접수증과 동일 톤) ─────────────
 const C = {
@@ -257,18 +265,21 @@ export default function PublicSurveyPage() {
 
   // 인트로(웰컴)
   if (step === 'intro') {
+    const patient = session?.patientName?.trim() || '';
+    const scheduledText = formatScheduledDate(session?.scheduledDate);
     return (
       <Screen accent={ac}>
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-          <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--ac)', marginBottom: 14, letterSpacing: '-0.01em' }}>사전문진</div>
+          <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--ac)', marginBottom: 14, letterSpacing: '-0.01em' }}>
+            {hospitalName ? `${hospitalName} 사전문진` : '사전문진'}
+          </div>
           <h1 style={{ fontSize: 34, fontWeight: 700, letterSpacing: '-0.035em', lineHeight: 1.32, color: C.text, margin: 0 }}>
             진료 전 사전문진을<br />작성해 주세요
           </h1>
           <p style={{ fontSize: 18, fontWeight: 500, color: C.textSec, letterSpacing: '-0.01em', lineHeight: 1.6, margin: '20px 0 0' }}>
-            {session?.patientName ? <><b style={{ color: C.text, fontWeight: 600 }}>{session.patientName}</b> 보호자님,<br /></> : null}
-            정확한 진료를 위한 짧은 문진입니다.<br />약 2~3분이면 완료됩니다.
+            {patient ? <><b style={{ color: C.text, fontWeight: 600 }}>{patient}</b> 보호자님, </> : null}
+            {scheduledText ? `${scheduledText}에 예정된 진료에 앞서 ` : ''}정확한 진료를 위해 사전문진을 부탁드려요. 5분이면 완료됩니다.
           </p>
-          <div style={{ fontSize: 14, color: C.muted, marginTop: 18, letterSpacing: '0.01em' }}>총 {totalQ}개 질문</div>
         </div>
         <div style={{ flexShrink: 0 }}>
           <button type="button" className="sv-press" onClick={() => setStep('survey')} style={{ ...btnPrimary(false), width: '100%', padding: '17px', fontSize: 17 }}>
@@ -291,9 +302,11 @@ export default function PublicSurveyPage() {
       <div style={{ height: 3, background: C.border, borderRadius: 999, overflow: 'hidden', flexShrink: 0 }}>
         <div style={{ height: '100%', width: `${Math.round(progress * 100)}%`, background: 'var(--ac)', transition: 'width .25s' }} />
       </div>
-      <div style={{ fontSize: 13, color: C.muted, marginTop: 10, flexShrink: 0, letterSpacing: '0.01em' }}>
-        {hospitalName ? `${hospitalName} · ` : ''}{currentQ + 1} / {totalQ}
-      </div>
+      {hospitalName && (
+        <div style={{ fontSize: 13, color: C.muted, marginTop: 10, flexShrink: 0, letterSpacing: '0.01em' }}>
+          {hospitalName}
+        </div>
+      )}
 
       <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
         <div style={{ minHeight: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '24px 2px 12vh' }}>
