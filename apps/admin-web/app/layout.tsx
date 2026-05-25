@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import './globals.css';
 
 export const metadata = {
-  title: 'Vet Solution · 관리자',
+  title: '더함 관리자',
   description: '관리자용 통합 UI — Supabase 로그인 · dashboard-api 연동 스모크',
 };
 

@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import './globals.css';
 
 export const metadata = {
-  title: 'VetSolution',
+  title: '더함 병원관리 솔루션',
   description: '동물병원 통합 관리 플랫폼',
 };
 
