@@ -113,8 +113,8 @@ export const FIRST_VISIT_REASONS = [
   '이물/독성 물질 섭취 의심',
   '발작/경련',
   '건강검진',
-  '예방접종/상상충예방',
-  '행동문제(공격석, 분리불안 등)',
+  '예방접종/사상충예방',
+  '행동문제(공격성, 분리불안 등)',
   '동물등록/출국문의',
   '그 외',
 ] as const;
@@ -122,7 +122,7 @@ export const FIRST_VISIT_REASONS = [
 // Q10~Q12는 "증상 문진" 성격의 후속 문항이므로
 // 건강검진/예방접종(정기 방문) 사유에는 노출하지 않는다.
 const SYMPTOM_FOLLOWUP_REASONS = FIRST_VISIT_REASONS.filter(
-  (reason) => reason !== '건강검진' && reason !== '예방접종/상상충예방'
+  (reason) => reason !== '건강검진' && reason !== '예방접종/사상충예방'
 );
 
 // 품종 보기
@@ -184,11 +184,11 @@ export const FIRST_VISIT_FIXED_QUESTIONS: QuestionDef[] = compileDraftQuestions(
   { key: 'Q19', text: '같이 동거하는 동물이 있나요?', type: 'multi_choice', choices: ['없음', '강아지', '고양이', '그 외'] },
 
   // ── Q9=1 피부/귀 이상: Q20~Q29 ─────────────────────────
-  { key: 'Q20', text: '[피부/귀 이상] 증상이 있는 부위는 어디인가요?', type: 'multi_choice', choices: ['귀', '얼굴, 머리', '입주면, 목', '눈 주변', '발/다리', '배/사타구니', '등/몸통', '꼬리/항문주변', '전신'], condition: { onKey: 'Q9', value: '피부/귀 이상' } },
-  { key: 'Q21', text: '[피부/귀 이상] 귀에 어떤 증상이 있나요?', type: 'multi_choice', choices: ['냄새가 남', '분비물', '귀를 자주 긁음', '머리를 자주 텀'], condition: { onKey: 'Q20', value: '귀' } },
+  { key: 'Q20', text: '[피부/귀 이상] 증상이 있는 부위는 어디인가요?', type: 'multi_choice', choices: ['귀', '얼굴, 머리', '입 주변, 목', '눈 주변', '발/다리', '배/사타구니', '등/몸통', '꼬리/항문주변', '전신'], condition: { onKey: 'Q9', value: '피부/귀 이상' } },
+  { key: 'Q21', text: '[피부/귀 이상] 귀에 어떤 증상이 있나요?', type: 'multi_choice', choices: ['냄새가 남', '분비물', '귀를 자주 긁음', '머리를 자주 흔듦'], condition: { onKey: 'Q20', value: '귀' } },
   { key: 'Q22', text: '[피부/귀 이상] 어느 쪽 귀에 증상이 있나요?', type: 'single_choice', choices: ['왼쪽', '오른쪽', '양쪽', '잘 모르겠음'], condition: { onKey: 'Q21', answered: true } },
-  { key: 'Q23', text: '[피부/귀 이상] 어떤 증상이 있나요?', type: 'multi_choice', choices: ['가려움 (긁거나 핥음)', '발진/붉어짐', '탈모', '딱지/각질', '진물/고름', '혹/멍울'], condition: { onKey: 'Q20', anyOf: ['얼굴, 머리', '입주면, 목', '눈 주변', '발/다리', '배/사타구니', '등/몸통', '꼬리/항문주변', '전신'] } },
-  { key: 'Q24', text: '[피부/귀 이상] 가려움 정도는 어느정도인가요?', type: 'scale', scaleMin: 0, scaleMax: 10, scaleMinLabel: '전혀 없음', scaleMaxLabel: '매우 심함', condition: { onKey: 'Q23', anyOf: ['가려움 (긁거나 핥음)', '발진/붉어짐', '탈모', '딱지/각질', '진물/고름'] } },
+  { key: 'Q23', text: '[피부/귀 이상] 어떤 증상이 있나요?', type: 'multi_choice', choices: ['가려움 (긁거나 핥음)', '발진/붉어짐', '탈모', '딱지/각질', '진물/고름', '혹/멍울'], condition: { onKey: 'Q20', anyOf: ['얼굴, 머리', '입 주변, 목', '눈 주변', '발/다리', '배/사타구니', '등/몸통', '꼬리/항문주변', '전신'] } },
+  { key: 'Q24', text: '[피부/귀 이상] 가려움 정도는 어느정도인가요?', type: 'scale', scaleMin: 1, scaleMax: 10, scaleMinLabel: '전혀 없음', scaleMaxLabel: '매우 심함', condition: { onKey: 'Q23', anyOf: ['가려움 (긁거나 핥음)', '발진/붉어짐', '탈모', '딱지/각질', '진물/고름'] } },
   { key: 'Q25', text: '[피부/귀 이상] 증상은 언제부터 시작되었나요?', type: 'single_choice', choices: ['최근 (며칠 이내): 갑자기 피부가 안 좋아짐', '1주~한달 이내: 최근 들어 증상이 지속되고 있음', '오래전부터 (만성적): 몇 달 이상 꾸준히 증상이 있음', '매년 특정 시기마다 반복됨'], condition: { onKey: 'Q24', answered: true } },
   { key: 'Q26', text: '[피부/귀 이상] 혹/멍울은 언제 발견하셨나요?', type: 'single_choice', choices: ['오늘', '주일 이내', '한달 이내', '한달 이상', '잘 모르겠음'], condition: { onKey: 'Q23', value: '혹/멍울' } },
   { key: 'Q27', text: '[피부/귀 이상] 크기 변화가 있나요?', type: 'single_choice', choices: ['점점 커짐', '비슷하게 유지', '작아짐', '잘 모르겠음'], condition: { onKey: 'Q26', answered: true } },
@@ -199,7 +199,7 @@ export const FIRST_VISIT_FIXED_QUESTIONS: QuestionDef[] = compileDraftQuestions(
   { key: 'Q30', text: '[구토/설사/혈변] 어떤 증상이 있나요?', type: 'multi_choice', choices: ['구토', '설사', '혈변'], condition: { onKey: 'Q9', value: '구토/설사/혈변' } },
   { key: 'Q31', text: '[구토/설사/혈변] 식욕은 어떤 변화가 있나요?', type: 'single_choice', choices: ['평소와 비슷', '평소보다 감소', '거의 먹지 않음', '평소보다 증가'], condition: { onKey: 'Q30', answered: true } },
   { key: 'Q32', text: '[구토/설사/혈변] 활동성 변화가 있나요?', type: 'single_choice', choices: ['평소와 비슷', '평소보다 감소'], condition: { onKey: 'Q31', answered: true } },
-  { key: 'Q33', text: '[구토/설사/혈변] 북부를 만졌을 때 불편해하나요?', type: 'single_choice', choices: ['예', '아니오', '잘 모르겠음'], condition: { onKey: 'Q32', answered: true } },
+  { key: 'Q33', text: '[구토/설사/혈변] 복부를 만졌을 때 불편해하나요?', type: 'single_choice', choices: ['예', '아니오', '잘 모르겠음'], condition: { onKey: 'Q32', answered: true } },
   { key: 'Q34', text: '[구토/설사/혈변] 구토는 하루에 몇 번 정도 하나요?', type: 'single_choice', choices: ['1~2회', '3회 이상', '거의 계속'], condition: { onKey: 'Q30', value: '구토' } },
   { key: 'Q35', text: '[구토/설사/혈변] 구토 내용물은 어떤가요?', type: 'multi_choice', choices: ['음식', '노란 액체', '거품', '피', '잘 모르겠음'], condition: { onKey: 'Q34', answered: true } },
   { key: 'Q36', text: '[구토/설사/혈변] 구토 전 행동은 어떤가요?', type: 'single_choice', choices: ['배에 힘을 주지 않고 주르륵 흘리듯 나옴', "배가 심하게 꿀렁거리고 '욱욱' 헛구역질 후 구토", '직접 보지 못했거나 잘 모르겠음'], condition: { onKey: 'Q35', answered: true } },
@@ -213,9 +213,9 @@ export const FIRST_VISIT_FIXED_QUESTIONS: QuestionDef[] = compileDraftQuestions(
   { key: 'Q42', text: '[식욕 및 체중변화] 함께 나타나는 증상이 있나요?', type: 'multi_choice', choices: ['구토', '설사', '배변이상', '기력 저하', '물 마시는 양의 변화', '소변 변화', '없음'], condition: { onKey: 'Q41', answered: true } },
 
   // ── Q9=4 복통/복부 팽만: Q43~Q46 ───────────────────────
-  { key: 'Q43', text: '[복통/복부 팽만] 복부에 어던 변화가 있나요?', type: 'single_choice', choices: ['배가 불러 보임', '배를 만지면 아파하거나 싫어함', '위 두가지 모두 해당', '잘 모르겠음'], condition: { onKey: 'Q9', value: '복통/복부 팽만' } },
+  { key: 'Q43', text: '[복통/복부 팽만] 복부에 어떤 변화가 있나요?', type: 'single_choice', choices: ['배가 불러 보임', '배를 만지면 아파하거나 싫어함', '위 두가지 모두 해당', '잘 모르겠음'], condition: { onKey: 'Q9', value: '복통/복부 팽만' } },
   { key: 'Q44', text: '[복통/복부 팽만] 복부의 변화는 어떤 양상인가요?', type: 'single_choice', choices: ['오늘 갑자기 배가 불러짐', '며칠 동안 배가 점점 불러짐', '평소와 비슷함', '잘 모르겠음'], condition: { onKey: 'Q43', answered: true } },
-  { key: 'Q45', text: '[복통/복부 팽만] 통증 정도는 어느정도인가요?', type: 'scale', scaleMin: 0, scaleMax: 10, scaleMinLabel: '전혀 없음', scaleMaxLabel: '매우 심함', condition: { onKey: 'Q44', answered: true } },
+  { key: 'Q45', text: '[복통/복부 팽만] 통증 정도는 어느정도인가요?', type: 'scale', scaleMin: 1, scaleMax: 10, scaleMinLabel: '전혀 없음', scaleMaxLabel: '매우 심함', condition: { onKey: 'Q44', answered: true } },
   { key: 'Q46', text: '[복통/복부 팽만] 함께 나타나는 증상이 있나요?', type: 'multi_choice', choices: ['구토/헛구역질', '식욕 감소', '기력 저하', '설사', '물 마시는 양 변화', '헐떡거림', '없음'], condition: { onKey: 'Q45', answered: true } },
 
   // ── Q9=5 변비: Q47~Q50 ─────────────────────────────────
@@ -234,12 +234,12 @@ export const FIRST_VISIT_FIXED_QUESTIONS: QuestionDef[] = compileDraftQuestions(
   // ── Q9=7 호흡곤란/숨소리 변화: Q56~Q60 ─────────────────
   { key: 'Q56', text: '[호흡곤란/숨소리 변화] 어떤 변화가 있나요?', type: 'multi_choice', choices: ['숨이 평소보다 빠름', '숨쉬기 힘들어 보임', '숨소리가 거칠고 큼', '입을 벌리고 숨을 쉼', '잘 모르겠음'], condition: { onKey: 'Q9', value: '호흡곤란/숨소리 변화' } },
   { key: 'Q57', text: '[호흡곤란/숨소리 변화] 증상은 언제 더 심해지나요?', type: 'single_choice', choices: ['가만히 있을 때도 나타남', '움직이거나 흥분할 때', '잘 모르겠음'], condition: { onKey: 'Q56', answered: true } },
-  { key: 'Q58', text: '[호흡곤란/숨소리 변화] 호흡 상태는 어느정도인가요?', type: 'scale', scaleMin: 0, scaleMax: 10, scaleMinLabel: '정상', scaleMaxLabel: '매우 힘들어 보임', condition: { onKey: 'Q57', answered: true } },
+  { key: 'Q58', text: '[호흡곤란/숨소리 변화] 호흡 상태는 어느정도인가요?', type: 'scale', scaleMin: 1, scaleMax: 10, scaleMinLabel: '정상', scaleMaxLabel: '매우 힘들어 보임', condition: { onKey: 'Q57', answered: true } },
   { key: 'Q59', text: '[호흡곤란/숨소리 변화] 혀나 잇몸 색이 변한 것 같나요?', type: 'single_choice', choices: ['분홍색', '창백함', '보라색/푸른색', '잘 모르겠음'], condition: { onKey: 'Q58', answered: true } },
   { key: 'Q60', text: '[호흡곤란/숨소리 변화] 숨소리는 어떤가요?', type: 'single_choice', choices: ['쌕쌕거리는 소리', '거칠고 큰 소리', '잘 모르겠음'], condition: { onKey: 'Q59', answered: true } },
 
   // ── Q9=8 눈 이상: Q61~Q62 ──────────────────────────────
-  { key: 'Q61', text: '[눈 이상] 어떤 증상이 있나요?', type: 'multi_choice', choices: ['충혈/부음', '눈꼽 증가', '눈물 증가', '눈물 감소', '시력 저하', '눈을 비빔', '눈과 눈 주변의 혹/상처', '눈을 잘 뜨지 못함', '양쪽 눈의 비대칭'], condition: { onKey: 'Q9', value: '눈 이상' } },
+  { key: 'Q61', text: '[눈 이상] 어떤 증상이 있나요?', type: 'multi_choice', choices: ['충혈/부음', '눈곱 증가', '눈물 증가', '눈물 감소', '시력 저하', '눈을 비빔', '눈과 눈 주변의 혹/상처', '눈을 잘 뜨지 못함', '양쪽 눈의 비대칭'], condition: { onKey: 'Q9', value: '눈 이상' } },
   { key: 'Q62', text: '[눈 이상] 어느 쪽 눈을 불편해하나요?', type: 'single_choice', choices: ['왼쪽', '오른쪽', '양쪽'], condition: { onKey: 'Q61', answered: true } },
 
   // ── Q9=9 구강 문제/스케일링: Q63~Q69 ───────────────────
@@ -252,7 +252,7 @@ export const FIRST_VISIT_FIXED_QUESTIONS: QuestionDef[] = compileDraftQuestions(
   { key: 'Q69', text: '[구강 질환/스케일링] 통증 반응은 어떤가요?', type: 'single_choice', choices: ['만져도 괜찮다', '만지면 싫어한다', '통증이 심해보인다', '잘 모르겠음'], condition: { onKey: 'Q67', answered: true } },
 
   // ── Q9=10 파행/절뚝거림: Q70~Q73 ───────────────────────
-  { key: 'Q70', text: '[파행/절뚝거림/관절통] 어떤 증상이 있나요?', type: 'multi_choice', choices: ['절뚝거림', '다리를 딛지 못함', '점프,걷기,계단을 싫어함', '뻣뻣해짐/마비', '붓거나 아파함', '음직일때 소리가남', '특정 자세를 못함', '근육양 감소'], condition: { onKey: 'Q9', value: '파행/절뚝거림/관절통증의심' } },
+  { key: 'Q70', text: '[파행/절뚝거림/관절통] 어떤 증상이 있나요?', type: 'multi_choice', choices: ['절뚝거림', '다리를 딛지 못함', '점프,걷기,계단을 싫어함', '뻣뻣해짐/마비', '붓거나 아파함', '움직일 때 소리가 남', '특정 자세를 못함', '근육양 감소'], condition: { onKey: 'Q9', value: '파행/절뚝거림/관절통증의심' } },
   { key: 'Q71', text: '[파행/절뚝거림/관절통] 어느 부위가 문제라고 느껴지시나요?', type: 'multi_choice', choices: ['오른쪽 앞다리', '왼쪽 앞다리', '왼쪽 뒷다리', '오른쪽 뒷다리', '목', '허리', '기타', '잘 모르겠음'], condition: { onKey: 'Q70', answered: true } },
   { key: 'Q72', text: '[파행/절뚝거림/관절통] 증상의 경과가 어떤가요?', type: 'single_choice', choices: ['점점 심해짐', '처음과 비슷하게 유지', '점점 나아짐'], condition: { onKey: 'Q71', answered: true } },
   { key: 'Q73', text: '[파행/절뚝거림/관절통] 활동량의 변화가 있나요?', type: 'single_choice', choices: ['아프기 전과 비슷', '아프기 전보다 활동량 감소', '전혀 움직이지 않으려함'], condition: { onKey: 'Q72', answered: true } },
@@ -281,18 +281,18 @@ export const FIRST_VISIT_FIXED_QUESTIONS: QuestionDef[] = compileDraftQuestions(
 
   // ── Q9=14 물 섭취 증가: Q90~Q95 ─────────────────────────
   { key: 'Q90', text: '[물 섭취 증가] 어떤 증상이 있나요?', type: 'multi_choice', choices: ['물을 평소보다 많이 마심', '소변량이 많아짐', '소변 실수가 있음', '식욕 변화가 있음', '체중 변화가 있음'], condition: { onKey: 'Q9', value: '물 섭취 증가' } },
-  { key: 'Q91', text: '[물 섭취 증가] 물을 얼마나 많이 마시나요?', type: 'scale', scaleMin: 0, scaleMax: 10, scaleMinLabel: '평소와 비슷', scaleMaxLabel: '평소보다 급격히 많이', condition: { onKey: 'Q90', value: '물을 평소보다 많이 마심' } },
+  { key: 'Q91', text: '[물 섭취 증가] 물을 얼마나 많이 마시나요?', type: 'scale', scaleMin: 1, scaleMax: 10, scaleMinLabel: '평소와 비슷', scaleMaxLabel: '평소보다 급격히 많이', condition: { onKey: 'Q90', value: '물을 평소보다 많이 마심' } },
   { key: 'Q92', text: '[물 섭취 증가] 소변의 양상은 어떤가요?', type: 'single_choice', choices: ['양만 많아졌다', '횟수도 늘고 양도 많아졌다', '잘 모르겠음'], condition: { onKey: 'Q90', value: '소변량이 많아짐' } },
   { key: 'Q93', text: '[물 섭취 증가] 실수의 양상은 어떤가요?', type: 'single_choice', choices: ['자다가 샌다', '참지 못하고 본다', '잘 모르겠음'], condition: { onKey: 'Q90', value: '소변 실수가 있음' } },
   { key: 'Q94', text: '[물 섭취 증가] 식욕 변화는 어떤가요?', type: 'single_choice', choices: ['식욕이 늘었다', '식욕이 줄었다', '들쑥날쑥하다'], condition: { onKey: 'Q90', anyOf: ['식욕 변화가 있음', '체중 변화가 있음'] } },
   { key: 'Q95', text: '[물 섭취 증가] 체중 변화는 어떤가요?', type: 'single_choice', choices: ['눈에 띄게 감소했다', '조금 줄어든 것 같다', '잘 모르겠다', '증가했다', '눈에 띄게 증가했다'], condition: { onKey: 'Q94', answered: true } },
 
   // ── Q9=15 외상: Q96~Q101 ───────────────────────────────
-  { key: 'Q96', text: '[외상] 어떤 상황이 있었나요?', type: 'multi_choice', choices: ['높은 곳에서 떨어짐', '끼임 또는 깔림', '사람이나 다른 물체와 부딫힘', '교통사고', '다른 동물과 싸우거나 물림', '잘 모르겠음'], condition: { onKey: 'Q9', value: '외상' } },
+  { key: 'Q96', text: '[외상] 어떤 상황이 있었나요?', type: 'multi_choice', choices: ['높은 곳에서 떨어짐', '끼임 또는 깔림', '사람이나 다른 물체와 부딪힘', '교통사고', '다른 동물과 싸우거나 물림', '잘 모르겠음'], condition: { onKey: 'Q9', value: '외상' } },
   { key: 'Q97', text: '[외상] 언제 발생하였나요?', type: 'single_choice', choices: ['방금/1시간 이내', '오늘', '1~2일 이내', '2일 이상', '잘 모르겠음'], condition: { onKey: 'Q96', answered: true } },
   { key: 'Q98', text: '[외상] 내원시점 어떤 증상이 있나요?', type: 'single_choice', choices: ['절뚝거림', '상처가 있고 출혈이 보임', '의식이 없음', '구토 또는 침흘림', '호흡곤란', '특별한 이상 없음'], condition: { onKey: 'Q97', answered: true } },
   { key: 'Q99', text: '[외상] 떨어진 높이는 어느 정도인가요?', type: 'single_choice', choices: ['낮은 높이(쇼파/침대)', '중간 높이(책상/탁자)', '높은 곳(베란다/계단/2층 이상)'], condition: { onKey: 'Q96', value: '높은 곳에서 떨어짐' } },
-  { key: 'Q100', text: '[외상] 사고 직후 상태는 어땠나요?', type: 'single_choice', choices: ['바로 일어나서 움직임', '절뚝거리거나 비틀거림', '거의 움직이지 못함', '의식이 흐릿하고 반응이 없음'], condition: { onKey: 'Q96', anyOf: ['사람이나 다른 물체와 부딫힘', '교통사고'] } },
+  { key: 'Q100', text: '[외상] 사고 직후 상태는 어땠나요?', type: 'single_choice', choices: ['바로 일어나서 움직임', '절뚝거리거나 비틀거림', '거의 움직이지 못함', '의식이 흐릿하고 반응이 없음'], condition: { onKey: 'Q96', anyOf: ['사람이나 다른 물체와 부딪힘', '교통사고'] } },
   { key: 'Q101', text: '[외상] 물린 동물의 종류는 무엇인가요?', type: 'single_choice', choices: ['강아지', '고양이', '야생동물(너구리, 쥐 등)', '잘 모르겠음'], condition: { onKey: 'Q96', value: '다른 동물과 싸우거나 물림' } },
 
   // ── Q9=16 이물/독성 섭취 의심: Q102~Q104 ──────────────
@@ -312,14 +312,14 @@ export const FIRST_VISIT_FIXED_QUESTIONS: QuestionDef[] = compileDraftQuestions(
   { key: 'Q111', text: '[건강검진] 최근 아래와 같은 변화가 있었나요?', type: 'multi_choice', choices: ['식욕변화', '체중변화', '기력저하', '다음다뇨', '구토설사', '절뚝거림', '없다'], condition: { onKey: 'Q110', answered: true } },
 
   // ── Q9=19 예방접종/사상충 예방: Q112~Q116 ──────────────
-  { key: 'Q112', text: '[예방접종/사상충 예방] 어떤 관리를 위해 내원하셨나요?', type: 'single_choice', choices: ['예방접종', '심장사상충 및 내외부기생충', '둘 다'], condition: { onKey: 'Q9', value: '예방접종/상상충예방' } },
+  { key: 'Q112', text: '[예방접종/사상충 예방] 어떤 관리를 위해 내원하셨나요?', type: 'single_choice', choices: ['예방접종', '심장사상충 및 내외부기생충', '둘 다'], condition: { onKey: 'Q9', value: '예방접종/사상충예방' } },
   { key: 'Q113', text: '[예방접종/사상충 예방] 마지막으로 받은 접종은 언제인가요?', type: 'single_choice', choices: ['1년 이내', '3년 이내', '어릴 때/입양 이후 접종 하지 않음', '잘 모르겠음'], condition: { onKey: 'Q112', anyOf: ['예방접종', '둘 다'] } },
   { key: 'Q114', text: '[예방접종/사상충 예방] 예방접종 후 이상반응이 있었나요?', type: 'multi_choice', choices: ['없다', '구토/설사', '피부 반응', '컨디션 저하', '잘 모르겠음'], condition: { onKey: 'Q113', anyOf: ['1년 이내', '3년 이내'] } },
   { key: 'Q115', text: '[예방접종/사상충 예방] 현재 사용 중인 기생충 예방약은 어떤 종류인가요?', type: 'single_choice', choices: ['먹는약 (넥스가드스펙트라, 하트가드 등)', '바르는약 (애드보킷, 레볼루션)', '몇 가지를 혼합해서 사용', '이름은 모르지만 사용 중', '사용하지 않음'], condition: { onKey: 'Q112', anyOf: ['심장사상충 및 내외부기생충', '둘 다'] } },
   { key: 'Q116', text: '[예방접종/사상충 예방] 마지막으로 언제 투약했나요?', type: 'single_choice', choices: ['1개월 전', '3개월 전', '6개월 전', '잘 모르겠음'], condition: { onKey: 'Q115', anyOf: ['먹는약 (넥스가드스펙트라, 하트가드 등)', '바르는약 (애드보킷, 레볼루션)', '몇 가지를 혼합해서 사용', '이름은 모르지만 사용 중'] } },
 
   // ── Q9=20 행동문제: Q117~Q120 ──────────────────────────
-  { key: 'Q117', text: '[행동문제] 현재 가장 고민되는 행동은 무엇인가요?', type: 'single_choice', choices: ['분리불안', '공격성', '짖음', '배변문제(실수,마킹)', '반복행동', '파괴 행동', '기타'], condition: { onKey: 'Q9', value: '행동문제(공격석, 분리불안 등)' } },
+  { key: 'Q117', text: '[행동문제] 현재 가장 고민되는 행동은 무엇인가요?', type: 'single_choice', choices: ['분리불안', '공격성', '짖음', '배변문제(실수,마킹)', '반복행동', '파괴 행동', '기타'], condition: { onKey: 'Q9', value: '행동문제(공격성, 분리불안 등)' } },
   { key: 'Q118', text: '[행동문제] 행동은 주로 언제 나타나나요?', type: 'single_choice', choices: ['혼자 있을 때', '특정상황(낯선사람/소리/외출)', '항상/상황과 관계 없음', '특정 대상에게만(엄마,아빠 등)', '잘 모르겠음'], condition: { onKey: 'Q117', answered: true } },
   { key: 'Q119', text: '[행동문제] 아래 중 해당되는 것이 있나요?', type: 'multi_choice', choices: ['사람이나 동물을 물거나 다치게 한 적이 있음', '물건 파손', '잠을 못 잘 정도로 지속됨', '일상생활이 불가할 정도로 큰 불편이 있음', '해당 없음'], condition: { onKey: 'Q118', answered: true } },
   { key: 'Q120', text: '[행동문제] 이 문제를 해결하기 위하여 시도해본 방법이 있나요?', type: 'multi_choice', choices: ['개인적으로 훈련 시도', '전문 훈련 진행', '환경변화 (케이지,생활공간 분리)', '유치원', '약물 사용', '특별히 해본 것 없음'], condition: { onKey: 'Q119', answered: true } },
