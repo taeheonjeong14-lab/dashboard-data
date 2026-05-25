@@ -151,7 +151,7 @@ export default function DashboardSummaryPage() {
       <section>
         <h2 style={sectionHeading}>최근 7일 KPI 현황</h2>
         {!hasKpiData ? (
-          <EmptyCard icon="📊" title="경영 데이터가 없습니다" description="경영통계 제출 메뉴에서 엑셀 파일을 업로드해 주세요." />
+          <EmptyCard icon="📊" title="경영 데이터가 없습니다" description="우측 상단 ‘경영통계 제출’ 버튼으로 엑셀 파일을 업로드해 주세요." />
         ) : (
           <>
             {/* Summary KPI numbers */}

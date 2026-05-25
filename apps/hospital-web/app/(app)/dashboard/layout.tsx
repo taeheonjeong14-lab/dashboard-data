@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
+import { StatsUploadButton } from "@/components/dashboard/StatsUploadButton";
 
 const TABS = [
   { href: "/dashboard", label: "요약" },
@@ -24,7 +25,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
 
   return (
     <div>
-      <div style={{ marginBottom: '20px' }}>
+      <div style={{ marginBottom: '20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap' }}>
         <nav
           style={{
             display: 'inline-flex',
@@ -61,6 +62,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
             );
           })}
         </nav>
+        <StatsUploadButton />
       </div>
       <div>{children}</div>
     </div>

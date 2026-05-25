@@ -2,38 +2,28 @@
 
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
-import { BarChart2, FileHeart, Stethoscope, FileSpreadsheet, ClipboardList } from 'lucide-react';
+import { BarChart2, FileHeart, Stethoscope, ClipboardList, ClipboardCheck } from 'lucide-react';
 
-const navItems = [
+const navGroups = [
   {
-    href: '/dashboard',
-    label: '경영 대시보드',
-    icon: BarChart2,
-    matchPrefix: '/dashboard',
+    title: '고객응대',
+    items: [
+      { href: '/reception', label: '초진 접수', icon: ClipboardList, matchPrefix: '/reception' },
+    ],
   },
   {
-    href: '/reception',
-    label: '초진 접수',
-    icon: ClipboardList,
-    matchPrefix: '/reception',
+    title: '마케팅',
+    items: [
+      { href: '/dashboard', label: '경영 대시보드', icon: BarChart2, matchPrefix: '/dashboard' },
+      { href: '/health-report', label: '건강검진 리포트', icon: FileHeart, matchPrefix: '/health-report' },
+    ],
   },
   {
-    href: '/health-report',
-    label: '건강검진 리포트',
-    icon: FileHeart,
-    matchPrefix: '/health-report',
-  },
-  {
-    href: '/stats-upload',
-    label: '경영통계 제출',
-    icon: FileSpreadsheet,
-    matchPrefix: '/stats-upload',
-  },
-  {
-    href: '/ai-assist',
-    label: 'AI 진료 보조',
-    icon: Stethoscope,
-    matchPrefix: '/ai-assist',
+    title: 'Robovet AI',
+    items: [
+      { href: '/pre-consultation', label: '사전문진', icon: ClipboardCheck, matchPrefix: '/pre-consultation' },
+      { href: '/ai-assist', label: 'AI 진료 보조', icon: Stethoscope, matchPrefix: '/ai-assist' },
+    ],
   },
 ];
 
@@ -43,31 +33,36 @@ export function Sidebar() {
   return (
     <aside style={styles.sidebar}>
       <nav style={styles.nav}>
-        {navItems.map((item) => {
-          const isActive = pathname.startsWith(item.matchPrefix);
-          const Icon = item.icon;
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              style={{
-                ...styles.navItem,
-                ...(isActive ? styles.navItemActive : {}),
-              }}
-            >
-              <Icon
-                size={15}
-                style={{
-                  ...styles.navIcon,
-                  color: isActive ? 'var(--accent)' : 'var(--text-muted)',
-                }}
-              />
-              <span style={{ color: isActive ? 'var(--accent)' : 'var(--text-secondary)' }}>
-                {item.label}
-              </span>
-            </Link>
-          );
-        })}
+        {navGroups.map((group) => (
+          <div key={group.title} style={styles.group}>
+            <div style={styles.groupTitle}>{group.title}</div>
+            {group.items.map((item) => {
+              const isActive = pathname.startsWith(item.matchPrefix);
+              const Icon = item.icon;
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  style={{
+                    ...styles.navItem,
+                    ...(isActive ? styles.navItemActive : {}),
+                  }}
+                >
+                  <Icon
+                    size={15}
+                    style={{
+                      ...styles.navIcon,
+                      color: isActive ? 'var(--accent)' : 'var(--text-muted)',
+                    }}
+                  />
+                  <span style={{ color: isActive ? 'var(--accent)' : 'var(--text-secondary)' }}>
+                    {item.label}
+                  </span>
+                </Link>
+              );
+            })}
+          </div>
+        ))}
       </nav>
     </aside>
   );
@@ -90,8 +85,21 @@ const styles: Record<string, React.CSSProperties> = {
   nav: {
     display: 'flex',
     flexDirection: 'column',
-    padding: '14px 10px 4px',
+    padding: '14px 10px 8px',
+    gap: '16px',
+  },
+  group: {
+    display: 'flex',
+    flexDirection: 'column',
     gap: '2px',
+  },
+  groupTitle: {
+    fontSize: '11px',
+    fontWeight: 700,
+    color: 'var(--text-muted)',
+    letterSpacing: '0.02em',
+    padding: '0 12px',
+    marginBottom: '4px',
   },
   navItem: {
     display: 'flex',

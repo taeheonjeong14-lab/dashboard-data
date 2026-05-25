@@ -2,78 +2,62 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
+import type { CSSProperties } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import { ddxPost, DdxApiForbiddenError } from '@/lib/ddx-api';
+import { ddxGet, ddxPost, DdxApiForbiddenError } from '@/lib/ddx-api';
 
-type GeneratedQuestion = {
-  id: string;
-  order: number;
-  text: string;
-  type: string;
-  options?: Record<string, unknown> | null;
-};
-
-type SurveySession = {
+type SessionListItem = {
   id: string;
   patientName: string | null;
   guardianName: string | null;
-  questions: GeneratedQuestion[];
+  contact?: string | null;
+  visitType?: string | null;
+  status: string;
+  createdAt: string;
+  analysisStatus?: string;
+  isUsed?: boolean;
 };
 
-type PatientForm = {
-  patientName: string;
-  guardianName: string;
-  contact: string;
-  visitType: string;
-  species: string;
-  breed: string;
-  symptoms: string;
+type Question = { id: string; order: number; text: string; type: string };
+type Answer = { questionInstanceId: string; answerText: string | null; answerJson: unknown };
+type SessionDetail = {
+  id: string;
+  patientName: string | null;
+  guardianName: string | null;
+  contact: string | null;
+  visitType: string | null;
+  draftSummary?: string | null;
+  questions: Question[];
+  answers: Answer[];
 };
 
-type Step = 'form' | 'survey' | 'submitting';
-
-const SPECIES_OPTIONS = ['개', '고양이', '토끼', '햄스터', '새', '파충류', '기타'];
-const VISIT_TYPE_OPTIONS = ['초진', '재진'];
-
-function getChoices(q: GeneratedQuestion): string[] {
-  const opts = q.options;
-  if (!opts) return [];
-  if (Array.isArray(opts)) return opts as string[];
-  const c = (opts as Record<string, unknown>).choices;
-  if (Array.isArray(c)) return c as string[];
-  return [];
+function answerDisplay(a: Answer | undefined): string {
+  if (!a) return '';
+  if (Array.isArray(a.answerJson)) return (a.answerJson as string[]).join(', ');
+  if (typeof a.answerJson === 'string' && a.answerJson.trim()) return a.answerJson;
+  return a.answerText ?? '';
 }
 
-function getScaleMeta(q: GeneratedQuestion): { min: number; max: number; minLabel: string; maxLabel: string } | null {
-  if (q.type !== 'scale') return null;
-  const opts = q.options as Record<string, unknown> | null | undefined;
-  if (!opts) return null;
-  return {
-    min: typeof opts.min === 'number' ? opts.min : 0,
-    max: typeof opts.max === 'number' ? opts.max : 10,
-    minLabel: typeof opts.minLabel === 'string' ? opts.minLabel : '',
-    maxLabel: typeof opts.maxLabel === 'string' ? opts.maxLabel : '',
-  };
+function fmtDate(iso: string): string {
+  try { return new Date(iso).toLocaleDateString('ko-KR', { month: '2-digit', day: '2-digit' }); } catch { return iso; }
 }
 
-export default function NewConsultationPage() {
+export default function StartConsultationPage() {
   const router = useRouter();
   const [userId, setUserId] = useState<string | null>(null);
-  const [step, setStep] = useState<Step>('form');
-  const [form, setForm] = useState<PatientForm>({
-    patientName: '',
-    guardianName: '',
-    contact: '',
-    visitType: '초진',
-    species: '개',
-    breed: '',
-    symptoms: '',
-  });
-  const [surveySession, setSurveySession] = useState<SurveySession | null>(null);
-  const [answers, setAnswers] = useState<Record<string, string | string[]>>({});
-  const [currentQ, setCurrentQ] = useState(0);
+
+  const [surveys, setSurveys] = useState<SessionListItem[]>([]);
+  const [surveysLoading, setSurveysLoading] = useState(true);
+  const [selectedSurveyId, setSelectedSurveyId] = useState<string | null>(null);
+
+  const [patientName, setPatientName] = useState('');
+  const [guardianName, setGuardianName] = useState('');
+  const [visitType, setVisitType] = useState('초진');
+  const [notes, setNotes] = useState('');
+
+  const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
-  const [creatingSession, setCreatingSession] = useState(false);
 
   useEffect(() => {
     const supabase = createClient();
@@ -82,570 +66,203 @@ export default function NewConsultationPage() {
     });
   }, []);
 
-  const handleFormChange = (field: keyof PatientForm, value: string) => {
-    setForm((prev) => ({ ...prev, [field]: value }));
-  };
-
-  const handleStartSurvey = async () => {
+  // 완료된 미사용 사전문진 목록
+  useEffect(() => {
     if (!userId) return;
-    if (!form.patientName.trim()) { setError('환자 이름을 입력해 주세요.'); return; }
-    if (!form.guardianName.trim()) { setError('보호자 이름을 입력해 주세요.'); return; }
-    if (!form.contact.trim()) { setError('연락처를 입력해 주세요.'); return; }
+    setSurveysLoading(true);
+    ddxGet<{ success: boolean; sessions: SessionListItem[] }>('/api/surveys/sessions?take=200', userId)
+      .then((data) => {
+        if (data.success && Array.isArray(data.sessions)) {
+          setSurveys(data.sessions.filter((s) => s.status === 'completed' && !s.isUsed));
+        }
+      })
+      .catch(() => { /* 무시 — 직접 입력 가능 */ })
+      .finally(() => setSurveysLoading(false));
+  }, [userId]);
 
-    setError('');
-    setCreatingSession(true);
-
-    try {
-      const body: Record<string, string> = {
-        userId,
-        patientName: `${form.patientName} (${form.species}${form.breed ? '/' + form.breed : ''})`,
-        guardianName: form.guardianName,
-        contact: form.contact,
-        visitType: form.visitType,
-      };
-      if (form.symptoms.trim()) {
-        body.previousChart = `주요 증상: ${form.symptoms}`;
-      }
-
-      const res = await ddxPost<{ success: boolean; session: SurveySession; error?: string }>(
-        '/api/surveys/sessions',
-        userId,
-        body,
-      );
-
-      if (res.success && res.session) {
-        setSurveySession(res.session);
-        setAnswers({});
-        setCurrentQ(0);
-        setStep('survey');
-      } else {
-        setError(res.error || '세션 생성에 실패했습니다.');
-      }
-    } catch (err) {
-      if (err instanceof DdxApiForbiddenError) {
-        setError('ddx-api 계정 동기화가 필요합니다. 관리자에게 문의하세요.');
-      } else {
-        setError(err instanceof Error ? err.message : '세션 생성 중 오류가 발생했습니다.');
-      }
-    } finally {
-      setCreatingSession(false);
+  const selectSurvey = (s: SessionListItem | null) => {
+    if (!s) {
+      setSelectedSurveyId(null);
+      return;
     }
+    setSelectedSurveyId(s.id);
+    if (s.patientName) setPatientName(s.patientName);
+    if (s.guardianName) setGuardianName(s.guardianName);
+    if (s.visitType) setVisitType(s.visitType);
   };
 
-  const handleSubmitSurvey = async () => {
-    if (!userId || !surveySession) return;
-    setStep('submitting');
+  const handleStart = async () => {
+    if (!userId) return;
+    if (!patientName.trim()) { setError('환자 이름을 입력해 주세요.'); return; }
     setError('');
+    setSubmitting(true);
 
     try {
-      // Prepare answers text summary
-      const answersText = surveySession.questions
-        .map((q) => {
-          const a = answers[q.id];
-          if (!a) return null;
-          const answerStr = Array.isArray(a) ? a.join(', ') : a;
-          if (!answerStr.trim()) return null;
-          return `Q: ${q.text}\nA: ${answerStr}`;
-        })
-        .filter(Boolean)
-        .join('\n\n');
+      // 사전문진을 선택했으면 답변을 transcript 로 합성
+      let surveyText = '';
+      if (selectedSurveyId) {
+        try {
+          const d = await ddxGet<{ success: boolean; session: SessionDetail }>(
+            `/api/surveys/sessions/${encodeURIComponent(selectedSurveyId)}`, userId,
+          );
+          if (d.success && d.session) {
+            const lines = [...d.session.questions]
+              .sort((a, b) => a.order - b.order)
+              .map((q) => {
+                const disp = answerDisplay(d.session.answers?.find((a) => a.questionInstanceId === q.id));
+                return disp ? `Q: ${q.text}\nA: ${disp}` : null;
+              })
+              .filter(Boolean)
+              .join('\n\n');
+            if (lines) surveyText = `사전문진 답변:\n${lines}`;
+          }
+        } catch { /* 상세 조회 실패해도 진료 생성은 진행 */ }
+      }
 
       const transcript = [
-        `환자: ${form.patientName} (${form.species}${form.breed ? '/' + form.breed : ''})`,
-        `보호자: ${form.guardianName}`,
-        `방문 유형: ${form.visitType}`,
-        form.symptoms ? `주요 증상: ${form.symptoms}` : '',
-        answersText ? `\n문진 답변:\n${answersText}` : '',
-      ]
-        .filter(Boolean)
-        .join('\n');
+        `환자: ${patientName.trim()}`,
+        guardianName.trim() ? `보호자: ${guardianName.trim()}` : '',
+        `방문 유형: ${visitType}`,
+        notes.trim() ? `\n진료 메모:\n${notes.trim()}` : '',
+        surveyText ? `\n${surveyText}` : '',
+      ].filter(Boolean).join('\n');
 
-      const res = await ddxPost<{ success: boolean; sessionId?: string; error?: string }>(
-        '/api/consultations',
-        userId,
-        {
+      const res = await ddxPost<{ success?: boolean; id?: string; sessionId?: string; error?: string }>(
+        '/api/consultations', userId, {
           userId,
-          patientName: form.patientName,
-          guardianName: form.guardianName,
-          visitType: form.visitType,
-          surveySessionId: surveySession.id,
+          patientName: patientName.trim(),
+          guardianName: guardianName.trim() || undefined,
+          visitType,
+          surveySessionId: selectedSurveyId || undefined,
           transcript,
-          status: 'awaiting_recording',
+          status: 'recording',
         },
       );
 
-      if (res.success && res.sessionId) {
-        router.push(`/ai-assist/${res.sessionId}`);
+      if (res.sessionId) {
+        router.push(`/ai-assist/${encodeURIComponent(res.sessionId)}`);
       } else {
-        setError(res.error || '상담 저장에 실패했습니다.');
-        setStep('survey');
+        setError(res.error || '진료 생성에 실패했습니다.');
+        setSubmitting(false);
       }
     } catch (err) {
-      if (err instanceof DdxApiForbiddenError) {
-        setError('ddx-api 계정 동기화가 필요합니다. 관리자에게 문의하세요.');
-      } else {
-        setError(err instanceof Error ? err.message : '상담 저장 중 오류가 발생했습니다.');
-      }
-      setStep('survey');
+      if (err instanceof DdxApiForbiddenError) setError('ddx-api 계정 동기화가 필요합니다. 관리자에게 문의하세요.');
+      else setError(err instanceof Error ? err.message : '진료 생성 중 오류가 발생했습니다.');
+      setSubmitting(false);
     }
   };
-
-  const questions = surveySession?.questions ?? [];
-  const totalQ = questions.length;
-  const progress = totalQ > 0 ? Math.round((currentQ / totalQ) * 100) : 0;
-  const question = questions[currentQ] ?? null;
-
-  const currentAnswer = question ? (answers[question.id] ?? '') : '';
-
-  const canGoNext = (() => {
-    if (!question) return false;
-    const a = answers[question.id];
-    if (!a) return false;
-    if (Array.isArray(a)) return a.length > 0;
-    return typeof a === 'string' && a.trim().length > 0;
-  })();
-
-  const handleNext = () => {
-    if (!canGoNext) return;
-    if (currentQ < totalQ - 1) {
-      setCurrentQ((i) => i + 1);
-    } else {
-      handleSubmitSurvey();
-    }
-  };
-
-  const handlePrev = () => {
-    if (currentQ > 0) setCurrentQ((i) => i - 1);
-  };
-
-  const toggleMulti = (questionId: string, option: string) => {
-    setAnswers((prev) => {
-      const existing = Array.isArray(prev[questionId]) ? (prev[questionId] as string[]) : [];
-      const has = existing.includes(option);
-      return { ...prev, [questionId]: has ? existing.filter((v) => v !== option) : [...existing, option] };
-    });
-  };
-
-  const inputStyle: React.CSSProperties = {
-    width: '100%',
-    padding: '10px 14px',
-    border: '1px solid var(--border)',
-    borderRadius: 'var(--radius)',
-    background: 'var(--bg)',
-    color: 'var(--text)',
-    fontSize: '14px',
-    boxSizing: 'border-box',
-    outline: 'none',
-    fontFamily: 'inherit',
-  };
-
-  const labelStyle: React.CSSProperties = {
-    display: 'block',
-    fontSize: '13px',
-    fontWeight: 500,
-    color: 'var(--text-secondary)',
-    marginBottom: '6px',
-  };
-
-  // === FORM STEP ===
-  if (step === 'form') {
-    return (
-      <div style={{ padding: '24px', maxWidth: '560px' }}>
-        <div style={{ marginBottom: '24px' }}>
-          <h1 style={{ margin: '0 0 4px', fontSize: '20px', fontWeight: 700, color: 'var(--text)' }}>
-            새 상담 시작
-          </h1>
-          <p style={{ margin: 0, fontSize: '13px', color: 'var(--text-secondary)' }}>
-            환자 정보를 입력하고 AI 문진을 시작하세요.
-          </p>
-        </div>
-
-        {error && (
-          <div style={{
-            padding: '10px 14px',
-            background: 'var(--danger-subtle)',
-            border: '1px solid var(--danger)',
-            borderRadius: 'var(--radius)',
-            color: 'var(--danger)',
-            fontSize: '13px',
-            marginBottom: '20px',
-          }}>
-            {error}
-          </div>
-        )}
-
-        <div style={{
-          background: 'var(--bg)',
-          border: '1px solid var(--border)',
-          borderRadius: 'var(--radius-lg)',
-          padding: '24px',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '16px',
-        }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-            <div>
-              <label style={labelStyle}>환자명 (반려동물) *</label>
-              <input
-                style={inputStyle}
-                value={form.patientName}
-                onChange={(e) => handleFormChange('patientName', e.target.value)}
-                placeholder="예: 뽀미"
-              />
-            </div>
-            <div>
-              <label style={labelStyle}>보호자명 *</label>
-              <input
-                style={inputStyle}
-                value={form.guardianName}
-                onChange={(e) => handleFormChange('guardianName', e.target.value)}
-                placeholder="예: 홍길동"
-              />
-            </div>
-          </div>
-
-          <div>
-            <label style={labelStyle}>연락처 *</label>
-            <input
-              style={inputStyle}
-              value={form.contact}
-              onChange={(e) => handleFormChange('contact', e.target.value)}
-              placeholder="010-0000-0000"
-              type="tel"
-            />
-          </div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-            <div>
-              <label style={labelStyle}>종 (Species)</label>
-              <select
-                style={inputStyle}
-                value={form.species}
-                onChange={(e) => handleFormChange('species', e.target.value)}
-              >
-                {SPECIES_OPTIONS.map((s) => (
-                  <option key={s} value={s}>{s}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label style={labelStyle}>품종 (Breed)</label>
-              <input
-                style={inputStyle}
-                value={form.breed}
-                onChange={(e) => handleFormChange('breed', e.target.value)}
-                placeholder="예: 말티즈"
-              />
-            </div>
-          </div>
-
-          <div>
-            <label style={labelStyle}>방문 유형</label>
-            <div style={{ display: 'flex', gap: '8px' }}>
-              {VISIT_TYPE_OPTIONS.map((vt) => (
-                <button
-                  key={vt}
-                  type="button"
-                  onClick={() => handleFormChange('visitType', vt)}
-                  style={{
-                    flex: 1,
-                    padding: '9px 0',
-                    border: `1px solid ${form.visitType === vt ? 'var(--accent)' : 'var(--border)'}`,
-                    borderRadius: 'var(--radius)',
-                    background: form.visitType === vt ? 'var(--accent-subtle)' : 'var(--bg)',
-                    color: form.visitType === vt ? 'var(--accent)' : 'var(--text)',
-                    fontSize: '13px',
-                    fontWeight: form.visitType === vt ? 600 : 400,
-                    cursor: 'pointer',
-                  }}
-                >
-                  {vt}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div>
-            <label style={labelStyle}>주요 증상 (선택)</label>
-            <textarea
-              style={{ ...inputStyle, resize: 'none' }}
-              rows={3}
-              value={form.symptoms}
-              onChange={(e) => handleFormChange('symptoms', e.target.value)}
-              placeholder="예: 3일 전부터 구토, 기운 없음"
-            />
-          </div>
-
-          <button
-            type="button"
-            onClick={handleStartSurvey}
-            disabled={creatingSession || !userId}
-            style={{
-              padding: '12px',
-              border: 'none',
-              borderRadius: 'var(--radius)',
-              background: creatingSession ? 'var(--bg-raised)' : 'var(--accent)',
-              color: creatingSession ? 'var(--text-muted)' : '#fff',
-              fontSize: '14px',
-              fontWeight: 600,
-              cursor: creatingSession ? 'not-allowed' : 'pointer',
-              width: '100%',
-            }}
-          >
-            {creatingSession ? 'AI 문진 준비 중...' : 'AI 문진 시작'}
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  // === SUBMITTING STEP ===
-  if (step === 'submitting') {
-    return (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '300px', flexDirection: 'column', gap: '16px' }}>
-        <div style={{
-          width: '24px', height: '24px', border: '2px solid var(--border)',
-          borderTopColor: 'var(--accent)', borderRadius: '50%',
-          animation: 'spin 0.8s linear infinite',
-        }} />
-        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-        <p style={{ color: 'var(--text-secondary)', fontSize: '14px', margin: 0 }}>상담을 저장하는 중...</p>
-      </div>
-    );
-  }
-
-  // === SURVEY STEP ===
-  if (!question) return null;
-
-  const choices = getChoices(question);
-  const scaleMeta = getScaleMeta(question);
 
   return (
-    <div style={{ padding: '24px', maxWidth: '560px' }}>
-      {/* Header */}
-      <div style={{ marginBottom: '20px' }}>
-        <h1 style={{ margin: '0 0 4px', fontSize: '18px', fontWeight: 700, color: 'var(--text)' }}>
-          AI 문진
-        </h1>
-        <p style={{ margin: 0, fontSize: '13px', color: 'var(--text-secondary)' }}>
-          {form.patientName} / {form.guardianName}
-        </p>
-      </div>
-
-      {/* Progress */}
-      <div style={{ marginBottom: '24px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: 'var(--text-muted)', marginBottom: '6px' }}>
-          <span>{currentQ + 1} / {totalQ}</span>
-          <span>{progress}%</span>
+    <div style={{ maxWidth: 560 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20, gap: 12 }}>
+        <div>
+          <h1 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: 'var(--text)' }}>진료 시작</h1>
+          <p style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--text-secondary)' }}>
+            사전문진에서 시작하거나, 환자 정보를 직접 입력하세요.
+          </p>
         </div>
-        <div style={{ height: '4px', background: 'var(--bg-raised)', borderRadius: '2px', overflow: 'hidden' }}>
-          <div style={{ height: '100%', width: `${progress}%`, background: 'var(--accent)', transition: 'width 0.3s', borderRadius: '2px' }} />
-        </div>
+        <Link href="/ai-assist" style={{ ...btnSecondary, textDecoration: 'none' }}>목록으로</Link>
       </div>
 
       {error && (
-        <div style={{
-          padding: '10px 14px',
-          background: 'var(--danger-subtle)',
-          border: '1px solid var(--danger)',
-          borderRadius: 'var(--radius)',
-          color: 'var(--danger)',
-          fontSize: '13px',
-          marginBottom: '20px',
-        }}>
+        <div style={{ padding: '10px 14px', background: 'var(--danger-subtle)', border: '1px solid var(--danger)', borderRadius: 'var(--radius)', color: 'var(--danger)', fontSize: 13, marginBottom: 16 }}>
           {error}
         </div>
       )}
 
-      {/* Question card */}
-      <div style={{
-        background: 'var(--bg)',
-        border: '1px solid var(--border)',
-        borderRadius: 'var(--radius-lg)',
-        padding: '24px',
-        marginBottom: '16px',
-      }}>
-        <h2 style={{ margin: '0 0 20px', fontSize: '16px', fontWeight: 600, color: 'var(--text)', lineHeight: 1.5 }}>
-          {question.text}
-        </h2>
-
-        {/* Render input based on type */}
-        {question.type === 'short_text' && (
-          <input
-            style={inputStyle}
-            value={typeof currentAnswer === 'string' ? currentAnswer : ''}
-            onChange={(e) => setAnswers((prev) => ({ ...prev, [question.id]: e.target.value }))}
-            placeholder="답변을 입력해 주세요"
-          />
-        )}
-
-        {question.type === 'long_text' && (
-          <textarea
-            style={{ ...inputStyle, resize: 'none' }}
-            rows={4}
-            value={typeof currentAnswer === 'string' ? currentAnswer : ''}
-            onChange={(e) => setAnswers((prev) => ({ ...prev, [question.id]: e.target.value }))}
-            placeholder="자유롭게 적어 주세요"
-          />
-        )}
-
-        {question.type === 'single_choice' && choices.length > 0 && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            {choices.map((opt) => {
-              const isSelected = currentAnswer === opt;
-              return (
-                <button
-                  key={opt}
-                  type="button"
-                  onClick={() => setAnswers((prev) => ({ ...prev, [question.id]: opt }))}
-                  style={{
-                    padding: '10px 14px',
-                    border: `1px solid ${isSelected ? 'var(--accent)' : 'var(--border)'}`,
-                    borderRadius: 'var(--radius)',
-                    background: isSelected ? 'var(--accent-subtle)' : 'var(--bg)',
-                    color: isSelected ? 'var(--accent)' : 'var(--text)',
-                    fontSize: '14px',
-                    fontWeight: isSelected ? 600 : 400,
-                    cursor: 'pointer',
-                    textAlign: 'left',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '10px',
-                  }}
-                >
-                  <span style={{
-                    width: '18px', height: '18px', borderRadius: '50%', flexShrink: 0,
-                    border: `2px solid ${isSelected ? 'var(--accent)' : 'var(--border)'}`,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  }}>
-                    {isSelected && <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: 'var(--accent)' }} />}
-                  </span>
-                  {opt}
-                </button>
-              );
-            })}
-          </div>
-        )}
-
-        {question.type === 'multi_choice' && choices.length > 0 && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            <p style={{ margin: '0 0 8px', fontSize: '12px', color: 'var(--text-muted)' }}>복수 선택 가능</p>
-            {choices.map((opt) => {
-              const selected = Array.isArray(currentAnswer) ? currentAnswer : [];
-              const isSelected = selected.includes(opt);
-              return (
-                <button
-                  key={opt}
-                  type="button"
-                  onClick={() => toggleMulti(question.id, opt)}
-                  style={{
-                    padding: '10px 14px',
-                    border: `1px solid ${isSelected ? 'var(--accent)' : 'var(--border)'}`,
-                    borderRadius: 'var(--radius)',
-                    background: isSelected ? 'var(--accent-subtle)' : 'var(--bg)',
-                    color: isSelected ? 'var(--accent)' : 'var(--text)',
-                    fontSize: '14px',
-                    fontWeight: isSelected ? 600 : 400,
-                    cursor: 'pointer',
-                    textAlign: 'left',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '10px',
-                  }}
-                >
-                  <span style={{
-                    width: '18px', height: '18px', borderRadius: '3px', flexShrink: 0,
-                    border: `2px solid ${isSelected ? 'var(--accent)' : 'var(--border)'}`,
-                    background: isSelected ? 'var(--accent)' : 'transparent',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  }}>
-                    {isSelected && (
-                      <svg width="10" height="8" viewBox="0 0 10 8" fill="none">
-                        <path d="M1 4l3 3L9 1" stroke="#fff" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                      </svg>
-                    )}
-                  </span>
-                  {opt}
-                </button>
-              );
-            })}
-          </div>
-        )}
-
-        {question.type === 'scale' && scaleMeta && (
-          <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: 'var(--text-muted)', marginBottom: '12px' }}>
-              <span>{scaleMeta.minLabel} ({scaleMeta.min})</span>
-              <span>{scaleMeta.maxLabel} ({scaleMeta.max})</span>
-            </div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', justifyContent: 'center' }}>
-              {Array.from({ length: scaleMeta.max - scaleMeta.min + 1 }, (_, i) => scaleMeta.min + i).map((n) => {
-                const isSelected = currentAnswer === String(n);
-                return (
-                  <button
-                    key={n}
-                    type="button"
-                    onClick={() => setAnswers((prev) => ({ ...prev, [question.id]: String(n) }))}
-                    style={{
-                      width: '42px', height: '42px',
-                      border: `1px solid ${isSelected ? 'var(--accent)' : 'var(--border)'}`,
-                      borderRadius: 'var(--radius)',
-                      background: isSelected ? 'var(--accent-subtle)' : 'var(--bg)',
-                      color: isSelected ? 'var(--accent)' : 'var(--text)',
-                      fontSize: '14px',
-                      fontWeight: isSelected ? 600 : 400,
-                      cursor: 'pointer',
-                    }}
-                  >
-                    {n}
-                  </button>
-                );
-              })}
-            </div>
+      {/* 사전문진 선택 */}
+      <div style={cardStyle}>
+        <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 4 }}>사전문진에서 시작 <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>(선택)</span></div>
+        <p style={{ margin: '0 0 12px', fontSize: 12, color: 'var(--text-muted)' }}>완료된 사전문진을 선택하면 답변이 진료에 반영됩니다.</p>
+        {surveysLoading ? (
+          <p style={{ margin: 0, fontSize: 13, color: 'var(--text-muted)' }}>불러오는 중...</p>
+        ) : surveys.length === 0 ? (
+          <p style={{ margin: 0, fontSize: 13, color: 'var(--text-muted)' }}>사용 가능한 완료 사전문진이 없습니다. 아래에 직접 입력해 주세요.</p>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 220, overflowY: 'auto' }}>
+            <button type="button" onClick={() => selectSurvey(null)}
+              style={pickRow(selectedSurveyId === null)}>
+              <span style={{ fontWeight: 600 }}>사전문진 없이 시작</span>
+            </button>
+            {surveys.map((s) => (
+              <button key={s.id} type="button" onClick={() => selectSurvey(s)} style={pickRow(selectedSurveyId === s.id)}>
+                <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 2 }}>
+                  <span style={{ fontWeight: 600 }}>{s.patientName || '(이름 없음)'}{s.guardianName ? ` / ${s.guardianName}` : ''}</span>
+                  <span style={{ fontSize: 11.5, color: 'var(--text-muted)' }}>{s.visitType || '—'} · {fmtDate(s.createdAt)} 제출</span>
+                </span>
+              </button>
+            ))}
           </div>
         )}
       </div>
 
-      {/* Navigation */}
-      <div style={{ display: 'flex', gap: '12px' }}>
-        <button
-          type="button"
-          onClick={handlePrev}
-          disabled={currentQ === 0}
-          style={{
-            flex: 1,
-            padding: '11px',
-            border: '1px solid var(--border)',
-            borderRadius: 'var(--radius)',
-            background: 'var(--bg)',
-            color: 'var(--text)',
-            fontSize: '14px',
-            fontWeight: 500,
-            cursor: currentQ === 0 ? 'not-allowed' : 'pointer',
-            opacity: currentQ === 0 ? 0.4 : 1,
-          }}
-        >
-          이전
-        </button>
-        <button
-          type="button"
-          onClick={handleNext}
-          disabled={!canGoNext}
-          style={{
-            flex: 2,
-            padding: '11px',
-            border: 'none',
-            borderRadius: 'var(--radius)',
-            background: canGoNext ? 'var(--accent)' : 'var(--bg-raised)',
-            color: canGoNext ? '#fff' : 'var(--text-muted)',
-            fontSize: '14px',
-            fontWeight: 600,
-            cursor: canGoNext ? 'pointer' : 'not-allowed',
-          }}
-        >
-          {currentQ === totalQ - 1 ? '완료 및 저장' : '다음'}
-        </button>
+      {/* 환자 정보 */}
+      <div style={cardStyle}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+          <Field label="환자 이름" required>
+            <input style={inputStyle} value={patientName} onChange={(e) => setPatientName(e.target.value)} placeholder="예: 뽀미" />
+          </Field>
+          <Field label="보호자 성명">
+            <input style={inputStyle} value={guardianName} onChange={(e) => setGuardianName(e.target.value)} placeholder="예: 홍길동" />
+          </Field>
+        </div>
+        <div style={{ marginTop: 14 }}>
+          <Field label="방문 유형">
+            <div style={{ display: 'flex', gap: 8 }}>
+              {['초진', '재진'].map((vt) => (
+                <button key={vt} type="button" onClick={() => setVisitType(vt)}
+                  style={{ flex: 1, padding: '9px 0', borderRadius: 'var(--radius)', border: `1px solid ${visitType === vt ? 'var(--accent)' : 'var(--border-strong)'}`, background: visitType === vt ? 'var(--accent-subtle)' : 'var(--bg)', color: visitType === vt ? 'var(--accent)' : 'var(--text)', fontSize: 13, fontWeight: visitType === vt ? 600 : 400, cursor: 'pointer' }}>
+                  {vt}
+                </button>
+              ))}
+            </div>
+          </Field>
+        </div>
+        <div style={{ marginTop: 14 }}>
+          <Field label="진료 메모 / 대화 내용 (선택)">
+            <textarea style={{ ...inputStyle, resize: 'vertical', minHeight: 96 }} value={notes} onChange={(e) => setNotes(e.target.value)}
+              placeholder="진료 중 메모나 대화 내용을 붙여넣으면 AI 감별진단·요약에 활용됩니다." rows={4} />
+          </Field>
+        </div>
       </div>
+
+      <button type="button" onClick={handleStart} disabled={submitting || !userId}
+        style={{ width: '100%', padding: '13px', border: 'none', borderRadius: 'var(--radius)', background: submitting ? 'var(--bg-raised)' : 'var(--accent)', color: submitting ? 'var(--text-muted)' : '#fff', fontSize: 14, fontWeight: 600, cursor: submitting ? 'not-allowed' : 'pointer' }}>
+        {submitting ? '진료 생성 중...' : '진료 시작'}
+      </button>
     </div>
   );
+}
+
+function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
+  return (
+    <label style={{ display: 'block' }}>
+      <span style={{ display: 'block', fontSize: 12.5, fontWeight: 500, color: 'var(--text-secondary)', marginBottom: 6 }}>
+        {label}{required && <span style={{ color: 'var(--danger)', marginLeft: 3 }}>*</span>}
+      </span>
+      {children}
+    </label>
+  );
+}
+
+const cardStyle: CSSProperties = {
+  background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: 20, marginBottom: 16,
+};
+const inputStyle: CSSProperties = {
+  width: '100%', padding: '10px 12px', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)',
+  background: 'var(--bg)', color: 'var(--text)', fontSize: 13.5, boxSizing: 'border-box', outline: 'none', fontFamily: 'inherit',
+};
+const btnSecondary: CSSProperties = {
+  padding: '8px 14px', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
+  background: 'var(--bg)', color: 'var(--text)', fontSize: 13, fontWeight: 500, cursor: 'pointer',
+  display: 'inline-flex', alignItems: 'center',
+};
+function pickRow(selected: boolean): CSSProperties {
+  return {
+    display: 'flex', alignItems: 'center', width: '100%', textAlign: 'left',
+    padding: '10px 12px', borderRadius: 'var(--radius)',
+    border: `1px solid ${selected ? 'var(--accent)' : 'var(--border)'}`,
+    background: selected ? 'var(--accent-subtle)' : 'var(--bg)',
+    color: selected ? 'var(--accent)' : 'var(--text)', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit',
+  };
 }

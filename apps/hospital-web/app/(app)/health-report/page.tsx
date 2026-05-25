@@ -308,7 +308,16 @@ export default function HealthReportPage() {
   // Render
   // ---------------------------------------------------------------------------
   return (
-    <div style={{ display: 'flex', gap: '0', alignItems: 'stretch', maxWidth: '1100px' }}>
+    <div>
+      {/* 헤더 */}
+      <div style={{ marginBottom: '20px' }}>
+        <h1 style={{ margin: 0, fontSize: '20px', fontWeight: 700, color: 'var(--text)' }}>건강검진 리포트</h1>
+        <p style={{ margin: '4px 0 0', fontSize: '13px', color: 'var(--text-secondary)' }}>
+          차트 PDF를 업로드해 보호자용 건강검진 리포트 생성을 요청하고, 진행 상태를 확인합니다.
+        </p>
+      </div>
+
+      <div style={{ display: 'flex', gap: '0', alignItems: 'stretch', maxWidth: '1100px' }}>
 
       {/* ================================================================== */}
       {/* LEFT — Request list                                                  */}
@@ -500,6 +509,7 @@ export default function HealthReportPage() {
         </div>
       </div>
 
+      </div>
     </div>
   );
 }

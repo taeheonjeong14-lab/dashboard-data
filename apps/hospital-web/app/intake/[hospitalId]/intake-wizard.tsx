@@ -196,8 +196,8 @@ export function IntakeWizard({ hospitalId, hospitalName, accent }: { hospitalId:
           <div style={{ width: 56, height: 56, borderRadius: '50%', background: ac.base, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px' }}>
             <svg width="26" height="26" viewBox="0 0 24 24" fill="none" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" style={{ stroke: ac.on }}><path d="M20 6 9 17l-5-5" /></svg>
           </div>
-          <h1 style={{ fontSize: 22, fontWeight: 600, letterSpacing: '-0.02em', margin: '0 0 10px', color: C.text }}>{COMPLETE_TITLE}</h1>
-          <p style={{ fontSize: 15, color: C.textSec, lineHeight: 1.7, margin: 0 }}>{COMPLETE_BODY}</p>
+          <h1 style={{ fontSize: 24, fontWeight: 600, letterSpacing: '-0.02em', margin: '0 0 10px', color: C.text }}>{COMPLETE_TITLE}</h1>
+          <p style={{ fontSize: 16, color: C.textSec, lineHeight: 1.7, margin: 0 }}>{COMPLETE_BODY}</p>
         </div>
       </Screen>
     );
@@ -208,12 +208,12 @@ export function IntakeWizard({ hospitalId, hospitalName, accent }: { hospitalId:
     return (
       <Screen accent={ac}>
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-          <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--ac)', marginBottom: 14, letterSpacing: '-0.01em' }}>초진 접수</div>
-          <h1 style={{ fontSize: 32, fontWeight: 700, letterSpacing: '-0.035em', lineHeight: 1.32, color: C.text, margin: 0 }}>
-            {hospitalName}에<br />오신 것을 환영해요
+          <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--ac)', marginBottom: 14, letterSpacing: '-0.01em' }}>초진 접수</div>
+          <h1 style={{ fontSize: 34, fontWeight: 700, letterSpacing: '-0.035em', lineHeight: 1.32, color: C.text, margin: 0 }}>
+            {hospitalName}에<br />오신 것을 환영합니다
           </h1>
-          <p style={{ fontSize: 17, fontWeight: 500, color: C.textSec, letterSpacing: '-0.01em', lineHeight: 1.6, margin: '20px 0 0' }}>
-            처음 오신 반려동물 보호자님께<br />몇 가지만 여쭤볼게요.
+          <p style={{ fontSize: 18, fontWeight: 500, color: C.textSec, letterSpacing: '-0.01em', lineHeight: 1.6, margin: '20px 0 0' }}>
+            진료 접수를 위해<br />다음 접수증을 작성해주세요.
           </p>
         </div>
         <div style={{ flexShrink: 0 }}>
@@ -234,7 +234,7 @@ export function IntakeWizard({ hospitalId, hospitalName, accent }: { hospitalId:
       <div style={{ height: 3, background: C.border, borderRadius: 999, overflow: 'hidden', flexShrink: 0 }}>
         <div style={{ height: '100%', width: `${Math.round(progress * 100)}%`, background: 'var(--ac)', transition: 'width .25s' }} />
       </div>
-      <div style={{ fontSize: 12, color: C.muted, marginTop: 10, flexShrink: 0, letterSpacing: '0.01em' }}>
+      <div style={{ fontSize: 13, color: C.muted, marginTop: 10, flexShrink: 0, letterSpacing: '0.01em' }}>
         {hospitalName} · {clampedIdx + 1} / {steps.length}
       </div>
 
@@ -249,7 +249,7 @@ export function IntakeWizard({ hospitalId, hospitalName, accent }: { hospitalId:
         </div>
       </div>
 
-      {error && <p style={{ color: C.danger, fontSize: 13, margin: '0 0 8px', flexShrink: 0 }}>{error}</p>}
+      {error && <p style={{ color: C.danger, fontSize: 14, margin: '0 0 8px', flexShrink: 0 }}>{error}</p>}
 
       <div style={{ display: 'flex', gap: 10, flexShrink: 0, paddingTop: 8 }}>
         {clampedIdx > 0 && <button type="button" className="intake-press" onClick={back} style={btnSecondary}>이전</button>}
@@ -278,9 +278,9 @@ function StepBody(props: {
   const { step, hospitalName, answers, addrBase, addrDetail } = props;
 
   const Q = ({ children }: { children: React.ReactNode }) => (
-    <h2 style={{ fontSize: 20, fontWeight: 600, letterSpacing: '-0.01em', color: C.text, margin: '0 0 20px', lineHeight: 1.45 }}>{children}</h2>
+    <h2 style={{ fontSize: 22, fontWeight: 600, letterSpacing: '-0.01em', color: C.text, margin: '0 0 20px', lineHeight: 1.45 }}>{children}</h2>
   );
-  const hint = (t: string) => <span style={{ fontSize: 13, fontWeight: 400, color: C.muted }}> {t}</span>;
+  const hint = (t: string) => <span style={{ fontSize: 14, fontWeight: 400, color: C.muted }}> {t}</span>;
 
   switch (step.kind) {
     case 'intro':
@@ -309,7 +309,7 @@ function StepBody(props: {
       const pet = answers.pets[i];
       if (!pet) return null;
       const petTag = (
-        <div style={{ fontSize: 13, fontWeight: 600, color: C.textSec, marginBottom: 12, letterSpacing: '0.01em' }}>
+        <div style={{ fontSize: 14, fontWeight: 600, color: C.textSec, marginBottom: 12, letterSpacing: '0.01em' }}>
           {answers.pets.length > 1 ? `${i + 1}번째 아이` : '우리 아이'}{pet.name ? ` · ${pet.name}` : ''}
         </div>
       );
@@ -343,7 +343,7 @@ function StepBody(props: {
                 <input autoFocus inputMode="numeric" value={pet.ageText}
                   onChange={(e) => props.patchPet(i, { ageText: e.target.value.replace(/\D/g, '').slice(0, 2) })}
                   placeholder="대략적인 나이" style={{ ...inputStyle, flex: 1 }} />
-                <span style={{ fontSize: 16, color: C.textSec }}>세</span>
+                <span style={{ fontSize: 17, color: C.textSec }}>세</span>
               </div>)}
           </div>);
         case 'sex':
@@ -408,7 +408,7 @@ function StepBody(props: {
             <span>{CONSENT_MARKETING_LABEL}</span>
           </label>
           {PRIVACY_POLICY_URL && (
-            <a href={PRIVACY_POLICY_URL} target="_blank" rel="noopener noreferrer" style={{ fontSize: 13, color: C.text, textDecoration: 'underline' }}>
+            <a href={PRIVACY_POLICY_URL} target="_blank" rel="noopener noreferrer" style={{ fontSize: 14, color: C.text, textDecoration: 'underline' }}>
               개인정보처리방침 전문 보기
             </a>
           )}
@@ -455,7 +455,7 @@ function AddressField({ base, detail, onChange }: { base: string; detail: string
         <div onClick={() => setOpen(false)} style={addrOverlay}>
           <div onClick={(e) => e.stopPropagation()} style={addrPanel}>
             <div style={addrHeader}>
-              <span style={{ fontWeight: 600, fontSize: 15, color: C.text }}>주소 검색</span>
+              <span style={{ fontWeight: 600, fontSize: 16, color: C.text }}>주소 검색</span>
               <button type="button" onClick={() => setOpen(false)} style={{ border: 'none', background: 'transparent', fontSize: 20, lineHeight: 1, cursor: 'pointer', color: C.muted }}>✕</button>
             </div>
             <div ref={boxRef} style={{ flex: 1, minHeight: 0 }} />
@@ -473,7 +473,7 @@ function QrToSelf() {
   return (
     <div style={{ marginTop: 26, display: 'flex', alignItems: 'center', gap: 16, padding: '16px 18px', background: C.subtle, borderRadius: 12 }}>
       <QRCodeSVG value={url} size={104} />
-      <span style={{ fontSize: 13.5, color: C.textSec, lineHeight: 1.6 }}>
+      <span style={{ fontSize: 14.5, color: C.textSec, lineHeight: 1.6 }}>
         직접 휴대폰으로 작성하시려면<br />QR 코드를 스캔해 주세요.
       </span>
     </div>
@@ -527,18 +527,18 @@ function MultiChoices({ options, values, onToggle }: { options: { value: string;
 
 function ConsentBlock({ text }: { text: string }) {
   return (
-    <div style={{ background: C.subtle, borderRadius: 10, padding: '13px 15px', fontSize: 12.5, color: C.textSec, lineHeight: 1.7, whiteSpace: 'pre-line', maxHeight: 180, overflowY: 'auto', marginBottom: 12 }}>{text}</div>
+    <div style={{ background: C.subtle, borderRadius: 10, padding: '13px 15px', fontSize: 13.5, color: C.textSec, lineHeight: 1.7, whiteSpace: 'pre-line', maxHeight: 180, overflowY: 'auto', marginBottom: 12 }}>{text}</div>
   );
 }
 
 // ── 스타일 ──────────────────────────────────────────────
 const inputStyle: CSSProperties = {
-  width: '100%', padding: '12px 2px', fontSize: 16, color: C.text, background: 'transparent',
+  width: '100%', padding: '12px 2px', fontSize: 17, color: C.text, background: 'transparent',
   border: 'none', borderBottom: `1.5px solid ${C.border}`, borderRadius: 0, outline: 'none',
 };
 function cardStyle(active: boolean): CSSProperties {
   return {
-    padding: '15px 16px', fontSize: 15.5, fontWeight: active ? 600 : 500,
+    padding: '15px 16px', fontSize: 16.5, fontWeight: active ? 600 : 500,
     color: C.text, textAlign: 'center', background: active ? 'var(--ac-tint)' : C.subtle,
     border: `1.5px solid ${active ? 'var(--ac)' : 'transparent'}`, borderRadius: 12, cursor: 'pointer', transition: 'all .12s',
   };
@@ -555,8 +555,8 @@ const btnSecondary: CSSProperties = {
   color: C.textSec, background: C.subtle, border: 'none', borderRadius: 14, cursor: 'pointer', whiteSpace: 'nowrap',
 };
 const checkbox: CSSProperties = { width: 18, height: 18, accentColor: 'var(--ac)', flexShrink: 0 };
-const checkRow: CSSProperties = { display: 'flex', alignItems: 'center', gap: 9, marginTop: 14, fontSize: 14, color: C.textSec, cursor: 'pointer' };
-const consentCheckRow: CSSProperties = { display: 'flex', alignItems: 'flex-start', gap: 10, margin: '0 0 18px', fontSize: 14, color: C.text, lineHeight: 1.5, cursor: 'pointer' };
+const checkRow: CSSProperties = { display: 'flex', alignItems: 'center', gap: 9, marginTop: 14, fontSize: 15, color: C.textSec, cursor: 'pointer' };
+const consentCheckRow: CSSProperties = { display: 'flex', alignItems: 'flex-start', gap: 10, margin: '0 0 18px', fontSize: 15, color: C.text, lineHeight: 1.5, cursor: 'pointer' };
 const addrOverlay: CSSProperties = { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 };
 const addrPanel: CSSProperties = { width: 'min(96vw, 420px)', height: 'min(82vh, 560px)', background: C.bg, borderRadius: 14, overflow: 'hidden', display: 'flex', flexDirection: 'column', boxShadow: '0 20px 60px rgba(0,0,0,0.3)' };
 const addrHeader: CSSProperties = { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '13px 16px', borderBottom: `1px solid ${C.border}`, flexShrink: 0 };

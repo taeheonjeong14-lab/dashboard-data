@@ -3,6 +3,7 @@
 import { Suspense, useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
+import Image from 'next/image';
 import { createClient } from '@/lib/supabase/client';
 
 function LoginContent() {
@@ -64,8 +65,7 @@ function LoginContent() {
     <div style={styles.container}>
       <div style={styles.card}>
         <div style={styles.logoArea}>
-          <span style={styles.logoIcon}>🐾</span>
-          <h1 style={styles.title}>VetSolution</h1>
+          <Image src="/logo.png" alt="THEHAMM" width={190} height={76} priority style={styles.logoImg} />
           <p style={styles.subtitle}>동물병원 통합 관리 플랫폼</p>
         </div>
 
@@ -175,17 +175,11 @@ const styles: Record<string, React.CSSProperties> = {
     textAlign: 'center',
     marginBottom: '28px',
   },
-  logoIcon: {
-    fontSize: '28px',
+  logoImg: {
     display: 'block',
-    marginBottom: '8px',
-  },
-  title: {
-    margin: '0 0 4px',
-    fontSize: '20px',
-    fontWeight: 700,
-    color: 'var(--text)',
-    letterSpacing: '-0.02em',
+    width: '190px',
+    height: 'auto',
+    margin: '0 auto 12px',
   },
   subtitle: {
     margin: 0,

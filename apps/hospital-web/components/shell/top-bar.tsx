@@ -60,14 +60,12 @@ export function TopBar({ userName, hospitalName, tokenBalance }: TopBarProps) {
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src="/logo.png"
-            alt="VetSolution"
+            alt="THEHAMM"
             style={{ height: 48, width: 'auto', display: 'block' }}
             onError={() => setLogoOk(false)}
           />
         ) : (
-          <>
-            <span style={{ color: 'var(--accent)' }}>Vet</span>Solution
-          </>
+          <>THEHAMM</>
         )}
       </Link>
 

@@ -2,52 +2,45 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { ddxGet, DdxApiForbiddenError } from '@/lib/ddx-api';
 
-type SurveySession = {
+type Consultation = {
   id: string;
+  sessionId: string;
   patientName: string | null;
   guardianName: string | null;
-  scheduledDate: string | null;
+  visitType: string | null;
   status: string;
+  summary: string | null;
+  ddx: string | null;
+  surveySessionId?: string | null;
   createdAt: string;
-  analysisStatus?: string;
-  isUsed?: boolean;
-};
-
-type SurveySessionsResponse = {
-  success: boolean;
-  sessions: SurveySession[];
-  error?: string;
+  updatedAt: string;
 };
 
 const STATUS_LABEL: Record<string, string> = {
-  pending: '대기 중',
-  completed: '제출 완료',
-  expired: '만료',
+  recording: '진행 중',
+  awaiting_recording: '대기',
+  completed: '완료',
 };
 
-const ANALYSIS_LABEL: Record<string, string> = {
-  pending: '분석 대기',
-  processing: '분석 중',
-  done: '분석 완료',
-  error: '분석 오류',
-};
-
-function formatDate(iso: string) {
+function fmtDateTime(iso: string): string {
   try {
-    return new Date(iso).toLocaleString('ko-KR', { dateStyle: 'medium', timeStyle: 'short' });
-  } catch {
-    return iso;
-  }
+    return new Date(iso).toLocaleString('ko-KR', {
+      year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false,
+    });
+  } catch { return iso; }
 }
 
 export default function AiAssistPage() {
+  const router = useRouter();
   const [userId, setUserId] = useState<string | null>(null);
-  const [sessions, setSessions] = useState<SurveySession[]>([]);
+  const [items, setItems] = useState<Consultation[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [search, setSearch] = useState('');
 
   useEffect(() => {
     const supabase = createClient();
@@ -60,245 +53,119 @@ export default function AiAssistPage() {
   useEffect(() => {
     if (!userId) return;
     setLoading(true);
-    ddxGet<SurveySessionsResponse>('/api/surveys/sessions?take=50', userId)
+    ddxGet<{ success: boolean; consultations: Consultation[] }>('/api/consultations', userId)
       .then((data) => {
-        if (data.success && Array.isArray(data.sessions)) {
-          setSessions(data.sessions);
-        } else {
-          setSessions([]);
-        }
+        if (data.success && Array.isArray(data.consultations)) setItems(data.consultations);
+        else setItems([]);
       })
       .catch((err) => {
-        if (err instanceof DdxApiForbiddenError) {
-          setError('ddx-api 계정 동기화가 필요합니다. 관리자에게 문의하세요.');
-        } else {
-          setError('데이터를 불러오는 중 오류가 발생했습니다.');
-        }
-        setSessions([]);
+        if (err instanceof DdxApiForbiddenError) setError('ddx-api 계정 동기화가 필요합니다. 관리자에게 문의하세요.');
+        else setError('데이터를 불러오는 중 오류가 발생했습니다.');
+        setItems([]);
       })
       .finally(() => setLoading(false));
   }, [userId]);
 
+  const filtered = items.filter((c) => {
+    if (!search.trim()) return true;
+    const q = search.trim().toLowerCase();
+    return [c.patientName ?? '', c.guardianName ?? ''].join(' ').toLowerCase().includes(q);
+  });
+
   return (
-    <div style={{ maxWidth: '900px' }}>
-      {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px', flexWrap: 'wrap', gap: '12px' }}>
+    <div style={{ maxWidth: 960 }}>
+      {/* 헤더 */}
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 20, gap: 12, flexWrap: 'wrap' }}>
         <div>
-          <h1 style={{ margin: 0, fontSize: '20px', fontWeight: 700, color: 'var(--text)' }}>
-            AI 진료 보조
-          </h1>
-          <p style={{ margin: '4px 0 0', fontSize: '13px', color: 'var(--text-secondary)' }}>
-            AI 기반 사전문진 및 감별진단 도구
+          <h1 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: 'var(--text)' }}>AI 진료 보조</h1>
+          <p style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--text-secondary)' }}>
+            진료를 시작하고 AI 감별진단·요약을 확인합니다.
           </p>
         </div>
-        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-          <Link
-            href="/ai-assist/records"
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              padding: '8px 14px',
-              border: '1px solid var(--border)',
-              borderRadius: 'var(--radius)',
-              background: 'var(--bg)',
-              color: 'var(--text)',
-              fontSize: '13px',
-              fontWeight: 500,
-              textDecoration: 'none',
-            }}
-          >
-            상담 기록
-          </Link>
-          <Link
-            href="/ai-assist/new"
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              padding: '8px 16px',
-              border: 'none',
-              borderRadius: 'var(--radius)',
-              background: 'var(--accent)',
-              color: '#fff',
-              fontSize: '13px',
-              fontWeight: 600,
-              textDecoration: 'none',
-              cursor: 'pointer',
-            }}
-          >
-            + 새 상담 시작
-          </Link>
-        </div>
+        <Link href="/ai-assist/new"
+          style={{ padding: '9px 16px', border: 'none', borderRadius: 'var(--radius)', background: 'var(--accent)', color: '#fff', fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>
+          + 진료 시작
+        </Link>
       </div>
 
-      {/* Error */}
       {error && (
-        <div style={{
-          padding: '12px 16px',
-          background: 'var(--danger-subtle)',
-          border: '1px solid var(--danger)',
-          borderRadius: 'var(--radius)',
-          color: 'var(--danger)',
-          fontSize: '13px',
-          marginBottom: '20px',
-        }}>
+        <div style={{ padding: '12px 16px', background: 'var(--danger-subtle)', border: '1px solid var(--danger)', borderRadius: 'var(--radius)', color: 'var(--danger)', fontSize: 13, marginBottom: 16 }}>
           {error}
         </div>
       )}
 
-      {/* Recent pre-consultations */}
-      <div style={{
-        background: 'var(--bg-raised)',
-        border: '1px solid var(--border)',
-        borderRadius: 'var(--radius-lg)',
-        overflow: 'hidden',
-      }}>
-        <div style={{
-          padding: '16px 20px',
-          borderBottom: '1px solid var(--border)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-        }}>
-          <h2 style={{ margin: 0, fontSize: '15px', fontWeight: 600, color: 'var(--text)' }}>
-            최근 사전문진
-          </h2>
-          <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-            최근 50건
-          </span>
+      {/* 검색 */}
+      {!loading && items.length > 0 && (
+        <div style={{ marginBottom: 14 }}>
+          <input type="search" value={search} onChange={(e) => setSearch(e.target.value)}
+            placeholder="환자 또는 보호자 검색"
+            style={{ width: '100%', maxWidth: 320, padding: '9px 12px', fontSize: 13, color: 'var(--text)', background: 'var(--bg)', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+        </div>
+      )}
+
+      {/* 목록 */}
+      <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
+        <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <h2 style={{ margin: 0, fontSize: 14, fontWeight: 600, color: 'var(--text)' }}>진료 내역</h2>
+          {!loading && <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>총 {filtered.length}건</span>}
         </div>
 
         {loading ? (
-          <div style={{ padding: '48px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '13px' }}>
-            <div style={{
-              width: '20px', height: '20px', border: '2px solid var(--border)',
-              borderTopColor: 'var(--accent)', borderRadius: '50%',
-              animation: 'spin 0.8s linear infinite',
-              margin: '0 auto 12px',
-            }} />
+          <div style={{ padding: 44, textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>
+            <div style={{ width: 20, height: 20, border: '2px solid var(--border)', borderTopColor: 'var(--accent)', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 12px' }} />
             불러오는 중...
             <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
           </div>
-        ) : sessions.length === 0 ? (
-          <div style={{ padding: '48px 24px', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
-            <div style={{ fontSize: '32px', color: 'var(--text-muted)' }}>🩺</div>
-            <div>
-              <div style={{ fontWeight: 600, fontSize: '14px', color: 'var(--text-secondary)', marginBottom: '4px' }}>아직 상담 내역이 없습니다</div>
-              <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>새 상담을 시작하면 여기에 표시됩니다.</div>
+        ) : filtered.length === 0 ? (
+          <div style={{ padding: '48px 24px', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
+            <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-secondary)' }}>
+              {search ? '검색 결과가 없습니다' : '아직 진료 내역이 없습니다'}
             </div>
-            <Link
-              href="/ai-assist/new"
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                padding: '8px 16px',
-                background: 'var(--accent)',
-                color: '#fff',
-                borderRadius: 'var(--radius)',
-                fontSize: '13px',
-                fontWeight: 600,
-                textDecoration: 'none',
-                marginTop: '4px',
-              }}
-            >
-              첫 상담 시작하기
-            </Link>
+            {!search && (
+              <>
+                <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>“진료 시작”으로 첫 진료를 기록해 보세요.</div>
+                <Link href="/ai-assist/new"
+                  style={{ marginTop: 4, padding: '8px 16px', background: 'var(--accent)', color: '#fff', borderRadius: 'var(--radius)', fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>
+                  진료 시작하기
+                </Link>
+              </>
+            )}
           </div>
         ) : (
-          <div>
-            {sessions.map((session, idx) => (
-              <Link
-                key={session.id}
-                href={`/ai-assist/${session.id}`}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  padding: '14px 20px',
-                  borderBottom: idx < sessions.length - 1 ? '1px solid var(--border)' : 'none',
-                  textDecoration: 'none',
-                  color: 'inherit',
-                  gap: '16px',
-                  transition: 'background 0.15s',
-                }}
-                onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(255,255,255,0.05)')}
-                onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
-              >
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text)', marginBottom: '4px' }}>
-                    {session.patientName || '(이름 없음)'}
-                    {session.guardianName && (
-                      <span style={{ fontWeight: 400, color: 'var(--text-secondary)', marginLeft: '8px', fontSize: '13px' }}>
-                        / {session.guardianName}
-                      </span>
+          <>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 90px 90px 150px', gap: 12, padding: '10px 18px', background: 'var(--bg-subtle)', borderBottom: '1px solid var(--border)', fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+              <span>환자 / 보호자</span>
+              <span>방문</span>
+              <span>상태</span>
+              <span>최근 업데이트</span>
+            </div>
+            {filtered.map((c, idx) => (
+              <div key={c.id}
+                onClick={() => router.push(`/ai-assist/${encodeURIComponent(c.sessionId)}`)}
+                style={{ display: 'grid', gridTemplateColumns: '1fr 90px 90px 150px', gap: 12, padding: '14px 18px', borderBottom: idx < filtered.length - 1 ? '1px solid var(--border)' : 'none', alignItems: 'center', cursor: 'pointer', transition: 'background 0.15s' }}
+                onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--bg-subtle)')}
+                onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--text)' }}>
+                    {c.patientName || '(이름 없음)'}
+                    {c.surveySessionId && (
+                      <span style={{ marginLeft: 6, fontSize: 10, padding: '1px 6px', background: 'var(--accent-subtle)', color: 'var(--accent)', borderRadius: 999, fontWeight: 500 }}>사전문진</span>
                     )}
                   </div>
-                  <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-                    {formatDate(session.createdAt)}
-                    {session.scheduledDate && (
-                      <span style={{ marginLeft: '8px' }}>
-                        · 예정일 {new Date(session.scheduledDate).toLocaleDateString('ko-KR')}
-                      </span>
-                    )}
-                  </div>
+                  {c.guardianName && <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>{c.guardianName}</div>}
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
-                  <StatusBadge status={session.status} label={STATUS_LABEL[session.status] ?? session.status} />
-                  {session.analysisStatus && session.analysisStatus !== 'pending' && (
-                    <StatusBadge
-                      status={session.analysisStatus}
-                      label={ANALYSIS_LABEL[session.analysisStatus] ?? session.analysisStatus}
-                      variant="analysis"
-                    />
-                  )}
-                  {session.isUsed && (
-                    <StatusBadge status="used" label="문진 완료" />
-                  )}
+                <div style={{ fontSize: 12.5, color: 'var(--text-secondary)' }}>{c.visitType || '—'}</div>
+                <div>
+                  <span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: 999, fontSize: 11, fontWeight: 500, background: c.status === 'completed' ? 'var(--success-subtle)' : 'var(--bg-raised)', color: c.status === 'completed' ? 'var(--success)' : 'var(--text-secondary)', border: `1px solid ${c.status === 'completed' ? 'var(--success)' : 'var(--border)'}` }}>
+                    {STATUS_LABEL[c.status] ?? c.status}
+                  </span>
                 </div>
-              </Link>
+                <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{fmtDateTime(c.updatedAt)}</div>
+              </div>
             ))}
-          </div>
+          </>
         )}
       </div>
     </div>
-  );
-}
-
-function StatusBadge({
-  status,
-  label,
-  variant = 'default',
-}: {
-  status: string;
-  label: string;
-  variant?: 'default' | 'analysis';
-}) {
-  const getColors = () => {
-    if (variant === 'analysis') {
-      if (status === 'done') return { bg: 'var(--success-subtle)', color: 'var(--success)', border: 'var(--success)' };
-      if (status === 'processing') return { bg: 'var(--accent-subtle)', color: 'var(--accent)', border: 'var(--accent)' };
-      if (status === 'error') return { bg: 'var(--danger-subtle)', color: 'var(--danger)', border: 'var(--danger)' };
-      return { bg: 'var(--bg-raised)', color: 'var(--text-muted)', border: 'var(--border)' };
-    }
-    if (status === 'completed') return { bg: 'var(--success-subtle)', color: 'var(--success)', border: 'var(--success)' };
-    if (status === 'expired') return { bg: 'var(--bg-raised)', color: 'var(--text-muted)', border: 'var(--border)' };
-    if (status === 'used') return { bg: 'var(--accent-subtle)', color: 'var(--accent)', border: 'var(--accent)' };
-    return { bg: 'var(--bg-raised)', color: 'var(--text-secondary)', border: 'var(--border)' };
-  };
-  const { bg, color, border } = getColors();
-  return (
-    <span style={{
-      display: 'inline-flex',
-      alignItems: 'center',
-      padding: '2px 8px',
-      background: bg,
-      color,
-      border: `1px solid ${border}`,
-      borderRadius: '999px',
-      fontSize: '11px',
-      fontWeight: 500,
-      whiteSpace: 'nowrap',
-    }}>
-      {label}
-    </span>
   );
 }

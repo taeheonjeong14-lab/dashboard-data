@@ -37,7 +37,10 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith('/verify-email') ||
     // 보호자용 초진 접수증(공개 폼) + 제출 API — 로그인 없이 접근
     pathname.startsWith('/intake') ||
-    pathname.startsWith('/api/intake');
+    pathname.startsWith('/api/intake') ||
+    // 보호자용 사전문진 작성(공개 폼) + 공개 ddx 프록시 — 로그인 없이 접근
+    pathname.startsWith('/survey') ||
+    pathname.startsWith('/api/ddx-public');
 
   if (!user && !isPublic) {
     return NextResponse.redirect(new URL('/login', request.url));

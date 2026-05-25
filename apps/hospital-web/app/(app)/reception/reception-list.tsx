@@ -78,6 +78,7 @@ export function ReceptionList({ items, hasHospital, loadError, hospitalId }: {
   useEffect(() => { setOrigin(window.location.origin); }, []);
   const formUrl = hospitalId && origin ? `${origin}/intake/${hospitalId}` : '';
   const [linkCopied, setLinkCopied] = useState(false);
+  const [linkModalOpen, setLinkModalOpen] = useState(false);
   async function copyLink() {
     if (!formUrl) return;
     try {
@@ -89,16 +90,25 @@ export function ReceptionList({ items, hasHospital, loadError, hospitalId }: {
 
   return (
     <div>
-      {hasHospital && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', background: 'var(--bg-subtle)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', marginBottom: 16 }}>
-          <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', flexShrink: 0 }}>보호자 접수 링크</span>
-          <span style={{ flex: 1, minWidth: 0, fontSize: 12.5, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{formUrl || '—'}</span>
-          <button type="button" onClick={copyLink} disabled={!formUrl}
-            style={{ flexShrink: 0, padding: '6px 12px', fontSize: 12.5, fontWeight: 600, cursor: formUrl ? 'pointer' : 'default', borderRadius: 'var(--radius)', border: `1px solid ${linkCopied ? 'var(--success)' : 'var(--border-strong)'}`, background: 'var(--bg)', color: linkCopied ? 'var(--success)' : 'var(--text)' }}>
-            {linkCopied ? '복사됨' : '링크 복사'}
-          </button>
+      {/* 헤더 */}
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 20, gap: 12, flexWrap: 'wrap' }}>
+        <div>
+          <h1 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: 'var(--text)' }}>초진 접수</h1>
+          <p style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--text-secondary)' }}>
+            보호자가 작성한 초진 접수증을 확인합니다.
+          </p>
         </div>
-      )}
+        {hasHospital && (
+          <button
+            type="button"
+            onClick={() => setLinkModalOpen(true)}
+            style={{ padding: '9px 16px', border: 'none', borderRadius: 'var(--radius)', background: 'var(--accent)', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', flexShrink: 0 }}
+          >
+            보호자 접수 링크
+          </button>
+        )}
+      </div>
+
       <div style={{ display: 'flex', gap: 0, alignItems: 'stretch' }}>
       {/* ── 좌측: 접수 목록 ── */}
       <div style={{ flex: 1, minWidth: 0, paddingRight: 24 }}>
@@ -179,6 +189,31 @@ export function ReceptionList({ items, hasHospital, loadError, hospitalId }: {
         </div>
       </div>
       </div>
+
+      {linkModalOpen && hasHospital && (
+        <div onClick={() => setLinkModalOpen(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: 16 }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', maxWidth: 460, background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: 24, boxShadow: '0 8px 32px rgba(0,0,0,0.18)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+              <h2 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: 'var(--text)' }}>보호자 접수 링크</h2>
+              <button type="button" onClick={() => setLinkModalOpen(false)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 18, color: 'var(--text-muted)', lineHeight: 1 }}>×</button>
+            </div>
+            <p style={{ margin: '0 0 16px', fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+              이 링크를 보호자에게 공유하면, 보호자가 직접 초진 접수증을 작성할 수 있습니다.
+            </p>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: 'var(--bg-subtle)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', marginBottom: 16 }}>
+              <span style={{ flex: 1, minWidth: 0, fontSize: 12.5, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{formUrl || '—'}</span>
+              <button type="button" onClick={copyLink} disabled={!formUrl}
+                style={{ flexShrink: 0, padding: '6px 12px', fontSize: 12.5, fontWeight: 600, cursor: formUrl ? 'pointer' : 'default', borderRadius: 'var(--radius)', border: `1px solid ${linkCopied ? 'var(--success)' : 'var(--border-strong)'}`, background: 'var(--bg)', color: linkCopied ? 'var(--success)' : 'var(--text)' }}>
+                {linkCopied ? '복사됨' : '복사'}
+              </button>
+            </div>
+            <button type="button" onClick={() => setLinkModalOpen(false)}
+              style={{ width: '100%', padding: '11px', border: 'none', borderRadius: 'var(--radius)', background: 'var(--accent)', color: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>
+              완료
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

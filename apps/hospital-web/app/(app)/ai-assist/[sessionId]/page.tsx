@@ -160,13 +160,9 @@ export default function ConsultationDetailPage() {
   const fetchConsultation = useCallback(async (uid: string) => {
     if (!sessionId) return;
     try {
-      const DDX_API = process.env.NEXT_PUBLIC_DDX_API_URL ?? 'https://ddx-api.vercel.app';
-      const res = await fetch(`${DDX_API}/api/consultations?sessionId=${encodeURIComponent(sessionId)}&userId=${encodeURIComponent(uid)}`);
-      if (!res.ok) {
-        if (res.status === 403) throw new DdxApiForbiddenError();
-        throw new Error(`error ${res.status}`);
-      }
-      const data = await res.json();
+      const data = await ddxGet<{ success: boolean; consultation: Consultation }>(
+        `/api/consultations?sessionId=${encodeURIComponent(sessionId)}`, uid,
+      );
       if (data.success && data.consultation) {
         setConsultation(data.consultation);
         // If linked to a survey session, fetch its detail

@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { createClient } from '@/lib/supabase/client';
 
 function formatPhoneInput(value: string): string {
@@ -85,8 +86,7 @@ export default function SignupPage() {
       <div style={styles.container}>
         <div style={styles.card}>
           <div style={styles.logoArea}>
-            <span style={styles.logoIcon}>🐾</span>
-            <h1 style={styles.title}>VetSolution</h1>
+            <Image src="/logo.png" alt="THEHAMM" width={190} height={76} priority style={styles.logoImg} />
           </div>
           <div style={{ textAlign: 'center', padding: '16px 0' }}>
             <div style={{ fontSize: '36px', marginBottom: '16px' }}>📧</div>
@@ -110,8 +110,7 @@ export default function SignupPage() {
     <div style={styles.container}>
       <div style={styles.card}>
         <div style={styles.logoArea}>
-          <span style={styles.logoIcon}>🐾</span>
-          <h1 style={styles.title}>VetSolution</h1>
+          <Image src="/logo.png" alt="THEHAMM" width={190} height={76} priority style={styles.logoImg} />
           <p style={styles.subtitle}>회원가입</p>
         </div>
 
@@ -266,17 +265,11 @@ const styles: Record<string, React.CSSProperties> = {
     textAlign: 'center',
     marginBottom: '24px',
   },
-  logoIcon: {
-    fontSize: '28px',
+  logoImg: {
     display: 'block',
-    marginBottom: '8px',
-  },
-  title: {
-    margin: '0 0 4px',
-    fontSize: '20px',
-    fontWeight: 700,
-    color: 'var(--text)',
-    letterSpacing: '-0.02em',
+    width: '190px',
+    height: 'auto',
+    margin: '0 auto 12px',
   },
   subtitle: {
     margin: 0,
