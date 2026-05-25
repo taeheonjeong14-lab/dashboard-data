@@ -276,9 +276,9 @@ export default function PublicSurveyPage() {
           <h1 style={{ fontSize: 34, fontWeight: 700, letterSpacing: '-0.035em', lineHeight: 1.32, color: C.text, margin: 0 }}>
             진료 전 사전문진을<br />작성해 주세요
           </h1>
-          <p style={{ fontSize: 18, fontWeight: 500, color: C.textSec, letterSpacing: '-0.01em', lineHeight: 1.6, margin: '20px 0 0' }}>
+          <p style={{ fontSize: 16, fontWeight: 500, color: C.textSec, letterSpacing: '-0.01em', lineHeight: 1.7, margin: '20px 0 0' }}>
             {patient ? <><b style={{ color: C.text, fontWeight: 600 }}>{patient}</b> 보호자님, </> : null}
-            {scheduledText ? `${scheduledText}에 예정된 진료에 앞서 ` : ''}정확한 진료를 위해 사전문진을 부탁드려요. 5분이면 완료됩니다.
+            {scheduledText ? `${scheduledText}에 예정되어있는 ` : ''}{patient ? `${patient}의 ` : ''}진료에 앞서 보다 정확한 진료를 위하여 사전문진을 통해 {patient ? `${patient}의 ` : ''}상태를 파악하고자 합니다. 5분 이내로 완료 가능하시니 번거로우시더라도 내원 전 사전문진 부탁 드릴게요.
           </p>
         </div>
         <div style={{ flexShrink: 0 }}>
