@@ -76,6 +76,8 @@ export async function POST(request: NextRequest) {
       },
     });
 
+    let emailSent: boolean | null = null;
+    let emailError: string | null = null;
     if (!existed && email) {
       // 가입 직후 인증 메일 1통만 발송 (가입 접수 안내는 인증 메일 본문에 포함)
       const normalizedEmail = email.toLowerCase();
@@ -86,12 +88,14 @@ export async function POST(request: NextRequest) {
       });
       const verifyLink = `${getBaseUrl()}/verify-email?token=${token}`;
       const sendResult = await sendVerificationEmail(email, verifyLink);
+      emailSent = sendResult.ok;
       if (!sendResult.ok) {
+        emailError = sendResult.reason;
         console.error('[profile] verification email failed:', sendResult.reason);
       }
     }
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true, emailSent, emailError });
   } catch (e) {
     console.error('POST /api/users/profile error:', e);
     return NextResponse.json(

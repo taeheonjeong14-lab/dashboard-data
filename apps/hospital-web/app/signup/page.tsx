@@ -82,13 +82,25 @@ export default function SignupPage() {
       }
       // 가입 직후엔 supabase 세션이 확립되지 않을 수 있어 /api/ddx(인증 필요)는 401 로 막힘.
       // /api/ddx-public 공개 프록시로 호출 — ddx-api 의 /api/users/profile 로 transparent 전달된다.
-      await ddxPostPublic('/api/users/profile', {
+      const profileRes = await ddxPostPublic<{
+        success: boolean;
+        error?: string;
+        emailSent?: boolean | null;
+        emailError?: string | null;
+      }>('/api/users/profile', {
         userId: newUserId,
         email: email.trim(),
         name: name.trim(),
         phone: phone.trim(),
         customHospitalName: hospitalName.trim(),
       });
+      if (!profileRes.success) {
+        throw new Error(profileRes.error ?? '프로필 생성에 실패했습니다.');
+      }
+      if (profileRes.emailSent === false) {
+        // 가입은 처리됐지만 인증 메일 발송 실패 — 사용자에게 즉시 알려서 관리자 문의를 유도.
+        throw new Error(`인증 메일 발송에 실패했습니다: ${profileRes.emailError ?? '알 수 없는 오류'}`);
+      }
 
       setSubmitted(true);
     } catch (err: unknown) {
