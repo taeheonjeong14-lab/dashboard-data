@@ -4,6 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { createClient } from '@/lib/supabase/client';
+import { ddxPost } from '@/lib/ddx-api';
 
 function formatPhoneInput(value: string): string {
   const digits = value.replace(/\D/g, '').slice(0, 11);
@@ -59,7 +60,7 @@ export default function SignupPage() {
     setLoading(true);
     try {
       const supabase = createClient();
-      const { error: authError } = await supabase.auth.signUp({
+      const { data: signUpData, error: authError } = await supabase.auth.signUp({
         email: email.trim(),
         password,
         options: {
@@ -71,6 +72,21 @@ export default function SignupPage() {
         },
       });
       if (authError) throw authError;
+
+      // Supabase 가입만으로는 core.users row 가 안 만들어지고 인증 메일도 안 나간다.
+      // ddx-api /api/users/profile 가 (1) core.users upsert(approved=false, emailVerified=false)
+      // (2) Resend 로 인증 메일 발송 둘 다 담당하므로 반드시 함께 호출한다.
+      const newUserId = signUpData.user?.id;
+      if (!newUserId) {
+        throw new Error('가입은 처리됐지만 사용자 ID를 받지 못했습니다. 잠시 후 다시 시도해 주세요.');
+      }
+      await ddxPost('/api/users/profile', newUserId, {
+        userId: newUserId,
+        email: email.trim(),
+        name: name.trim(),
+        phone: phone.trim(),
+        customHospitalName: hospitalName.trim(),
+      });
 
       setSubmitted(true);
     } catch (err: unknown) {

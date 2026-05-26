@@ -19,17 +19,20 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   const { data: coreUser } = await supabase
     .schema('core')
     .from('users')
-    .select('approved, name, customHospitalName, custom_hospital_name, hospital_id')
+    .select('approved, emailVerified, email_verified, name, customHospitalName, custom_hospital_name, hospital_id')
     .eq('id', user.id)
     .single();
 
   const cu = coreUser as {
     approved?: boolean;
+    emailVerified?: boolean;
+    email_verified?: boolean;
     name?: string | null;
     customHospitalName?: string | null;
     custom_hospital_name?: string | null;
     hospital_id?: string | null;
   } | null;
+  const isEmailVerified = cu?.emailVerified === true || cu?.email_verified === true;
 
   // hospital_name: prefer custom overrides, then fetch from core.hospitals via hospital_id
   let resolvedHospitalName: string | null =
@@ -51,8 +54,26 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
     }
   }
 
-  // Not yet approved — show pending screen inline
-  if (cu && cu.approved === false) {
+  // 가입 흐름: ① 이메일 인증(emailVerified) → ② 관리자 승인(approved) 둘 다 만족해야 본문 진입.
+  // whitelist 방식 — row 가 없거나(트리거/동기화 실패) 둘 중 하나가 true 가 아니면 차단.
+  // 기존 fail-open(`cu && cu.approved === false`) 은 row 미존재 시 통과되어 미승인 사용자가 로그인되는 버그가 있었음.
+  if (!cu || !isEmailVerified || cu.approved !== true) {
+    const needsEmailVerification = !isEmailVerified;
+    const pendingIcon = needsEmailVerification ? '📧' : '⏳';
+    const pendingTitle = needsEmailVerification ? '이메일 인증을 완료해 주세요' : '승인 대기 중';
+    const pendingBody = needsEmailVerification ? (
+      <>
+        가입 시 보낸 인증 메일의 링크를 클릭해 본인 인증을 완료해 주세요.
+        <br />
+        인증 후 관리자 승인이 완료되면 서비스를 이용할 수 있습니다.
+      </>
+    ) : (
+      <>
+        관리자 승인 후 서비스를 이용할 수 있습니다.
+        <br />
+        승인 완료 시 가입하신 이메일로 안내드립니다.
+      </>
+    );
     return (
       <div
         style={{
@@ -76,7 +97,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
             boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
           }}
         >
-          <div style={{ fontSize: '36px', marginBottom: '16px' }}>⏳</div>
+          <div style={{ fontSize: '36px', marginBottom: '16px' }}>{pendingIcon}</div>
           <h1
             style={{
               margin: '0 0 12px',
@@ -85,7 +106,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
               color: 'var(--text)',
             }}
           >
-            승인 대기 중
+            {pendingTitle}
           </h1>
           <p
             style={{
@@ -95,9 +116,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
               lineHeight: 1.7,
             }}
           >
-            관리자 승인 후 서비스를 이용할 수 있습니다.
-            <br />
-            승인 완료 시 가입하신 이메일로 안내드립니다.
+            {pendingBody}
           </p>
           <a
             href="/auth/signout"
