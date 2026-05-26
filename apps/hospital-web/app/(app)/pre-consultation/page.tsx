@@ -272,7 +272,6 @@ export default function PreConsultationPage() {
                         <td style={tdStyle}>{s.guardianName || '—'}</td>
                         <td style={{ ...tdStyle }}>
                           <StatusBadge status={s.status} label={STATUS_LABEL[s.status] ?? s.status} />
-                          {s.isUsed && <span style={{ marginLeft: 6 }}><StatusBadge status="used" label="진료 연결됨" /></span>}
                         </td>
                       </tr>
                     ))}
