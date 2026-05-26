@@ -14,29 +14,29 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
     redirect('/login');
   }
 
-  // Fetch user profile from core.users
-  // Note: core.users has both camelCase legacy columns and snake_case columns
-  const { data: coreUser } = await supabase
+  // core.users 컬럼명은 prisma schema 기준 camelCase(approved/emailVerified/customHospitalName) + snake_case(hospital_id).
+  // 존재하지 않는 컬럼을 select 하면 PostgREST 가 에러를 던져 coreUser=null 이 되는 케이스가 있어 실제 컬럼만 명시.
+  const { data: coreUser, error: coreUserErr } = await supabase
     .schema('core')
     .from('users')
-    .select('approved, emailVerified, email_verified, name, customHospitalName, custom_hospital_name, hospital_id')
+    .select('approved, emailVerified, name, customHospitalName, hospital_id')
     .eq('id', user.id)
     .single();
+  if (coreUserErr) {
+    console.warn('[hospital-web layout] core.users select error:', coreUserErr.message);
+  }
 
   const cu = coreUser as {
     approved?: boolean;
     emailVerified?: boolean;
-    email_verified?: boolean;
     name?: string | null;
     customHospitalName?: string | null;
-    custom_hospital_name?: string | null;
     hospital_id?: string | null;
   } | null;
-  const isEmailVerified = cu?.emailVerified === true || cu?.email_verified === true;
+  const isEmailVerified = cu?.emailVerified === true;
 
   // hospital_name: prefer custom overrides, then fetch from core.hospitals via hospital_id
-  let resolvedHospitalName: string | null =
-    cu?.customHospitalName?.trim() || cu?.custom_hospital_name?.trim() || null;
+  let resolvedHospitalName: string | null = cu?.customHospitalName?.trim() || null;
 
   if (!resolvedHospitalName && cu?.hospital_id) {
     try {

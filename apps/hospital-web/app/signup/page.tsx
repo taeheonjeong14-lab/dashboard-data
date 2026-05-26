@@ -4,7 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { createClient } from '@/lib/supabase/client';
-import { ddxPost } from '@/lib/ddx-api';
+import { ddxPostPublic } from '@/lib/ddx-api';
 
 function formatPhoneInput(value: string): string {
   const digits = value.replace(/\D/g, '').slice(0, 11);
@@ -80,7 +80,9 @@ export default function SignupPage() {
       if (!newUserId) {
         throw new Error('가입은 처리됐지만 사용자 ID를 받지 못했습니다. 잠시 후 다시 시도해 주세요.');
       }
-      await ddxPost('/api/users/profile', newUserId, {
+      // 가입 직후엔 supabase 세션이 확립되지 않을 수 있어 /api/ddx(인증 필요)는 401 로 막힘.
+      // /api/ddx-public 공개 프록시로 호출 — ddx-api 의 /api/users/profile 로 transparent 전달된다.
+      await ddxPostPublic('/api/users/profile', {
         userId: newUserId,
         email: email.trim(),
         name: name.trim(),
