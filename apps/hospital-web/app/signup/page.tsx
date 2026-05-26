@@ -86,7 +86,7 @@ export default function SignupPage() {
       <div style={styles.container}>
         <div style={styles.card}>
           <div style={styles.logoArea}>
-            <Image src="/logo.png" alt="THEHAMM" width={190} height={76} priority style={styles.logoImg} />
+            <Image src="/logo-login.png" alt="THEHAMM" width={158} height={166} priority style={styles.logoImg} />
           </div>
           <div style={{ textAlign: 'center', padding: '16px 0' }}>
             <div style={{ fontSize: '36px', marginBottom: '16px' }}>📧</div>
@@ -110,7 +110,7 @@ export default function SignupPage() {
     <div style={styles.container}>
       <div style={styles.card}>
         <div style={styles.logoArea}>
-          <Image src="/logo.png" alt="THEHAMM" width={190} height={76} priority style={styles.logoImg} />
+          <Image src="/logo-login.png" alt="THEHAMM" width={158} height={166} priority style={styles.logoImg} />
           <p style={styles.subtitle}>회원가입</p>
         </div>
 
