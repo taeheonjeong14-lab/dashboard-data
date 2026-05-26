@@ -14,12 +14,13 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
     redirect('/login');
   }
 
-  // core.users 컬럼명은 prisma schema 기준 camelCase(approved/emailVerified/customHospitalName) + snake_case(hospital_id).
-  // 존재하지 않는 컬럼을 select 하면 PostgREST 가 에러를 던져 coreUser=null 이 되는 케이스가 있어 실제 컬럼만 명시.
+  // core.users 컬럼명은 prisma schema 기준 camelCase(approved/customHospitalName) + snake_case(hospital_id).
+  // emailVerified 가드는 임시 제거 — 기존 운영자 row 들이 false/null 상태라 신규 가드가 본인까지 막는 회귀가 있었음.
+  // 이메일 인증 강제는 운영자 row 일괄 업데이트(혹은 verify-email 흐름 완성) 후 다시 추가.
   const { data: coreUser, error: coreUserErr } = await supabase
     .schema('core')
     .from('users')
-    .select('approved, emailVerified, name, customHospitalName, hospital_id')
+    .select('approved, name, customHospitalName, hospital_id')
     .eq('id', user.id)
     .single();
   if (coreUserErr) {
@@ -28,12 +29,10 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
 
   const cu = coreUser as {
     approved?: boolean;
-    emailVerified?: boolean;
     name?: string | null;
     customHospitalName?: string | null;
     hospital_id?: string | null;
   } | null;
-  const isEmailVerified = cu?.emailVerified === true;
 
   // hospital_name: prefer custom overrides, then fetch from core.hospitals via hospital_id
   let resolvedHospitalName: string | null = cu?.customHospitalName?.trim() || null;
@@ -54,20 +53,12 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
     }
   }
 
-  // 가입 흐름: ① 이메일 인증(emailVerified) → ② 관리자 승인(approved) 둘 다 만족해야 본문 진입.
-  // whitelist 방식 — row 가 없거나(트리거/동기화 실패) 둘 중 하나가 true 가 아니면 차단.
+  // 승인 가드 — whitelist 방식. row 가 없거나(트리거/동기화 실패) approved !== true 면 차단.
   // 기존 fail-open(`cu && cu.approved === false`) 은 row 미존재 시 통과되어 미승인 사용자가 로그인되는 버그가 있었음.
-  if (!cu || !isEmailVerified || cu.approved !== true) {
-    const needsEmailVerification = !isEmailVerified;
-    const pendingIcon = needsEmailVerification ? '📧' : '⏳';
-    const pendingTitle = needsEmailVerification ? '이메일 인증을 완료해 주세요' : '승인 대기 중';
-    const pendingBody = needsEmailVerification ? (
-      <>
-        가입 시 보낸 인증 메일의 링크를 클릭해 본인 인증을 완료해 주세요.
-        <br />
-        인증 후 관리자 승인이 완료되면 서비스를 이용할 수 있습니다.
-      </>
-    ) : (
+  if (!cu || cu.approved !== true) {
+    const pendingIcon = '⏳';
+    const pendingTitle = '승인 대기 중';
+    const pendingBody = (
       <>
         관리자 승인 후 서비스를 이용할 수 있습니다.
         <br />
