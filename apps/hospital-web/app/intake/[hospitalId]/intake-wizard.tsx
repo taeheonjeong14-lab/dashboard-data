@@ -5,14 +5,26 @@ import type { CSSProperties } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import {
   emptyAnswers, emptyPet,
-  type IntakeAnswers, type Species,
+  type IntakeAnswers, type PetAnswer, type Species,
   PET_COUNT_OPTIONS, SPECIES_OPTIONS, breedOptionsFor, BREED_FREETEXT_VALUES,
   SEX_OPTIONS, REGISTRATION_OPTIONS, INSURANCE_OPTIONS, SYMPTOM_OPTIONS,
   REFERRAL_CHANNEL_OPTIONS, ONLINE_MEDIA_OPTIONS,
   COMPLETE_TITLE, COMPLETE_BODY,
   consentRequiredText, consentMarketingText, CONSENT_REQUIRED_LABEL, CONSENT_MARKETING_LABEL,
   PRIVACY_POLICY_URL,
+  speciesFromSurvey, sexFromSurvey,
 } from '@/lib/intake/form-spec';
+
+/** /api/intake/survey-match 응답의 매칭 항목(ddx-api → BFF → 클라). */
+type SurveyMatch = {
+  id: string;
+  patientName: string;
+  scheduledDate: string | null;
+  species: string;
+  breed: string;
+  sex: string;
+  birthday: string;
+};
 
 // 라이트 고정 팔레트 (테마 변수 대신 — 다크모드 영향 없이 항상 밝게)
 const C = {
@@ -46,6 +58,7 @@ type Step =
   | { kind: 'owner_name' }
   | { kind: 'owner_phone' }
   | { kind: 'owner_address' }
+  | { kind: 'survey_match' }
   | { kind: 'pet_count' }
   | { kind: 'pet'; petIndex: number; field: PetField }
   | { kind: 'referral_channel' }
@@ -54,17 +67,26 @@ type Step =
   | { kind: 'referral_other' }
   | { kind: 'consent' };
 
-function buildSteps(a: IntakeAnswers): Step[] {
+/** 사전문진에서 받은 정보는 접수증에서 다시 묻지 않는다(form-spec 의 surveyLinked 주석 참고).
+ *  매칭으로 채워지지 않는 필드(동물등록·펫보험)만 보호자에게 추가로 묻는다. */
+const PET_FIELDS_FULL: PetField[] = ['name', 'species', 'breed', 'age', 'sex', 'registration', 'insurance', 'symptoms'];
+const PET_FIELDS_FROM_SURVEY: PetField[] = ['registration', 'insurance'];
+
+function petFieldsFor(pet: PetAnswer | undefined): PetField[] {
+  return pet?.surveyLinked ? PET_FIELDS_FROM_SURVEY : PET_FIELDS_FULL;
+}
+
+function buildSteps(a: IntakeAnswers, matchesAvailable: boolean): Step[] {
   const steps: Step[] = [
     { kind: 'intro' },
     { kind: 'owner_name' },
     { kind: 'owner_phone' },
     { kind: 'owner_address' },
-    { kind: 'pet_count' },
   ];
+  if (matchesAvailable) steps.push({ kind: 'survey_match' });
+  steps.push({ kind: 'pet_count' });
   for (let i = 0; i < a.pets.length; i++) {
-    (['name', 'species', 'breed', 'age', 'sex', 'registration', 'insurance', 'symptoms'] as PetField[])
-      .forEach((field) => steps.push({ kind: 'pet', petIndex: i, field }));
+    petFieldsFor(a.pets[i]).forEach((field) => steps.push({ kind: 'pet', petIndex: i, field }));
   }
   steps.push({ kind: 'referral_channel' });
   if (a.referral.channel === 'online') steps.push({ kind: 'referral_online' });
@@ -72,6 +94,29 @@ function buildSteps(a: IntakeAnswers): Step[] {
   else if (a.referral.channel === 'other') steps.push({ kind: 'referral_other' });
   steps.push({ kind: 'consent' });
   return steps;
+}
+
+/** 매칭된 사전문진 한 건을 PetAnswer 로 변환(접수증에서 묻지 않을 종/품종/성별/생일 프리필). */
+function petFromSurveyMatch(m: SurveyMatch): PetAnswer {
+  const sp = speciesFromSurvey(m.species);
+  const opts = breedOptionsFor(sp);
+  const matchedBreed = opts.find((b) => b === (m.breed ?? '').trim());
+  return {
+    name: (m.patientName ?? '').trim(),
+    species: sp,
+    breed: matchedBreed ?? (m.breed ? '기타' : ''),
+    breedOther: matchedBreed || !m.breed ? '' : m.breed.trim(),
+    birthDate: (m.birthday ?? '').trim(),
+    ageUnknown: false,
+    ageText: '',
+    sex: sexFromSurvey(m.sex),
+    registration: '',
+    insurance: '',
+    symptoms: [],
+    symptomOther: '',
+    surveyLinked: true,
+    surveySessionId: m.id,
+  };
 }
 
 function formatPhone(v: string): string {
@@ -107,7 +152,17 @@ export function IntakeWizard({ hospitalId, hospitalName, accent }: { hospitalId:
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
 
-  const steps = useMemo(() => buildSteps(answers), [answers]);
+  /** 연락처 입력 후 백그라운드로 받아오는 사전문진 매칭. 빈 배열이면 매칭 step 자체를 건너뛴다. */
+  const [matches, setMatches] = useState<SurveyMatch[]>([]);
+  const [matchLookupPhone, setMatchLookupPhone] = useState<string>(''); // 어떤 번호로 조회했는지(번호 바뀌면 새 조회)
+  const [selectedMatchIds, setSelectedMatchIds] = useState<string[]>([]);
+  /** "사전문진을 하지 않았어요" 옵션을 명시적으로 선택했는지(시각적 라디오 동작용). */
+  const [noneSelected, setNoneSelected] = useState(false);
+
+  const matchesAvailable = matches.length > 0;
+  const matchedPetsCount = answers.pets.filter((p) => p.surveyLinked).length;
+
+  const steps = useMemo(() => buildSteps(answers, matchesAvailable), [answers, matchesAvailable]);
   const clampedIdx = Math.min(idx, steps.length - 1);
   const step = steps[clampedIdx];
 
@@ -118,17 +173,55 @@ export function IntakeWizard({ hospitalId, hospitalName, accent }: { hospitalId:
   function patchReferral(p: Partial<IntakeAnswers['referral']>) {
     setAnswers((a) => ({ ...a, referral: { ...a.referral, ...p } }));
   }
-  function setPetCount(n: number) {
+  /** "추가" 마리 수(=매칭으로 자동 추가된 환자 제외)를 받아 pets[] 를 재구성. */
+  function setAdditionalPetCount(additional: number) {
     setAnswers((a) => {
-      const pets = [...a.pets];
-      while (pets.length < n) pets.push(emptyPet());
-      pets.length = n;
-      return { ...a, petCount: n, pets };
+      const matchedPets = a.pets.filter((p) => p.surveyLinked);
+      const extras: PetAnswer[] = [];
+      const existingExtras = a.pets.filter((p) => !p.surveyLinked);
+      for (let i = 0; i < additional; i += 1) extras.push(existingExtras[i] ?? emptyPet());
+      const pets = [...matchedPets, ...extras];
+      return { ...a, petCount: pets.length, pets };
     });
   }
   function setAddress(base: string, detail: string) {
     setAddrBase(base); setAddrDetail(detail);
     patch({ ownerAddress: `${base} ${detail}`.trim() });
+  }
+
+  /** 매칭 step 에서 다음으로 넘어갈 때: 선택한 매칭들을 prefilled pets 로 합치고 petCount 도 그만큼 늘린다. */
+  function commitSelectedMatches() {
+    setAnswers((a) => {
+      const additionalPets = a.pets.filter((p) => !p.surveyLinked); // 보호자가 이미 추가로 입력했던 펫 보존
+      const matchedPets = selectedMatchIds
+        .map((id) => matches.find((m) => m.id === id))
+        .filter((m): m is SurveyMatch => Boolean(m))
+        .map(petFromSurveyMatch);
+      const pets = [...matchedPets, ...additionalPets];
+      return { ...a, petCount: pets.length, pets };
+    });
+  }
+
+  /** owner_phone next() 직후 호출. 같은 번호 재조회 방지, 실패는 조용히 무시(매칭 step 도 안 보임). */
+  async function lookupMatchesForCurrentPhone() {
+    const digits = answers.ownerPhone.replace(/\D/g, '');
+    if (digits.length < 10) return;
+    if (matchLookupPhone === digits) return;
+    setMatchLookupPhone(digits);
+    try {
+      const url = `/api/intake/survey-match?hospitalId=${encodeURIComponent(hospitalId)}&contact=${encodeURIComponent(digits)}`;
+      const res = await fetch(url, { cache: 'no-store' });
+      const data = (await res.json()) as { enabled?: boolean; matches?: SurveyMatch[] };
+      const list = data.enabled && Array.isArray(data.matches) ? data.matches : [];
+      setMatches(list);
+      // 새 번호 → 이전 선택·None 옵션은 폐기
+      setSelectedMatchIds([]);
+      setNoneSelected(false);
+    } catch {
+      setMatches([]);
+      setSelectedMatchIds([]);
+      setNoneSelected(false);
+    }
   }
 
   function canProceed(): boolean {
@@ -137,6 +230,9 @@ export function IntakeWizard({ hospitalId, hospitalName, accent }: { hospitalId:
       case 'owner_name': return answers.ownerName.trim().length > 0;
       case 'owner_phone': return answers.ownerPhone.replace(/\D/g, '').length >= 10;
       case 'owner_address': return addrBase.trim().length > 0;
+      // 매칭 step 은 선택 0건도 허용("내 환자 아님") — 단순히 다음으로
+      case 'survey_match': return true;
+      // 매칭으로 추가된 환자만 있어도 진행 가능. 매칭 없으면 직접 입력해야 진행.
       case 'pet_count': return answers.petCount > 0;
       case 'pet': {
         const pet = answers.pets[step.petIndex];
@@ -166,6 +262,10 @@ export function IntakeWizard({ hospitalId, hospitalName, accent }: { hospitalId:
   function next() {
     if (!canProceed()) return;
     setError(null);
+    // owner_phone 통과 시점에 매칭 백그라운드 조회(병원이 토글 OFF 거나 매칭 0건이면 step 자체가 안 생긴다).
+    if (step.kind === 'owner_phone') void lookupMatchesForCurrentPhone();
+    // 매칭 step 통과 시점에 선택된 매칭들을 pets[] 에 반영.
+    if (step.kind === 'survey_match') commitSelectedMatches();
     setIdx((i) => Math.min(i + 1, steps.length - 1));
   }
   function back() { setError(null); setIdx((i) => Math.max(i - 1, 0)); }
@@ -174,10 +274,13 @@ export function IntakeWizard({ hospitalId, hospitalName, accent }: { hospitalId:
     if (!answers.consentRequired) return;
     setSubmitting(true); setError(null);
     try {
+      // pets[].surveySessionId 를 모아 전체 레벨 linkedSurveySessionIds 로도 동봉(중복 매칭 방지·직원 화면 연결).
+      const linkedIds = answers.pets.map((p) => p.surveySessionId).filter((v): v is string => Boolean(v));
+      const payload: IntakeAnswers = linkedIds.length > 0 ? { ...answers, linkedSurveySessionIds: linkedIds } : answers;
       const res = await fetch('/api/intake', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ hospitalId, answers }),
+        body: JSON.stringify({ hospitalId, answers: payload }),
       });
       const data = (await res.json()) as { ok?: boolean; error?: string };
       if (!res.ok || !data.ok) throw new Error(data.error ?? '제출에 실패했습니다.');
@@ -244,7 +347,10 @@ export function IntakeWizard({ hospitalId, hospitalName, accent }: { hospitalId:
             step={step} hospitalName={hospitalName} answers={answers}
             addrBase={addrBase} addrDetail={addrDetail}
             patch={patch} patchPet={patchPet} patchReferral={patchReferral}
-            setPetCount={setPetCount} setAddress={setAddress}
+            setAdditionalPetCount={setAdditionalPetCount} setAddress={setAddress}
+            matches={matches} selectedMatchIds={selectedMatchIds} setSelectedMatchIds={setSelectedMatchIds}
+            noneSelected={noneSelected} setNoneSelected={setNoneSelected}
+            matchedPetsCount={matchedPetsCount}
           />
         </div>
       </div>
@@ -272,10 +378,16 @@ function StepBody(props: {
   patch: (p: Partial<IntakeAnswers>) => void;
   patchPet: (i: number, p: Partial<IntakeAnswers['pets'][number]>) => void;
   patchReferral: (p: Partial<IntakeAnswers['referral']>) => void;
-  setPetCount: (n: number) => void;
+  setAdditionalPetCount: (additional: number) => void;
   setAddress: (base: string, detail: string) => void;
+  matches: SurveyMatch[];
+  selectedMatchIds: string[];
+  setSelectedMatchIds: (ids: string[] | ((prev: string[]) => string[])) => void;
+  noneSelected: boolean;
+  setNoneSelected: (b: boolean) => void;
+  matchedPetsCount: number;
 }) {
-  const { step, hospitalName, answers, addrBase, addrDetail } = props;
+  const { step, hospitalName, answers, addrBase, addrDetail, matches, selectedMatchIds, setSelectedMatchIds, noneSelected, setNoneSelected, matchedPetsCount } = props;
 
   const Q = ({ children }: { children: React.ReactNode }) => (
     <h2 style={{ fontSize: 22, fontWeight: 600, letterSpacing: '-0.01em', color: C.text, margin: '0 0 20px', lineHeight: 1.45 }}>{children}</h2>
@@ -299,10 +411,91 @@ function StepBody(props: {
       return (<div><Q>주소를 입력해 주세요</Q>
         <AddressField base={addrBase} detail={addrDetail} onChange={props.setAddress} /></div>);
 
-    case 'pet_count':
-      return (<div><Q>오늘 접수가 필요한 아이는 총 몇 마리인가요?</Q>
-        <CardChoices options={PET_COUNT_OPTIONS} value={String(answers.petCount || '')}
-          onPick={(v) => { props.setPetCount(Number(v)); }} columns={2} /></div>);
+    case 'survey_match': {
+      // 매칭 카드 클릭 ↔ None 옵션은 서로 배타(라디오처럼) — 한쪽 선택 시 다른 쪽 해제.
+      const toggleMatch = (id: string) => {
+        if (noneSelected) setNoneSelected(false);
+        setSelectedMatchIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+      };
+      const pickNone = () => {
+        setSelectedMatchIds([]);
+        setNoneSelected(true);
+      };
+      const checkBox = (active: boolean) => (
+        <span style={{
+          width: 20, height: 20, borderRadius: 6, flexShrink: 0, display: 'flex',
+          alignItems: 'center', justifyContent: 'center',
+          background: active ? 'var(--ac)' : '#e4e4e7', color: 'var(--ac-on)', fontSize: 12,
+        }}>{active ? '✓' : ''}</span>
+      );
+      return (
+        <div>
+          <Q>이미 사전문진을 완료해주셨네요!</Q>
+          <p style={{ fontSize: 14, color: C.textSec, margin: '0 0 16px', lineHeight: 1.6 }}>
+            아래 사전문진 목록 중 금일 진료에 해당되는 건은 모두 선택해주세요.
+          </p>
+          <div style={{ display: 'grid', gap: 8 }}>
+            {matches.map((m) => {
+              const active = selectedMatchIds.includes(m.id);
+              const sub: string[] = [];
+              if (m.species) sub.push(m.species);
+              if (m.breed) sub.push(m.breed);
+              if (m.sex) sub.push(m.sex);
+              if (m.scheduledDate) sub.push(`내원예정 ${m.scheduledDate.slice(0, 10)}`);
+              return (
+                <button
+                  key={m.id}
+                  type="button"
+                  onClick={() => toggleMatch(m.id)}
+                  style={{ ...cardStyle(active), textAlign: 'left', display: 'flex', alignItems: 'center', gap: 12 }}
+                >
+                  {checkBox(active)}
+                  <span style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                    <span style={{ fontWeight: 600 }}>{m.patientName || '(이름 미입력)'}</span>
+                    {sub.length > 0 && (
+                      <span style={{ fontSize: 13, color: C.textSec, fontWeight: 400 }}>{sub.join(' · ')}</span>
+                    )}
+                  </span>
+                </button>
+              );
+            })}
+            <div style={{ height: 1, background: C.border, margin: '4px 0' }} />
+            <button
+              type="button"
+              onClick={pickNone}
+              style={{ ...cardStyle(noneSelected), textAlign: 'left', display: 'flex', alignItems: 'center', gap: 12 }}
+            >
+              {checkBox(noneSelected)}
+              <span style={{ fontWeight: 600 }}>사전문진을 하지 않았어요</span>
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    case 'pet_count': {
+      // 매칭으로 이미 추가된 환자가 있으면 "추가 마리 수" 만 묻는다(0도 허용).
+      const hasMatched = matchedPetsCount > 0;
+      const additional = Math.max(0, answers.pets.length - matchedPetsCount);
+      const additionalOptions: { value: string; label: string }[] = hasMatched
+        ? [{ value: '0', label: '없어요' }, ...PET_COUNT_OPTIONS.map((o) => ({ value: o.value, label: o.label }))]
+        : PET_COUNT_OPTIONS;
+      const question = hasMatched
+        ? `사전문진을 작성한 ${matchedPetsCount}마리 외에 추가로 접수할 아이가 더 있나요?`
+        : '오늘 접수가 필요한 아이는 총 몇 마리인가요?';
+      const currentValue = hasMatched ? String(additional) : String(answers.petCount || '');
+      return (
+        <div>
+          <Q>{question}</Q>
+          <CardChoices
+            options={additionalOptions}
+            value={currentValue}
+            onPick={(v) => props.setAdditionalPetCount(Number(v))}
+            columns={2}
+          />
+        </div>
+      );
+    }
 
     case 'pet': {
       const i = step.petIndex;

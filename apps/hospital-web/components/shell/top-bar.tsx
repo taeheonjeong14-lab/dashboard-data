@@ -61,7 +61,7 @@ export function TopBar({ userName, hospitalName, tokenBalance }: TopBarProps) {
           <img
             src="/logo.png"
             alt="THEHAMM"
-            style={{ height: 48, width: 'auto', display: 'block' }}
+            style={{ height: 24, width: 'auto', display: 'block' }}
             onError={() => setLogoOk(false)}
           />
         ) : (
