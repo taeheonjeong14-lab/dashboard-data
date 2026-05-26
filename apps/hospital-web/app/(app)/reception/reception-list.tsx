@@ -51,6 +51,9 @@ function petBreed(p: PetAnswer): string {
   if (!p.breed) return '—';
   return p.breed === '기타' || p.breed === '그 외' ? p.breedOther || p.breed : p.breed;
 }
+function hasLinkedSurvey(s: Submission): boolean {
+  return (s.pets ?? []).some((p) => p?.surveyLinked === true);
+}
 function referralText(r: ReferralAnswer | null): string {
   if (!r || !r.channel) return '—';
   const base = labelOf(REFERRAL_CHANNEL_OPTIONS, r.channel);
@@ -153,7 +156,7 @@ export function ReceptionList({ items, hasHospital, loadError, hospitalId }: {
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
                 <thead>
                   <tr style={{ background: 'var(--bg-subtle)' }}>
-                    {['접수일 및 시간', '보호자', '연락처', '환자'].map((h) => (
+                    {['접수일 및 시간', '보호자', '연락처', '환자', '사전문진'].map((h) => (
                       <th key={h} style={thStyle}>{h}</th>
                     ))}
                   </tr>
@@ -170,6 +173,13 @@ export function ReceptionList({ items, hasHospital, loadError, hospitalId }: {
                       <td style={{ ...tdStyle, color: 'var(--text)' }}>{s.owner_name ?? '—'}</td>
                       <td style={tdStyle}>{s.owner_phone ?? '—'}</td>
                       <td style={{ ...tdStyle, whiteSpace: 'normal', color: 'var(--text)' }}>{petNames(s)}</td>
+                      <td style={tdStyle}>
+                        {hasLinkedSurvey(s) ? (
+                          <span style={surveyBadgeStyle}>완료</span>
+                        ) : (
+                          <span style={{ color: 'var(--text-muted)' }}>—</span>
+                        )}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -306,4 +316,14 @@ const thStyle: CSSProperties = {
 };
 const tdStyle: CSSProperties = {
   padding: '11px 14px', color: 'var(--text-secondary)', whiteSpace: 'nowrap',
+};
+const surveyBadgeStyle: CSSProperties = {
+  display: 'inline-block',
+  padding: '2px 8px',
+  fontSize: 11,
+  fontWeight: 600,
+  lineHeight: 1.6,
+  color: 'var(--success)',
+  background: 'var(--success-subtle)',
+  borderRadius: 999,
 };

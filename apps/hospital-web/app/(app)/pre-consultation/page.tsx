@@ -8,6 +8,15 @@ import { CenteredSpinner } from '@/components/ui/loading-spinner';
 import { StickyHeader } from '@/components/ui/sticky-header';
 import { ddxGet, ddxPost, DdxApiForbiddenError } from '@/lib/ddx-api';
 
+// 한국 휴대폰 번호 자동 포맷팅(010-0000-0000). 숫자만 추출해 길이별로 - 삽입.
+function formatPhone(v: string): string {
+  const d = v.replace(/\D/g, '').slice(0, 11);
+  if (d.length < 4) return d;
+  if (d.length < 7) return `${d.slice(0, 3)}-${d.slice(3)}`;
+  if (d.length < 11) return `${d.slice(0, 3)}-${d.slice(3, 6)}-${d.slice(6)}`;
+  return `${d.slice(0, 3)}-${d.slice(3, 7)}-${d.slice(7)}`;
+}
+
 // ─── 타입 ────────────────────────────────────────────────
 type SessionListItem = {
   id: string;
@@ -524,7 +533,7 @@ function SendModal({ userId, origin, onClose, onCreated }: {
               </Field>
             </div>
             <Field label="연락처" required>
-              <input style={inputStyle} value={contact} onChange={(e) => setContact(e.target.value)} placeholder="010-0000-0000" type="tel" />
+              <input style={inputStyle} value={contact} onChange={(e) => setContact(formatPhone(e.target.value))} placeholder="010-0000-0000" type="tel" inputMode="numeric" />
             </Field>
             <Field label="내원 예정일">
               <input style={inputStyle} type="date" value={scheduledDate} onChange={(e) => setScheduledDate(e.target.value)} />
