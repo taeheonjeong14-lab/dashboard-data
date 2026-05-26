@@ -40,23 +40,6 @@ type GenerateDebugInfo = {
   };
 };
 
-const RECHECK_FALLBACK = '재검 권장\n재진 필요시 추후에 상의 드릴 예정입니다';
-
-function ensureRecheckFields<T extends Record<string, unknown>>(input: T): T {
-  const out = { ...input } as Record<string, unknown>;
-  const keys = [
-    'recheckWithin1to2Weeks',
-    'recheckWithin1Month',
-    'recheckWithin3Months',
-    'recheckWithin6Months',
-  ];
-  for (const key of keys) {
-    const v = out[key];
-    if (typeof v !== 'string' || !v.trim()) out[key] = RECHECK_FALLBACK;
-  }
-  return out as T;
-}
-
 function isDebugEnabled(body: Record<string, unknown>): boolean {
   const reqDebug = body.debug;
   if (typeof reqDebug === 'boolean') return reqDebug;
@@ -207,15 +190,14 @@ export async function POST(request: NextRequest) {
 
         const withSourceCover = applyHealthCheckupCoverFromSource(merged, source);
         const payload = parseHealthCheckupPayloadFromStorage(withSourceCover);
-        const generatedSafe = ensureRecheckFields(payload as Record<string, unknown>);
-        const validated = validateHealthCheckupGeneratedContent(generatedSafe, { runId });
+        const validated = validateHealthCheckupGeneratedContent(payload, { runId });
         if (!validated.ok) {
           console.warn('[POST /api/content/generate] validation failed', {
             runId,
             error: validated.error,
             coverSnapshot: HEALTH_CHECKUP_COVER_STORAGE_KEYS.map((k) => [
               k,
-              typeof (generatedSafe as Record<string, unknown>)[k],
+              typeof (payload as Record<string, unknown>)[k],
             ]),
           });
           return NextResponse.json({ error: validated.error }, { status: 422 });

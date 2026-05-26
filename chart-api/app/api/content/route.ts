@@ -15,22 +15,6 @@ type ContentRow = {
 };
 
 const HEALTH_CHECKUP = 'health_checkup';
-const RECHECK_FALLBACK = '재검 권장\n재진 필요시 추후에 상의 드릴 예정입니다';
-
-function ensureRecheckFields<T extends Record<string, unknown>>(input: T): T {
-  const out = { ...input } as Record<string, unknown>;
-  const keys = [
-    'recheckWithin1to2Weeks',
-    'recheckWithin1Month',
-    'recheckWithin3Months',
-    'recheckWithin6Months',
-  ];
-  for (const key of keys) {
-    const v = out[key];
-    if (typeof v !== 'string' || !v.trim()) out[key] = RECHECK_FALLBACK;
-  }
-  return out as T;
-}
 
 // GET /api/content?runId=
 export async function GET(request: NextRequest) {
@@ -57,11 +41,10 @@ export async function GET(request: NextRequest) {
     const items = rows.map((r) => {
       let payload = r.payload;
       if (r.content_type === HEALTH_CHECKUP) {
-        // 레거시 이관 데이터(빈 recheck 등)도 조회는 가능해야 함.
-        // 1) parse(저장 형태 정규화) → 2) recheck 최소 보정 → 3) validate(표지 키 유지 포함)
+        // 1) parse(저장 형태 정규화) → 2) validate(표지 키 유지 포함)
+        // recheck 필드는 빈 문자열을 그대로 보존한다(사용자가 비워둔 시기는 빈칸으로).
         const parsed = parseHealthCheckupPayloadFromStorage(r.payload);
-        const repaired = ensureRecheckFields(parsed as unknown as Record<string, unknown>);
-        const validated = validateHealthCheckupGeneratedContent(repaired, { runId });
+        const validated = validateHealthCheckupGeneratedContent(parsed, { runId });
         if (!validated.ok) {
           throw new Error(`invalid stored health_checkup payload: ${validated.error}`);
         }

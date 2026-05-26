@@ -25,18 +25,15 @@ export type HealthCheckupValidatedPayload = {
 };
 
 const REQUIRED_KEYS: Array<
+  keyof Pick<HealthCheckupValidatedPayload, 'overallSummary' | 'followUpCare'>
+> = ['overallSummary', 'followUpCare'];
+
+const RECHECK_KEYS: Array<
   keyof Pick<
     HealthCheckupValidatedPayload,
-    | 'overallSummary'
-    | 'followUpCare'
-    | 'recheckWithin1to2Weeks'
-    | 'recheckWithin1Month'
-    | 'recheckWithin3Months'
-    | 'recheckWithin6Months'
+    'recheckWithin1to2Weeks' | 'recheckWithin1Month' | 'recheckWithin3Months' | 'recheckWithin6Months'
   >
 > = [
-  'overallSummary',
-  'followUpCare',
   'recheckWithin1to2Weeks',
   'recheckWithin1Month',
   'recheckWithin3Months',
@@ -80,6 +77,21 @@ export function validateHealthCheckupGeneratedContent(input: unknown, opts?: { r
     required[key] = trimmed;
   }
 
+  // 권장 재검진: 사용자가 비워둔 시기는 빈 문자열로 그대로 통과시킨다(자동 기본값 X).
+  // 편집 중 공백 보존을 위해 trim 도 하지 않는다(joinTimelineCardText 와 동일 규칙).
+  const recheck: Record<string, string> = {};
+  for (const key of RECHECK_KEYS) {
+    const value = obj[key];
+    if (value === undefined || value === null) {
+      recheck[key] = '';
+      continue;
+    }
+    if (typeof value !== 'string') {
+      return { ok: false, error: `generated.${key} must be a string` };
+    }
+    recheck[key] = value;
+  }
+
   const page3 = obj.systemsPage3Blocks;
   const page3b = obj.systemsPage3bBlocks;
   const page4 = obj.systemsPage4Blocks;
@@ -109,10 +121,10 @@ export function validateHealthCheckupGeneratedContent(input: unknown, opts?: { r
   const value = {
     overallSummary: required.overallSummary,
     followUpCare: required.followUpCare,
-    recheckWithin1to2Weeks: required.recheckWithin1to2Weeks,
-    recheckWithin1Month: required.recheckWithin1Month,
-    recheckWithin3Months: required.recheckWithin3Months,
-    recheckWithin6Months: required.recheckWithin6Months,
+    recheckWithin1to2Weeks: recheck.recheckWithin1to2Weeks,
+    recheckWithin1Month: recheck.recheckWithin1Month,
+    recheckWithin3Months: recheck.recheckWithin3Months,
+    recheckWithin6Months: recheck.recheckWithin6Months,
     ...covers,
     systemsPage3Blocks,
     systemsPage3bBlocks,

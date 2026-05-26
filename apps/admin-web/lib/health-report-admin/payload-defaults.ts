@@ -1,16 +1,13 @@
 import type { HealthCheckupGeneratedContent } from '@/lib/health-report-admin/types';
-import { joinTimelineCardText } from '@/lib/health-report-admin/timeline-card';
-
-const RECHECK_FALLBACK = joinTimelineCardText('재검 권장', '재진 필요시 추후에 상의 드릴 예정입니다.');
 
 export function emptyHealthCheckupPayload(): HealthCheckupGeneratedContent {
   return {
     overallSummary: '',
     followUpCare: '',
-    recheckWithin1to2Weeks: RECHECK_FALLBACK,
-    recheckWithin1Month: RECHECK_FALLBACK,
-    recheckWithin3Months: RECHECK_FALLBACK,
-    recheckWithin6Months: RECHECK_FALLBACK,
+    recheckWithin1to2Weeks: '',
+    recheckWithin1Month: '',
+    recheckWithin3Months: '',
+    recheckWithin6Months: '',
     coverCheckupDate: '',
     coverProgram: '',
     coverVeterinarian: '',
