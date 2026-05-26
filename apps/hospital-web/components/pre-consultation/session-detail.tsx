@@ -7,7 +7,7 @@ import { useEffect, useState } from 'react';
 import type { CSSProperties } from 'react';
 import { Copy, Check } from 'lucide-react';
 import { CenteredSpinner } from '@/components/ui/loading-spinner';
-import { ddxGet, ddxPost } from '@/lib/ddx-api';
+import { ddxGet } from '@/lib/ddx-api';
 
 // ─── 타입 ────────────────────────────────────────────────
 export type Question = {
@@ -93,11 +93,42 @@ export function followUpList(raw: unknown): string[] {
   return [];
 }
 
+// AI 사전 분석을 차트 프로그램에 바로 붙여넣을 수 있는 평문 텍스트로 합성.
+function buildAnalysisCopyText(detail: SessionDetail): string {
+  const out: string[] = [];
+  if (detail.draftSummary?.trim()) {
+    out.push('[차트 요약]');
+    out.push(detail.draftSummary.trim());
+  }
+  const ddxParsed = parseDdxJson(detail.draftDdx);
+  if (ddxParsed && ddxParsed.length > 0) {
+    if (out.length) out.push('');
+    out.push('[감별진단 (DDx)]');
+    ddxParsed.forEach((d, i) => {
+      out.push(`${i + 1}. ${d.name}${d.likelihood ? ` (가능도 ${d.likelihood})` : ''}`);
+      if (Array.isArray(d.reasons)) d.reasons.forEach((r) => out.push(`  - 근거: ${r}`));
+      if (Array.isArray(d.tests)) d.tests.forEach((t) => out.push(`  - 추천 검사: ${t}`));
+    });
+  } else if (detail.draftDdx?.trim()) {
+    if (out.length) out.push('');
+    out.push('[감별진단 (DDx)]');
+    out.push(detail.draftDdx.trim());
+  }
+  const followUps = followUpList(detail.followUpQuestions);
+  if (followUps.length > 0) {
+    if (out.length) out.push('');
+    out.push('[추천 추가 질문]');
+    followUps.forEach((q, i) => out.push(`${i + 1}. ${q}`));
+  }
+  return out.join('\n');
+}
+
 // ─── 상세 view (사전문진 메뉴 우측 / 모달 안에서 모두 사용) ──
-export function SessionDetailView({ detail, origin, onReanalyze }: {
+export function SessionDetailView({ detail, origin, hideShareLink = false }: {
   detail: SessionDetail;
   origin: string;
-  onReanalyze: () => void;
+  /** 모달처럼 보호자에게 다시 발송할 필요가 없는 컨텍스트에서는 상단 작성 링크 블록을 숨긴다. */
+  hideShareLink?: boolean;
 }) {
   const shareUrl = origin && detail.token ? `${origin}/survey/${detail.token}` : '';
   const ddxParsed = parseDdxJson(detail.draftDdx);
@@ -106,7 +137,7 @@ export function SessionDetailView({ detail, origin, onReanalyze }: {
 
   return (
     <div style={{ display: 'grid', gap: 14 }}>
-      {shareUrl && (
+      {!hideShareLink && shareUrl && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: 'var(--bg-subtle)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)' }}>
           <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', flexShrink: 0 }}>작성 링크</span>
           <span style={{ flex: 1, minWidth: 0, fontSize: 12.5, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{shareUrl}</span>
@@ -125,20 +156,19 @@ export function SessionDetailView({ detail, origin, onReanalyze }: {
 
       {completed && (
         <Section
-          title="AI 사전 분석"
           tone="accent"
-          right={
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          title={
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+              <span>AI 사전 분석</span>
               {detail.analysisStatus && (
                 <StatusBadge status={detail.analysisStatus} label={ANALYSIS_LABEL[detail.analysisStatus] ?? detail.analysisStatus} variant="analysis" />
               )}
-              {(detail.analysisStatus === 'done' || detail.analysisStatus === 'error') && (
-                <button type="button" onClick={onReanalyze}
-                  style={{ border: 'none', background: 'transparent', fontSize: 12, color: 'var(--accent)', cursor: 'pointer', padding: '2px 4px' }}>
-                  재분석
-                </button>
-              )}
-            </div>
+            </span>
+          }
+          right={
+            detail.analysisStatus === 'done'
+              ? <CopyBtn text={buildAnalysisCopyText(detail)} label="전체 복사" />
+              : null
           }
         >
           {detail.analysisStatus === 'pending' || detail.analysisStatus === 'processing' ? (
@@ -292,14 +322,7 @@ export function SessionDetailModal({ open, sessionIds, userId, onClose }: {
           ) : loadError ? (
             <p style={{ margin: 0, fontSize: 13, color: 'var(--danger)' }}>{loadError}</p>
           ) : detail ? (
-            <SessionDetailView
-              detail={detail}
-              origin={origin}
-              onReanalyze={() => {
-                ddxPost(`/api/surveys/sessions/${encodeURIComponent(detail.id)}`, userId, {}).catch(() => {});
-                setDetail({ ...detail, analysisStatus: 'pending' });
-              }}
-            />
+            <SessionDetailView detail={detail} origin={origin} hideShareLink />
           ) : (
             <p style={{ margin: 0, fontSize: 13, color: 'var(--text-muted)' }}>표시할 사전문진이 없습니다.</p>
           )}
@@ -310,7 +333,7 @@ export function SessionDetailModal({ open, sessionIds, userId, onClose }: {
 }
 
 // ─── 공용 작은 컴포넌트(상세 view 안에서 사용) ─────────────
-export function Section({ title, right, children, tone = 'default' }: { title: string; right?: React.ReactNode; children: React.ReactNode; tone?: 'default' | 'accent' }) {
+export function Section({ title, right, children, tone = 'default' }: { title: React.ReactNode; right?: React.ReactNode; children: React.ReactNode; tone?: 'default' | 'accent' }) {
   const isAccent = tone === 'accent';
   return (
     <div style={{ border: `1px solid ${isAccent ? 'var(--accent)' : 'var(--border)'}`, borderRadius: 'var(--radius-lg)', padding: '14px 16px', background: isAccent ? 'var(--accent-subtle)' : 'var(--bg)' }}>

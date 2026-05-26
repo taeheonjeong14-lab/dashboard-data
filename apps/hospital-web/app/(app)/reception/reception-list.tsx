@@ -172,7 +172,7 @@ export function ReceptionList({ items, hasHospital, loadError, hospitalId }: {
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
                 <thead>
                   <tr style={{ background: 'var(--bg-subtle)' }}>
-                    {['접수일 및 시간', '보호자', '연락처', '환자', '사전문진'].map((h) => (
+                    {['접수일 및 시간', '보호자', '연락처', '환자', '사전문진', '바로가기'].map((h) => (
                       <th key={h} style={thStyle}>{h}</th>
                     ))}
                   </tr>
@@ -191,16 +191,22 @@ export function ReceptionList({ items, hasHospital, loadError, hospitalId }: {
                       <td style={{ ...tdStyle, whiteSpace: 'normal', color: 'var(--text)' }}>{petNames(s)}</td>
                       <td style={tdStyle}>
                         {hasLinkedSurvey(s) ? (
+                          <span style={surveyBadgeStyle}>완료</span>
+                        ) : (
+                          <span style={{ color: 'var(--text-muted)' }}>—</span>
+                        )}
+                      </td>
+                      <td style={tdStyle}>
+                        {hasLinkedSurvey(s) ? (
                           <button
                             type="button"
                             onClick={(e) => {
                               e.stopPropagation(); // row 선택 onClick 이 같이 안 타게
                               setSurveyModalIds(linkedSurveySessionIds(s));
                             }}
-                            style={surveyBadgeBtnStyle}
-                            title="사전문진 기록 보기"
+                            style={surveyLinkBtnStyle}
                           >
-                            완료
+                            기록 보기
                           </button>
                         ) : (
                           <span style={{ color: 'var(--text-muted)' }}>—</span>
@@ -222,7 +228,7 @@ export function ReceptionList({ items, hasHospital, loadError, hospitalId }: {
             <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>접수 상세</div>
             {selected && <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>{fmtDateTime(selected.created_at)} 접수</div>}
           </div>
-          {selected ? <Detail s={selected} /> : (
+          {selected ? <Detail s={selected} onOpenSurvey={(ids) => setSurveyModalIds(ids)} /> : (
             <div style={{ fontSize: 13, color: 'var(--text-muted)', padding: '8px 0' }}>왼쪽에서 항목을 선택하세요.</div>
           )}
         </div>
@@ -266,7 +272,7 @@ export function ReceptionList({ items, hasHospital, loadError, hospitalId }: {
   );
 }
 
-function Detail({ s }: { s: Submission }) {
+function Detail({ s, onOpenSurvey }: { s: Submission; onOpenSurvey: (ids: string[]) => void }) {
   const petCount = s.pets?.length ?? 0;
   return (
     <div style={{ display: 'grid', gap: 14 }}>
@@ -285,11 +291,32 @@ function Detail({ s }: { s: Submission }) {
           <Row k="성별" v={p.sex ? labelOf(SEX_OPTIONS, p.sex) : '—'} />
           <Row k="동물등록" v={p.registration ? labelOf(REGISTRATION_OPTIONS, p.registration) : '—'} />
           <Row k="펫보험" v={p.insurance ? labelOf(INSURANCE_OPTIONS, p.insurance) : '—'} />
-          <Row k="증상/내원사유" v={
-            (p.symptoms ?? []).length
-              ? p.symptoms.map((sym) => (sym === 'other' ? (p.symptomOther || '기타') : labelOf(SYMPTOM_OPTIONS, sym))).join(', ')
-              : '—'
-          } />
+          {(() => {
+            const hasSymptoms = (p.symptoms ?? []).length > 0;
+            if (hasSymptoms) {
+              const v = p.symptoms.map((sym) => (sym === 'other' ? (p.symptomOther || '기타') : labelOf(SYMPTOM_OPTIONS, sym))).join(', ');
+              return <Row k="증상/내원사유" v={v} />;
+            }
+            if (p.surveyLinked && p.surveySessionId) {
+              return (
+                <div style={{ display: 'flex', gap: 8, padding: '5px 0', fontSize: 13, alignItems: 'flex-start' }}>
+                  <span style={{ width: 126, flexShrink: 0, color: 'var(--text-muted)' }}>증상/내원사유</span>
+                  <button
+                    type="button"
+                    onClick={() => onOpenSurvey([p.surveySessionId as string])}
+                    style={{
+                      padding: 0, margin: 0, border: 'none', background: 'transparent',
+                      color: 'var(--accent)', textDecoration: 'underline', cursor: 'pointer',
+                      fontSize: 13, fontFamily: 'inherit', lineHeight: 1.4,
+                    }}
+                  >
+                    사전문진 내용 참고
+                  </button>
+                </div>
+              );
+            }
+            return <Row k="증상/내원사유" v="—" />;
+          })()}
         </Section>
       ))}
 
@@ -362,9 +389,18 @@ const surveyBadgeStyle: CSSProperties = {
   background: 'var(--success-subtle)',
   borderRadius: 999,
 };
-const surveyBadgeBtnStyle: CSSProperties = {
-  ...surveyBadgeStyle,
-  border: '1px solid var(--success)',
+const surveyLinkBtnStyle: CSSProperties = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: 4,
+  padding: '4px 10px',
+  fontSize: 12,
+  fontWeight: 600,
+  lineHeight: 1.4,
+  color: 'var(--accent)',
+  background: 'var(--bg)',
+  border: '1px solid var(--accent)',
+  borderRadius: 'var(--radius)',
   cursor: 'pointer',
   fontFamily: 'inherit',
 };

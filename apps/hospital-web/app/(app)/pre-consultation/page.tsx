@@ -226,12 +226,7 @@ export default function PreConsultationPage() {
           ) : detailLoading && !detail ? (
             <Spinner />
           ) : detail ? (
-            <SessionDetailView detail={detail} origin={origin} onReanalyze={() => {
-              if (userId) {
-                ddxPost(`/api/surveys/sessions/${encodeURIComponent(detail.id)}`, userId, {}).catch(() => {});
-                setDetail({ ...detail, analysisStatus: 'pending' });
-              }
-            }} />
+            <SessionDetailView detail={detail} origin={origin} />
           ) : (
             <div style={{ fontSize: 13, color: 'var(--text-muted)', padding: '8px 0' }}>상세를 불러오지 못했습니다.</div>
           )}
