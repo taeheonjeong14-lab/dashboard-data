@@ -8,6 +8,7 @@ const navGroups = [
   {
     title: '고객응대',
     items: [
+      { href: '/pre-consultation', label: '사전문진', icon: ClipboardCheck, matchPrefix: '/pre-consultation' },
       { href: '/reception', label: '초진 접수', icon: ClipboardList, matchPrefix: '/reception' },
     ],
   },
@@ -21,7 +22,6 @@ const navGroups = [
   {
     title: 'Robovet AI',
     items: [
-      { href: '/pre-consultation', label: '사전문진', icon: ClipboardCheck, matchPrefix: '/pre-consultation' },
       { href: '/ai-assist', label: 'AI 진료 보조', icon: Stethoscope, matchPrefix: '/ai-assist' },
     ],
   },
