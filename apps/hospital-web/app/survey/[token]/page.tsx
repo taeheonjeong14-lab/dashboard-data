@@ -87,10 +87,19 @@ function isFreeOption(opt: string, qType: string): boolean {
   return /기타|직접\s*입력/.test(opt);
 }
 
+// pet_birthday 답변에서 "생일 모름 + 대략 나이" 케이스는 클라이언트 state 에서 마커 prefix 로 인코딩한다(객체 state 도입 회피).
+// 제출(buildPayload) 단계에서 백엔드가 기대하는 answerJson({ unknownBirthday, approximateYears }) 으로 변환된다.
+const UNKNOWN_AGE_PREFIX = 'UNKNOWN_AGE:';
+
 function answerNonEmpty(a: string | string[] | undefined): boolean {
   if (a == null) return false;
   if (Array.isArray(a)) return a.length > 0;
-  return typeof a === 'string' && a.trim().length > 0;
+  if (typeof a !== 'string') return false;
+  if (a.startsWith(UNKNOWN_AGE_PREFIX)) {
+    const rest = a.slice(UNKNOWN_AGE_PREFIX.length);
+    return rest.length > 0 && Number(rest) > 0;
+  }
+  return a.trim().length > 0;
 }
 
 function answerMatches(a: string | string[] | undefined, value: string): boolean {
@@ -153,6 +162,24 @@ export default function PublicSurveyPage() {
         const qById = new Map(data.session.questions.map((q) => [q.id, q]));
         for (const a of data.session.answers ?? []) {
           if (!qById.has(a.questionInstanceId)) continue;
+          const q = qById.get(a.questionInstanceId)!;
+          if (q.type === 'pet_birthday') {
+            // 백엔드는 answerJson 에 { date } 또는 { unknownBirthday: true, approximateYears } 형태로 저장한다.
+            const j = a.answerJson;
+            if (j && typeof j === 'object' && !Array.isArray(j)) {
+              const obj = j as { date?: unknown; unknownBirthday?: unknown; approximateYears?: unknown };
+              if (obj.unknownBirthday === true && typeof obj.approximateYears === 'number' && obj.approximateYears > 0) {
+                prefill[a.questionInstanceId] = `${UNKNOWN_AGE_PREFIX}${obj.approximateYears}`;
+                continue;
+              }
+              if (typeof obj.date === 'string' && obj.date) {
+                prefill[a.questionInstanceId] = obj.date;
+                continue;
+              }
+            }
+            if (a.answerText != null) prefill[a.questionInstanceId] = a.answerText;
+            continue;
+          }
           if (Array.isArray(a.answerJson)) prefill[a.questionInstanceId] = a.answerJson as string[];
           else if (a.answerText != null) prefill[a.questionInstanceId] = a.answerText;
         }
@@ -252,6 +279,22 @@ export default function PublicSurveyPage() {
       .map((q) => {
         const a = answers[q.id];
         if (a == null) return null;
+        if (q.type === 'pet_birthday') {
+          // UNKNOWN_AGE: prefix → { unknownBirthday, approximateYears }, 일반 string → { date }
+          if (typeof a !== 'string') return null;
+          if (a.startsWith(UNKNOWN_AGE_PREFIX)) {
+            const years = parseInt(a.slice(UNKNOWN_AGE_PREFIX.length), 10);
+            if (!Number.isFinite(years) || years <= 0) return null;
+            return {
+              questionInstanceId: q.id,
+              answerJson: { unknownBirthday: true, approximateYears: years },
+              answerText: `약 ${years}세`,
+            };
+          }
+          const date = a.trim();
+          if (!date) return null;
+          return { questionInstanceId: q.id, answerJson: { date }, answerText: date };
+        }
         if (Array.isArray(a)) {
           if (a.length === 0) return null;
           const mapped = a.map((opt) => applyFree(q.id, opt, q.type));
@@ -262,7 +305,7 @@ export default function PublicSurveyPage() {
         const finalText = (q.type === 'single_choice' || q.type === 'conditional_select') ? applyFree(q.id, s, q.type) : s;
         return { questionInstanceId: q.id, answerText: finalText };
       })
-      .filter((x): x is { questionInstanceId: string; answerText: string; answerJson?: string[] } => x !== null);
+      .filter((x): x is NonNullable<typeof x> => x !== null);
   };
 
   const handleSubmit = async () => {
@@ -400,11 +443,36 @@ export default function PublicSurveyPage() {
               onChange={(e) => setAns(question.id, e.target.value)} placeholder="자유롭게 적어 주세요" rows={4} style={textareaStyle} />
           )}
 
-          {question.type === 'pet_birthday' && (
-            <input autoFocus type="date" max={new Date().toISOString().slice(0, 10)}
-              value={typeof currentAnswer === 'string' ? currentAnswer : ''}
-              onChange={(e) => setAns(question.id, e.target.value)} style={inputStyle} />
-          )}
+          {question.type === 'pet_birthday' && (() => {
+            // 초진 접수증과 동일한 UX: 기본은 생일(date input), "생일을 모르겠어요" 체크 시 대략 나이(년) 입력.
+            const raw = typeof currentAnswer === 'string' ? currentAnswer : '';
+            const unknown = raw.startsWith(UNKNOWN_AGE_PREFIX);
+            const dateVal = unknown ? '' : raw;
+            const ageVal = unknown ? raw.slice(UNKNOWN_AGE_PREFIX.length) : '';
+            return (
+              <div>
+                {!unknown && (
+                  <input autoFocus type="date" max={new Date().toISOString().slice(0, 10)}
+                    value={dateVal}
+                    onChange={(e) => setAns(question.id, e.target.value)} style={inputStyle} />
+                )}
+                <label style={{ display: 'flex', alignItems: 'center', gap: 9, marginTop: 14, fontSize: 15, color: C.textSec, cursor: 'pointer' }}>
+                  <input type="checkbox" checked={unknown}
+                    onChange={(e) => setAns(question.id, e.target.checked ? UNKNOWN_AGE_PREFIX : '')}
+                    style={{ width: 18, height: 18, accentColor: 'var(--ac)', flexShrink: 0 }} />
+                  생일을 모르겠어요
+                </label>
+                {unknown && (
+                  <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <input autoFocus inputMode="numeric" value={ageVal}
+                      onChange={(e) => setAns(question.id, UNKNOWN_AGE_PREFIX + e.target.value.replace(/\D/g, '').slice(0, 2))}
+                      placeholder="대략적인 나이" style={{ ...inputStyle, flex: 1 }} />
+                    <span style={{ fontSize: 17, color: C.textSec }}>세</span>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
 
           {question.type === 'single_choice' && (
             <ChoiceList options={getChoices(question)} qid={question.id} qType="single_choice"

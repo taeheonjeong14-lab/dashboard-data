@@ -15,7 +15,8 @@ import {
   speciesFromSurvey, sexFromSurvey,
 } from '@/lib/intake/form-spec';
 
-/** /api/intake/survey-match 응답의 매칭 항목(ddx-api → BFF → 클라). */
+/** /api/intake/survey-match 응답의 매칭 항목(ddx-api → BFF → 클라).
+ *  초진 접수증의 PetAnswer 와 동일한 모양으로 생일/나이를 전달 — birthDate 가 비고 ageUnknown=true 면 ageText 사용. */
 type SurveyMatch = {
   id: string;
   patientName: string;
@@ -23,7 +24,9 @@ type SurveyMatch = {
   species: string;
   breed: string;
   sex: string;
-  birthday: string;
+  birthDate: string;
+  ageUnknown: boolean;
+  ageText: string;
 };
 
 // 라이트 고정 팔레트 (테마 변수 대신 — 다크모드 영향 없이 항상 밝게)
@@ -106,9 +109,9 @@ function petFromSurveyMatch(m: SurveyMatch): PetAnswer {
     species: sp,
     breed: matchedBreed ?? (m.breed ? '기타' : ''),
     breedOther: matchedBreed || !m.breed ? '' : m.breed.trim(),
-    birthDate: (m.birthday ?? '').trim(),
-    ageUnknown: false,
-    ageText: '',
+    birthDate: (m.birthDate ?? '').trim(),
+    ageUnknown: m.ageUnknown === true,
+    ageText: (m.ageText ?? '').trim(),
     sex: sexFromSurvey(m.sex),
     registration: '',
     insurance: '',
@@ -441,6 +444,8 @@ function StepBody(props: {
               if (m.species) sub.push(m.species);
               if (m.breed) sub.push(m.breed);
               if (m.sex) sub.push(m.sex);
+              if (m.birthDate) sub.push(`생일 ${m.birthDate}`);
+              else if (m.ageUnknown && m.ageText) sub.push(`약 ${m.ageText}세`);
               if (m.scheduledDate) sub.push(`내원예정 ${m.scheduledDate.slice(0, 10)}`);
               return (
                 <button

@@ -19,7 +19,10 @@ type Match = {
   species: string;
   breed: string;
   sex: string;
-  birthday: string;
+  /** 초진 접수증 PetAnswer 와 동일 — 생일을 알 때만 채워지고, 모를 때는 ageUnknown=true + ageText 로 옴 */
+  birthDate: string;
+  ageUnknown: boolean;
+  ageText: string;
 };
 
 export async function GET(request: NextRequest) {
