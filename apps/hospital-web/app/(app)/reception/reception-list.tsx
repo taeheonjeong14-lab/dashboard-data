@@ -168,55 +168,77 @@ export function ReceptionList({ items, hasHospital, loadError, hospitalId }: {
 
             {filtered.length === 0 ? (
               <div style={{ padding: '32px 18px', textAlign: 'center', fontSize: 13, color: 'var(--text-muted)' }}>검색·필터 결과가 없습니다.</div>
-            ) : (
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-                <thead>
-                  <tr style={{ background: 'var(--bg-subtle)' }}>
-                    {['접수일 및 시간', '보호자', '연락처', '환자', '사전문진', '바로가기'].map((h) => (
-                      <th key={h} style={thStyle}>{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {filtered.map((s, i) => (
-                    <tr key={s.id} onClick={() => setSelectedId(s.id)}
-                      style={{
-                        borderBottom: i < filtered.length - 1 ? '1px solid var(--border)' : 'none',
-                        cursor: 'pointer',
-                        background: selectedId === s.id ? 'var(--accent-subtle)' : 'transparent',
-                      }}>
-                      <td style={tdStyle}>{fmtDateTimeFull(s.created_at)}</td>
-                      <td style={{ ...tdStyle, color: 'var(--text)' }}>{s.owner_name ?? '—'}</td>
-                      <td style={tdStyle}>{s.owner_phone ?? '—'}</td>
-                      <td style={{ ...tdStyle, whiteSpace: 'normal', color: 'var(--text)' }}>{petNames(s)}</td>
-                      <td style={tdStyle}>
-                        {hasLinkedSurvey(s) ? (
-                          <span style={surveyBadgeStyle}>완료</span>
-                        ) : (
-                          <span style={{ color: 'var(--text-muted)' }}>—</span>
-                        )}
-                      </td>
-                      <td style={tdStyle}>
-                        {hasLinkedSurvey(s) ? (
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation(); // row 선택 onClick 이 같이 안 타게
-                              setSurveyModalIds(linkedSurveySessionIds(s));
-                            }}
-                            style={surveyLinkBtnStyle}
-                          >
-                            기록 보기
-                          </button>
-                        ) : (
-                          <span style={{ color: 'var(--text-muted)' }}>—</span>
-                        )}
-                      </td>
+            ) : (() => {
+              // 환자 단위 row 로 flatten — 한 보호자가 여러 마리를 데리고 오면 마리수만큼 줄이 늘어난다.
+              // 사전문진/바로가기 컬럼도 그 환자만 가리키므로 어떤 동물의 기록인지 모호하지 않다.
+              type FlatRow = { s: Submission; p: PetAnswer | null; petIndex: number };
+              const flatRows: FlatRow[] = filtered.flatMap<FlatRow>((s) => {
+                const pets = s.pets ?? [];
+                if (pets.length === 0) return [{ s, p: null, petIndex: 0 }];
+                return pets.map((p, i) => ({ s, p, petIndex: i }));
+              });
+              return (
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                  <thead>
+                    <tr style={{ background: 'var(--bg-subtle)' }}>
+                      {['접수일 및 시간', '보호자', '연락처', '환자', '사전문진', '바로가기'].map((h) => (
+                        <th key={h} style={thStyle}>{h}</th>
+                      ))}
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
+                  </thead>
+                  <tbody>
+                    {flatRows.map(({ s, p, petIndex }, i) => {
+                      const isFirstOfSubmission = i === 0 || flatRows[i - 1].s.id !== s.id;
+                      const isLastOfSubmission = i === flatRows.length - 1 || flatRows[i + 1].s.id !== s.id;
+                      const linkedId = p?.surveyLinked === true && typeof p.surveySessionId === 'string' ? p.surveySessionId : null;
+                      return (
+                        <tr
+                          key={`${s.id}-${petIndex}`}
+                          onClick={() => setSelectedId(s.id)}
+                          style={{
+                            // 같은 submission 의 행들은 굵은 구분선 없이 묶고, submission 경계에만 굵은 선.
+                            borderBottom: i < flatRows.length - 1
+                              ? `1px solid ${isLastOfSubmission ? 'var(--border)' : 'var(--bg-subtle)'}`
+                              : 'none',
+                            cursor: 'pointer',
+                            background: selectedId === s.id ? 'var(--accent-subtle)' : 'transparent',
+                          }}
+                        >
+                          {/* 같은 보호자의 두 번째 이후 row 는 접수일·보호자·연락처를 비워 묶음 표시 */}
+                          <td style={tdStyle}>{isFirstOfSubmission ? fmtDateTimeFull(s.created_at) : ''}</td>
+                          <td style={{ ...tdStyle, color: 'var(--text)' }}>{isFirstOfSubmission ? (s.owner_name ?? '—') : ''}</td>
+                          <td style={tdStyle}>{isFirstOfSubmission ? (s.owner_phone ?? '—') : ''}</td>
+                          <td style={{ ...tdStyle, whiteSpace: 'normal', color: 'var(--text)' }}>{p?.name?.trim() || '—'}</td>
+                          <td style={tdStyle}>
+                            {linkedId ? (
+                              <span style={surveyBadgeStyle}>완료</span>
+                            ) : (
+                              <span style={{ color: 'var(--text-muted)' }}>—</span>
+                            )}
+                          </td>
+                          <td style={tdStyle}>
+                            {linkedId ? (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSurveyModalIds([linkedId]);
+                                }}
+                                style={surveyLinkBtnStyle}
+                              >
+                                기록 보기
+                              </button>
+                            ) : (
+                              <span style={{ color: 'var(--text-muted)' }}>—</span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              );
+            })()}
           </>
         )}
       </div>
