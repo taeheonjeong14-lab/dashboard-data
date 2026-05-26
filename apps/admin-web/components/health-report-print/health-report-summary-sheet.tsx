@@ -151,7 +151,19 @@ export function HealthReportSummarySheet({
                     <div key={`${it.intervalLabel}-${i}`} className="hrss-tl-col">
                       <div className="hrss-tl-card">
                         <div className="hrss-tl-card__inner">
-                          {title ? <p className="hrss-tl-card__title">{title}</p> : null}
+                          {title ? (
+                            <p className="hrss-tl-card__title">{title}</p>
+                          ) : isCompletelyEmpty ? (
+                            // 비어 있을 때 제목 자리만큼 보이지 않는 placeholder 를 두어,
+                            // fallback 문구가 일반 카드의 본문 첫째 줄 위치에 떨어지도록 한다.
+                            <p
+                              className="hrss-tl-card__title"
+                              aria-hidden="true"
+                              style={{ visibility: "hidden" }}
+                            >
+                              {" "}
+                            </p>
+                          ) : null}
                           <p className="hrss-tl-card__text">
                             {isCompletelyEmpty ? "별도의 재검 일정은 없습니다" : body || " "}
                           </p>
