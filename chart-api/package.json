@@ -11,6 +11,7 @@
   "dependencies": {
     "@dashboard/lab-normalize": "*",
     "@fontsource/noto-sans-kr": "^5.2.9",
+    "@fontsource/pretendard": "^5.2.5",
     "@google-cloud/storage": "^7.19.0",
     "@google-cloud/vision": "^5.3.6",
     "@google/genai": "^2.2.0",

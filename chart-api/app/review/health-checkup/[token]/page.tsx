@@ -2,6 +2,10 @@ import type { Metadata } from 'next';
 import '@fontsource/noto-sans-kr/400.css';
 import '@fontsource/noto-sans-kr/500.css';
 import '@fontsource/noto-sans-kr/700.css';
+// 외부 검토 화면도 Pretendard 우선(스택 1순위)으로 일관 렌더 — 사용자 PC 폰트 유무와 무관하게.
+import '@fontsource/pretendard/400.css';
+import '@fontsource/pretendard/500.css';
+import '@fontsource/pretendard/700.css';
 import { getChartPgPool } from '@/lib/db';
 import { hashShareToken } from '@/lib/chart-app/share-token';
 import { hospitalRowFromDb } from '@/lib/chart-app/hospital-db';

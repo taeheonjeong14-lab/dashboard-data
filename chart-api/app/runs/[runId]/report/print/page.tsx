@@ -7,6 +7,12 @@ import '@fontsource/noto-sans-kr/400.css';
 import '@fontsource/noto-sans-kr/500.css';
 import '@fontsource/noto-sans-kr/700.css';
 import '@fontsource/noto-sans-kr/900.css';
+// Pretendard 는 report-a4-tokens 폰트 스택의 1순위. 서버 chromium 에는 시스템 폰트로 깔려있지
+// 않아 fallback(NotoSansKR) 로 떨어져 글자 폭 차이로 줄바꿈이 어긋났다 — 같은 family 를 화면·PDF 양쪽에 강제 로드한다.
+import '@fontsource/pretendard/400.css';
+import '@fontsource/pretendard/500.css';
+import '@fontsource/pretendard/700.css';
+import '@fontsource/pretendard/900.css';
 import { PARSE_RUN_UUID_RE, parseRunExists } from '@/lib/parse-run-check';
 import { getChartPgPool } from '@/lib/db';
 import { hospitalRowFromDb } from '@/lib/chart-app/hospital-db';

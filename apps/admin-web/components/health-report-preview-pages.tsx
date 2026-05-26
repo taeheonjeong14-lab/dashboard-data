@@ -4,6 +4,11 @@ import '@fontsource/noto-sans-kr/400.css';
 import '@fontsource/noto-sans-kr/500.css';
 import '@fontsource/noto-sans-kr/700.css';
 import '@fontsource/noto-sans-kr/900.css';
+// 폰트 스택 1순위(Pretendard)를 항상 로드해 미리보기·PDF 줄바꿈을 일치시킨다.
+import '@fontsource/pretendard/400.css';
+import '@fontsource/pretendard/500.css';
+import '@fontsource/pretendard/700.css';
+import '@fontsource/pretendard/900.css';
 
 import type { HealthReportCoverSheetProps } from '@/components/health-report-print/health-report-cover-sheet';
 import { HealthReportCoverSheet } from '@/components/health-report-print/health-report-cover-sheet';

@@ -10,6 +10,11 @@ import '@fontsource/noto-sans-kr/400.css';
 import '@fontsource/noto-sans-kr/500.css';
 import '@fontsource/noto-sans-kr/700.css';
 import '@fontsource/noto-sans-kr/900.css';
+// 화면(외부 검토)·PDF 의 폰트 일관성을 위해 Pretendard 도 함께 로드 (스택 1순위와 일치).
+import '@fontsource/pretendard/400.css';
+import '@fontsource/pretendard/500.css';
+import '@fontsource/pretendard/700.css';
+import '@fontsource/pretendard/900.css';
 import { getChartPgPool } from '@/lib/db';
 import { hashShareToken } from '@/lib/chart-app/share-token';
 import { hospitalRowFromDb } from '@/lib/chart-app/hospital-db';
