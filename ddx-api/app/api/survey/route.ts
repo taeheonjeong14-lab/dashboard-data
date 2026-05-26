@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { after } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { analyzeSurveySessionById } from '@/lib/survey-analysis';
 import { syncSurveySessionIdentityFields } from '@/lib/survey-session-identity-sync';
@@ -122,9 +123,12 @@ export async function POST(request: NextRequest) {
         where: { id: session.id },
         data: { status: 'completed', completedAt: new Date(), analysisStatus: 'pending' },
       });
-      // 사전문진 완료 시 비동기로 사전 분석 실행 (차트 요약/DDx/추가 질문)
-      void analyzeSurveySessionById(updated.id).catch((e) =>
-        console.error('analyzeSurveySessionById failed:', e),
+      // 사전문진 완료 시 사전 분석 실행 (차트 요약/DDx/추가 질문).
+      // after() 로 등록해야 응답 반환 후에도 서버리스 함수가 살아 분석이 끝까지 완료된다 — void Promise 만 던지면 Vercel 에서 즉시 종료될 수 있다.
+      after(() =>
+        analyzeSurveySessionById(updated.id).catch((e) =>
+          console.error('analyzeSurveySessionById failed:', e),
+        ),
       );
     }
 

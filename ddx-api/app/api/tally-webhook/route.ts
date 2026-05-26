@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { after } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getImageUrlsFromTallyData } from '@/lib/tally';
 import { fetchImagePartsForGemini } from '@/lib/gemini-images';
@@ -197,9 +198,11 @@ export async function POST(request: NextRequest) {
         isUsed: false,
       },
     });
-    // Tally 사전문진이 저장되면 비동기로 사전 분석 실행
-    void analyzePreConsultationById(created.id).catch((e) =>
-      console.error('analyzePreConsultationById failed:', e),
+    // Tally 사전문진이 저장되면 사전 분석 실행. after() 로 응답 후 끝까지 보장.
+    after(() =>
+      analyzePreConsultationById(created.id).catch((e) =>
+        console.error('analyzePreConsultationById failed:', e),
+      ),
     );
 
     return NextResponse.json({ success: true, questionsCount: result.questions.length });

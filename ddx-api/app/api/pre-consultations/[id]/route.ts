@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { after } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { analyzePreConsultationById } from '@/lib/survey-analysis';
 
@@ -148,8 +149,11 @@ export async function POST(
       data: { analysisStatus: 'pending' },
     });
 
-    void analyzePreConsultationById(id).catch((e) =>
-      console.error('reanalyze analyzePreConsultationById failed:', e),
+    // after() 로 응답 후에도 분석이 끝까지 실행되도록 보장.
+    after(() =>
+      analyzePreConsultationById(id).catch((e) =>
+        console.error('reanalyze analyzePreConsultationById failed:', e),
+      ),
     );
 
     return NextResponse.json({ success: true });
