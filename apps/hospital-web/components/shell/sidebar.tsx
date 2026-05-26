@@ -2,7 +2,7 @@
 
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
-import { BarChart2, FileHeart, Stethoscope, ClipboardList, ClipboardCheck } from 'lucide-react';
+import { BarChart2, FileHeart, Stethoscope, ClipboardList, ClipboardCheck, Newspaper } from 'lucide-react';
 
 const navGroups = [
   {
@@ -17,6 +17,7 @@ const navGroups = [
     items: [
       { href: '/dashboard', label: '경영 대시보드', icon: BarChart2, matchPrefix: '/dashboard' },
       { href: '/health-report', label: '건강검진 리포트', icon: FileHeart, matchPrefix: '/health-report' },
+      { href: '/blog', label: '블로그 컨텐츠', icon: Newspaper, matchPrefix: '/blog', badge: '준비중' },
     ],
   },
   {
@@ -58,6 +59,9 @@ export function Sidebar() {
                   <span style={{ color: isActive ? 'var(--accent)' : 'var(--text-secondary)' }}>
                     {item.label}
                   </span>
+                  {item.badge && (
+                    <span style={styles.badge}>{item.badge}</span>
+                  )}
                 </Link>
               );
             })}
@@ -119,5 +123,17 @@ const styles: Record<string, React.CSSProperties> = {
   },
   navIcon: {
     flexShrink: 0,
+  },
+  badge: {
+    marginLeft: 'auto',
+    fontSize: 10,
+    fontWeight: 600,
+    padding: '1px 6px',
+    borderRadius: 999,
+    background: 'var(--bg-raised)',
+    color: 'var(--text-muted)',
+    border: '1px solid var(--border)',
+    lineHeight: 1.4,
+    whiteSpace: 'nowrap',
   },
 };
