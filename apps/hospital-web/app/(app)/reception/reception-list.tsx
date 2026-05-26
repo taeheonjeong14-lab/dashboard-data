@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation';
 import type { CSSProperties } from 'react';
 import { Copy, Check } from 'lucide-react';
 import { StickyHeader } from '@/components/ui/sticky-header';
+import { useHospital } from '@/components/shell/hospital-context';
+import { SessionDetailModal } from '@/components/pre-consultation/session-detail';
 import {
   SPECIES_OPTIONS, SEX_OPTIONS, REGISTRATION_OPTIONS, INSURANCE_OPTIONS,
   SYMPTOM_OPTIONS, REFERRAL_CHANNEL_OPTIONS, ONLINE_MEDIA_OPTIONS, labelOf,
@@ -52,7 +54,17 @@ function petBreed(p: PetAnswer): string {
   return p.breed === '기타' || p.breed === '그 외' ? p.breedOther || p.breed : p.breed;
 }
 function hasLinkedSurvey(s: Submission): boolean {
-  return (s.pets ?? []).some((p) => p?.surveyLinked === true);
+  return linkedSurveySessionIds(s).length > 0;
+}
+function linkedSurveySessionIds(s: Submission): string[] {
+  const ids: string[] = [];
+  for (const p of s.pets ?? []) {
+    if (p?.surveyLinked === true && typeof p.surveySessionId === 'string' && p.surveySessionId) {
+      ids.push(p.surveySessionId);
+    }
+  }
+  // 중복 제거(같은 사전문진에 여러 환자가 매핑되는 케이스는 없지만 방어적으로).
+  return Array.from(new Set(ids));
 }
 function referralText(r: ReferralAnswer | null): string {
   if (!r || !r.channel) return '—';
@@ -67,8 +79,12 @@ export function ReceptionList({ items, hasHospital, loadError, hospitalId }: {
   items: Submission[]; hasHospital: boolean; loadError: string | null; hospitalId: string | null;
 }) {
   const router = useRouter();
+  const { userId } = useHospital();
   const [selectedId, setSelectedId] = useState<string | null>(items[0]?.id ?? null);
   const selected = items.find((s) => s.id === selectedId) ?? null;
+  /** 사전문진 기록 모달 — 클릭한 row 의 surveySessionId 들 */
+  const [surveyModalIds, setSurveyModalIds] = useState<string[]>([]);
+  const surveyModalOpen = surveyModalIds.length > 0;
 
   const [query, setQuery] = useState('');
   const filtered = items.filter((s) => {
@@ -175,7 +191,17 @@ export function ReceptionList({ items, hasHospital, loadError, hospitalId }: {
                       <td style={{ ...tdStyle, whiteSpace: 'normal', color: 'var(--text)' }}>{petNames(s)}</td>
                       <td style={tdStyle}>
                         {hasLinkedSurvey(s) ? (
-                          <span style={surveyBadgeStyle}>완료</span>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation(); // row 선택 onClick 이 같이 안 타게
+                              setSurveyModalIds(linkedSurveySessionIds(s));
+                            }}
+                            style={surveyBadgeBtnStyle}
+                            title="사전문진 기록 보기"
+                          >
+                            완료
+                          </button>
                         ) : (
                           <span style={{ color: 'var(--text-muted)' }}>—</span>
                         )}
@@ -202,6 +228,15 @@ export function ReceptionList({ items, hasHospital, loadError, hospitalId }: {
         </div>
       </div>
       </div>
+
+      {surveyModalOpen && userId && (
+        <SessionDetailModal
+          open={surveyModalOpen}
+          sessionIds={surveyModalIds}
+          userId={userId}
+          onClose={() => setSurveyModalIds([])}
+        />
+      )}
 
       {linkModalOpen && hasHospital && (
         <div onClick={() => setLinkModalOpen(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: 16 }}>
@@ -326,4 +361,10 @@ const surveyBadgeStyle: CSSProperties = {
   color: 'var(--success)',
   background: 'var(--success-subtle)',
   borderRadius: 999,
+};
+const surveyBadgeBtnStyle: CSSProperties = {
+  ...surveyBadgeStyle,
+  border: '1px solid var(--success)',
+  cursor: 'pointer',
+  fontFamily: 'inherit',
 };
