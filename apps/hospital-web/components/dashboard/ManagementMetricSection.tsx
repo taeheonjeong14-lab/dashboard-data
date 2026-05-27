@@ -339,11 +339,12 @@ export default function ManagementMetricSection({
                     <ReferenceLine
                       y={stats.max}
                       stroke="#14b8a6"
-                      strokeWidth={1}
+                      strokeWidth={0.75}
+                      strokeDasharray="3 3"
                       ifOverflow="extendDomain"
                       label={{
                         value: `최대 ${formatValue(valueFormat, stats.max, valueSuffix)}`,
-                        position: "insideRight",
+                        position: "insideTopRight",
                         fill: "#0d9488",
                         fontSize: 11,
                       }}
@@ -353,11 +354,12 @@ export default function ManagementMetricSection({
                     <ReferenceLine
                       y={stats.avg}
                       stroke="#14b8a6"
-                      strokeWidth={1}
+                      strokeWidth={0.75}
+                      strokeDasharray="3 3"
                       ifOverflow="extendDomain"
                       label={{
                         value: `평균 ${formatValue(valueFormat, stats.avg, valueSuffix)}`,
-                        position: "insideRight",
+                        position: "insideTopRight",
                         fill: "#0d9488",
                         fontSize: 11,
                       }}
@@ -367,11 +369,12 @@ export default function ManagementMetricSection({
                     <ReferenceLine
                       y={stats.min}
                       stroke="#14b8a6"
-                      strokeWidth={1}
+                      strokeWidth={0.75}
+                      strokeDasharray="3 3"
                       ifOverflow="extendDomain"
                       label={{
                         value: `최소 ${formatValue(valueFormat, stats.min, valueSuffix)}`,
-                        position: "insideRight",
+                        position: "insideTopRight",
                         fill: "#0d9488",
                         fontSize: 11,
                       }}
