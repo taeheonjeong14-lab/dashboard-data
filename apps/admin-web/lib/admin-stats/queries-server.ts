@@ -253,7 +253,7 @@ export async function fetchSummaryKpis(hospitalId: string): Promise<SummaryKpis>
       .select("*")
       .eq("hospital_id", hospitalId)
       .eq("period_type", "day")
-      .order("metric_date", { ascending: true })
+      .order("period_start_date", { ascending: true })
       .range(from, to),
   );
   const hasIntovet = rawRows.some((r) => String(r.chart_type ?? "").toLowerCase() === "intovet");
@@ -313,7 +313,7 @@ export async function fetchHospitalManagementKpis(
         .select("*")
         .eq("hospital_id", hospitalId)
         .eq("period_type", periodType)
-        .order("metric_date", { ascending: true })
+        .order("period_start_date", { ascending: true })
         .range(from, to),
     );
   const [dayK, monthK, yearK] = await Promise.all([
@@ -373,7 +373,7 @@ export async function fetchHospitalManagementRawRows(
       .from("chart_kpis_period_view")
       .select("*")
       .eq("hospital_id", hospitalId)
-      .order("metric_date", { ascending: true })
+      .order("period_start_date", { ascending: true })
       .range(from, to),
   );
 }
