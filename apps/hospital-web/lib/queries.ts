@@ -347,7 +347,8 @@ export async function fetchBlogPeriodKpis(hospitalId: string): Promise<BlogPerio
 
   const PAGE = 1000;
   const rawRows: Record<string, unknown>[] = [];
-  for (let from = 0; ; from += PAGE) {
+  let received = 0;
+  for (let iter = 0; iter < 50; iter++) {
     const { data, error } = await supabase
       .schema("analytics")
       .from("chart_blog_period_view")
@@ -356,11 +357,11 @@ export async function fetchBlogPeriodKpis(hospitalId: string): Promise<BlogPerio
       .in("period_type", ["day", "month", "year"])
       .order("period_type", { ascending: true })
       .order("metric_date", { ascending: true })
-      .range(from, from + PAGE - 1);
+      .range(received, received + PAGE - 1);
     if (error) throw error;
     if (!data || data.length === 0) break;
     rawRows.push(...(data as Record<string, unknown>[]));
-    if (data.length < PAGE) break;
+    received += data.length;
   }
 
   const mapped = rawRows
