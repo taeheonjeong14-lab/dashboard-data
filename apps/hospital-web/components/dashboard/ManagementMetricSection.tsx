@@ -349,18 +349,47 @@ export default function ManagementMetricSection({
                     )}
                   />
                   {stats ? (
-                    <ReferenceLine
-                      y={stats.avg}
-                      stroke="#94a3b8"
-                      strokeWidth={1.5}
-                      ifOverflow="extendDomain"
-                      label={{
-                        value: `평균 ${formatValue(valueFormat, stats.avg, valueSuffix)}`,
-                        position: "insideTopRight",
-                        fill: "#64748b",
-                        fontSize: 11,
-                      }}
-                    />
+                    <>
+                      <ReferenceLine
+                        y={stats.max}
+                        stroke="#94a3b8"
+                        strokeWidth={1.25}
+                        strokeDasharray="4 4"
+                        ifOverflow="extendDomain"
+                        label={{
+                          value: "최대",
+                          position: "insideRight",
+                          fill: "#64748b",
+                          fontSize: 11,
+                        }}
+                      />
+                      <ReferenceLine
+                        y={stats.avg}
+                        stroke="#94a3b8"
+                        strokeWidth={1.25}
+                        strokeDasharray="4 4"
+                        ifOverflow="extendDomain"
+                        label={{
+                          value: "평균",
+                          position: "insideRight",
+                          fill: "#64748b",
+                          fontSize: 11,
+                        }}
+                      />
+                      <ReferenceLine
+                        y={stats.min}
+                        stroke="#94a3b8"
+                        strokeWidth={1.25}
+                        strokeDasharray="4 4"
+                        ifOverflow="extendDomain"
+                        label={{
+                          value: "최소",
+                          position: "insideRight",
+                          fill: "#64748b",
+                          fontSize: 11,
+                        }}
+                      />
+                    </>
                   ) : null}
                   <Line
                     type="monotone"
