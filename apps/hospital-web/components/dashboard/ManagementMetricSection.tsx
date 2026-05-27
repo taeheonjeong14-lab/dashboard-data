@@ -114,13 +114,21 @@ function formatValue(
   return `${new Intl.NumberFormat("ko-KR", { maximumFractionDigits: 1 }).format(v)}${u}`;
 }
 
-function formatAxis(format: ManagementMetricSectionProps["valueFormat"], v: number) {
+function formatAxis(
+  format: ManagementMetricSectionProps["valueFormat"],
+  v: number,
+  suffix?: string,
+): string {
   if (!Number.isFinite(v)) return "";
-  if (format === "decimal") {
-    return new Intl.NumberFormat("ko-KR", { maximumFractionDigits: 1 }).format(v);
+  if (format === "currency") {
+    // 매출은 만원 단위로 환산 (Y축 가독성).
+    const inManwon = v / 10000;
+    return `${new Intl.NumberFormat("ko-KR", { maximumFractionDigits: 0 }).format(inManwon)}만원`;
   }
-  // currency / integer: 항상 천단위 콤마, 정수.
-  return new Intl.NumberFormat("ko-KR", { maximumFractionDigits: 0 }).format(v);
+  if (format === "integer") {
+    return `${new Intl.NumberFormat("ko-KR", { maximumFractionDigits: 0 }).format(v)}${suffix ?? "건"}`;
+  }
+  return `${new Intl.NumberFormat("ko-KR", { maximumFractionDigits: 1 }).format(v)}${suffix ?? ""}`;
 }
 
 export default function ManagementMetricSection({
@@ -285,7 +293,7 @@ export default function ManagementMetricSection({
                   <YAxis
                     stroke="#d1d6db"
                     tick={{ fill: "#8b95a1", fontSize: 11 }}
-                    tickFormatter={(val) => formatAxis(valueFormat, Number(val))}
+                    tickFormatter={(val) => formatAxis(valueFormat, Number(val), valueSuffix)}
                   />
                   <Tooltip
                     contentStyle={tooltipStyle}
@@ -409,7 +417,7 @@ export default function ManagementMetricSection({
                     <YAxis
                       stroke="#d1d6db"
                       tick={{ fill: "#8b95a1", fontSize: 11 }}
-                      tickFormatter={(val) => formatAxis(valueFormat, Number(val))}
+                      tickFormatter={(val) => formatAxis(valueFormat, Number(val), valueSuffix)}
                     />
                     <Tooltip
                       contentStyle={tooltipStyle}
@@ -490,7 +498,7 @@ export default function ManagementMetricSection({
                     <YAxis
                       stroke="#d1d6db"
                       tick={{ fill: "#8b95a1", fontSize: 11 }}
-                      tickFormatter={(val) => formatAxis(valueFormat, Number(val))}
+                      tickFormatter={(val) => formatAxis(valueFormat, Number(val), valueSuffix)}
                     />
                     <Tooltip
                       contentStyle={tooltipStyle}
