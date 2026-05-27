@@ -133,6 +133,26 @@ function toSeoulDateKey(d: Date): string {
   return new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Seoul" }).format(d);
 }
 
+/**
+ * PostgREST 1000행 cap 우회용 페이지네이션 헬퍼. 빈 응답 받을 때까지 받아옴.
+ * buildPage 는 (from, to) inclusive range 받아 supabase select 호출 반환.
+ */
+async function fetchAllPages<T = Record<string, unknown>>(
+  buildPage: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: unknown }>,
+): Promise<T[]> {
+  const PAGE = 1000;
+  const out: T[] = [];
+  let received = 0;
+  for (let iter = 0; iter < 50; iter++) {
+    const { data, error } = await buildPage(received, received + PAGE - 1);
+    if (error) throw error;
+    if (!data || data.length === 0) break;
+    out.push(...data);
+    received += data.length;
+  }
+  return out;
+}
+
 function parseDateValue(row: Record<string, unknown>): Date | null {
   const candidates = [
     row.metric_date,
@@ -237,15 +257,16 @@ export async function fetchHospitalScope(): Promise<HospitalScope> {
 export async function fetchSummaryKpis(hospitalId: string): Promise<SummaryKpis> {
   const supabase = createClient();
 
-  const { data, error } = await supabase
-    .schema("analytics")
-    .from("chart_kpis_period_view")
-    .select("*")
-    .eq("hospital_id", hospitalId)
-    .eq("period_type", "day");
-  if (error) throw error;
-
-  const rawRows = (data ?? []) as Record<string, unknown>[];
+  const rawRows = await fetchAllPages((from, to) =>
+    supabase
+      .schema("analytics")
+      .from("chart_kpis_period_view")
+      .select("*")
+      .eq("hospital_id", hospitalId)
+      .eq("period_type", "day")
+      .order("metric_date", { ascending: true })
+      .range(from, to),
+  );
   const hasIntovet = rawRows.some((r) => String(r.chart_type ?? "").toLowerCase() === "intovet");
   const sourceRows = hasIntovet
     ? rawRows.filter((r) => String(r.chart_type ?? "").toLowerCase() === "intovet")
@@ -297,15 +318,24 @@ export async function fetchHospitalManagementKpis(
 ): Promise<HospitalManagementDayRow[]> {
   const supabase = createClient();
 
-  const { data, error } = await supabase
-    .schema("analytics")
-    .from("chart_kpis_period_view")
-    .select("*")
-    .eq("hospital_id", hospitalId)
-    .in("period_type", ["day", "month", "year"]);
-  if (error) throw error;
+  const fetchKpisPeriod = (periodType: "day" | "month" | "year") =>
+    fetchAllPages((from, to) =>
+      supabase
+        .schema("analytics")
+        .from("chart_kpis_period_view")
+        .select("*")
+        .eq("hospital_id", hospitalId)
+        .eq("period_type", periodType)
+        .order("metric_date", { ascending: true })
+        .range(from, to),
+    );
+  const [dayK, monthK, yearK] = await Promise.all([
+    fetchKpisPeriod("day"),
+    fetchKpisPeriod("month"),
+    fetchKpisPeriod("year"),
+  ]);
+  const rawRows: Record<string, unknown>[] = [...dayK, ...monthK, ...yearK];
 
-  const rawRows = (data ?? []) as Record<string, unknown>[];
   const hasIntovet = rawRows.some((r) => String(r.chart_type ?? "").toLowerCase() === "intovet");
   const sourceRows = hasIntovet
     ? rawRows.filter((r) => String(r.chart_type ?? "").toLowerCase() === "intovet")
@@ -345,31 +375,21 @@ export async function fetchHospitalManagementKpis(
 export async function fetchBlogPeriodKpis(hospitalId: string): Promise<BlogPeriodDayRow[]> {
   const supabase = createClient();
 
-  const PAGE = 1000;
-  const fetchPeriod = async (periodType: "day" | "month" | "year") => {
-    const out: Record<string, unknown>[] = [];
-    let received = 0;
-    for (let iter = 0; iter < 50; iter++) {
-      const { data, error } = await supabase
+  const fetchBlogPeriod = (periodType: "day" | "month" | "year") =>
+    fetchAllPages((from, to) =>
+      supabase
         .schema("analytics")
         .from("chart_blog_period_view")
         .select("*")
         .eq("hospital_id", hospitalId)
         .eq("period_type", periodType)
         .order("metric_date", { ascending: true })
-        .range(received, received + PAGE - 1);
-      if (error) throw error;
-      if (!data || data.length === 0) break;
-      out.push(...(data as Record<string, unknown>[]));
-      received += data.length;
-    }
-    return out;
-  };
-
+        .range(from, to),
+    );
   const [dayRows, monthRows, yearRows] = await Promise.all([
-    fetchPeriod("day"),
-    fetchPeriod("month"),
-    fetchPeriod("year"),
+    fetchBlogPeriod("day"),
+    fetchBlogPeriod("month"),
+    fetchBlogPeriod("year"),
   ]);
   const rawRows: Record<string, unknown>[] = [...dayRows, ...monthRows, ...yearRows];
 
@@ -401,13 +421,15 @@ export async function fetchBlogPeriodKpis(hospitalId: string): Promise<BlogPerio
 
 export async function fetchSummaryBlogRanks(hospitalId: string): Promise<BlogRankSummaryRow[]> {
   const supabase = createClient();
-  const { data, error } = await supabase
-    .schema("analytics")
-    .from("analytics_blog_keyword_ranks_daily_view")
-    .select("*")
-    .eq("hospital_id", hospitalId);
-  if (error) throw error;
-  const rows = (data ?? []) as Record<string, unknown>[];
+  const rows = await fetchAllPages((from, to) =>
+    supabase
+      .schema("analytics")
+      .from("analytics_blog_keyword_ranks_daily_view")
+      .select("*")
+      .eq("hospital_id", hospitalId)
+      .order("metric_date", { ascending: true })
+      .range(from, to),
+  );
   const stamped = rows
     .map((row) => {
       const date = parseDateValue(row);
@@ -539,15 +561,18 @@ export async function fetchBlogKeywordRankTrend(
   keyword: string
 ): Promise<BlogRankTrendPoint[]> {
   const supabase = createClient();
-  const { data, error } = await supabase
-    .schema("analytics")
-    .from("analytics_blog_keyword_ranks_daily_view")
-    .select("*")
-    .eq("hospital_id", hospitalId)
-    .eq("keyword", keyword);
-  if (error) throw error;
+  const data = await fetchAllPages((from, to) =>
+    supabase
+      .schema("analytics")
+      .from("analytics_blog_keyword_ranks_daily_view")
+      .select("*")
+      .eq("hospital_id", hospitalId)
+      .eq("keyword", keyword)
+      .order("metric_date", { ascending: true })
+      .range(from, to),
+  );
 
-  const stamped = ((data ?? []) as Record<string, unknown>[])
+  const stamped = data
     .map((row) => {
       const date = parseDateValue(row);
       if (!date) return null;
@@ -593,14 +618,17 @@ export async function fetchSummaryPlaceRanks(
   hospitalId: string
 ): Promise<PlaceRankSummaryRow[]> {
   const supabase = createClient();
-  const { data, error } = await supabase
-    .schema("analytics")
-    .from("analytics_place_keyword_ranks")
-    .select("*")
-    .eq("hospital_id", hospitalId);
-  if (error) throw error;
+  const data = await fetchAllPages((from, to) =>
+    supabase
+      .schema("analytics")
+      .from("analytics_place_keyword_ranks")
+      .select("*")
+      .eq("hospital_id", hospitalId)
+      .order("metric_date", { ascending: true })
+      .range(from, to),
+  );
 
-  return latestSnapshotRows((data ?? []) as Record<string, unknown>[])
+  return latestSnapshotRows(data)
     .map((row) => ({
       keyword: asStringOrNull(row.keyword) ?? "-",
       rank_value: asNumberOrNull(row.rank_value),
@@ -612,15 +640,25 @@ export async function fetchPlacePeriodKpis(
   hospitalId: string
 ): Promise<PlacePeriodDayRow[]> {
   const supabase = createClient();
-  const { data, error } = await supabase
-    .schema("analytics")
-    .from("chart_place_period_view")
-    .select("*")
-    .eq("hospital_id", hospitalId)
-    .in("period_type", ["day", "month", "year"]);
-  if (error) throw error;
+  const fetchPlacePeriod = (periodType: "day" | "month" | "year") =>
+    fetchAllPages((from, to) =>
+      supabase
+        .schema("analytics")
+        .from("chart_place_period_view")
+        .select("*")
+        .eq("hospital_id", hospitalId)
+        .eq("period_type", periodType)
+        .order("metric_date", { ascending: true })
+        .range(from, to),
+    );
+  const [dayPlace, monthPlace, yearPlace] = await Promise.all([
+    fetchPlacePeriod("day"),
+    fetchPlacePeriod("month"),
+    fetchPlacePeriod("year"),
+  ]);
+  const viewRows: Record<string, unknown>[] = [...dayPlace, ...monthPlace, ...yearPlace];
 
-  const mapped = ((data ?? []) as Record<string, unknown>[])
+  const mapped = viewRows
     .map((rawRow) => {
       const parsedDate = parseDateValue(rawRow);
       if (!parsedDate) return null;
@@ -646,18 +684,21 @@ export async function fetchPlacePeriodKpis(
   if (fromView.length > 0) return fromView;
 
   // Fallback: view가 비어 있으면 원본 일별 테이블을 직접 집계한다.
-  const { data: rawData, error: rawError } = await supabase
-    .schema("analytics")
-    .from("analytics_smartplace_daily_metrics")
-    .select("hospital_id,metric_date,smartplace_inflow")
-    .eq("hospital_id", hospitalId);
-  if (rawError) throw rawError;
+  const rawData = await fetchAllPages((from, to) =>
+    supabase
+      .schema("analytics")
+      .from("analytics_smartplace_daily_metrics")
+      .select("hospital_id,metric_date,smartplace_inflow")
+      .eq("hospital_id", hospitalId)
+      .order("metric_date", { ascending: true })
+      .range(from, to),
+  );
 
   const dayMap = new Map<string, number>();
   const monthMap = new Map<string, number>();
   const yearMap = new Map<string, number>();
 
-  for (const row of (rawData ?? []) as Record<string, unknown>[]) {
+  for (const row of rawData) {
     const date = parseDateValue(row);
     if (!date) continue;
     const dateKey = toSeoulDateKey(date);
