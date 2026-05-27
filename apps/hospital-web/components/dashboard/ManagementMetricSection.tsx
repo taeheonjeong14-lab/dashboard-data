@@ -116,22 +116,11 @@ function formatValue(
 
 function formatAxis(format: ManagementMetricSectionProps["valueFormat"], v: number) {
   if (!Number.isFinite(v)) return "";
-  if (format === "currency") {
-    return new Intl.NumberFormat("ko-KR", {
-      notation: v >= 1_000_000 ? "compact" : "standard",
-      maximumFractionDigits: v >= 1_000_000 ? 1 : 0,
-    }).format(v);
+  if (format === "decimal") {
+    return new Intl.NumberFormat("ko-KR", { maximumFractionDigits: 1 }).format(v);
   }
-  if (format === "integer") {
-    return new Intl.NumberFormat("ko-KR", {
-      notation: "compact",
-      maximumFractionDigits: 1,
-    }).format(v);
-  }
-  return new Intl.NumberFormat("ko-KR", {
-    notation: "compact",
-    maximumFractionDigits: 1,
-  }).format(v);
+  // currency / integer: 항상 천단위 콤마, 정수.
+  return new Intl.NumberFormat("ko-KR", { maximumFractionDigits: 0 }).format(v);
 }
 
 export default function ManagementMetricSection({
