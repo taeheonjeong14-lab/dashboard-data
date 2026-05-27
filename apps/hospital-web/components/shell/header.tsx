@@ -4,10 +4,13 @@ import { usePathname } from 'next/navigation';
 
 const pageTitles: Record<string, string> = {
   '/dashboard': '경영 대시보드',
-  '/dashboard/hospital': '병원 현황',
+  '/dashboard/sales': '매출',
+  '/dashboard/patients': '신규환자',
   '/dashboard/blog': '블로그',
   '/dashboard/place': '플레이스',
-  '/dashboard/ads': '광고',
+  '/dashboard/ads': '네이버광고',
+  '/dashboard/instagram-ads': '인스타광고',
+  '/dashboard/google-ads': '구글광고',
   '/health-report': '건강검진 리포트',
   '/ai-assist': 'AI 진료 보조',
 };

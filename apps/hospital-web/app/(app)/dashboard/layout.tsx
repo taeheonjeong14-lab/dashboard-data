@@ -7,22 +7,19 @@ import { StatsUploadButton } from "@/components/dashboard/StatsUploadButton";
 import { StickyHeader } from "@/components/ui/sticky-header";
 
 const TABS = [
-  { href: "/dashboard", label: "요약" },
-  { href: "/dashboard/hospital", label: "경영 통계" },
+  { href: "/dashboard/sales", label: "매출" },
+  { href: "/dashboard/patients", label: "신규환자" },
   { href: "/dashboard/blog", label: "블로그" },
   { href: "/dashboard/place", label: "플레이스" },
-  { href: "/dashboard/ads", label: "광고" },
+  { href: "/dashboard/ads", label: "네이버광고" },
+  { href: "/dashboard/instagram-ads", label: "인스타광고" },
+  { href: "/dashboard/google-ads", label: "구글광고" },
 ] as const;
 
 export default function DashboardLayout({ children }: { children: ReactNode }) {
   const pathname = usePathname();
 
-  const isActive = (href: string) => {
-    if (href === "/dashboard") {
-      return pathname === "/dashboard";
-    }
-    return pathname.startsWith(href);
-  };
+  const isActive = (href: string) => pathname.startsWith(href);
 
   return (
     <div>

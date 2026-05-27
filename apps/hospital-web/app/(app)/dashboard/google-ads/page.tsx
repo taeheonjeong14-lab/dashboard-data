@@ -1,4 +1,4 @@
-export default function AdsDashboardPage() {
+export default function GoogleAdsDashboardPage() {
   return (
     <div
       style={{
@@ -19,7 +19,7 @@ export default function AdsDashboardPage() {
           margin: 0,
         }}
       >
-        네이버 광고 통계 데이터 준비 중
+        구글 광고 통계 데이터 준비 중
       </p>
       <p
         style={{
@@ -29,7 +29,7 @@ export default function AdsDashboardPage() {
           textAlign: "center",
         }}
       >
-        네이버 검색광고 성과 데이터를 곧 제공할 예정입니다.
+        Google Ads 성과 데이터를 곧 제공할 예정입니다.
       </p>
     </div>
   );
