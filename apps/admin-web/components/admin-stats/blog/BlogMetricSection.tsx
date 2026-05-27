@@ -18,7 +18,7 @@ import {
   type BlogMetricKey,
   type Granularity,
 } from "@/lib/admin-stats/blog-aggregates";
-import { Y_AXIS_AUTO_DOMAIN } from "@/lib/chart-utils";
+import { computeYAxisConfig, maxOfNullable } from "@/lib/chart-utils";
 
 const tooltipStyle = {
   backgroundColor: "#ffffff",
@@ -93,6 +93,11 @@ export default function BlogMetricSection({
     if (!clipped.start || !clipped.end || rows.length === 0) return [];
     return buildBlogSeries(rows, clipped.start, clipped.end, granularity, metric);
   }, [rows, clipped, granularity, metric]);
+
+  const yAxis = useMemo(
+    () => computeYAxisConfig(maxOfNullable(chartData.map((p) => p.value))),
+    [chartData],
+  );
 
   const setPreset = (preset: "all" | "1y" | "3y") => {
     if (!bounds) return;
@@ -206,7 +211,8 @@ export default function BlogMetricSection({
                   stroke="#94a3b8"
                   tick={{ fill: "#64748b", fontSize: 11 }}
                   tickFormatter={(val) => formatAxis(Number(val))}
-                  domain={Y_AXIS_AUTO_DOMAIN}
+                  domain={yAxis.domain}
+                  ticks={yAxis.ticks}
                 />
                 <Tooltip
                   contentStyle={tooltipStyle}

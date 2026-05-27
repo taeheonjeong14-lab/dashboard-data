@@ -18,7 +18,7 @@ import {
   getCampaigns,
   getDataBounds,
 } from "@/lib/admin-stats/ads-aggregates";
-import { Y_AXIS_AUTO_DOMAIN } from "@/lib/chart-utils";
+import { computeYAxisConfig } from "@/lib/chart-utils";
 
 const CAMPAIGN_COLORS = [
   "#3b82f6",
@@ -74,6 +74,17 @@ export default function AdsCampaignCtrSection({ rows }: Props) {
         : [],
     [rows, clipped, campaigns]
   );
+
+  const yAxis = useMemo(() => {
+    let m = 0;
+    for (const point of chartData) {
+      for (const [key, val] of Object.entries(point)) {
+        if (key === "label") continue;
+        if (typeof val === "number" && Number.isFinite(val) && val > m) m = val;
+      }
+    }
+    return computeYAxisConfig(m);
+  }, [chartData]);
 
   const setPreset = (preset: "all" | "1y" | "90d") => {
     if (!bounds) return;
@@ -167,7 +178,8 @@ export default function AdsCampaignCtrSection({ rows }: Props) {
                   stroke="#cbd5e1"
                   tick={{ fill: "#64748b", fontSize: 11 }}
                   tickFormatter={(v) => `${Number(v).toFixed(1)}%`}
-                  domain={Y_AXIS_AUTO_DOMAIN}
+                  domain={yAxis.domain}
+                  ticks={yAxis.ticks}
                 />
                 <Tooltip
                   contentStyle={tooltipStyle}

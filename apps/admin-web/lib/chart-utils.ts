@@ -1,11 +1,12 @@
 /**
- * Y축 자동 도메인.
+ * Y축 자동 설정.
  *
  * 정책:
- * - 시작은 항상 0. (broken axis 미지원: 시작점이 바뀌면 misleading)
- * - 상단은 "nice step × 4" 형태로 round → recharts 가 5개 균등 눈금을
- *   자동으로 0, step, 2*step, 3*step, 4*step 에 배치.
- * - nice step 은 1·2·5·10·20·25·50·100·... 같은 깔끔한 배수에서 선택.
+ * - 시작은 항상 0 (broken axis 미지원 → 시작점 이동은 misleading).
+ * - 상단은 "nice step × N" 형태 (N ∈ [4, 6]), overshoot 최소가 되도록 선택.
+ * - ticks 는 0, step, 2*step, ..., N*step 으로 명시 전달 (recharts 가 4분할로 보간하면
+ *   1.25M 같은 어색한 step 이 나오는 걸 방지).
+ * - 동률(top 같음) 시 N 작은 쪽(눈금 수 적은 쪽) 선호 = 깔끔.
  */
 
 const NICE_STEPS = [
@@ -20,15 +21,49 @@ const NICE_STEPS = [
   1000000000, 2000000000, 5000000000,
 ];
 
-function pickNiceTop(target: number): number {
-  if (target <= 0) return NICE_STEPS[0] * 4;
-  for (const step of NICE_STEPS) {
-    if (step * 4 >= target) return step * 4;
+export type YAxisConfig = {
+  domain: [0, number];
+  ticks: number[];
+};
+
+export function computeYAxisConfig(dataMax: number): YAxisConfig {
+  const target = Math.max(0, dataMax) * 1.02;
+  if (target <= 0) {
+    return { domain: [0, 1], ticks: [0, 1] };
   }
-  return Math.ceil(target);
+
+  let best: { step: number; N: number; top: number; overshoot: number } | null = null;
+  for (const step of NICE_STEPS) {
+    for (const N of [4, 5, 6]) {
+      const top = step * N;
+      if (top >= target) {
+        const overshoot = top - target;
+        if (
+          !best ||
+          overshoot < best.overshoot ||
+          (overshoot === best.overshoot && N < best.N)
+        ) {
+          best = { step, N, top, overshoot };
+        }
+      }
+    }
+  }
+
+  if (!best) {
+    const top = Math.max(1, Math.ceil(target));
+    return { domain: [0, top], ticks: [0, top] };
+  }
+  const ticks = Array.from({ length: best.N + 1 }, (_, i) => i * best.step);
+  return { domain: [0, best.top], ticks };
 }
 
-export const Y_AXIS_AUTO_DOMAIN: [number, (dataMax: number) => number] = [
-  0,
-  (dataMax) => pickNiceTop(dataMax * 1.02),
-];
+/**
+ * 배열에서 null/NaN 제외 최대값. 모두 null 이면 0 반환.
+ */
+export function maxOfNullable(values: ReadonlyArray<number | null | undefined>): number {
+  let m = 0;
+  for (const v of values) {
+    if (v != null && Number.isFinite(v) && v > m) m = v;
+  }
+  return m;
+}

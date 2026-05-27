@@ -17,7 +17,7 @@ import {
   getDataBounds,
   type Granularity,
 } from "@/lib/admin-stats/place-aggregates";
-import { Y_AXIS_AUTO_DOMAIN } from "@/lib/chart-utils";
+import { computeYAxisConfig, maxOfNullable } from "@/lib/chart-utils";
 
 function clipRange(
   start: string,
@@ -74,6 +74,11 @@ export default function PlaceInflowSection({
     if (!clipped.start || !clipped.end || rows.length === 0) return [];
     return buildPlaceSeries(rows, clipped.start, clipped.end, granularity);
   }, [rows, clipped, granularity]);
+
+  const yAxis = useMemo(
+    () => computeYAxisConfig(maxOfNullable(chartData.map((p) => p.value))),
+    [chartData],
+  );
 
   const setPreset = (preset: "all" | "1y" | "3y") => {
     if (!bounds) return;
@@ -194,7 +199,8 @@ export default function PlaceInflowSection({
                   stroke="#94a3b8"
                   tick={{ fill: "#64748b", fontSize: 11 }}
                   tickFormatter={(val) => formatAxis(Number(val))}
-                  domain={Y_AXIS_AUTO_DOMAIN}
+                  domain={yAxis.domain}
+                  ticks={yAxis.ticks}
                 />
                 <Tooltip
                   contentStyle={{ backgroundColor: "#ffffff", border: "1px solid #e2e8f0", borderRadius: "0" }}

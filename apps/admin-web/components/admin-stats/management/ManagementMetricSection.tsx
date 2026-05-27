@@ -23,7 +23,7 @@ import {
   type ManagementMetricKey,
   weekdayMonday0FromDateKey,
 } from "@/lib/admin-stats/management-aggregates";
-import { Y_AXIS_AUTO_DOMAIN } from "@/lib/chart-utils";
+import { computeYAxisConfig, maxOfNullable } from "@/lib/chart-utils";
 
 const tooltipStyle = {
   backgroundColor: "#ffffff",
@@ -157,6 +157,25 @@ export default function ManagementMetricSection({
   const yoyRows = useMemo(() => buildYoYMonthlyRows(rows, metric), [rows, metric]);
   const weekdayRows = useMemo(() => buildWeekdayRows(rows, metric), [rows, metric]);
 
+  const trendYAxis = useMemo(
+    () => computeYAxisConfig(maxOfNullable(chartData.map((p) => p.value))),
+    [chartData],
+  );
+  const yoyYAxis = useMemo(
+    () =>
+      computeYAxisConfig(
+        maxOfNullable(yoyRows.flatMap((r) => [r.recentValue, r.previousValue])),
+      ),
+    [yoyRows],
+  );
+  const weekdayYAxis = useMemo(
+    () =>
+      computeYAxisConfig(
+        maxOfNullable(weekdayRows.flatMap((r) => [r.last7DayValue, r.avgLast12Months])),
+      ),
+    [weekdayRows],
+  );
+
   const setPreset = (preset: "all" | "1y" | "3y") => {
     if (!bounds) return;
     if (preset === "all") {
@@ -268,7 +287,8 @@ export default function ManagementMetricSection({
                     stroke="#94a3b8"
                     tick={{ fill: "#64748b", fontSize: 11 }}
                     tickFormatter={(val) => formatAxis(valueFormat, Number(val))}
-                    domain={Y_AXIS_AUTO_DOMAIN}
+                    domain={trendYAxis.domain}
+                    ticks={trendYAxis.ticks}
                   />
                   <Tooltip
                     contentStyle={tooltipStyle}
@@ -344,7 +364,8 @@ export default function ManagementMetricSection({
                       stroke="#94a3b8"
                       tick={{ fill: "#64748b", fontSize: 11 }}
                       tickFormatter={(val) => formatAxis(valueFormat, Number(val))}
-                      domain={Y_AXIS_AUTO_DOMAIN}
+                      domain={yoyYAxis.domain}
+                      ticks={yoyYAxis.ticks}
                     />
                     <Tooltip
                       contentStyle={tooltipStyle}
@@ -419,7 +440,8 @@ export default function ManagementMetricSection({
                       stroke="#94a3b8"
                       tick={{ fill: "#64748b", fontSize: 11 }}
                       tickFormatter={(val) => formatAxis(valueFormat, Number(val))}
-                      domain={Y_AXIS_AUTO_DOMAIN}
+                      domain={weekdayYAxis.domain}
+                      ticks={weekdayYAxis.ticks}
                     />
                     <Tooltip
                       contentStyle={tooltipStyle}

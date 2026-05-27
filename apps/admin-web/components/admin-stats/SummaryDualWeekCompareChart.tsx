@@ -10,7 +10,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { Y_AXIS_AUTO_DOMAIN } from "@/lib/chart-utils";
+import { computeYAxisConfig, maxOfNullable } from "@/lib/chart-utils";
 
 const SERIES = [
   { key: "current", name: "최근 7일", color: "#60a5fa" },
@@ -75,6 +75,7 @@ export default function SummaryDualWeekCompareChart({
 }: SummaryDualWeekCompareChartProps) {
   const c = padSeven(currentWeek);
   const p = padSeven(previousWeek);
+  const yAxis = computeYAxisConfig(maxOfNullable([...c, ...p]));
   const pairs =
     datePairs && datePairs.length === 7
       ? datePairs
@@ -173,7 +174,8 @@ export default function SummaryDualWeekCompareChart({
               tick={{ fill: "#64748b", fontSize: 11 }}
               tickLine={{ stroke: "#cbd5e1" }}
               tickFormatter={(val) => formatTick(variant, Number(val))}
-              domain={Y_AXIS_AUTO_DOMAIN}
+              domain={yAxis.domain}
+              ticks={yAxis.ticks}
             />
             <Tooltip
               contentStyle={tooltipStyle}

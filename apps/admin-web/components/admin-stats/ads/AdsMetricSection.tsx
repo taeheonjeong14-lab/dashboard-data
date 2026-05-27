@@ -17,7 +17,7 @@ import {
   getDataBounds,
   type AdsMetric,
 } from "@/lib/admin-stats/ads-aggregates";
-import { Y_AXIS_AUTO_DOMAIN } from "@/lib/chart-utils";
+import { computeYAxisConfig, maxOfNullable } from "@/lib/chart-utils";
 
 const METRIC_CONFIG: Record<
   AdsMetric,
@@ -100,6 +100,11 @@ export default function AdsMetricSection({ title, description, rows, metric }: P
         ? buildAdsTotalSeries(rows, clipped.start, clipped.end)
         : [],
     [rows, clipped]
+  );
+
+  const yAxis = useMemo(
+    () => computeYAxisConfig(maxOfNullable(chartData.map((p) => p[metric] as number | null))),
+    [chartData, metric],
   );
 
   const setPreset = (preset: "all" | "1y" | "90d") => {
@@ -190,7 +195,8 @@ export default function AdsMetricSection({ title, description, rows, metric }: P
                   stroke="#cbd5e1"
                   tick={{ fill: "#64748b", fontSize: 11 }}
                   tickFormatter={(v) => formatAxis(metric, Number(v))}
-                  domain={Y_AXIS_AUTO_DOMAIN}
+                  domain={yAxis.domain}
+                  ticks={yAxis.ticks}
                 />
                 <Tooltip
                   contentStyle={tooltipStyle}
