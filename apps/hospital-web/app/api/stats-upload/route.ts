@@ -80,7 +80,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         parseResult = parseEFriends(buffer);
       }
     } catch (e) {
-      const msg = e instanceof Error ? e.message : '엑셀 파일 파싱에 실패했습니다.';
+      const msg = e instanceof Error ? e.message : '파일 파싱에 실패했습니다.';
       return NextResponse.json({ error: `파일 파싱 오류: ${msg}` }, { status: 422 });
     }
 

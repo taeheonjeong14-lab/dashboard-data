@@ -50,8 +50,8 @@ function StatsUploadModal({ onClose }: { onClose: () => void }) {
   const handleFile = useCallback((f: File) => {
     setFileError(null);
     const ext = f.name.split('.').pop()?.toLowerCase();
-    if (!['xlsx', 'xls'].includes(ext ?? '')) {
-      setFileError('엑셀 파일(.xlsx, .xls)만 업로드할 수 있습니다.');
+    if (!['xlsx', 'xls', 'csv'].includes(ext ?? '')) {
+      setFileError('엑셀(.xlsx, .xls) 또는 CSV(.csv) 파일만 업로드할 수 있습니다.');
       return;
     }
     if (f.size > MAX_FILE_BYTES) {
@@ -121,7 +121,7 @@ function StatsUploadModal({ onClose }: { onClose: () => void }) {
           <button type="button" onClick={() => !isProcessing && onClose()} style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 18, color: 'var(--text-muted)', lineHeight: 1 }}>×</button>
         </div>
         <p style={{ margin: '0 0 20px', fontSize: 13.5, color: 'var(--text-secondary)' }}>
-          차트 시스템에서 내보낸 엑셀 파일을 업로드하면 자동으로 처리됩니다.
+          차트 시스템에서 내보낸 엑셀 또는 CSV 파일을 업로드하면 자동으로 처리됩니다.
         </p>
 
         {/* 완료 상태 */}
@@ -175,7 +175,7 @@ function StatsUploadModal({ onClose }: { onClose: () => void }) {
               </select>
             </FormField>
 
-            <FormField label="엑셀 파일 업로드" required>
+            <FormField label="파일 업로드" required>
               <div
                 onDrop={onDrop}
                 onDragOver={onDragOver}
@@ -190,7 +190,7 @@ function StatsUploadModal({ onClose }: { onClose: () => void }) {
                 }}
               >
                 <input ref={inputRef} type="file"
-                  accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
+                  accept=".xlsx,.xls,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/csv"
                   style={{ display: 'none' }} onChange={onInputChange} />
                 {file ? (
                   <div>
@@ -201,8 +201,8 @@ function StatsUploadModal({ onClose }: { onClose: () => void }) {
                 ) : (
                   <div>
                     <div style={{ fontSize: 24, marginBottom: 8, color: 'var(--text-muted)' }}>📊</div>
-                    <div style={{ fontSize: 14, color: 'var(--text-secondary)', marginBottom: 4 }}>엑셀 파일을 여기에 끌어다 놓거나 클릭하여 선택</div>
-                    <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>.xlsx, .xls 형식, 최대 20MB</div>
+                    <div style={{ fontSize: 14, color: 'var(--text-secondary)', marginBottom: 4 }}>엑셀 또는 CSV 파일을 여기에 끌어다 놓거나 클릭하여 선택</div>
+                    <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>.xlsx, .xls, .csv 형식, 최대 20MB</div>
                   </div>
                 )}
               </div>
