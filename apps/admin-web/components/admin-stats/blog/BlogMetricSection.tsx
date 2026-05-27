@@ -219,9 +219,14 @@ export default function BlogMetricSection({
                           : NaN;
                     const text = formatNumber(Number.isFinite(n) ? n : null);
                     const suffix = valueSuffix ?? "";
+                    const pointSortKey = (payload?.[0]?.payload as { sortKey?: string } | undefined)?.sortKey;
+                    const displayLabel =
+                      granularity === "day" && pointSortKey
+                        ? pointSortKey.replace(/-/g, "/")
+                        : label;
                     return (
                       <div className="rounded border border-slate-300 bg-white px-2.5 py-1.5 text-xs shadow-lg">
-                        <p className="mb-1 text-slate-600">{label}</p>
+                        <p className="mb-1 text-slate-600">{displayLabel}</p>
                         <p className="text-slate-900">
                           값 <span className="text-slate-700">{text}{suffix}</span>
                         </p>
