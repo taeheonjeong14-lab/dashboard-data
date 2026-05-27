@@ -370,14 +370,14 @@ export default function ManagementMetricSection({
                   {stats && (
                     <ReferenceLine
                       y={stats.max}
-                      stroke="#f97316"
+                      stroke="#fb923c"
                       strokeWidth={0.75}
                       strokeDasharray="3 3"
                       ifOverflow="extendDomain"
                       label={{
                         value: `최대 ${formatValue(valueFormat, stats.max, valueSuffix)}`,
                         position: "insideTopRight",
-                        fill: "#c2410c",
+                        fill: "#ea580c",
                         fontSize: 11,
                       }}
                     />
@@ -385,14 +385,14 @@ export default function ManagementMetricSection({
                   {stats && (
                     <ReferenceLine
                       y={stats.avg}
-                      stroke="#f97316"
+                      stroke="#fb923c"
                       strokeWidth={0.75}
                       strokeDasharray="3 3"
                       ifOverflow="extendDomain"
                       label={{
                         value: `평균 ${formatValue(valueFormat, stats.avg, valueSuffix)}`,
                         position: "insideTopRight",
-                        fill: "#c2410c",
+                        fill: "#ea580c",
                         fontSize: 11,
                       }}
                     />
@@ -400,14 +400,14 @@ export default function ManagementMetricSection({
                   {stats && (
                     <ReferenceLine
                       y={stats.min}
-                      stroke="#f97316"
+                      stroke="#fb923c"
                       strokeWidth={0.75}
                       strokeDasharray="3 3"
                       ifOverflow="extendDomain"
                       label={{
                         value: `최소 ${formatValue(valueFormat, stats.min, valueSuffix)}`,
                         position: "insideTopRight",
-                        fill: "#c2410c",
+                        fill: "#ea580c",
                         fontSize: 11,
                       }}
                     />
