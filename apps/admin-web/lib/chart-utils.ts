@@ -53,7 +53,8 @@ export function computeYAxisConfig(dataMax: number): YAxisConfig {
     const top = Math.max(1, Math.ceil(target));
     return { domain: [0, top], ticks: [0, top] };
   }
-  const ticks = Array.from({ length: best.N + 1 }, (_, i) => i * best.step);
+  // 0 시작점은 라벨 생략 (도메인은 0~top 그대로). step, 2*step, ..., N*step 만 표기.
+  const ticks = Array.from({ length: best.N }, (_, i) => (i + 1) * best.step);
   return { domain: [0, best.top], ticks };
 }
 
