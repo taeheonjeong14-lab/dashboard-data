@@ -1782,13 +1782,20 @@ def main():
     export_excel = False
     upload_db = True
     metric_date = None
-    raw_debug_port = os.getenv("CHROME_DEBUGGING_PORT", "9222")
+    # 순위 수집 전용 Chrome 포트(RANK_CHROME_DEBUGGING_PORT)가 있으면 우선.
+    # 없으면 기존 CHROME_DEBUGGING_PORT, 둘 다 없으면 9222 기본.
+    # 의도: 순위 수집은 로그인이 필요 없으므로, 로그인된 일반 디버그 Chrome 과
+    # 분리된 '비로그인 프로필' Chrome 으로 보내 계정 탐지 리스크를 없앤다.
+    rank_port_raw = os.getenv("RANK_CHROME_DEBUGGING_PORT")
+    raw_debug_port = rank_port_raw or os.getenv("CHROME_DEBUGGING_PORT", "9222")
     input_source = os.getenv("RANK_INPUT_SOURCE", "db").strip().lower()
     try:
         debug_port = int(raw_debug_port)
     except ValueError:
-        print(f"❌ CHROME_DEBUGGING_PORT 값이 잘못되었습니다: {raw_debug_port}")
+        print(f"❌ Chrome 디버깅 포트 값이 잘못되었습니다: {raw_debug_port}")
         return
+    if rank_port_raw:
+        print(f"ℹ️ 순위 전용 Chrome 포트 사용: RANK_CHROME_DEBUGGING_PORT={debug_port}")
 
     # CDP(실 Chrome) 가 가장 탐지에 안전 → 디버그 Chrome 이 떠 있으면 자동으로 사용.
     # RANK_USE_DEBUG_CHROME 를 명시하면 그 값을 우선(강제 on/off).
