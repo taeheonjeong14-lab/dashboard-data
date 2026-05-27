@@ -33,8 +33,11 @@ function getRowsForGranularity(
 }
 
 export function getDataBounds(rows: BlogPeriodDayRow[]): { min: string; max: string } | null {
-  if (rows.length === 0) return null;
-  const sorted = [...rows].sort((a, b) => a.dateKey.localeCompare(b.dateKey));
+  // year/month 집계 row 는 dateKey 가 해/월의 1일로 강제되므로 day row 만 기준.
+  const dayRows = rows.filter((r) => r.periodType === "day");
+  const source = dayRows.length > 0 ? dayRows : rows;
+  if (source.length === 0) return null;
+  const sorted = [...source].sort((a, b) => a.dateKey.localeCompare(b.dateKey));
   return { min: sorted[0].dateKey, max: sorted[sorted.length - 1].dateKey };
 }
 
