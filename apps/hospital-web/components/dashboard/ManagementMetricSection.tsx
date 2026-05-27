@@ -282,19 +282,6 @@ export default function ManagementMetricSection({
                 ))}
               </div>
             </div>
-            {stats ? (
-              <div className="mb-2 flex flex-wrap gap-x-4 gap-y-1 text-xs">
-                <span className="text-[var(--text-muted)]">
-                  최대 <span className="ml-1 font-medium text-[var(--text)]">{formatValue(valueFormat, stats.max, valueSuffix)}</span>
-                </span>
-                <span className="text-[var(--text-muted)]">
-                  최소 <span className="ml-1 font-medium text-[var(--text)]">{formatValue(valueFormat, stats.min, valueSuffix)}</span>
-                </span>
-                <span className="text-[var(--text-muted)]">
-                  평균 <span className="ml-1 font-medium text-[var(--text)]">{formatValue(valueFormat, stats.avg, valueSuffix)}</span>
-                </span>
-              </div>
-            ) : null}
             <div className="h-[280px] w-full min-w-0">
               <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={200}>
                 <LineChart data={chartData} margin={{ top: 8, right: 12, bottom: 8, left: 4 }}>
@@ -348,49 +335,48 @@ export default function ManagementMetricSection({
                       <span style={{ color: "#4e5968" }}>{value}</span>
                     )}
                   />
-                  {stats ? (
-                    <>
-                      <ReferenceLine
-                        y={stats.max}
-                        stroke="#94a3b8"
-                        strokeWidth={1.25}
-                        strokeDasharray="4 4"
-                        ifOverflow="extendDomain"
-                        label={{
-                          value: "최대",
-                          position: "insideRight",
-                          fill: "#64748b",
-                          fontSize: 11,
-                        }}
-                      />
-                      <ReferenceLine
-                        y={stats.avg}
-                        stroke="#94a3b8"
-                        strokeWidth={1.25}
-                        strokeDasharray="4 4"
-                        ifOverflow="extendDomain"
-                        label={{
-                          value: "평균",
-                          position: "insideRight",
-                          fill: "#64748b",
-                          fontSize: 11,
-                        }}
-                      />
-                      <ReferenceLine
-                        y={stats.min}
-                        stroke="#94a3b8"
-                        strokeWidth={1.25}
-                        strokeDasharray="4 4"
-                        ifOverflow="extendDomain"
-                        label={{
-                          value: "최소",
-                          position: "insideRight",
-                          fill: "#64748b",
-                          fontSize: 11,
-                        }}
-                      />
-                    </>
-                  ) : null}
+                  {stats && (
+                    <ReferenceLine
+                      y={stats.max}
+                      stroke="#14b8a6"
+                      strokeWidth={1}
+                      ifOverflow="extendDomain"
+                      label={{
+                        value: `최대 ${formatValue(valueFormat, stats.max, valueSuffix)}`,
+                        position: "insideRight",
+                        fill: "#0d9488",
+                        fontSize: 11,
+                      }}
+                    />
+                  )}
+                  {stats && (
+                    <ReferenceLine
+                      y={stats.avg}
+                      stroke="#14b8a6"
+                      strokeWidth={1}
+                      ifOverflow="extendDomain"
+                      label={{
+                        value: `평균 ${formatValue(valueFormat, stats.avg, valueSuffix)}`,
+                        position: "insideRight",
+                        fill: "#0d9488",
+                        fontSize: 11,
+                      }}
+                    />
+                  )}
+                  {stats && (
+                    <ReferenceLine
+                      y={stats.min}
+                      stroke="#14b8a6"
+                      strokeWidth={1}
+                      ifOverflow="extendDomain"
+                      label={{
+                        value: `최소 ${formatValue(valueFormat, stats.min, valueSuffix)}`,
+                        position: "insideRight",
+                        fill: "#0d9488",
+                        fontSize: 11,
+                      }}
+                    />
+                  )}
                   <Line
                     type="monotone"
                     dataKey="value"
