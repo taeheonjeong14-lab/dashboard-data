@@ -10,6 +10,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { Y_AXIS_AUTO_DOMAIN } from "@/lib/chart-utils";
 
 const SERIES = [
   { key: "current", name: "최근 7일", color: "#60a5fa" },
@@ -172,6 +173,7 @@ export default function SummaryDualWeekCompareChart({
               tick={{ fill: "#64748b", fontSize: 11 }}
               tickLine={{ stroke: "#cbd5e1" }}
               tickFormatter={(val) => formatTick(variant, Number(val))}
+              domain={Y_AXIS_AUTO_DOMAIN}
             />
             <Tooltip
               contentStyle={tooltipStyle}

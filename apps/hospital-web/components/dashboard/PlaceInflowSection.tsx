@@ -17,6 +17,7 @@ import {
   getDataBounds,
   type Granularity,
 } from "@/lib/place-aggregates";
+import { Y_AXIS_AUTO_DOMAIN } from "@/lib/chart-utils";
 
 function clipRange(
   start: string,
@@ -201,6 +202,7 @@ export default function PlaceInflowSection({
                   stroke="#d1d6db"
                   tick={{ fill: "#8b95a1", fontSize: 11 }}
                   tickFormatter={(val) => formatAxis(Number(val))}
+                  domain={Y_AXIS_AUTO_DOMAIN}
                 />
                 <Tooltip
                   contentStyle={{

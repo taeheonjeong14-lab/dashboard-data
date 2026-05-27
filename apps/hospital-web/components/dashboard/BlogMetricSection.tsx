@@ -18,6 +18,7 @@ import {
   type BlogMetricKey,
   type Granularity,
 } from "@/lib/blog-aggregates";
+import { Y_AXIS_AUTO_DOMAIN } from "@/lib/chart-utils";
 
 const tooltipStyle = {
   backgroundColor: "#ffffff",
@@ -206,6 +207,7 @@ export default function BlogMetricSection({
                   stroke="#d1d6db"
                   tick={{ fill: "#8b95a1", fontSize: 11 }}
                   tickFormatter={(val) => formatAxis(Number(val))}
+                  domain={Y_AXIS_AUTO_DOMAIN}
                 />
                 <Tooltip
                   contentStyle={tooltipStyle}

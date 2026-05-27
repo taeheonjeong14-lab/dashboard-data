@@ -23,6 +23,7 @@ import {
   type ManagementMetricKey,
   weekdayMonday0FromDateKey,
 } from "@/lib/admin-stats/management-aggregates";
+import { Y_AXIS_AUTO_DOMAIN } from "@/lib/chart-utils";
 
 const tooltipStyle = {
   backgroundColor: "#ffffff",
@@ -267,6 +268,7 @@ export default function ManagementMetricSection({
                     stroke="#94a3b8"
                     tick={{ fill: "#64748b", fontSize: 11 }}
                     tickFormatter={(val) => formatAxis(valueFormat, Number(val))}
+                    domain={Y_AXIS_AUTO_DOMAIN}
                   />
                   <Tooltip
                     contentStyle={tooltipStyle}
@@ -342,6 +344,7 @@ export default function ManagementMetricSection({
                       stroke="#94a3b8"
                       tick={{ fill: "#64748b", fontSize: 11 }}
                       tickFormatter={(val) => formatAxis(valueFormat, Number(val))}
+                      domain={Y_AXIS_AUTO_DOMAIN}
                     />
                     <Tooltip
                       contentStyle={tooltipStyle}
@@ -416,6 +419,7 @@ export default function ManagementMetricSection({
                       stroke="#94a3b8"
                       tick={{ fill: "#64748b", fontSize: 11 }}
                       tickFormatter={(val) => formatAxis(valueFormat, Number(val))}
+                      domain={Y_AXIS_AUTO_DOMAIN}
                     />
                     <Tooltip
                       contentStyle={tooltipStyle}

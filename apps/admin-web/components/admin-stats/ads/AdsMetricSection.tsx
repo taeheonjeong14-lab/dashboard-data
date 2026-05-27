@@ -17,6 +17,7 @@ import {
   getDataBounds,
   type AdsMetric,
 } from "@/lib/admin-stats/ads-aggregates";
+import { Y_AXIS_AUTO_DOMAIN } from "@/lib/chart-utils";
 
 const METRIC_CONFIG: Record<
   AdsMetric,
@@ -189,6 +190,7 @@ export default function AdsMetricSection({ title, description, rows, metric }: P
                   stroke="#cbd5e1"
                   tick={{ fill: "#64748b", fontSize: 11 }}
                   tickFormatter={(v) => formatAxis(metric, Number(v))}
+                  domain={Y_AXIS_AUTO_DOMAIN}
                 />
                 <Tooltip
                   contentStyle={tooltipStyle}

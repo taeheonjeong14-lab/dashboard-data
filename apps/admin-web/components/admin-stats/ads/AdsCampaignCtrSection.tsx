@@ -18,6 +18,7 @@ import {
   getCampaigns,
   getDataBounds,
 } from "@/lib/admin-stats/ads-aggregates";
+import { Y_AXIS_AUTO_DOMAIN } from "@/lib/chart-utils";
 
 const CAMPAIGN_COLORS = [
   "#3b82f6",
@@ -166,6 +167,7 @@ export default function AdsCampaignCtrSection({ rows }: Props) {
                   stroke="#cbd5e1"
                   tick={{ fill: "#64748b", fontSize: 11 }}
                   tickFormatter={(v) => `${Number(v).toFixed(1)}%`}
+                  domain={Y_AXIS_AUTO_DOMAIN}
                 />
                 <Tooltip
                   contentStyle={tooltipStyle}
