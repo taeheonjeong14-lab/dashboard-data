@@ -351,16 +351,23 @@ export async function fetchBlogPeriodKpis(
 ): Promise<BlogPeriodDayRow[]> {
   const supabase = getSupabaseClient();
 
-  const { data, error } = await supabase
-    .schema("analytics")
-    .from("chart_blog_period_view")
-    .select("*")
-    .eq("hospital_id", hospitalId)
-    .in("period_type", ["day", "month", "year"])
-    .range(0, 99999);
-  if (error) throw error;
-
-  const rawRows = (data ?? []) as Record<string, unknown>[];
+  const PAGE = 1000;
+  const rawRows: Record<string, unknown>[] = [];
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await supabase
+      .schema("analytics")
+      .from("chart_blog_period_view")
+      .select("*")
+      .eq("hospital_id", hospitalId)
+      .in("period_type", ["day", "month", "year"])
+      .order("period_type", { ascending: true })
+      .order("metric_date", { ascending: true })
+      .range(from, from + PAGE - 1);
+    if (error) throw error;
+    if (!data || data.length === 0) break;
+    rawRows.push(...(data as Record<string, unknown>[]));
+    if (data.length < PAGE) break;
+  }
 
   const mapped = rawRows
     .map((rawRow) => {
