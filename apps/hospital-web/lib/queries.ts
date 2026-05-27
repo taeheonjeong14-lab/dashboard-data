@@ -350,7 +350,8 @@ export async function fetchBlogPeriodKpis(hospitalId: string): Promise<BlogPerio
     .from("chart_blog_period_view")
     .select("*")
     .eq("hospital_id", hospitalId)
-    .in("period_type", ["day", "month", "year"]);
+    .in("period_type", ["day", "month", "year"])
+    .range(0, 99999);
   if (error) throw error;
 
   const rawRows = (data ?? []) as Record<string, unknown>[];
