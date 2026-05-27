@@ -32,7 +32,7 @@ const tooltipStyle = {
 
 const BAR_COLORS = {
   current: "#3182F6",
-  previous: "#FF9500",
+  previous: "#4b5563",
 } as const;
 
 function clipRange(

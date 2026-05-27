@@ -13,7 +13,7 @@ import {
 
 const SERIES = [
   { key: "current", name: "최근 7일", color: "#3182F6" },
-  { key: "previous", name: "직전 7일", color: "#FF9500" },
+  { key: "previous", name: "직전 7일", color: "#4b5563" },
 ] as const;
 
 const tooltipStyle = {
