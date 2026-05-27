@@ -354,51 +354,6 @@ export default function ManagementMetricSection({
                       <span style={{ color: "#4e5968" }}>{value}</span>
                     )}
                   />
-                  {stats && (
-                    <ReferenceLine
-                      y={stats.max}
-                      stroke="#14b8a6"
-                      strokeWidth={0.75}
-                      strokeDasharray="3 3"
-                      ifOverflow="extendDomain"
-                      label={{
-                        value: `최대 ${formatValue(valueFormat, stats.max, valueSuffix)}`,
-                        position: "insideTopRight",
-                        fill: "#0d9488",
-                        fontSize: 11,
-                      }}
-                    />
-                  )}
-                  {stats && (
-                    <ReferenceLine
-                      y={stats.avg}
-                      stroke="#14b8a6"
-                      strokeWidth={0.75}
-                      strokeDasharray="3 3"
-                      ifOverflow="extendDomain"
-                      label={{
-                        value: `평균 ${formatValue(valueFormat, stats.avg, valueSuffix)}`,
-                        position: "insideTopRight",
-                        fill: "#0d9488",
-                        fontSize: 11,
-                      }}
-                    />
-                  )}
-                  {stats && (
-                    <ReferenceLine
-                      y={stats.min}
-                      stroke="#14b8a6"
-                      strokeWidth={0.75}
-                      strokeDasharray="3 3"
-                      ifOverflow="extendDomain"
-                      label={{
-                        value: `최소 ${formatValue(valueFormat, stats.min, valueSuffix)}`,
-                        position: "insideTopRight",
-                        fill: "#0d9488",
-                        fontSize: 11,
-                      }}
-                    />
-                  )}
                   <Line
                     type="monotone"
                     dataKey="value"
@@ -412,6 +367,51 @@ export default function ManagementMetricSection({
                     }
                     connectNulls
                   />
+                  {stats && (
+                    <ReferenceLine
+                      y={stats.max}
+                      stroke="#f97316"
+                      strokeWidth={0.75}
+                      strokeDasharray="3 3"
+                      ifOverflow="extendDomain"
+                      label={{
+                        value: `최대 ${formatValue(valueFormat, stats.max, valueSuffix)}`,
+                        position: "insideTopRight",
+                        fill: "#c2410c",
+                        fontSize: 11,
+                      }}
+                    />
+                  )}
+                  {stats && (
+                    <ReferenceLine
+                      y={stats.avg}
+                      stroke="#f97316"
+                      strokeWidth={0.75}
+                      strokeDasharray="3 3"
+                      ifOverflow="extendDomain"
+                      label={{
+                        value: `평균 ${formatValue(valueFormat, stats.avg, valueSuffix)}`,
+                        position: "insideTopRight",
+                        fill: "#c2410c",
+                        fontSize: 11,
+                      }}
+                    />
+                  )}
+                  {stats && (
+                    <ReferenceLine
+                      y={stats.min}
+                      stroke="#f97316"
+                      strokeWidth={0.75}
+                      strokeDasharray="3 3"
+                      ifOverflow="extendDomain"
+                      label={{
+                        value: `최소 ${formatValue(valueFormat, stats.min, valueSuffix)}`,
+                        position: "insideTopRight",
+                        fill: "#c2410c",
+                        fontSize: 11,
+                      }}
+                    />
+                  )}
                 </LineChart>
               </ResponsiveContainer>
             </div>
