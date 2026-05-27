@@ -352,23 +352,32 @@ export async function fetchBlogPeriodKpis(
   const supabase = getSupabaseClient();
 
   const PAGE = 1000;
-  const rawRows: Record<string, unknown>[] = [];
-  let received = 0;
-  for (let iter = 0; iter < 50; iter++) {
-    const { data, error } = await supabase
-      .schema("analytics")
-      .from("chart_blog_period_view")
-      .select("*")
-      .eq("hospital_id", hospitalId)
-      .in("period_type", ["day", "month", "year"])
-      .order("period_type", { ascending: true })
-      .order("metric_date", { ascending: true })
-      .range(received, received + PAGE - 1);
-    if (error) throw error;
-    if (!data || data.length === 0) break;
-    rawRows.push(...(data as Record<string, unknown>[]));
-    received += data.length;
-  }
+  const fetchPeriod = async (periodType: "day" | "month" | "year") => {
+    const out: Record<string, unknown>[] = [];
+    let received = 0;
+    for (let iter = 0; iter < 50; iter++) {
+      const { data, error } = await supabase
+        .schema("analytics")
+        .from("chart_blog_period_view")
+        .select("*")
+        .eq("hospital_id", hospitalId)
+        .eq("period_type", periodType)
+        .order("metric_date", { ascending: true })
+        .range(received, received + PAGE - 1);
+      if (error) throw error;
+      if (!data || data.length === 0) break;
+      out.push(...(data as Record<string, unknown>[]));
+      received += data.length;
+    }
+    return out;
+  };
+
+  const [dayRows, monthRows, yearRows] = await Promise.all([
+    fetchPeriod("day"),
+    fetchPeriod("month"),
+    fetchPeriod("year"),
+  ]);
+  const rawRows: Record<string, unknown>[] = [...dayRows, ...monthRows, ...yearRows];
 
   const mapped = rawRows
     .map((rawRow) => {
