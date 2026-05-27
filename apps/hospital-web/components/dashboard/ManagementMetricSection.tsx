@@ -8,6 +8,7 @@ import {
   Legend,
   Line,
   LineChart,
+  ReferenceLine,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -166,6 +167,22 @@ export default function ManagementMetricSection({
     return buildAggregatedSeries(rows, clipped.start, clipped.end, granularity, metric);
   }, [rows, clipped, granularity, metric]);
 
+  const stats = useMemo(() => {
+    const values = chartData
+      .map((p) => p.value)
+      .filter((v): v is number => v != null && Number.isFinite(v));
+    if (values.length === 0) return null;
+    let min = values[0];
+    let max = values[0];
+    let sum = 0;
+    for (const v of values) {
+      if (v < min) min = v;
+      if (v > max) max = v;
+      sum += v;
+    }
+    return { min, max, avg: sum / values.length };
+  }, [chartData]);
+
   const yoyRows = useMemo(() => buildYoYMonthlyRows(rows, metric), [rows, metric]);
   const weekdayRows = useMemo(() => buildWeekdayRows(rows, metric), [rows, metric]);
 
@@ -265,6 +282,19 @@ export default function ManagementMetricSection({
                 ))}
               </div>
             </div>
+            {stats ? (
+              <div className="mb-2 flex flex-wrap gap-x-4 gap-y-1 text-xs">
+                <span className="text-[var(--text-muted)]">
+                  최대 <span className="ml-1 font-medium text-[var(--text)]">{formatValue(valueFormat, stats.max, valueSuffix)}</span>
+                </span>
+                <span className="text-[var(--text-muted)]">
+                  최소 <span className="ml-1 font-medium text-[var(--text)]">{formatValue(valueFormat, stats.min, valueSuffix)}</span>
+                </span>
+                <span className="text-[var(--text-muted)]">
+                  평균 <span className="ml-1 font-medium text-[var(--text)]">{formatValue(valueFormat, stats.avg, valueSuffix)}</span>
+                </span>
+              </div>
+            ) : null}
             <div className="h-[280px] w-full min-w-0">
               <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={200}>
                 <LineChart data={chartData} margin={{ top: 8, right: 12, bottom: 8, left: 4 }}>
@@ -318,6 +348,20 @@ export default function ManagementMetricSection({
                       <span style={{ color: "#4e5968" }}>{value}</span>
                     )}
                   />
+                  {stats ? (
+                    <ReferenceLine
+                      y={stats.avg}
+                      stroke="#94a3b8"
+                      strokeWidth={1.5}
+                      ifOverflow="extendDomain"
+                      label={{
+                        value: `평균 ${formatValue(valueFormat, stats.avg, valueSuffix)}`,
+                        position: "insideTopRight",
+                        fill: "#64748b",
+                        fontSize: 11,
+                      }}
+                    />
+                  ) : null}
                   <Line
                     type="monotone"
                     dataKey="value"
