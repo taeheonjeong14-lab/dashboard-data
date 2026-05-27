@@ -1,5 +1,38 @@
 import * as XLSX from 'xlsx';
 
+/**
+ * XLSX/XLS 는 바이너리 그대로 읽고, CSV/TSV 류는
+ *   1) UTF-8 BOM 있으면 UTF-8
+ *   2) UTF-8 strict 시도
+ *   3) 실패하면 EUC-KR (한국 EMR CSV export 기본 인코딩)
+ * 으로 텍스트 디코드 후 SheetJS 에 string 타입으로 전달한다.
+ */
+function readWorkbookFromBuffer(buffer: ArrayBuffer): XLSX.WorkBook {
+  const bytes = new Uint8Array(buffer);
+  const isXlsx = bytes.length >= 2 && bytes[0] === 0x50 && bytes[1] === 0x4B; // PK (ZIP)
+  const isXls = bytes.length >= 2 && bytes[0] === 0xD0 && bytes[1] === 0xCF; // OLE2
+  if (isXlsx || isXls) {
+    return XLSX.read(buffer, { type: 'array', cellDates: false });
+  }
+
+  let text: string;
+  if (
+    bytes.length >= 3 &&
+    bytes[0] === 0xef &&
+    bytes[1] === 0xbb &&
+    bytes[2] === 0xbf
+  ) {
+    text = new TextDecoder('utf-8').decode(bytes.slice(3));
+  } else {
+    try {
+      text = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+    } catch {
+      text = new TextDecoder('euc-kr').decode(bytes);
+    }
+  }
+  return XLSX.read(text, { type: 'string', cellDates: false });
+}
+
 export type DailyKpi = {
   metric_date: string;
   sales_amount: number;
@@ -61,7 +94,7 @@ function finalize(rows: { date: string; amount: number; visitKey: string }[], ra
 }
 
 export function parseIntoVet(buffer: ArrayBuffer): ParseResult {
-  const wb = XLSX.read(buffer, { type: 'array', cellDates: false });
+  const wb = readWorkbookFromBuffer(buffer);
   const ws = wb.Sheets[wb.SheetNames[0]!]!;
   const rows = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1, defval: null });
   const data = rows.slice(2); // 2 header rows
@@ -80,7 +113,7 @@ export function parseIntoVet(buffer: ArrayBuffer): ParseResult {
 }
 
 export function parseWoorienPms(buffer: ArrayBuffer): ParseResult {
-  const wb = XLSX.read(buffer, { type: 'array', cellDates: false });
+  const wb = readWorkbookFromBuffer(buffer);
   const ws = wb.Sheets[wb.SheetNames[0]!]!;
   const rows = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1, defval: null });
   const data = rows.slice(1); // 1 header row
@@ -99,7 +132,7 @@ export function parseWoorienPms(buffer: ArrayBuffer): ParseResult {
 }
 
 export function parseEFriends(buffer: ArrayBuffer): ParseResult {
-  const wb = XLSX.read(buffer, { type: 'array', cellDates: false });
+  const wb = readWorkbookFromBuffer(buffer);
   const ws = wb.Sheets[wb.SheetNames[0]!]!;
   const rows = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1, defval: null });
   // eFriends has variable header rows — find first data row by date in col 5
