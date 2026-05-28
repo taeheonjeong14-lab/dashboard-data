@@ -1,10 +1,25 @@
 'use client';
 
 import { useState, useEffect, type FormEvent } from 'react';
-import { X, User, CreditCard, KeyRound } from 'lucide-react';
+import { X, User, CreditCard, KeyRound, Building2 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 
-type Tab = 'basic' | 'payment' | 'password';
+type Tab = 'basic' | 'hospital' | 'payment' | 'password';
+
+type HospitalSettings = {
+  name: string;
+  phone: string;
+  address: string;
+  chartType: string;
+  vetCount: number | null;
+};
+
+const CHART_TYPE_OPTIONS: { value: string; label: string }[] = [
+  { value: '', label: '선택 안 함' },
+  { value: 'intovet', label: 'IntoVet EMR' },
+  { value: 'woorien_pms', label: '우리엔 PMS' },
+  { value: 'efriends', label: 'eFriends EMR' },
+];
 
 type Profile = {
   name: string;
@@ -17,6 +32,7 @@ type Profile = {
 
 const MENU: { key: Tab; label: string; icon: typeof User }[] = [
   { key: 'basic', label: '기본 정보', icon: User },
+  { key: 'hospital', label: '병원 관리', icon: Building2 },
   { key: 'payment', label: '결제수단', icon: CreditCard },
   { key: 'password', label: '비밀번호 변경', icon: KeyRound },
 ];
@@ -35,6 +51,11 @@ export function SettingsModal({ open, onClose, tokenBalance = 0 }: { open: boole
   const [newPasswordConfirm, setNewPasswordConfirm] = useState('');
   const [savingPw, setSavingPw] = useState(false);
   const [pwMsg, setPwMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  const [hospital, setHospital] = useState<HospitalSettings | null>(null);
+  const [loadingHospital, setLoadingHospital] = useState(true);
+  const [savingHospital, setSavingHospital] = useState(false);
+  const [hospitalMsg, setHospitalMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   // 모달이 열릴 때 프로필 로드 + Esc 닫기
   useEffect(() => {
@@ -62,6 +83,24 @@ export function SettingsModal({ open, onClose, tokenBalance = 0 }: { open: boole
         email: user.email ?? '',
       });
       setLoadingProfile(false);
+    })();
+  }, [open]);
+
+  // 병원 관리 정보 로드
+  useEffect(() => {
+    if (!open) return;
+    setHospitalMsg(null);
+    (async () => {
+      setLoadingHospital(true);
+      try {
+        const res = await fetch('/api/settings/hospital');
+        const data = await res.json() as { ok?: boolean; hospital?: HospitalSettings | null };
+        setHospital(data.hospital ?? null);
+      } catch {
+        setHospital(null);
+      } finally {
+        setLoadingHospital(false);
+      }
     })();
   }, [open]);
 
@@ -97,6 +136,27 @@ export function SettingsModal({ open, onClose, tokenBalance = 0 }: { open: boole
       setProfileMsg({ type: 'error', text: err instanceof Error ? err.message : '저장 실패' });
     } finally {
       setSavingProfile(false);
+    }
+  }
+
+  async function handleHospitalSubmit(e: FormEvent) {
+    e.preventDefault();
+    if (!hospital) return;
+    setSavingHospital(true);
+    setHospitalMsg(null);
+    try {
+      const res = await fetch('/api/settings/hospital', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chartType: hospital.chartType, vetCount: hospital.vetCount }),
+      });
+      const data = await res.json() as { ok?: boolean; error?: string };
+      if (!res.ok || !data.ok) throw new Error(data.error ?? '저장 실패');
+      setHospitalMsg({ type: 'success', text: '저장되었습니다.' });
+    } catch (err) {
+      setHospitalMsg({ type: 'error', text: err instanceof Error ? err.message : '저장 실패' });
+    } finally {
+      setSavingHospital(false);
     }
   }
 
@@ -180,6 +240,58 @@ export function SettingsModal({ open, onClose, tokenBalance = 0 }: { open: boole
                   {profileMsg && <Msg type={profileMsg.type} text={profileMsg.text} />}
                   <button type="submit" disabled={savingProfile} style={primaryBtn(savingProfile)}>
                     {savingProfile ? '저장 중…' : '저장'}
+                  </button>
+                </form>
+              )
+            )}
+
+            {tab === 'hospital' && (
+              loadingHospital ? (
+                <p style={{ margin: 0, fontSize: 13, color: 'var(--text-muted)' }}>불러오는 중…</p>
+              ) : !hospital ? (
+                <p style={{ margin: 0, fontSize: 13, color: 'var(--text-muted)' }}>
+                  배정된 병원이 없습니다. 관리자에게 문의하세요.
+                </p>
+              ) : (
+                <form onSubmit={(e) => void handleHospitalSubmit(e)} style={formStyle}>
+                  <Field label="병원명" hint="관리자만 수정 가능">
+                    <input value={hospital.name} disabled style={{ ...inputStyle, background: 'var(--bg-raised)', color: 'var(--text-muted)', cursor: 'not-allowed' }} />
+                  </Field>
+                  <Field label="병원 전화번호" hint="관리자만 수정 가능">
+                    <input value={hospital.phone || '-'} disabled style={{ ...inputStyle, background: 'var(--bg-raised)', color: 'var(--text-muted)', cursor: 'not-allowed' }} />
+                  </Field>
+                  <Field label="병원 주소" hint="관리자만 수정 가능">
+                    <input value={hospital.address || '-'} disabled style={{ ...inputStyle, background: 'var(--bg-raised)', color: 'var(--text-muted)', cursor: 'not-allowed' }} />
+                  </Field>
+                  <Field label="차트 종류">
+                    <select
+                      value={hospital.chartType}
+                      onChange={(e) => setHospital((h) => (h ? { ...h, chartType: e.target.value } : h))}
+                      style={inputStyle}
+                    >
+                      {CHART_TYPE_OPTIONS.map((o) => (
+                        <option key={o.value} value={o.value}>{o.label}</option>
+                      ))}
+                    </select>
+                  </Field>
+                  <Field label="수의사 수">
+                    <input
+                      type="number"
+                      min={1}
+                      max={100}
+                      step={1}
+                      value={hospital.vetCount ?? ''}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        setHospital((h) => (h ? { ...h, vetCount: v === '' ? null : Number(v) } : h));
+                      }}
+                      style={{ ...inputStyle, maxWidth: 140 }}
+                      placeholder="예: 3"
+                    />
+                  </Field>
+                  {hospitalMsg && <Msg type={hospitalMsg.type} text={hospitalMsg.text} />}
+                  <button type="submit" disabled={savingHospital} style={primaryBtn(savingHospital)}>
+                    {savingHospital ? '저장 중…' : '저장'}
                   </button>
                 </form>
               )
