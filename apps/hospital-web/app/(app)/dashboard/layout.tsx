@@ -20,7 +20,9 @@ const TABS = [
 export default function DashboardLayout({ children }: { children: ReactNode }) {
   const pathname = usePathname();
 
-  const isActive = (href: string) => pathname.startsWith(href);
+  // 정확히 일치하거나 그 하위 경로일 때만 활성. startsWith 만 쓰면
+  // /dashboard/place-ads 가 /dashboard/place 도 활성으로 만드는 prefix 충돌 발생.
+  const isActive = (href: string) => pathname === href || pathname.startsWith(href + "/");
 
   return (
     <div>

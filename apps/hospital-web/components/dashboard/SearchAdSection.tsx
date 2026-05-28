@@ -358,7 +358,8 @@ export default function SearchAdSection({
           캠페인 · 광고그룹 성과
         </h3>
         <div className="overflow-x-auto border border-[var(--border)]">
-          <table className="w-full border-collapse text-left text-sm">
+          <table className="w-full table-fixed border-collapse text-left text-sm">
+            <AdTableColgroup />
             <thead>
               <tr className="border-b border-[var(--border)] bg-[var(--bg-subtle)] text-[var(--text-secondary)]">
                 <th className="py-2 pl-3 pr-2 font-medium">캠페인 / 광고그룹</th>
@@ -418,7 +419,8 @@ export default function SearchAdSection({
           클릭수 상위 키워드 (Top 10)
         </h3>
         <div className="overflow-x-auto border border-[var(--border)]">
-          <table className="w-full border-collapse text-left text-sm">
+          <table className="w-full table-fixed border-collapse text-left text-sm">
+            <AdTableColgroup />
             <thead>
               <tr className="border-b border-[var(--border)] bg-[var(--bg-subtle)] text-[var(--text-secondary)]">
                 <th className="py-2 pl-3 pr-2 font-medium">키워드</th>
@@ -454,22 +456,36 @@ export default function SearchAdSection({
   );
 }
 
+/** 두 표(캠페인·키워드) 컬럼 너비 통일용. 이름 30% + 지표 5개 14%씩. */
+function AdTableColgroup() {
+  return (
+    <colgroup>
+      <col style={{ width: "30%" }} />
+      <col style={{ width: "14%" }} />
+      <col style={{ width: "14%" }} />
+      <col style={{ width: "14%" }} />
+      <col style={{ width: "14%" }} />
+      <col style={{ width: "14%" }} />
+    </colgroup>
+  );
+}
+
 function MetricCells({ totals }: { totals: PerfTotals }) {
   return (
     <>
-      <td className="py-1.5 px-2 text-right tabular-nums">
+      <td className="py-1.5 px-2 text-right tabular-nums whitespace-nowrap">
         {formatMetric("impressions", deriveMetric(totals, "impressions"))}
       </td>
-      <td className="py-1.5 px-2 text-right tabular-nums">
+      <td className="py-1.5 px-2 text-right tabular-nums whitespace-nowrap">
         {formatMetric("clicks", deriveMetric(totals, "clicks"))}
       </td>
-      <td className="py-1.5 px-2 text-right tabular-nums">
+      <td className="py-1.5 px-2 text-right tabular-nums whitespace-nowrap">
         {formatMetric("ctr", deriveMetric(totals, "ctr"))}
       </td>
-      <td className="py-1.5 px-2 text-right tabular-nums">
+      <td className="py-1.5 px-2 text-right tabular-nums whitespace-nowrap">
         {formatMetric("cost", deriveMetric(totals, "cost"))}
       </td>
-      <td className="py-1.5 pl-2 pr-3 text-right tabular-nums">
+      <td className="py-1.5 pl-2 pr-3 text-right tabular-nums whitespace-nowrap">
         {formatMetric("cpc", deriveMetric(totals, "cpc"))}
       </td>
     </>
