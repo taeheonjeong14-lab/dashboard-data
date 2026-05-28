@@ -152,6 +152,17 @@ export default function SearchAdSection({
     [filteredRows, clipped, granularity, trendMetric],
   );
 
+  // 선택 기간 전체 합계 (캠페인 레벨 행 합산 = 계정 총합). 요약 KPI 박스용.
+  const overall = useMemo(() => {
+    const t: PerfTotals = { impressions: 0, clicks: 0, cost: 0 };
+    for (const c of campaignTable) {
+      t.impressions += c.totals.impressions;
+      t.clicks += c.totals.clicks;
+      t.cost += c.totals.cost;
+    }
+    return t;
+  }, [campaignTable]);
+
   const trendYAxis = useMemo(() => {
     const vals: (number | null)[] = [];
     for (const p of trend.points) {
@@ -279,6 +290,16 @@ export default function SearchAdSection({
               </button>
             ),
           )}
+        </div>
+      )}
+
+      {/* 요약 KPI (파워링크 등 full 모드) */}
+      {mode === "full" && (
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <KpiBox label="노출" value={formatMetric("impressions", overall.impressions)} />
+          <KpiBox label="클릭" value={formatMetric("clicks", overall.clicks)} />
+          <KpiBox label="총비용" value={formatMetric("cost", overall.cost)} />
+          <KpiBox label="CPC" value={formatMetric("cpc", deriveMetric(overall, "cpc"))} />
         </div>
       )}
 
@@ -449,6 +470,17 @@ export default function SearchAdSection({
       </section>
       </div>
       )}
+    </div>
+  );
+}
+
+function KpiBox({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="border border-[var(--border)] bg-[var(--bg-raised)] px-4 py-3.5">
+      <div className="text-xs text-[var(--text-muted)]">{label}</div>
+      <div className="mt-1.5 text-2xl font-bold tabular-nums text-[var(--text)]">
+        {value}
+      </div>
     </div>
   );
 }
