@@ -477,8 +477,8 @@ export default function SearchAdSection({
 
 function KpiBox({ label, value }: { label: string; value: string }) {
   return (
-    <div className="border border-[var(--border)] bg-[var(--bg-raised)] px-4 py-3.5">
-      <div className="text-xs text-[var(--text-muted)]">{label}</div>
+    <div className="rounded-md border border-[var(--accent)]/20 bg-[var(--accent-subtle)] px-4 py-3.5">
+      <div className="text-xs text-[var(--text-secondary)]">{label}</div>
       <div className="mt-1.5 text-2xl font-bold tabular-nums text-[var(--text)]">
         {value}
       </div>
