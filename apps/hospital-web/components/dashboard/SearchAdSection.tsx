@@ -284,10 +284,7 @@ export default function SearchAdSection({
 
       {/* 추세 (캠페인별 멀티라인) */}
       <section>
-        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-          <h3 className="text-sm font-medium text-[var(--text-secondary)]">
-            캠페인별 추세
-          </h3>
+        <div className="mb-2 flex flex-wrap items-center justify-end gap-2">
           <div className="flex rounded border border-[var(--border-strong)] p-0.5">
             {METRICS.map((m) => (
               <button
