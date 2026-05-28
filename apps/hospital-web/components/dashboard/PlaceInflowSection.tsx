@@ -57,7 +57,7 @@ export default function PlaceInflowSection({
   errorMessage?: string | null;
 }) {
   const bounds = useMemo(() => getDataBounds(rows), [rows]);
-  const [granularity, setGranularity] = useState<Granularity>("day");
+  const [granularity, setGranularity] = useState<Granularity>("month");
   const [rangeStart, setRangeStart] = useState("");
   const [rangeEnd, setRangeEnd] = useState("");
 
