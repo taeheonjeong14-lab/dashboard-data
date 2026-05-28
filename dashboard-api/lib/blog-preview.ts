@@ -30,13 +30,33 @@ async function fetchWithTimeout(url: string, headers: Record<string, string>): P
 const DESKTOP_UA =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
 
+/**
+ * 네이버 블로그 데스크탑 URL 은 iframe 구조라 외부 og:title 이 블로그 이름밖에 안 담김.
+ * 모바일 URL 로 변환하면 og:title 이 글 제목으로 채워져 있어 그대로 사용 가능.
+ */
+function normalizeForFetch(targetUrl: string): string {
+  try {
+    const u = new URL(targetUrl);
+    if (u.hostname === 'blog.naver.com') {
+      u.hostname = 'm.blog.naver.com';
+      return u.href;
+    }
+    return targetUrl;
+  } catch {
+    return targetUrl;
+  }
+}
+
 export async function fetchBlogPreview(targetUrl: string): Promise<BlogPreviewJson> {
-  const res = await fetchWithTimeout(targetUrl, {
+  const fetchUrl = normalizeForFetch(targetUrl);
+  const res = await fetchWithTimeout(fetchUrl, {
     Accept: 'text/html,application/xhtml+xml;q=0.9,*/*;q=0.8',
     'User-Agent': DESKTOP_UA,
   });
 
-  const finalUrl = res.url || targetUrl;
+  // 응답의 url 은 모바일로 변환된 URL 이 될 수 있으나, 사용자에게 노출되는
+  // finalUrl 은 원본 데스크탑 URL 을 유지 (canonical 링크 일관성).
+  const finalUrl = targetUrl;
 
   if (!res.ok) {
     throw new Error(`페이지를 불러오지 못했습니다. (${res.status})`);
