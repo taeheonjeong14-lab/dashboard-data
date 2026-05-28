@@ -351,7 +351,7 @@ export default function SearchAdSection({
       </section>
 
       {mode === "full" && (
-      <>
+      <div className="grid grid-cols-1 gap-8 xl:grid-cols-2">
       {/* 캠페인 / 광고그룹 성과표 */}
       <section>
         <h3 className="mb-2 text-sm font-medium text-[var(--text-secondary)]">
@@ -448,7 +448,7 @@ export default function SearchAdSection({
           </table>
         </div>
       </section>
-      </>
+      </div>
       )}
     </div>
   );
