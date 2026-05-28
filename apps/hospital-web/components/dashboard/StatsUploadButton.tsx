@@ -1,15 +1,17 @@
 'use client';
 
-import { useState, useRef, useCallback, type DragEvent, type ChangeEvent, type CSSProperties } from 'react';
+import { useState, useRef, useCallback, useEffect, type DragEvent, type ChangeEvent, type CSSProperties } from 'react';
 
 type ChartType = 'intovet' | 'woorien_pms' | 'efriends';
 type UploadStage = 'idle' | 'uploading' | 'done' | 'error';
 
 const CHART_TYPE_LABELS: Record<ChartType, string> = {
-  intovet: 'IntoVet EMR',
-  woorien_pms: '우리엔 PMS',
-  efriends: 'eFriends EMR',
+  intovet: '인투벳',
+  woorien_pms: '우리엔PMS',
+  efriends: '이프렌즈',
 };
+
+const VALID_CHART_TYPES: ChartType[] = ['intovet', 'woorien_pms', 'efriends'];
 
 const MAX_FILE_BYTES = 20 * 1024 * 1024; // 20 MB
 
@@ -46,6 +48,35 @@ function StatsUploadModal({ onClose }: { onClose: () => void }) {
   const [errorMessage, setErrorMessage] = useState('');
   const [result, setResult] = useState<UploadResult | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // 병원 설정의 기본 차트 종류 (있으면 그걸로 처리, 없으면 선택 UI 노출)
+  const [hospitalChartType, setHospitalChartType] = useState<ChartType | null>(null);
+  const [showChartSelect, setShowChartSelect] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch('/api/settings/hospital');
+        const data = (await res.json()) as { hospital?: { chartType?: string } | null };
+        const ct = data.hospital?.chartType;
+        if (cancelled) return;
+        if (ct && VALID_CHART_TYPES.includes(ct as ChartType)) {
+          setHospitalChartType(ct as ChartType);
+          setChartType(ct as ChartType);
+          setShowChartSelect(false);
+        } else {
+          // 설정된 차트 종류가 없으면 선택 UI 를 바로 보여줌
+          setShowChartSelect(true);
+        }
+      } catch {
+        if (!cancelled) setShowChartSelect(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const handleFile = useCallback((f: File) => {
     setFileError(null);
@@ -167,13 +198,31 @@ function StatsUploadModal({ onClose }: { onClose: () => void }) {
         {/* 폼 */}
         {stage !== 'done' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 22 }}>
-            <FormField label="차트 종류" required>
-              <select value={chartType} onChange={(e) => setChartType(e.target.value as ChartType)} disabled={isProcessing} style={selectStyle}>
-                {(Object.keys(CHART_TYPE_LABELS) as ChartType[]).map((k) => (
-                  <option key={k} value={k}>{CHART_TYPE_LABELS[k]}</option>
-                ))}
-              </select>
-            </FormField>
+            {showChartSelect ? (
+              <FormField label="차트 종류" required>
+                <select value={chartType} onChange={(e) => setChartType(e.target.value as ChartType)} disabled={isProcessing} style={selectStyle}>
+                  {(Object.keys(CHART_TYPE_LABELS) as ChartType[]).map((k) => (
+                    <option key={k} value={k}>{CHART_TYPE_LABELS[k]}</option>
+                  ))}
+                </select>
+              </FormField>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <p style={{ margin: 0, fontSize: 13, color: 'var(--text-secondary)' }}>
+                  현재 <b style={{ color: 'var(--text)' }}>{CHART_TYPE_LABELS[hospitalChartType ?? chartType]}</b> 차트 기준으로 처리됩니다.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setShowChartSelect(true)}
+                  style={{
+                    alignSelf: 'flex-start', background: 'none', border: 'none', padding: 0,
+                    fontSize: 12.5, color: 'var(--accent)', cursor: 'pointer', textDecoration: 'underline',
+                  }}
+                >
+                  혹시 다른 차트 시스템 데이터인가요?
+                </button>
+              </div>
+            )}
 
             <FormField label="파일 업로드" required>
               <div
