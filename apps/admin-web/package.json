@@ -8,6 +8,7 @@
     "start": "next start -p 3011"
   },
   "dependencies": {
+    "@dashboard/chart-ingest": "*",
     "@dashboard/lab-normalize": "*",
     "@fontsource/noto-sans-kr": "^5.2.9",
     "@fontsource/pretendard": "^5.2.5",

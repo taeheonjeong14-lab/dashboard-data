@@ -1,10 +1,14 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { buildPreview, collapseRowsForDedupeUpload } from '@/lib/legacy/chartUpload.js';
-import { fileToSha256, parseIntoVetWorkbook } from '@/lib/legacy/intovet.js';
-import { parseWoorienPmsWorkbook } from '@/lib/legacy/woorienPms.js';
-import { parseEFriendsFile } from '@/lib/legacy/efriends.js';
+import {
+  buildPreview,
+  collapseRowsForDedupeUpload,
+  fileToSha256,
+  parseIntoVetWorkbook,
+  parseWoorienPmsWorkbook,
+  parseEFriendsFile,
+} from '@dashboard/chart-ingest';
 import { formatSupabaseError } from '@/lib/format-supabase-error';
 
 const CHART_TYPES = [

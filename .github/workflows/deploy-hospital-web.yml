@@ -6,6 +6,7 @@ on:
       - main
     paths:
       - 'apps/hospital-web/**'
+      - 'packages/chart-ingest/**'
 
 jobs:
   deploy:

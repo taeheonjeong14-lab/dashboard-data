@@ -6,6 +6,7 @@ on:
     paths:
       - 'apps/admin-web/**'
       - 'packages/lab-normalize/**'
+      - 'packages/chart-ingest/**'
 
 env:
   VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}

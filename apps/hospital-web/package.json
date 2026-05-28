@@ -8,6 +8,7 @@
     "start": "next start -p 3010"
   },
   "dependencies": {
+    "@dashboard/chart-ingest": "*",
     "@supabase/ssr": "^0.10.3",
     "@supabase/supabase-js": "^2.57.4",
     "lucide-react": "^0.511.0",

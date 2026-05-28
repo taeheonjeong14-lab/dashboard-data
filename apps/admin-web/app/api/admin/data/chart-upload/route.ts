@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { requireAdminApi } from '@/lib/assert-admin-api';
 import { formatSupabaseError } from '@/lib/format-supabase-error';
 import { createServiceRoleClient } from '@/lib/supabase/service-role';
-import { executeChartUpload } from '@/lib/legacy/chartUpload.js';
+import { executeChartUpload, type ParsedTxnRow, type ParseError } from '@dashboard/chart-ingest';
 
 export const maxDuration = 300;
 
@@ -11,8 +11,8 @@ type Body = {
   chartType: string;
   sourceFileName: string;
   sourceFileHash: string;
-  parsedRows: unknown[];
-  parseErrors: unknown[];
+  parsedRows: ParsedTxnRow[];
+  parseErrors: ParseError[];
 };
 
 export async function POST(request: Request) {
