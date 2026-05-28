@@ -183,11 +183,18 @@ export default function BlogRanksSection({
       pending.map(async (url) => {
         try {
           const res = await fetch(dashboardBlogPreviewRequestUrl(url));
-          const data = (await res.json()) as
-            | { ok: true; title: string | null; finalUrl: string }
-            | { ok: false };
-          if (!data || !("ok" in data) || !data.ok) return null;
-          return { url, title: data.title, finalUrl: data.finalUrl };
+          const data = (await res.json()) as {
+            success?: boolean;
+            url?: string;
+            title?: string | null;
+            canonicalUrl?: string | null;
+          };
+          if (!data || !data.success) return null;
+          return {
+            url,
+            title: data.title ?? null,
+            finalUrl: data.canonicalUrl || data.url || url,
+          };
         } catch {
           return null;
         }
@@ -195,9 +202,15 @@ export default function BlogRanksSection({
     ).then((results) => {
       if (cancelled) return;
       const next: Record<string, PreviewTitleData> = {};
-      for (const item of results) {
-        if (!item) continue;
-        next[item.url] = { title: item.title, finalUrl: item.finalUrl };
+      for (let i = 0; i < pending.length; i++) {
+        const url = pending[i]!;
+        const item = results[i];
+        if (item) {
+          next[item.url] = { title: item.title, finalUrl: item.finalUrl };
+        } else {
+          // fetch 실패해도 placeholder 로 마킹 — '불러오는 중' 무한 표시 방지.
+          next[url] = { title: null, finalUrl: url };
+        }
       }
       if (Object.keys(next).length === 0) return;
       setPreviewTitles((prev) => ({ ...prev, ...next }));
