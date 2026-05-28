@@ -639,7 +639,7 @@ export async function fetchPlacePeriodKpis(
         .select("*")
         .eq("hospital_id", hospitalId)
         .eq("period_type", periodType)
-        .order("metric_date", { ascending: true })
+        .order("period_date", { ascending: true })
         .range(from, to),
     );
   const [dayPlace, monthPlace, yearPlace] = await Promise.all([

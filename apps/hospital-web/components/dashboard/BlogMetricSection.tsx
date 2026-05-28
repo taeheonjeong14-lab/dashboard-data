@@ -74,7 +74,7 @@ export default function BlogMetricSection({
   footnote,
 }: BlogMetricSectionProps) {
   const bounds = useMemo(() => getDataBounds(rows), [rows]);
-  const [granularity, setGranularity] = useState<Granularity>("day");
+  const [granularity, setGranularity] = useState<Granularity>("month");
   const [rangeStart, setRangeStart] = useState<string>("");
   const [rangeEnd, setRangeEnd] = useState<string>("");
 

@@ -379,6 +379,7 @@ def build_metric_row(
     keyword_name: str | None,
     metric_date: str,
     stats: dict[str, Any],
+    campaign_type: str | None = None,
 ) -> dict[str, Any]:
     stat = _normalize_stats_record(stats)
     return {
@@ -387,6 +388,7 @@ def build_metric_row(
         "customer_id": customer_id,
         "campaign_id": campaign_id,
         "campaign_name": campaign_name,
+        "campaign_type": campaign_type,
         "adgroup_id": adgroup_id,
         "adgroup_name": adgroup_name,
         "keyword_id": keyword_id,
@@ -449,6 +451,7 @@ def collect_one_account(
     for campaign in campaigns:
         campaign_id = str(campaign.get("nccCampaignId") or campaign.get("id") or "").strip()
         campaign_name = str(campaign.get("name") or "").strip() or None
+        campaign_type = str(campaign.get("campaignTp") or "").strip() or None
         if not campaign_id:
             continue
         try:
@@ -472,6 +475,7 @@ def collect_one_account(
                     keyword_name=None,
                     metric_date=metric_date,
                     stats=stats,
+                    campaign_type=campaign_type,
                 )
             )
         except Exception as e:
@@ -505,6 +509,7 @@ def collect_one_account(
                         keyword_name=None,
                         metric_date=metric_date,
                         stats=adgroup_stats,
+                        campaign_type=campaign_type,
                     )
                 )
             except Exception as e:
@@ -542,6 +547,7 @@ def collect_one_account(
                             keyword_name=keyword_name,
                             metric_date=metric_date,
                             stats=keyword_stats,
+                            campaign_type=campaign_type,
                         )
                     )
                 except Exception as e:

@@ -91,6 +91,22 @@ export type PlacePeriodDayRow = {
   inflow: number | null;
 };
 
+/** 네이버 검색광고 일별 성과 (analytics.analytics_searchad_daily_metrics).
+ *  campaign/adgroup/keyword 레벨이 ID 채움 패턴으로 구분돼 한 테이블에 섞여 있음. */
+export type SearchAdRow = {
+  dateKey: string;
+  campaignId: string;
+  campaignName: string | null;
+  campaignType: string | null;
+  adgroupId: string;
+  adgroupName: string | null;
+  keywordId: string;
+  keywordName: string | null;
+  impressions: number;
+  clicks: number;
+  cost: number;
+};
+
 /** 오늘 날짜 (Asia/Seoul 달력 기준 YYYY-MM-DD) */
 function todayDateKeySeoul(): string {
   return new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Seoul" }).format(new Date());
@@ -652,7 +668,7 @@ export async function fetchPlacePeriodKpis(
         .select("*")
         .eq("hospital_id", hospitalId)
         .eq("period_type", periodType)
-        .order("metric_date", { ascending: true })
+        .order("period_date", { ascending: true })
         .range(from, to),
     );
   const [dayPlace, monthPlace, yearPlace] = await Promise.all([
@@ -729,6 +745,35 @@ export async function fetchPlacePeriodKpis(
     if (a.periodType === b.periodType) return a.dateKey.localeCompare(b.dateKey);
     return a.periodType.localeCompare(b.periodType);
   });
+}
+
+export async function fetchSearchAdMetrics(hospitalId: string): Promise<SearchAdRow[]> {
+  const supabase = createClient();
+  const rows = await fetchAllPages((from, to) =>
+    supabase
+      .schema("analytics")
+      .from("analytics_searchad_daily_metrics")
+      .select(
+        "metric_date,campaign_id,campaign_name,campaign_type,adgroup_id,adgroup_name,keyword_id,keyword_name,impressions,clicks,cost",
+      )
+      .eq("hospital_id", hospitalId)
+      .order("metric_date", { ascending: true })
+      .range(from, to),
+  );
+
+  return rows.map((r) => ({
+    dateKey: String(r.metric_date ?? "").slice(0, 10),
+    campaignId: asStringOrNull(r.campaign_id) ?? "",
+    campaignName: asStringOrNull(r.campaign_name),
+    campaignType: asStringOrNull(r.campaign_type),
+    adgroupId: asStringOrNull(r.adgroup_id) ?? "",
+    adgroupName: asStringOrNull(r.adgroup_name),
+    keywordId: asStringOrNull(r.keyword_id) ?? "",
+    keywordName: asStringOrNull(r.keyword_name),
+    impressions: asNumberOrNull(r.impressions) ?? 0,
+    clicks: asNumberOrNull(r.clicks) ?? 0,
+    cost: asNumberOrNull(r.cost) ?? 0,
+  }));
 }
 
 export async function fetchKeywordTargets(params: {
