@@ -41,6 +41,19 @@ const LINE_COLORS = [
   "#64748b",
 ];
 
+const CAMPAIGN_TYPE_LABELS: Record<string, string> = {
+  WEB_SITE: "파워링크",
+  PLACE: "플레이스",
+  SHOPPING: "쇼핑검색",
+  POWER_CONTENTS: "파워컨텐츠",
+  BRAND_SEARCH: "브랜드검색",
+  PLACE_SEARCH: "플레이스",
+};
+
+function campaignTypeLabel(tp: string): string {
+  return CAMPAIGN_TYPE_LABELS[tp] ?? tp;
+}
+
 const METRICS: { key: SearchAdMetricKey; label: string }[] = [
   { key: "impressions", label: "노출" },
   { key: "clicks", label: "클릭" },
@@ -87,6 +100,21 @@ export default function SearchAdSection({ rows }: { rows: SearchAdRow[] }) {
   const [rangeStart, setRangeStart] = useState("");
   const [rangeEnd, setRangeEnd] = useState("");
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [typeFilter, setTypeFilter] = useState<string>("all");
+
+  // 데이터에 존재하는 캠페인 유형 (campaign-level row 기준). campaign_type 미수집(NULL)이면 빈 목록.
+  const availableTypes = useMemo(() => {
+    const set = new Set<string>();
+    for (const r of rows) {
+      if (r.campaignType) set.add(r.campaignType);
+    }
+    return Array.from(set).sort();
+  }, [rows]);
+
+  const filteredRows = useMemo(
+    () => (typeFilter === "all" ? rows : rows.filter((r) => r.campaignType === typeFilter)),
+    [rows, typeFilter],
+  );
 
   const minB = bounds?.min ?? "";
   const maxB = bounds?.max ?? "";
@@ -98,19 +126,19 @@ export default function SearchAdSection({ rows }: { rows: SearchAdRow[] }) {
   );
 
   const campaignTable = useMemo(
-    () => (clipped.start ? buildCampaignTable(rows, clipped.start, clipped.end) : []),
-    [rows, clipped],
+    () => (clipped.start ? buildCampaignTable(filteredRows, clipped.start, clipped.end) : []),
+    [filteredRows, clipped],
   );
   const topKeywords = useMemo(
-    () => (clipped.start ? buildTopKeywords(rows, clipped.start, clipped.end, 10) : []),
-    [rows, clipped],
+    () => (clipped.start ? buildTopKeywords(filteredRows, clipped.start, clipped.end, 10) : []),
+    [filteredRows, clipped],
   );
   const trend = useMemo(
     () =>
       clipped.start
-        ? buildCampaignTrend(rows, clipped.start, clipped.end, granularity, trendMetric)
+        ? buildCampaignTrend(filteredRows, clipped.start, clipped.end, granularity, trendMetric)
         : { points: [], campaigns: [] },
-    [rows, clipped, granularity, trendMetric],
+    [filteredRows, clipped, granularity, trendMetric],
   );
 
   const trendYAxis = useMemo(() => {
@@ -219,6 +247,29 @@ export default function SearchAdSection({ rows }: { rows: SearchAdRow[] }) {
           ))}
         </div>
       </div>
+
+      {/* 광고 유형 필터 (파워링크 / 플레이스 등) */}
+      {availableTypes.length > 0 && (
+        <div className="-mt-4 flex flex-wrap items-center gap-1">
+          <span className="mr-1 text-xs text-[var(--text-muted)]">광고 유형</span>
+          {[["all", "전체"] as const, ...availableTypes.map((t) => [t, campaignTypeLabel(t)] as const)].map(
+            ([key, label]) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setTypeFilter(key)}
+                className={`h-7 rounded border px-2.5 text-xs ${
+                  typeFilter === key
+                    ? "border-[var(--accent)] bg-[var(--accent)] text-white"
+                    : "border-[var(--border-strong)] bg-[var(--bg)] text-[var(--text-secondary)] hover:bg-[var(--bg-subtle)]"
+                }`}
+              >
+                {label}
+              </button>
+            ),
+          )}
+        </div>
+      )}
 
       {/* 추세 (캠페인별 멀티라인) */}
       <section>

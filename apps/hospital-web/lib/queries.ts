@@ -97,6 +97,7 @@ export type SearchAdRow = {
   dateKey: string;
   campaignId: string;
   campaignName: string | null;
+  campaignType: string | null;
   adgroupId: string;
   adgroupName: string | null;
   keywordId: string;
@@ -753,7 +754,7 @@ export async function fetchSearchAdMetrics(hospitalId: string): Promise<SearchAd
       .schema("analytics")
       .from("analytics_searchad_daily_metrics")
       .select(
-        "metric_date,campaign_id,campaign_name,adgroup_id,adgroup_name,keyword_id,keyword_name,impressions,clicks,cost",
+        "metric_date,campaign_id,campaign_name,campaign_type,adgroup_id,adgroup_name,keyword_id,keyword_name,impressions,clicks,cost",
       )
       .eq("hospital_id", hospitalId)
       .order("metric_date", { ascending: true })
@@ -764,6 +765,7 @@ export async function fetchSearchAdMetrics(hospitalId: string): Promise<SearchAd
     dateKey: String(r.metric_date ?? "").slice(0, 10),
     campaignId: asStringOrNull(r.campaign_id) ?? "",
     campaignName: asStringOrNull(r.campaign_name),
+    campaignType: asStringOrNull(r.campaign_type),
     adgroupId: asStringOrNull(r.adgroup_id) ?? "",
     adgroupName: asStringOrNull(r.adgroup_name),
     keywordId: asStringOrNull(r.keyword_id) ?? "",
