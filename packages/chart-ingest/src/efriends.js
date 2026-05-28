@@ -150,16 +150,19 @@ function findTrailingTotalRowIndex(rows) {
 async function decodeFileTextWithFallback(source) {
   const buf = source instanceof ArrayBuffer ? source : await source.arrayBuffer();
   const bytes = new Uint8Array(buf);
-  const encodings = ["utf-8", "utf-8-sig", "euc-kr", "windows-949"];
-  for (const enc of encodings) {
-    try {
-      const dec = new TextDecoder(enc, { fatal: true });
-      return dec.decode(bytes);
-    } catch {
-      // try next
-    }
+  // UTF-8 BOM → strip and decode as UTF-8.
+  if (bytes.length >= 3 && bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf) {
+    return new TextDecoder("utf-8").decode(bytes.subarray(3));
   }
-  return new TextDecoder("utf-8", { fatal: false }).decode(bytes);
+  // Strict UTF-8 succeeds only for real UTF-8 files.
+  try {
+    return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+  } catch {
+    // 한국 EMR CSV export 는 CP949/EUC-KR. non-fatal 로 디코드해야 한 바이트가 깨져도
+    // 파일 전체가 utf-8 대체문자로 떨어지지 않는다. (fatal:true 였을 때 "33,000원" 이
+    // "33,000��" 가 되어 금액 파싱이 0 으로 무너졌음)
+    return new TextDecoder("euc-kr").decode(bytes);
+  }
 }
 
 export async function parseEFriendsFile(source, hospitalId) {
