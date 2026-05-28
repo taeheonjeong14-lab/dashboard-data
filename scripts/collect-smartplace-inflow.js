@@ -129,6 +129,11 @@ async function scrapeSmartPlaceInflow(page, statUrl, startDate, endDate) {
     const body = await getPageBody(page);
     const inflow = parsePlaceInflowSingle(body);
     rows.push({ metric_date: day, smartplace_inflow: inflow !== null ? inflow : null });
+    process.stdout.write(
+      "__PROGRESS__ " +
+        JSON.stringify({ step: "smartplace", done: i + 1, total: daysToFetch.length, label: day }) +
+        "\n"
+    );
   }
   return rows;
 }

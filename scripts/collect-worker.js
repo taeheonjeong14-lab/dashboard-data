@@ -108,7 +108,7 @@ function parseCollectOutput(output) {
   return { steps, upserts };
 }
 
-function spawnAndCapture(scriptPath, args, extraEnv, onBatchHospitalDone, onStepDone) {
+function spawnAndCapture(scriptPath, args, extraEnv, onBatchHospitalDone, onStepDone, onProgress) {
   return new Promise((resolve) => {
     const chunks = [];
     let lineBuffer = "";
@@ -129,6 +129,24 @@ function spawnAndCapture(scriptPath, args, extraEnv, onBatchHospitalDone, onStep
     });
 
     function handleLine(line) {
+      // 단계별 진행률 마커: __PROGRESS__ {"step":"...","done":N,"total":M,"label":"..."}
+      const progIdx = line.indexOf("__PROGRESS__ ");
+      if (progIdx >= 0 && onProgress) {
+        try {
+          const marker = JSON.parse(line.slice(progIdx + "__PROGRESS__ ".length));
+          if (marker && typeof marker.step === "string") {
+            onProgress({
+              step: marker.step,
+              done: Number(marker.done) || 0,
+              total: Number(marker.total) || 0,
+              label: typeof marker.label === "string" ? marker.label : null,
+              hospitalId: marker.hospital_id || curHospitalId,
+            });
+          }
+        } catch { /* 파싱 실패 무시 */ }
+        return;
+      }
+
       // 배치 병원 헤더에서 현재 hospital_id 추적
       const batchHeaderM = /########## \(\d+\/\d+\) hospital_id=(\S+) ##########/.exec(line);
       if (batchHeaderM) {
@@ -260,8 +278,39 @@ async function pollAndRun() {
       .then(() => {})
       .catch(() => {});
   };
+
+  // 단계별 진행률: 마커 받을 때마다 누적, DB는 1.5초에 한 번만 throttle 저장.
+  const progressMap = {};
+  let lastProgressWrite = 0;
+  let progressDirty = false;
+  const flushProgress = () => {
+    progressDirty = false;
+    lastProgressWrite = Date.now();
+    supabase
+      .from("collect_jobs")
+      .update({ progress: { ...progressMap }, updated_at: new Date().toISOString() })
+      .eq("id", job.id)
+      .then(() => {})
+      .catch(() => {});
+  };
+  const onProgress = (p) => {
+    progressMap[p.step] = {
+      done: p.done,
+      total: p.total,
+      label: p.label,
+      hospitalId: p.hospitalId ?? null,
+      updatedAt: new Date().toISOString(),
+    };
+    progressDirty = true;
+    if (Date.now() - lastProgressWrite >= 1500) flushProgress();
+  };
+  const progressTimer = setInterval(() => {
+    if (progressDirty) flushProgress();
+  }, 1500);
+
   try {
-    const { code, output } = await spawnAndCapture(scriptPath, args, extraEnv, onBatchHospitalDone, onStepDone);
+    const { code, output } = await spawnAndCapture(scriptPath, args, extraEnv, onBatchHospitalDone, onStepDone, onProgress);
+    clearInterval(progressTimer);
     const parsed = parseCollectOutput(output);
     // accSteps에는 hospitalId/hospitalName이 포함되어 있으므로 우선 사용
     const finalSteps = accSteps.length > 0 ? accSteps : parsed.steps;
@@ -281,6 +330,7 @@ async function pollAndRun() {
 
     console.log(`[collect-worker] Job ${status}: ${job.id} (동시 실행: ${runningJobs - 1}/${MAX_CONCURRENT_JOBS})`);
   } finally {
+    clearInterval(progressTimer);
     runningJobs--;
   }
 }

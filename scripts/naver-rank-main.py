@@ -1683,6 +1683,22 @@ def _probe_cdp(port: int) -> bool:
 
 _print_lock = threading.Lock()
 
+# 키워드 순위 진행률(블로그+플레이스 합산). 워커 스레드들이 공유.
+_progress_lock = threading.Lock()
+_rank_progress = {"done": 0, "total": 0}
+
+
+def _bump_rank_progress(label: str | None = None) -> None:
+    with _progress_lock:
+        _rank_progress["done"] += 1
+        done = _rank_progress["done"]
+        total = _rank_progress["total"]
+    print(
+        "__PROGRESS__ "
+        + json.dumps({"step": "keyword_rank", "done": done, "total": total, "label": label}, separators=(",", ":")),
+        flush=True,
+    )
+
 
 def _worker_blog_chunk(worker_id: int, pairs_chunk: list, use_debug_chrome: bool, debug_port: int) -> list[dict]:
     """
@@ -1716,6 +1732,7 @@ def _worker_blog_chunk(worker_id: int, pairs_chunk: list, use_debug_chrome: bool
                 with _print_lock:
                     print_result(data)
                 chunk_results.append(row)
+                _bump_rank_progress(kw)
                 if _detect_block(page):
                     _blocked_event.set()
                     with _print_lock:
@@ -1760,6 +1777,7 @@ def _worker_place_chunk(worker_id: int, place_chunk: list, use_debug_chrome: boo
                     else:
                         print(f"📌 [{kw} / {store}] 플레이스: {data.get('rank')}위")
                 chunk_results.append(data)
+                _bump_rank_progress(f"{kw} / {store}")
                 if _detect_block(page):
                     _blocked_event.set()
                     with _print_lock:
@@ -1904,6 +1922,12 @@ def main():
     print(f"ℹ️ 병렬 워커 수: {num_workers} (RANK_PARALLEL_WORKERS)")
     results: list[dict] = []
     place_results: list[dict] = []
+
+    # 진행률 total = 블로그 유효 조합 + 플레이스 조합 (워커들이 done 증가)
+    _blog_valid_count = len([(b, k) for b, k in pairs if b and b != "your_blog_id"]) if pairs else 0
+    with _progress_lock:
+        _rank_progress["done"] = 0
+        _rank_progress["total"] = _blog_valid_count + (len(place_pairs) if place_pairs else 0)
 
     # 블로그 키워드: 병렬 처리 (워커별 독립 playwright 세션 + 페이지)
     if pairs:

@@ -134,11 +134,19 @@ async function scrapeBlogMetrics(page, blogId, config, startDate) {
   const visitPvUrl = config.blog?.visitPvUrl || `${ADMIN_BASE}/${blogId}/stat/visit_pv`;
   const uvUrl = config.blog?.uvUrl || `${ADMIN_BASE}/${blogId}/stat/uv`;
 
+  const emitProgress = (done, label) =>
+    process.stdout.write(
+      "__PROGRESS__ " + JSON.stringify({ step: "blog_metrics", done, total: 2, label }) + "\n"
+    );
+
   console.log("조회수 페이지 로드 중...");
+  emitProgress(0, "조회수 수집 중");
   const pvRows = await scrapeWithPagination(page, visitPvUrl, "조회수", startDate);
 
   console.log("순방문자수 페이지 로드 중...");
+  emitProgress(1, "순방문자수 수집 중");
   const uvRows = await scrapeWithPagination(page, uvUrl, "순방문자수", startDate);
+  emitProgress(2, "완료");
 
   const uvByDate = {};
   uvRows.forEach((r) => { uvByDate[r.date] = r.value; });

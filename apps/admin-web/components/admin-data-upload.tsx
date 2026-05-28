@@ -47,12 +47,15 @@ type UploadSection = 'pdf' | 'stats' | 'collect';
 type CollectStepResult = { index: number; total: number; name: string; durationSec: number; error?: string; hospitalId?: string | null; hospitalName?: string | null };
 type CollectLastSuccess = Record<string, Record<string, string>>; // hospitalId → { stepKey → "YYYY-MM-DD" }
 type CollectUpsertItem = { label: string; count: number; dateRange?: string | null; skipped?: boolean };
+type CollectProgress = Record<string, { done: number; total: number; label?: string | null }>;
 type CollectJob = {
   id: string;
   status: 'pending' | 'running' | 'done' | 'failed';
   output: string | null;
   steps: CollectStepResult[] | null;
   upserts: CollectUpsertItem[] | null;
+  progress?: CollectProgress | null;
+  steps_filter?: string[] | null;
 };
 type CollectHistoryItem = {
   id: string;
@@ -546,6 +549,60 @@ export default function AdminDataUpload() {
                       {collectJob.status === 'done' ? '✓ 수집 완료' : collectJob.status === 'failed' ? '✗ 수집 실패' : '⋯ 수집 실행 중'}
                     </p>
                   </div>
+
+                  {/* 데이터 종류별 진행률 바 */}
+                  {(() => {
+                    const filter = collectJob.steps_filter;
+                    const stepKeys = (filter && filter.length > 0
+                      ? COLLECT_STEPS.filter((s) => filter.includes(s.key))
+                      : COLLECT_STEPS
+                    );
+                    const doneNames = new Set(
+                      (collectJob.steps ?? []).filter((s) => !s.error).map((s) => s.name),
+                    );
+                    return (
+                      <div className="adminLegacyBlockBleed">
+                        <p style={{ margin: '0 0 10px', fontSize: 13, fontWeight: 600, color: '#334155' }}>진행률</p>
+                        <div style={{ display: 'grid', gap: 12 }}>
+                          {stepKeys.map((s) => {
+                            const p = collectJob.progress?.[s.key];
+                            const stepDone = doneNames.has(s.label);
+                            const total = p?.total ?? 0;
+                            const done = stepDone ? (total || 1) : (p?.done ?? 0);
+                            const pct = stepDone ? 100 : total > 0 ? Math.min(100, Math.round((done / total) * 100)) : 0;
+                            const running = collectJob.status === 'running' && !stepDone && (p?.done ?? 0) > 0;
+                            const statusText = stepDone
+                              ? '완료'
+                              : running
+                                ? `${done.toLocaleString()}/${total.toLocaleString()}${p?.label ? ` · ${p.label}` : ''}`
+                                : collectJob.status === 'running'
+                                  ? '대기'
+                                  : '-';
+                            return (
+                              <div key={s.key}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                                  <span style={{ fontSize: 13, color: '#334155' }}>{s.label}</span>
+                                  <span style={{ fontSize: 12, color: stepDone ? '#15803d' : '#64748b' }}>
+                                    {statusText}{!stepDone && pct > 0 ? ` (${pct}%)` : ''}
+                                  </span>
+                                </div>
+                                <div style={{ height: 8, borderRadius: 4, background: '#e2e8f0', overflow: 'hidden' }}>
+                                  <div
+                                    style={{
+                                      width: `${pct}%`,
+                                      height: '100%',
+                                      background: stepDone ? '#15803d' : '#3182f6',
+                                      transition: 'width 0.4s ease',
+                                    }}
+                                  />
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })()}
 
                   {/* 수집 결과 요약 */}
                   {collectJob.upserts && collectJob.upserts.length > 0 && (

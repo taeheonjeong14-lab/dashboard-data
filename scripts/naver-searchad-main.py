@@ -613,9 +613,19 @@ def main() -> None:
                 f"{start_d} ~ {end_d} (KST, DB max={max_d or '없음'})"
             )
             account_inserted = 0
-            for d in _iter_dates_inclusive(start_d, end_d):
+            all_days = list(_iter_dates_inclusive(start_d, end_d))
+            total_days = len(all_days)
+            for i, d in enumerate(all_days):
                 rows = collect_one_account(searchad_base_url, d, account)
                 account_inserted += upsert_daily_metrics(supabase_url, service_key, rows)
+                print(
+                    "__PROGRESS__ "
+                    + json.dumps(
+                        {"step": "searchad", "hospital_id": hospital_id, "done": i + 1, "total": total_days, "label": d},
+                        separators=(",", ":"),
+                    ),
+                    flush=True,
+                )
             update_last_synced_at(supabase_url, service_key, hospital_id, customer_id)
             total_rows += account_inserted
             print(f"✅ SearchAd 수집 완료: hospital_id={hospital_id} upsert_rows={account_inserted}")
