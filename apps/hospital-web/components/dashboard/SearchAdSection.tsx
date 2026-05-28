@@ -456,16 +456,16 @@ export default function SearchAdSection({
   );
 }
 
-/** 두 표(캠페인·키워드) 컬럼 너비 통일용. 이름 30% + 지표 5개 14%씩. */
+/** 두 표(캠페인·키워드) 컬럼 너비 통일용. 이름 40% + 지표 5개 12%씩. */
 function AdTableColgroup() {
   return (
     <colgroup>
-      <col style={{ width: "30%" }} />
-      <col style={{ width: "14%" }} />
-      <col style={{ width: "14%" }} />
-      <col style={{ width: "14%" }} />
-      <col style={{ width: "14%" }} />
-      <col style={{ width: "14%" }} />
+      <col style={{ width: "40%" }} />
+      <col style={{ width: "12%" }} />
+      <col style={{ width: "12%" }} />
+      <col style={{ width: "12%" }} />
+      <col style={{ width: "12%" }} />
+      <col style={{ width: "12%" }} />
     </colgroup>
   );
 }
