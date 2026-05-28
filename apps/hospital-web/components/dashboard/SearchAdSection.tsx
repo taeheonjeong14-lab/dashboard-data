@@ -93,7 +93,17 @@ function addDaysToDateKey(dateKey: string, delta: number): string {
   return `${dt.getUTCFullYear()}-${String(dt.getUTCMonth() + 1).padStart(2, "0")}-${String(dt.getUTCDate()).padStart(2, "0")}`;
 }
 
-export default function SearchAdSection({ rows }: { rows: SearchAdRow[] }) {
+export default function SearchAdSection({
+  rows,
+  lockedType,
+  mode = "full",
+}: {
+  rows: SearchAdRow[];
+  /** 지정 시 그 캠페인 유형만 표시하고 유형 토글은 숨김 (예: "WEB_SITE", "PLACE"). */
+  lockedType?: string;
+  /** "summary" 면 추세 차트만 (캠페인 표·Top키워드 숨김). */
+  mode?: "full" | "summary";
+}) {
   const bounds = useMemo(() => getDataBounds(rows), [rows]);
   const [granularity, setGranularity] = useState<Granularity>("month");
   const [trendMetric, setTrendMetric] = useState<SearchAdMetricKey>("clicks");
@@ -111,9 +121,10 @@ export default function SearchAdSection({ rows }: { rows: SearchAdRow[] }) {
     return Array.from(set).sort();
   }, [rows]);
 
+  const effectiveType = lockedType ?? typeFilter;
   const filteredRows = useMemo(
-    () => (typeFilter === "all" ? rows : rows.filter((r) => r.campaignType === typeFilter)),
-    [rows, typeFilter],
+    () => (effectiveType === "all" ? rows : rows.filter((r) => r.campaignType === effectiveType)),
+    [rows, effectiveType],
   );
 
   const minB = bounds?.min ?? "";
@@ -248,8 +259,8 @@ export default function SearchAdSection({ rows }: { rows: SearchAdRow[] }) {
         </div>
       </div>
 
-      {/* 광고 유형 필터 (파워링크 / 플레이스 등) */}
-      {availableTypes.length > 0 && (
+      {/* 광고 유형 필터 (파워링크 / 플레이스 등) — lockedType 없을 때만 */}
+      {!lockedType && availableTypes.length > 0 && (
         <div className="-mt-4 flex flex-wrap items-center gap-1">
           <span className="mr-1 text-xs text-[var(--text-muted)]">광고 유형</span>
           {[["all", "전체"] as const, ...availableTypes.map((t) => [t, campaignTypeLabel(t)] as const)].map(
@@ -339,6 +350,8 @@ export default function SearchAdSection({ rows }: { rows: SearchAdRow[] }) {
         </div>
       </section>
 
+      {mode === "full" && (
+      <>
       {/* 캠페인 / 광고그룹 성과표 */}
       <section>
         <h3 className="mb-2 text-sm font-medium text-[var(--text-secondary)]">
@@ -435,6 +448,8 @@ export default function SearchAdSection({ rows }: { rows: SearchAdRow[] }) {
           </table>
         </div>
       </section>
+      </>
+      )}
     </div>
   );
 }

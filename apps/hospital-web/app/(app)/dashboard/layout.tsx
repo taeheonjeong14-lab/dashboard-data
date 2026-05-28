@@ -11,7 +11,8 @@ const TABS = [
   { href: "/dashboard/patients", label: "신규환자" },
   { href: "/dashboard/blog", label: "블로그" },
   { href: "/dashboard/place", label: "플레이스" },
-  { href: "/dashboard/ads", label: "네이버광고" },
+  { href: "/dashboard/powerlink-ads", label: "파워링크광고" },
+  { href: "/dashboard/place-ads", label: "플레이스광고" },
   { href: "/dashboard/instagram-ads", label: "인스타광고" },
   { href: "/dashboard/google-ads", label: "구글광고" },
 ] as const;
