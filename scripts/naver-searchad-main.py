@@ -209,7 +209,7 @@ def searchad_get(
         url = f"{url}?{query}"
     headers = build_searchad_headers("GET", uri, api_license, secret_key, customer_id)
     req = Request(url, headers=headers, method="GET")
-    with urlopen(req, timeout=30) as res:
+    with urlopen(req, timeout=60) as res:
         body = res.read().decode("utf-8")
     return json.loads(body) if body else {}
 

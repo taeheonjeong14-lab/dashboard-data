@@ -17,7 +17,13 @@ require("dotenv").config({ path: path.resolve(__dirname, "..", ".env") });
 
 const ROOT_DIR = path.resolve(__dirname, "..");
 const HOSPITAL_ID = (process.argv[2] || "").trim();
-const STEP_TIMEOUT_MS = 60 * 60 * 1000; // 단계당 최대 60분
+// 단계당 최대 시간. 기본 60분. 대량 백필(예: SearchAd 수백일) 시 .env 의
+// COLLECT_STEP_TIMEOUT_MIN 으로 넉넉하게 늘릴 수 있음 (분 단위).
+const STEP_TIMEOUT_MS = (() => {
+  const raw = Number(process.env.COLLECT_STEP_TIMEOUT_MIN || "");
+  const minutes = Number.isFinite(raw) && raw > 0 ? raw : 60;
+  return minutes * 60 * 1000;
+})();
 
 const STEPS_FILTER = (() => {
   const raw = process.env.COLLECT_STEPS_FILTER;
