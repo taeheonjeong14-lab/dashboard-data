@@ -16,9 +16,9 @@ type HospitalSettings = {
 
 const CHART_TYPE_OPTIONS: { value: string; label: string }[] = [
   { value: '', label: '선택 안 함' },
-  { value: 'intovet', label: 'IntoVet EMR' },
-  { value: 'woorien_pms', label: '우리엔 PMS' },
-  { value: 'efriends', label: 'eFriends EMR' },
+  { value: 'woorien_pms', label: '우리엔PMS' },
+  { value: 'intovet', label: '인투벳' },
+  { value: 'efriends', label: '이프렌즈' },
 ];
 
 type Profile = {
