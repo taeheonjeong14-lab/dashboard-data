@@ -151,6 +151,10 @@ export default function BlogRanksSection({
   const [trendLoading, setTrendLoading] = useState<Record<string, boolean>>({});
   const [hoveredRank, setHoveredRank] = useState<HoveredRank | null>(null);
 
+  const rankColumnLabel = rows[0]?.latestDateKey
+    ? rows[0].latestDateKey.replace(/-/g, "/")
+    : "순위";
+
   const trendByKeyword = useMemo(() => {
     const map = new Map<string, BlogRankSummaryRow>();
     for (const row of rows) map.set(row.keyword, row);
@@ -444,7 +448,7 @@ export default function BlogRanksSection({
                             <thead>
                               <tr className="border-b border-[var(--border)] text-[var(--text-secondary)]">
                                 <th className="py-1.5 pr-2 font-medium">검색어</th>
-                                <th className="py-1.5 px-2 font-medium">순위</th>
+                                <th className="py-1.5 px-2 font-medium">{rankColumnLabel}</th>
                                 <th className="py-1.5 pl-2 font-medium">컨텐츠</th>
                               </tr>
                             </thead>
