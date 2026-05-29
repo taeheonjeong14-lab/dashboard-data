@@ -24,6 +24,14 @@ const STEP_TIMEOUT_MS = (() => {
   const minutes = Number.isFinite(raw) && raw > 0 ? raw : 60;
   return minutes * 60 * 1000;
 })();
+// 스톨 감지: 단계가 이 시간 동안 출력(진행 신호)이 전혀 없으면 hang으로 보고 강제 종료.
+// 총 타임아웃(STEP_TIMEOUT_MS)을 길게 잡아도 네트워크 hang은 이걸로 빨리 끊는다.
+// 하루치 처리(보통 수 분)보다 넉넉히 크게. COLLECT_STALL_TIMEOUT_MIN(분)으로 조정.
+const STALL_TIMEOUT_MS = (() => {
+  const raw = Number(process.env.COLLECT_STALL_TIMEOUT_MIN || "");
+  const minutes = Number.isFinite(raw) && raw > 0 ? raw : 20;
+  return minutes * 60 * 1000;
+})();
 
 const STEPS_FILTER = (() => {
   const raw = process.env.COLLECT_STEPS_FILTER;
@@ -228,12 +236,11 @@ function runStep(stepIndex, totalSteps, stepName, command, args, options = {}) {
     }
 
     let settled = false;
+    let lastOutputTs = Date.now();
 
-    const timeoutHandle = setTimeout(() => {
-      if (settled) return;
-      settled = true;
-      // Windows: child.kill()은 Python 자체만 종료하고 자식 프로세스(크롬 등)는 살아남음.
-      // taskkill /F /T로 프로세스 트리 전체 강제 종료.
+    // Windows: child.kill()은 Python 자체만 종료하고 자식 프로세스(크롬 등)는 살아남음.
+    // taskkill /F /T로 프로세스 트리 전체 강제 종료.
+    const killChildTree = () => {
       try {
         if (process.platform === "win32" && child.pid) {
           spawn("taskkill", ["/F", "/T", "/PID", String(child.pid)], {
@@ -243,17 +250,39 @@ function runStep(stepIndex, totalSteps, stepName, command, args, options = {}) {
           child.kill("SIGKILL");
         }
       } catch { /* 이미 종료됐을 수 있음 */ }
+    };
+
+    const timeoutHandle = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      clearInterval(stallTimer);
+      killChildTree();
       const sec = ((Date.now() - stepStarted) / 1000).toFixed(1);
       const msg = `타임아웃 (${STEP_TIMEOUT_MS / 60000}분 초과)`;
       emit(`✗ ${stepIndex}/${totalSteps} 실패 (${sec}s) — ${stepName}: ${msg}`, "err");
       resolve({ success: false, durationSec: parseFloat(sec), error: msg });
     }, STEP_TIMEOUT_MS);
 
+    // 일정 시간 자식 출력이 전혀 없으면 hang으로 보고 종료(스톨 감지).
+    const stallTimer = setInterval(() => {
+      if (settled) return;
+      if (Date.now() - lastOutputTs < STALL_TIMEOUT_MS) return;
+      settled = true;
+      clearTimeout(timeoutHandle);
+      clearInterval(stallTimer);
+      killChildTree();
+      const sec = ((Date.now() - stepStarted) / 1000).toFixed(1);
+      const msg = `스톨 (${STALL_TIMEOUT_MS / 60000}분간 출력 없음 — hang 추정)`;
+      emit(`✗ ${stepIndex}/${totalSteps} 실패 (${sec}s) — ${stepName}: ${msg}`, "err");
+      resolve({ success: false, durationSec: parseFloat(sec), error: msg });
+    }, 30_000);
+
     // 항상 stdout/stderr를 비동기로 드레인해서 파이프 블록 방지.
     // 파일 로그 모드: 로그 파일에 기록. 콘솔 모드: 부모 stdout/stderr에 포워딩(worker 파싱용).
     if (child.stdout) {
       child.stdout.setEncoding("utf8");
       child.stdout.on("data", (chunk) => {
+        lastOutputTs = Date.now();
         if (pipeChild) {
           writeChildChunk(stepIndex, totalSteps, stepName, "stdout", chunk);
         } else {
@@ -264,6 +293,7 @@ function runStep(stepIndex, totalSteps, stepName, command, args, options = {}) {
     if (child.stderr) {
       child.stderr.setEncoding("utf8");
       child.stderr.on("data", (chunk) => {
+        lastOutputTs = Date.now();
         if (pipeChild) {
           writeChildChunk(stepIndex, totalSteps, stepName, "stderr", chunk);
         } else {
@@ -276,6 +306,7 @@ function runStep(stepIndex, totalSteps, stepName, command, args, options = {}) {
       if (settled) return;
       settled = true;
       clearTimeout(timeoutHandle);
+      clearInterval(stallTimer);
       const sec = ((Date.now() - stepStarted) / 1000).toFixed(1);
       const msg = err && err.message ? err.message : String(err);
       emit(`✗ ${stepIndex}/${totalSteps} 실패 (${sec}s) — ${stepName}: spawn 오류: ${msg}`, "err");
@@ -286,6 +317,7 @@ function runStep(stepIndex, totalSteps, stepName, command, args, options = {}) {
       if (settled) return;
       settled = true;
       clearTimeout(timeoutHandle);
+      clearInterval(stallTimer);
       const sec = ((Date.now() - stepStarted) / 1000).toFixed(1);
       if (code === 0) {
         emit(`✓ ${stepIndex}/${totalSteps} 완료 (${sec}s) — ${stepName}`);

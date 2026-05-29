@@ -608,9 +608,23 @@ def main() -> None:
                 )
                 continue
             start_d, end_d = span
+            # 백필 청크: 1회 실행 처리량을 SEARCHAD_MAX_DAYS_PER_RUN(일)로 제한.
+            # 오래된 날짜부터 채우고, 반복 실행하면 DB max가 전진해 점진적으로 따라잡는다.
+            # (0/미설정이면 제한 없음 — 한 번에 전 구간 처리)
+            try:
+                max_days_per_run = int(os.getenv("SEARCHAD_MAX_DAYS_PER_RUN", "0").strip() or "0")
+            except ValueError:
+                max_days_per_run = 0
+            chunked = False
+            if max_days_per_run > 0:
+                capped_end = _add_days_ymd(start_d, max_days_per_run - 1)
+                if capped_end < end_d:
+                    end_d = capped_end
+                    chunked = True
             print(
                 f"🔎 SearchAd 수집 구간: hospital_id={hospital_id} customer_id={customer_id} "
                 f"{start_d} ~ {end_d} (KST, DB max={max_d or '없음'})"
+                + (f" [청크 {max_days_per_run}일/실행 — 반복 실행 필요]" if chunked else "")
             )
             account_inserted = 0
             all_days = list(_iter_dates_inclusive(start_d, end_d))
