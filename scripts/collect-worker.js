@@ -22,8 +22,13 @@ const { createClient } = require("@supabase/supabase-js");
 const ROOT_DIR = path.resolve(__dirname, "..");
 const POLL_INTERVAL_MS = 30_000;
 const MAX_CONCURRENT_JOBS = 3;
+// running 상태인데 이 시간 이상 updated_at 갱신이 없으면 워커가 죽은 고아 잡으로 보고 failed 처리.
+// 정상 잡은 진행률을 1.5초마다 기록하므로 이 임계값을 한참 밑돈다.
+const STALE_JOB_TIMEOUT_MS = 15 * 60_000;
 
 let runningJobs = 0;
+// 이 워커 프로세스가 실행 중인 잡 id — reaper가 자기 잡을 회수하지 않도록 제외한다.
+const activeJobIds = new Set();
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
@@ -220,6 +225,44 @@ function spawnAndCapture(scriptPath, args, extraEnv, onBatchHospitalDone, onStep
   });
 }
 
+async function reapStaleJobs() {
+  const cutoff = new Date(Date.now() - STALE_JOB_TIMEOUT_MS).toISOString();
+  let select = supabase
+    .from("collect_jobs")
+    .select("id, updated_at")
+    .eq("status", "running")
+    .lt("updated_at", cutoff);
+
+  // 이 워커가 실행 중인 잡은 제외(긴 단계로 progress가 잠시 멎어도 회수하지 않도록).
+  if (activeJobIds.size > 0) {
+    select = select.not("id", "in", `(${[...activeJobIds].join(",")})`);
+  }
+
+  const { data: stale, error: selErr } = await select;
+  if (selErr) {
+    console.error("[collect-worker] reaper 조회 오류:", selErr.message);
+    return;
+  }
+  if (!stale || stale.length === 0) return;
+
+  const now = new Date().toISOString();
+  for (const row of stale) {
+    // finished_at은 '마지막 생존 신호(updated_at)'로 잡아 수집 시간이 부풀지 않게 한다.
+    const { error: updErr } = await supabase
+      .from("collect_jobs")
+      .update({
+        status: "failed",
+        finished_at: row.updated_at,
+        updated_at: now,
+        output: `[reaper] ${STALE_JOB_TIMEOUT_MS / 60_000}분 이상 진행이 없어 워커 중단(고아 잡)으로 판단 — 자동 failed 처리`,
+      })
+      .eq("id", row.id)
+      .eq("status", "running");
+    if (updErr) console.error(`[collect-worker] reaper 업데이트 오류(${row.id}):`, updErr.message);
+  }
+  console.warn(`[collect-worker] 고아 잡 ${stale.length}건 failed 처리: ${stale.map((r) => r.id).join(", ")}`);
+}
+
 async function pollAndRun() {
   if (runningJobs >= MAX_CONCURRENT_JOBS) return;
 
@@ -246,6 +289,7 @@ async function pollAndRun() {
   if (!claimed) return;
 
   runningJobs++;
+  activeJobIds.add(job.id);
   console.log(`[collect-worker] Job 시작: ${job.id} | hospital_id=${job.hospital_id ?? "전체"} (동시 실행: ${runningJobs}/${MAX_CONCURRENT_JOBS})`);
 
   const isBatch = !job.hospital_id;
@@ -316,26 +360,55 @@ async function pollAndRun() {
     const finalSteps = accSteps.length > 0 ? accSteps : parsed.steps;
     const status = code === 0 ? "done" : "failed";
 
-    await supabase
+    // Postgres text/jsonb는 NUL(\u0000)을 저장하지 못한다. 자식 출력(특히 Windows의 Chrome/python)에
+    // NUL이 섞이면 update가 통째로 거부돼 행이 running으로 박힌다 → 미리 제거.
+    const safeOutput = typeof output === "string" ? output.replace(/\u0000/g, "") : output;
+    const finishedAt = new Date().toISOString();
+
+    const { error: finalErr } = await supabase
       .from("collect_jobs")
       .update({
         status,
-        output,
+        output: safeOutput,
         steps: finalSteps,
         upserts: parsed.upserts,
-        finished_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
+        finished_at: finishedAt,
+        updated_at: finishedAt,
       })
       .eq("id", job.id);
 
-    console.log(`[collect-worker] Job ${status}: ${job.id} (동시 실행: ${runningJobs - 1}/${MAX_CONCURRENT_JOBS})`);
+    if (finalErr) {
+      console.error(`[collect-worker] 최종 상태(${status}) 저장 실패: ${job.id} — ${finalErr.message}`);
+      // 상세 필드(output·steps·upserts) 없이 상태만이라도 확정해 행이 running으로 박히지 않게 한다.
+      const { error: fbErr } = await supabase
+        .from("collect_jobs")
+        .update({
+          status,
+          finished_at: finishedAt,
+          updated_at: finishedAt,
+          output: `[저장 폴백] 상세 결과 저장 실패: ${finalErr.message}`,
+        })
+        .eq("id", job.id);
+      if (fbErr) {
+        console.error(`[collect-worker] 폴백 저장도 실패: ${job.id} — ${fbErr.message}. reaper가 ${STALE_JOB_TIMEOUT_MS / 60_000}분 후 회수합니다.`);
+      } else {
+        console.warn(`[collect-worker] 상태만 저장(폴백): ${job.id} = ${status} (상세 결과는 누락)`);
+      }
+    } else {
+      console.log(`[collect-worker] Job ${status}: ${job.id} (동시 실행: ${runningJobs - 1}/${MAX_CONCURRENT_JOBS})`);
+    }
   } finally {
     clearInterval(progressTimer);
     runningJobs--;
+    activeJobIds.delete(job.id);
   }
 }
 
-console.log(`[collect-worker] 시작 — Supabase 폴링 간격: ${POLL_INTERVAL_MS / 1000}초`);
+console.log(`[collect-worker] 시작 — Supabase 폴링 간격: ${POLL_INTERVAL_MS / 1000}초 · 고아 잡 임계값: ${STALE_JOB_TIMEOUT_MS / 60_000}분`);
 
+void reapStaleJobs();
 void pollAndRun();
-setInterval(() => void pollAndRun(), POLL_INTERVAL_MS);
+setInterval(() => {
+  void reapStaleJobs();
+  void pollAndRun();
+}, POLL_INTERVAL_MS);

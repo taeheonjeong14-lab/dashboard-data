@@ -351,6 +351,17 @@ export default function AdminDataUpload() {
     return () => clearInterval(timer);
   }, [collectJob?.id, collectJob?.status]);
 
+  // 배치(여러 병원) 수집은 단일 collectJob 폴링이 없고, 페이지를 새로고침하면 collectJob 상태가
+  // 사라진다. 히스토리에 pending/running 잡이 남아 있으면 히스토리를 폴링해 워커 완료를 반영한다.
+  const hasActiveCollectJobs = collectHistory.some(
+    (h) => h.status === 'pending' || h.status === 'running',
+  );
+  useEffect(() => {
+    if (section !== 'collect' || !hasActiveCollectJobs) return;
+    const timer = setInterval(() => void loadHistory(), 3_000);
+    return () => clearInterval(timer);
+  }, [section, hasActiveCollectJobs]);
+
   const error = localError ?? (status === 'error' ? extractError : null);
   const canSubmit =
     !isExtractRunning && !hospitalsLoading && hospitals.length > 0 && !hospitalsError && !!selectedFile;
