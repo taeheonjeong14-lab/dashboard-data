@@ -11,6 +11,8 @@ import {
   Building2,
   FileSpreadsheet,
   RefreshCw,
+  ClipboardList,
+  ClipboardCheck,
   type LucideProps,
 } from 'lucide-react';
 
@@ -56,6 +58,13 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { href: '/admin/chart-data', label: '차트 목록', icon: FileText, matchPrefix: '/admin/chart-data' },
       { href: '/admin/health-report', label: '건강검진 리포트', icon: HeartPulse, matchPrefix: '/admin/health-report' },
+    ],
+  },
+  {
+    title: '문진·접수',
+    items: [
+      { href: '/admin/pre-consultation', label: '사전문진', icon: ClipboardList, matchPrefix: '/admin/pre-consultation' },
+      { href: '/admin/intake', label: '초진 접수', icon: ClipboardCheck, matchPrefix: '/admin/intake' },
     ],
   },
   {
