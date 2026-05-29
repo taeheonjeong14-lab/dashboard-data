@@ -296,6 +296,31 @@ export default function AdminDataUpload() {
   useEffect(() => {
     if (section !== 'collect') return;
     void loadHistory();
+    // 진행 중인 잡을 패널로 복원 — 새로고침/다른 세션에서도 진행률 바가 보이도록.
+    // collectJobs가 비어 있을 때만 시드하고, progress 등 상세는 폴링 effect가 곧 채운다.
+    void (async () => {
+      try {
+        const res = await fetch('/api/admin/collect/jobs', { credentials: 'include' });
+        if (!res.ok) return;
+        const data = (await res.json()) as { jobs: CollectHistoryItem[] };
+        const active = (data.jobs ?? []).filter((j) => j.status === 'pending' || j.status === 'running');
+        if (active.length === 0) return;
+        setCollectJobs((prev) =>
+          prev.length > 0
+            ? prev
+            : active.map((j) => ({
+                id: j.id,
+                hospital_id: j.hospital_id,
+                status: j.status,
+                output: null,
+                steps: j.steps,
+                upserts: j.upserts,
+              })),
+        );
+      } catch {
+        /* 복원 실패는 무시 */
+      }
+    })();
     fetch('/api/admin/collect/last-success', { credentials: 'include' })
       .then((r) => r.ok ? r.json() : null)
       .then((d) => { if (d) setCollectLastSuccess(d as CollectLastSuccess); })
