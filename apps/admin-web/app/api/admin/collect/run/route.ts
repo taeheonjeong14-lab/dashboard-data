@@ -51,15 +51,18 @@ export async function POST(request: Request) {
         ...(steps_filter ? { steps_filter } : {}),
       })),
     )
-    .select('id');
+    .select('id, hospital_id');
 
   if (insertError || !jobs) {
     console.error('[collect/run] insert error:', insertError);
     return NextResponse.json({ error: '수집 요청을 생성하지 못했습니다.', detail: insertError?.message }, { status: 500 });
   }
 
-  if (jobs.length === 1) {
-    return NextResponse.json({ ok: true, jobId: (jobs[0] as { id: string }).id });
-  }
-  return NextResponse.json({ ok: true, jobCount: jobs.length });
+  return NextResponse.json({
+    ok: true,
+    jobs: (jobs as { id: string; hospital_id: string | null }[]).map((j) => ({
+      id: j.id,
+      hospitalId: j.hospital_id,
+    })),
+  });
 }

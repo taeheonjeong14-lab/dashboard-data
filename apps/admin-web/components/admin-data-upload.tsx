@@ -50,6 +50,7 @@ type CollectUpsertItem = { label: string; count: number; dateRange?: string | nu
 type CollectProgress = Record<string, { done: number; total: number; label?: string | null }>;
 type CollectJob = {
   id: string;
+  hospital_id: string | null;
   status: 'pending' | 'running' | 'done' | 'failed';
   output: string | null;
   steps: CollectStepResult[] | null;
@@ -121,8 +122,7 @@ export default function AdminDataUpload() {
   // selection: Map<hospitalId, Set<StepKey>> — 병원별 선택된 수집 항목
   const [selection, setSelection] = useState<Map<string, Set<StepKey>>>(new Map());
   const [collectSubmitting, setCollectSubmitting] = useState(false);
-  const [collectJob, setCollectJob] = useState<CollectJob | null>(null);
-  const [collectBatchCount, setCollectBatchCount] = useState<number | null>(null);
+  const [collectJobs, setCollectJobs] = useState<CollectJob[]>([]);
   const [collectError, setCollectError] = useState<string | null>(null);
   const [collectHistory, setCollectHistory] = useState<CollectHistoryItem[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
@@ -304,8 +304,7 @@ export default function AdminDataUpload() {
 
   async function runCollect() {
     setCollectSubmitting(true);
-    setCollectJob(null);
-    setCollectBatchCount(null);
+    setCollectJobs([]);
     setCollectError(null);
     try {
       const jobs = Array.from(selection.entries())
@@ -317,17 +316,26 @@ export default function AdminDataUpload() {
         credentials: 'include',
         body: JSON.stringify({ jobs }),
       });
-      const data = (await res.json()) as { ok?: boolean; jobId?: string; jobCount?: number; error?: string };
-      if (!res.ok || !data.ok) {
+      const data = (await res.json()) as {
+        ok?: boolean;
+        jobs?: { id: string; hospitalId: string | null }[];
+        error?: string;
+      };
+      if (!res.ok || !data.ok || !data.jobs) {
         setCollectError(data.error ?? '수집 요청 생성에 실패했습니다.');
         return;
       }
-      if (data.jobCount != null) {
-        setCollectBatchCount(data.jobCount);
-        void loadHistory();
-      } else if (data.jobId) {
-        setCollectJob({ id: data.jobId, status: 'pending', output: null, steps: null, upserts: null });
-      }
+      setCollectJobs(
+        data.jobs.map((j) => ({
+          id: j.id,
+          hospital_id: j.hospitalId,
+          status: 'pending' as const,
+          output: null,
+          steps: null,
+          upserts: null,
+        })),
+      );
+      void loadHistory();
     } catch (e) {
       setCollectError(e instanceof Error ? e.message : '알 수 없는 오류');
     } finally {
@@ -335,24 +343,35 @@ export default function AdminDataUpload() {
     }
   }
 
+  // 진행 중인 잡(단일·다중 모두)을 각각 폴링해 병원별 진행률을 갱신한다.
+  // activeJobKey가 바뀔 때(잡이 끝나 active 집합이 변할 때)마다 effect를 재구독해 최신 closure 확보.
+  const activeJobKey = collectJobs
+    .filter((j) => j.status === 'pending' || j.status === 'running')
+    .map((j) => j.id)
+    .join(',');
   useEffect(() => {
-    if (!collectJob || collectJob.status === 'done' || collectJob.status === 'failed') return;
+    if (!activeJobKey) return;
+    const ids = activeJobKey.split(',');
     const timer = setInterval(async () => {
-      try {
-        const res = await fetch(`/api/admin/collect/status/${collectJob.id}`, { credentials: 'include' });
-        if (!res.ok) return;
-        const job = (await res.json()) as CollectJob;
-        setCollectJob(job);
-        void loadHistory();
-      } catch {
-        // 폴링 오류는 무시하고 계속 시도
-      }
+      const results = await Promise.all(
+        ids.map(async (id) => {
+          try {
+            const res = await fetch(`/api/admin/collect/status/${id}`, { credentials: 'include' });
+            if (!res.ok) return null;
+            return (await res.json()) as CollectJob;
+          } catch {
+            return null;
+          }
+        }),
+      );
+      setCollectJobs((prev) => prev.map((j) => results.find((r) => r && r.id === j.id) ?? j));
+      void loadHistory();
     }, 2_000);
     return () => clearInterval(timer);
-  }, [collectJob?.id, collectJob?.status]);
+  }, [activeJobKey]);
 
-  // 배치(여러 병원) 수집은 단일 collectJob 폴링이 없고, 페이지를 새로고침하면 collectJob 상태가
-  // 사라진다. 히스토리에 pending/running 잡이 남아 있으면 히스토리를 폴링해 워커 완료를 반영한다.
+  // collectJobs는 이번 세션에서 실행한 잡만 추적하므로, 새로고침하면 사라진다. 다른 곳에서 큐잉됐거나
+  // 새로고침된 경우에도 히스토리에 pending/running 잡이 있으면 폴링해 워커 완료를 반영한다.
   const hasActiveCollectJobs = collectHistory.some(
     (h) => h.status === 'pending' || h.status === 'running',
   );
@@ -524,16 +543,6 @@ export default function AdminDataUpload() {
                     )}
                   </div>
 
-                  {collectJob && collectJob.status === 'pending' && (
-                    <p style={{ margin: 0, fontSize: 13, color: '#1d4ed8' }}>
-                      Worker가 곧 수집을 시작합니다… (최대 30초 대기)
-                    </p>
-                  )}
-                  {collectBatchCount != null && (
-                    <p style={{ margin: 0, fontSize: 13, color: '#1d4ed8' }}>
-                      {collectBatchCount}개 병원 수집이 대기열에 추가됐습니다. Worker가 순서대로 처리합니다.
-                    </p>
-                  )}
                 </div>
               </div>
 
@@ -546,19 +555,27 @@ export default function AdminDataUpload() {
                 </div>
               )}
 
-              {collectJob && collectJob.status !== 'pending' && (
-                <>
-                  {/* 상태 배너 */}
+              {collectJobs.map((collectJob) => (
+                <div key={collectJob.id} style={{ marginTop: 16 }}>
+                  {/* 병원명 + 상태 배너 */}
                   <div
-                    className="adminLegacyBlockBleed"
                     style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      padding: '8px 12px',
+                      marginBottom: 14,
+                      borderRadius: 6,
                       background: collectJob.status === 'done' ? '#f0fdf4' : collectJob.status === 'failed' ? '#fef2f2' : '#eff6ff',
-                      borderBottom: `1px solid ${collectJob.status === 'done' ? 'rgba(22,163,74,0.2)' : collectJob.status === 'failed' ? 'rgba(185,28,28,0.2)' : 'rgba(29,78,216,0.2)'}`,
+                      border: `1px solid ${collectJob.status === 'done' ? 'rgba(22,163,74,0.2)' : collectJob.status === 'failed' ? 'rgba(185,28,28,0.2)' : 'rgba(29,78,216,0.2)'}`,
                     }}
                   >
-                    <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: collectJob.status === 'done' ? '#15803d' : collectJob.status === 'failed' ? '#991b1b' : '#1d4ed8' }}>
-                      {collectJob.status === 'done' ? '✓ 수집 완료' : collectJob.status === 'failed' ? '✗ 수집 실패' : '⋯ 수집 실행 중'}
-                    </p>
+                    <span style={{ fontSize: 14, fontWeight: 700, color: '#0f172a' }}>
+                      {hospitals.find((h) => h.id === collectJob.hospital_id)?.name_ko ?? collectJob.hospital_id ?? '병원'}
+                    </span>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: collectJob.status === 'done' ? '#15803d' : collectJob.status === 'failed' ? '#991b1b' : '#1d4ed8' }}>
+                      {collectJob.status === 'done' ? '✓ 수집 완료' : collectJob.status === 'failed' ? '✗ 수집 실패' : collectJob.status === 'pending' ? '대기 중 (곧 시작)' : '⋯ 수집 실행 중'}
+                    </span>
                   </div>
 
                   {/* 데이터 종류별 진행률 바 */}
@@ -710,8 +727,8 @@ export default function AdminDataUpload() {
                       </pre>
                     </details>
                   )}
-                </>
-              )}
+                </div>
+              ))}
 
               {/* 수집 이력 */}
               <div className="adminLegacyBlockBleed" style={{ marginTop: 24 }}>
