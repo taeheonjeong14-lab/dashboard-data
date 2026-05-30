@@ -17,7 +17,7 @@ const navGroups = [
     items: [
       { href: '/dashboard', label: '경영 대시보드', icon: BarChart2, matchPrefix: '/dashboard' },
       { href: '/health-report', label: '건강검진 리포트', icon: FileHeart, matchPrefix: '/health-report' },
-      { href: '/blog', label: '블로그 컨텐츠', icon: Newspaper, matchPrefix: '/blog', badge: '준비중' },
+      { href: '/blog', label: '블로그 컨텐츠', icon: Newspaper, matchPrefix: '/blog' },
     ],
   },
   {
@@ -59,9 +59,6 @@ export function Sidebar() {
                   <span style={{ color: isActive ? 'var(--accent)' : 'var(--text-secondary)' }}>
                     {item.label}
                   </span>
-                  {item.badge && (
-                    <span style={styles.badge}>{item.badge}</span>
-                  )}
                 </Link>
               );
             })}
