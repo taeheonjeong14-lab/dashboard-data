@@ -1,6 +1,12 @@
 import type { NextConfig } from 'next';
+import path from 'node:path';
 
 const nextConfig: NextConfig = {
+  // 모노레포 루트를 명시 — Turbopack이 워크스페이스 루트를 잘못 추론해 next/package.json을
+  // 못 찾고, chart-api 바깥의 공유 패키지(packages/*)도 컴파일 못 하던 빌드 에러 방지.
+  turbopack: {
+    root: path.join(__dirname, '..'),
+  },
   transpilePackages: ['@dashboard/lab-normalize'],
   allowedDevOrigins: ['*.ngrok-free.app', '*.ngrok-free.dev', '*.ngrok.io', '*.ngrok.app'],
   serverExternalPackages: ['@sparticuz/chromium', 'playwright-core'],
