@@ -82,7 +82,7 @@ def fetch_max_searchad_metric_date(
     }
     url = f"{supabase_url.rstrip('/')}/rest/v1/analytics_searchad_daily_metrics?{urlencode(params)}"
     req = Request(url, headers=_supabase_headers(service_key, profile="analytics"), method="GET")
-    with urlopen(req, timeout=20) as res:
+    with _urlopen_with_retry(req, timeout=20) as res:
         rows = json.loads(res.read().decode("utf-8"))
     if not rows:
         return None
@@ -157,7 +157,7 @@ def fetch_active_accounts(
     url = f"{supabase_url.rstrip('/')}/rest/v1/hospitals?{urlencode(params)}"
     req = Request(url, headers=_supabase_headers(service_key, profile="core"), method="GET")
     try:
-        with urlopen(req, timeout=20) as res:
+        with _urlopen_with_retry(req, timeout=20) as res:
             rows = json.loads(res.read().decode("utf-8")) or []
             mapped = []
             for r in rows:
@@ -199,6 +199,40 @@ def build_searchad_headers(method: str, uri: str, api_license: str, secret_key: 
     }
 
 
+HTTP_MAX_ATTEMPTS = 4  # 최초 시도 + 재시도 (일시적 오류 한정)
+RETRYABLE_STATUS = (429, 500, 502, 503, 504)
+
+
+def _backoff_sleep(attempt: int) -> None:
+    # 1 → 2 → 4 → 8초, 상한 10초
+    time.sleep(min(2 ** attempt, 10))
+
+
+def _urlopen_with_retry(req: Request, timeout: int, attempts: int = HTTP_MAX_ATTEMPTS):
+    """Supabase REST 호출용 — 네트워크 오류(DNS ENOTFOUND 등)·일시적 5xx/429를 백오프 재시도.
+
+    영구 오류(4xx 대부분)는 즉시 올린다. 반환값은 urlopen 응답(호출부에서 with로 사용)."""
+    last_err: Exception | None = None
+    for attempt in range(attempts):
+        try:
+            return urlopen(req, timeout=timeout)
+        except HTTPError as e:
+            if e.code in RETRYABLE_STATUS and attempt < attempts - 1:
+                last_err = e
+                _backoff_sleep(attempt)
+                continue
+            raise
+        except OSError as e:  # URLError(=DNS/연결 실패)도 OSError 하위
+            last_err = e
+            if attempt < attempts - 1:
+                _backoff_sleep(attempt)
+                continue
+            raise
+    if last_err is not None:
+        raise last_err
+    raise RuntimeError("unreachable")
+
+
 # SearchAd API 호출은 keep-alive 영속 연결을 host별로 재사용한다.
 # (호출마다 새 연결을 열면 호출 수만큼 DNS 조회가 일어나 리졸버가 과부하 → getaddrinfo ENOTFOUND.
 #  연결을 재사용하면 DNS 조회는 host당 사실상 처음 1번이 된다.)
@@ -233,29 +267,36 @@ def searchad_get(
 ) -> Any:
     query = urlencode(params)
     path = f"{uri}?{query}" if query else uri
-    headers = build_searchad_headers("GET", uri, api_license, secret_key, customer_id)
+    url = f"{base_url.rstrip('/')}{uri}"
     last_err: Exception | None = None
-    # keep-alive 연결이 만료/단절돼 있으면 한 번 닫고 재연결해 재시도.
-    for _attempt in range(2):
+    for attempt in range(HTTP_MAX_ATTEMPTS):
+        # 재시도마다 타임스탬프(서명)를 새로 생성한다. 재연결 지연으로 옛 타임스탬프를 재사용하면
+        # 네이버가 403 invalid-timestamp("Request has expired")로 거절하기 때문.
+        headers = build_searchad_headers("GET", uri, api_license, secret_key, customer_id)
         conn, host = _searchad_connection(base_url)
         try:
             conn.request("GET", path, headers=headers)
             res = conn.getresponse()
             body = res.read().decode("utf-8")  # 연결 재사용을 위해 본문을 끝까지 읽는다
-            if res.status >= 400:
-                raise HTTPError(
-                    f"{base_url.rstrip('/')}{uri}",
-                    res.status,
-                    body,
-                    res.headers,
-                    io.BytesIO(body.encode("utf-8")),
-                )
+            status = res.status
+            if status >= 400:
+                # 일시적 오류만 재시도: 5xx/429, 그리고 403 invalid-timestamp(서명 만료).
+                retryable = status in RETRYABLE_STATUS or (status == 403 and "invalid-timestamp" in body)
+                if retryable and attempt < HTTP_MAX_ATTEMPTS - 1:
+                    _backoff_sleep(attempt)
+                    continue
+                raise HTTPError(url, status, body, res.headers, io.BytesIO(body.encode("utf-8")))
             return json.loads(body) if body else {}
         except HTTPError:
             raise
         except (http.client.HTTPException, OSError) as e:
+            # 연결 단절/네트워크 오류: 연결을 닫고 백오프 후 재시도.
             last_err = e
             _searchad_reset(host)
+            if attempt < HTTP_MAX_ATTEMPTS - 1:
+                _backoff_sleep(attempt)
+                continue
+            raise
     if last_err is not None:
         raise last_err
     return {}
@@ -458,7 +499,7 @@ def upsert_daily_metrics(supabase_url: str, service_key: str, rows: list[dict[st
     headers = _supabase_headers(service_key, profile="analytics")
     headers["Prefer"] = "resolution=merge-duplicates,return=minimal"
     req = Request(url, data=json.dumps(rows).encode("utf-8"), headers=headers, method="POST")
-    with urlopen(req, timeout=40):
+    with _urlopen_with_retry(req, timeout=40):
         pass
     return len(rows)
 
@@ -471,7 +512,7 @@ def update_last_synced_at(supabase_url: str, service_key: str, hospital_id: str,
     headers = _supabase_headers(service_key, profile="core")
     req = Request(url, data=json.dumps(body).encode("utf-8"), headers=headers, method="PATCH")
     try:
-        with urlopen(req, timeout=20):
+        with _urlopen_with_retry(req, timeout=20):
             return
     except HTTPError as e:
         body = e.read().decode("utf-8", errors="ignore")

@@ -58,6 +58,25 @@ function describeError(err) {
   return parts.join(" | ");
 }
 
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// 잡 행 업데이트를 네트워크 오류(DNS ENOTFOUND 등)에 대비해 백오프 재시도한다.
+// supabase-js는 네트워크 실패를 throw가 아니라 { error }로 돌려주므로 그것도 처리.
+async function updateJobWithRetry(fields, jobId, attempts = 4) {
+  let lastErr = null;
+  for (let attempt = 0; attempt < attempts; attempt++) {
+    try {
+      const { error } = await supabase.from("collect_jobs").update(fields).eq("id", jobId);
+      if (!error) return null;
+      lastErr = error;
+    } catch (e) {
+      lastErr = e;
+    }
+    if (attempt < attempts - 1) await sleep(Math.min(2 ** attempt, 8) * 1000);
+  }
+  return lastErr;
+}
+
 function parseCollectOutput(output) {
   const steps = [];
   const upserts = [];
@@ -403,31 +422,31 @@ async function pollAndRun() {
     const safeOutput = typeof output === "string" ? output.replace(/\u0000/g, "") : output;
     const finishedAt = new Date().toISOString();
 
-    const { error: finalErr } = await supabase
-      .from("collect_jobs")
-      .update({
+    const finalErr = await updateJobWithRetry(
+      {
         status,
         output: safeOutput,
         steps: finalSteps,
         upserts: parsed.upserts,
         finished_at: finishedAt,
         updated_at: finishedAt,
-      })
-      .eq("id", job.id);
+      },
+      job.id,
+    );
 
     if (finalErr) {
-      console.error(`[collect-worker] 최종 상태(${status}) 저장 실패: ${job.id} — ${describeError(finalErr)}`);
+      console.error(`[collect-worker] 최종 상태(${status}) 저장 실패(재시도 소진): ${job.id} — ${describeError(finalErr)}`);
       console.error("[collect-worker] 최종 저장 실패 원본 에러:", finalErr);
       // 상세 필드(output·steps·upserts) 없이 상태만이라도 확정해 행이 running으로 박히지 않게 한다.
-      const { error: fbErr } = await supabase
-        .from("collect_jobs")
-        .update({
+      const fbErr = await updateJobWithRetry(
+        {
           status,
           finished_at: finishedAt,
           updated_at: finishedAt,
-          output: `[저장 폴백] 상세 결과 저장 실패: ${finalErr.message}`,
-        })
-        .eq("id", job.id);
+          output: `[저장 폴백] 상세 결과 저장 실패: ${describeError(finalErr)}`,
+        },
+        job.id,
+      );
       if (fbErr) {
         console.error(`[collect-worker] 폴백 저장도 실패: ${job.id} — ${describeError(fbErr)}. reaper가 ${STALE_JOB_TIMEOUT_MS / 60_000}분 후 회수합니다.`);
       } else {
