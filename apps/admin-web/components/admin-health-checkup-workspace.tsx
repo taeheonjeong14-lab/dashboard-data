@@ -38,6 +38,56 @@ const DIAGNOSIS_QUICK_PHRASES = [
   '검진 결과 특이사항 발견되지 않았습니다.',
 ] as const;
 
+// 장기별 '시사점'에 권장하는 보호자 안내 문구 — 블록 제목(titleKo)으로 매칭.
+// (제목 띄어쓰기/기호 차이에 견고하도록 공백 제거 후 키워드 포함 검사)
+const IMPLICATION_PHRASES: { match: (t: string) => boolean; phrase: string }[] = [
+  {
+    match: (t) => t.includes('순환') || t.includes('호흡'),
+    phrase:
+      '검진 결과 특이사항이 발견되진 않았으나, 평소보다 숨소리가 거칠어지거나 호흡이 빨라지고, 기침을 하거나 운동·산책 후 유난히 힘들어하는 모습, 혀·잇몸이 창백하거나 푸르스름해지는 경우가 보이면 바로 내원해 주세요.',
+  },
+  {
+    match: (t) => t.includes('소화'),
+    phrase:
+      '검진 결과 특이사항이 발견되진 않았으나, 구토나 설사가 반복되거나 식욕이 줄고, 혈변·검은 변이 보이거나 배가 부풀고 체중이 빠지는 모습이 나타나면 바로 내원해 주세요.',
+  },
+  {
+    match: (t) => t.includes('내분비'),
+    phrase:
+      '검진 결과 특이사항이 발견되진 않았으나, 물을 평소보다 많이 마시고 소변량이 늘거나, 식욕·체중이 뚜렷이 변하고, 털이 빠지거나 기운 없이 처지는 변화가 보이면 바로 내원해 주세요.',
+  },
+  {
+    match: (t) => t.includes('신장') || t.includes('비뇨'),
+    phrase:
+      '검진 결과 특이사항이 발견되진 않았으나, 소변 횟수나 양이 변하고 혈뇨가 보이거나, 배뇨를 힘들어하고, 물을 많이 마시면서 식욕·기운이 떨어지는 모습이 보이면 바로 내원해 주세요.',
+  },
+  {
+    match: (t) => t.includes('간담'),
+    phrase:
+      '검진 결과 특이사항이 발견되진 않았으나, 잇몸·눈 흰자·피부가 노랗게 보이거나(황달), 식욕이 떨어지고 구토·무기력이 이어지며 소변 색이 진해지는 변화가 나타나면 바로 내원해 주세요.',
+  },
+  {
+    match: (t) => t.includes('근골'),
+    phrase:
+      '검진 결과 특이사항이 발견되진 않았으나, 다리를 절뚝거리거나 점프·계단을 꺼리고, 일어설 때 힘들어하거나 특정 부위를 만지면 아파하는 모습, 활동량이 눈에 띄게 줄어드는 변화가 보이면 바로 내원해 주세요.',
+  },
+  {
+    match: (t) => t.includes('치과') || t.includes('안과'),
+    phrase:
+      '검진 결과 특이사항이 발견되진 않았으나, 입 냄새가 심해지거나 사료를 씹기 힘들어하고, 눈물·눈곱이 늘거나 눈을 자주 비비고 충혈·혼탁이 보이는 경우 바로 내원해 주세요.',
+  },
+  {
+    match: (t) => t.includes('피부') || t.includes('외이'),
+    phrase:
+      '검진 결과 특이사항이 발견되진 않았으나, 피부를 자주 긁거나 핥고 붉어짐·발진·탈모가 보이거나, 귀에서 냄새·분비물이 나고 머리를 자주 흔드는 모습이 나타나면 바로 내원해 주세요.',
+  },
+];
+
+function implicationPhraseForTitle(titleKo: string): string | null {
+  const t = (titleKo || '').replace(/\s/g, '');
+  return IMPLICATION_PHRASES.find((e) => e.match(t))?.phrase ?? null;
+}
+
 const SPECIES_OPTIONS = ['Canine (개)', 'Feline (고양이)'] as const;
 const SEX_OPTIONS = ['암컷(중성화)', '수컷(중성화)', '암컷', '수컷'] as const;
 
@@ -991,6 +1041,9 @@ export function AdminHealthCheckupWorkspace({
                         });
                       };
                       const isDiagnosisRow = row.label.includes('주요 진단');
+                      const implicationPhrase = row.label.includes('시사점')
+                        ? implicationPhraseForTitle(block.titleKo)
+                        : null;
                       return (
                       <label key={ri} style={{ fontSize: 12, display: 'grid', gap: 4 }}>
                         <span style={{ color: '#64748b' }}>{row.label}</span>
@@ -1007,6 +1060,18 @@ export function AdminHealthCheckupWorkspace({
                                 + {phrase}
                               </button>
                             ))}
+                          </div>
+                        )}
+                        {implicationPhrase && (
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 2 }}>
+                            <button
+                              type="button"
+                              onClick={() => setRowContent(implicationPhrase)}
+                              title={implicationPhrase}
+                              style={{ fontSize: 11, padding: '3px 8px', borderRadius: 5, border: '1px solid #cbd5e1', background: '#f1f5f9', color: '#334155', cursor: 'pointer', textAlign: 'left' }}
+                            >
+                              + 추천 시사점 문구 넣기
+                            </button>
                           </div>
                         )}
                         <textarea
