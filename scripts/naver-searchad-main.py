@@ -6,6 +6,8 @@
 - 기본 기간: (hospital_id, customer_id)별 DB max(metric_date) 다음날 ~ KST 어제(D-1).
   해당 조합에 행이 없으면 KST 어제 포함 30일(환경변수 SEARCHAD_METRICS_INITIAL_DAYS로 변경 가능).
 - SEARCHAD_METRIC_DATE 가 설정되면 위 증분을 끄고 해당 날짜만 수집(디버그/재처리용).
+- SEARCHAD_METRIC_START / SEARCHAD_METRIC_END 가 둘 다 설정되면 증분/청크를 끄고
+  그 구간(시작~끝, 포함)만 수집(admin 화면에서 기간 지정 수집용). 하루는 시작=끝.
 """
 
 from __future__ import annotations
@@ -566,6 +568,16 @@ def main() -> None:
     searchad_base_url = os.getenv("SEARCHAD_API_BASE_URL", "https://api.searchad.naver.com").strip()
     force_metric_date = os.getenv("SEARCHAD_METRIC_DATE", "").strip()
     target_hospital_id = os.getenv("COLLECT_HOSPITAL_ID", "").strip()
+    # 사용자 지정 기간(admin 화면). 둘 다 있으면 증분/청크를 끄고 이 구간만 수집.
+    range_start = os.getenv("SEARCHAD_METRIC_START", "").strip()[:10]
+    range_end = os.getenv("SEARCHAD_METRIC_END", "").strip()[:10]
+    explicit_range: tuple[str, str] | None = None
+    if range_start and range_end:
+        if range_start > range_end:
+            raise RuntimeError(
+                f"SEARCHAD_METRIC_START({range_start})가 SEARCHAD_METRIC_END({range_end})보다 늦습니다."
+            )
+        explicit_range = (range_start, range_end)
     try:
         initial_days = int(os.getenv("SEARCHAD_METRICS_INITIAL_DAYS", str(INITIAL_BACKFILL_DAYS)).strip())
     except ValueError:
@@ -599,33 +611,41 @@ def main() -> None:
                 print(f"✅ SearchAd 수집 완료: hospital_id={hospital_id} upsert_rows={inserted}")
                 continue
 
-            max_d = fetch_max_searchad_metric_date(supabase_url, service_key, hospital_id, customer_id)
-            span = compute_searchad_metric_range(max_d, end_date_kst, initial_days)
-            if span is None:
+            if explicit_range:
+                # 사용자 지정 기간: 증분/청크 없이 이 구간만 그대로 수집.
+                start_d, end_d = explicit_range
                 print(
-                    f"ℹ️ SearchAd 이미 최신: hospital_id={hospital_id} customer_id={customer_id} "
-                    f"KST end={end_date_kst} DB max={max_d or '(없음)'}"
+                    f"🔎 SearchAd 수집 구간(지정): hospital_id={hospital_id} customer_id={customer_id} "
+                    f"{start_d} ~ {end_d} (KST, 사용자 지정 기간)"
                 )
-                continue
-            start_d, end_d = span
-            # 백필 청크: 1회 실행 처리량을 SEARCHAD_MAX_DAYS_PER_RUN(일)로 제한.
-            # 오래된 날짜부터 채우고, 반복 실행하면 DB max가 전진해 점진적으로 따라잡는다.
-            # (0/미설정이면 제한 없음 — 한 번에 전 구간 처리)
-            try:
-                max_days_per_run = int(os.getenv("SEARCHAD_MAX_DAYS_PER_RUN", "0").strip() or "0")
-            except ValueError:
-                max_days_per_run = 0
-            chunked = False
-            if max_days_per_run > 0:
-                capped_end = _add_days_ymd(start_d, max_days_per_run - 1)
-                if capped_end < end_d:
-                    end_d = capped_end
-                    chunked = True
-            print(
-                f"🔎 SearchAd 수집 구간: hospital_id={hospital_id} customer_id={customer_id} "
-                f"{start_d} ~ {end_d} (KST, DB max={max_d or '없음'})"
-                + (f" [청크 {max_days_per_run}일/실행 — 반복 실행 필요]" if chunked else "")
-            )
+            else:
+                max_d = fetch_max_searchad_metric_date(supabase_url, service_key, hospital_id, customer_id)
+                span = compute_searchad_metric_range(max_d, end_date_kst, initial_days)
+                if span is None:
+                    print(
+                        f"ℹ️ SearchAd 이미 최신: hospital_id={hospital_id} customer_id={customer_id} "
+                        f"KST end={end_date_kst} DB max={max_d or '(없음)'}"
+                    )
+                    continue
+                start_d, end_d = span
+                # 백필 청크: 1회 실행 처리량을 SEARCHAD_MAX_DAYS_PER_RUN(일)로 제한.
+                # 오래된 날짜부터 채우고, 반복 실행하면 DB max가 전진해 점진적으로 따라잡는다.
+                # (0/미설정이면 제한 없음 — 한 번에 전 구간 처리)
+                try:
+                    max_days_per_run = int(os.getenv("SEARCHAD_MAX_DAYS_PER_RUN", "0").strip() or "0")
+                except ValueError:
+                    max_days_per_run = 0
+                chunked = False
+                if max_days_per_run > 0:
+                    capped_end = _add_days_ymd(start_d, max_days_per_run - 1)
+                    if capped_end < end_d:
+                        end_d = capped_end
+                        chunked = True
+                print(
+                    f"🔎 SearchAd 수집 구간: hospital_id={hospital_id} customer_id={customer_id} "
+                    f"{start_d} ~ {end_d} (KST, DB max={max_d or '없음'})"
+                    + (f" [청크 {max_days_per_run}일/실행 — 반복 실행 필요]" if chunked else "")
+                )
             account_inserted = 0
             all_days = list(_iter_dates_inclusive(start_d, end_d))
             total_days = len(all_days)

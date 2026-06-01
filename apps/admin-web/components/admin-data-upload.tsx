@@ -127,11 +127,20 @@ export default function AdminDataUpload() {
   const [collectHistory, setCollectHistory] = useState<CollectHistoryItem[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [collectLastSuccess, setCollectLastSuccess] = useState<CollectLastSuccess | null>(null);
+  // SearchAd 기간 지정(선택). 비우면 기존 자동(빠진 날짜) 수집.
+  const [searchadStart, setSearchadStart] = useState('');
+  const [searchadEnd, setSearchadEnd] = useState('');
 
   const totalSelected = Array.from(selection.values()).reduce((sum, s) => sum + s.size, 0);
   const totalPossible = hospitals.length * COLLECT_STEPS.length;
   const isAllSelected = totalPossible > 0 && totalSelected === totalPossible;
   const isAnySelected = totalSelected > 0;
+  // SearchAd 단계가 하나라도 선택됐을 때만 기간 입력을 노출/적용한다.
+  const anySearchadSelected = Array.from(selection.values()).some((s) => s.has('searchad'));
+  const searchadDateIncomplete =
+    anySearchadSelected && Boolean(searchadStart) !== Boolean(searchadEnd);
+  const searchadDateInvalid =
+    anySearchadSelected && !!searchadStart && !!searchadEnd && searchadStart > searchadEnd;
 
   function toggleAll(checked: boolean) {
     setSelection(
@@ -332,9 +341,19 @@ export default function AdminDataUpload() {
     setCollectJobs([]);
     setCollectError(null);
     try {
+      const useSearchadRange = !!searchadStart && !!searchadEnd && !searchadDateInvalid;
       const jobs = Array.from(selection.entries())
         .filter(([, steps]) => steps.size > 0)
-        .map(([hospitalId, steps]) => ({ hospitalId, steps: Array.from(steps) }));
+        .map(([hospitalId, steps]) => {
+          const stepArr = Array.from(steps);
+          return {
+            hospitalId,
+            steps: stepArr,
+            ...(useSearchadRange && stepArr.includes('searchad')
+              ? { searchadStart, searchadEnd }
+              : {}),
+          };
+        });
       const res = await fetch('/api/admin/collect/run', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -549,12 +568,54 @@ export default function AdminDataUpload() {
                     </div>
                   )}
 
+                  {/* SearchAd 기간 지정 (searchad 선택 시만) */}
+                  {anySearchadSelected && (
+                    <div style={{ border: '1px solid #e2e8f0', borderRadius: 8, padding: '12px 14px', background: '#f8fafc' }}>
+                      <p style={{ margin: '0 0 8px', fontSize: 13, fontWeight: 600, color: '#334155' }}>
+                        SearchAd 수집 기간 <span style={{ fontWeight: 400, color: '#94a3b8' }}>(선택)</span>
+                      </p>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                        <input
+                          type="date"
+                          value={searchadStart}
+                          max={searchadEnd || undefined}
+                          onChange={(e) => setSearchadStart(e.target.value)}
+                          style={{ fontSize: 13, padding: '6px 8px', border: '1px solid #cbd5e1', borderRadius: 6, color: '#0f172a' }}
+                        />
+                        <span style={{ fontSize: 13, color: '#64748b' }}>~</span>
+                        <input
+                          type="date"
+                          value={searchadEnd}
+                          min={searchadStart || undefined}
+                          onChange={(e) => setSearchadEnd(e.target.value)}
+                          style={{ fontSize: 13, padding: '6px 8px', border: '1px solid #cbd5e1', borderRadius: 6, color: '#0f172a' }}
+                        />
+                        {(searchadStart || searchadEnd) && (
+                          <button
+                            type="button"
+                            onClick={() => { setSearchadStart(''); setSearchadEnd(''); }}
+                            style={{ fontSize: 12, color: '#64748b', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 4px' }}
+                          >
+                            지우기
+                          </button>
+                        )}
+                      </div>
+                      <p style={{ margin: '8px 0 0', fontSize: 12, color: searchadDateInvalid ? '#b91c1c' : '#94a3b8', lineHeight: 1.5 }}>
+                        {searchadDateInvalid
+                          ? '시작일이 종료일보다 늦습니다.'
+                          : searchadDateIncomplete
+                            ? '시작일과 종료일을 모두 선택해 주세요.'
+                            : '비워두면 빠진 날짜를 자동 수집합니다. 하루만 받으려면 시작·종료일을 같게 선택하세요.'}
+                      </p>
+                    </div>
+                  )}
+
                   {/* 수집 시작 버튼 */}
                   <div>
                     <button
                       type="button"
                       className="adminLegacyPrimaryBtn"
-                      disabled={collectSubmitting || !isAnySelected || hospitalsLoading}
+                      disabled={collectSubmitting || !isAnySelected || hospitalsLoading || searchadDateIncomplete || searchadDateInvalid}
                       onClick={() => void runCollect()}
                     >
                       {collectSubmitting

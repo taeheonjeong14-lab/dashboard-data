@@ -311,6 +311,11 @@ async function pollAndRun() {
     : undefined;
 
   const extraEnv = job.steps_filter ? { COLLECT_STEPS_FILTER: JSON.stringify(job.steps_filter) } : {};
+  // SearchAd 사용자 지정 기간: 둘 다 있으면 python이 증분/청크 없이 이 구간만 수집.
+  if (job.searchad_start_date && job.searchad_end_date) {
+    extraEnv.SEARCHAD_METRIC_START = String(job.searchad_start_date).slice(0, 10);
+    extraEnv.SEARCHAD_METRIC_END = String(job.searchad_end_date).slice(0, 10);
+  }
   const accSteps = [];
   const onStepDone = (step) => {
     accSteps.push(step);

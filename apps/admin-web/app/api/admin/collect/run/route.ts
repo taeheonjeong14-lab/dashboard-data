@@ -10,7 +10,9 @@ export async function POST(request: Request) {
   const gate = await requireAdminApi();
   if (!gate.ok) return gate.response;
 
-  let body: { jobs?: Array<{ hospitalId?: string; steps?: string[] }> } = {};
+  let body: {
+    jobs?: Array<{ hospitalId?: string; steps?: string[]; searchadStart?: string; searchadEnd?: string }>;
+  } = {};
   try {
     body = (await request.json()) as typeof body;
   } catch {
@@ -22,7 +24,14 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: '수집할 병원/항목을 선택해 주세요.' }, { status: 400 });
   }
 
-  const validated: { hospital_id: string; steps_filter: string[] | null }[] = [];
+  const isYmd = (v: unknown): v is string => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v);
+
+  const validated: {
+    hospital_id: string;
+    steps_filter: string[] | null;
+    searchad_start_date: string | null;
+    searchad_end_date: string | null;
+  }[] = [];
   for (const job of rawJobs) {
     const hid = (job.hospitalId ?? '').trim();
     if (!hid || !/^[0-9a-f-]{8,36}$/i.test(hid)) {
@@ -34,9 +43,26 @@ export async function POST(request: Request) {
     if (steps.length === 0) {
       return NextResponse.json({ error: '수집 항목을 하나 이상 선택해 주세요.' }, { status: 400 });
     }
+
+    // SearchAd 기간: searchad 단계가 포함될 때만 의미가 있다. 둘 다 있어야 적용.
+    let searchadStart: string | null = null;
+    let searchadEnd: string | null = null;
+    if (steps.includes('searchad') && (job.searchadStart || job.searchadEnd)) {
+      if (!isYmd(job.searchadStart) || !isYmd(job.searchadEnd)) {
+        return NextResponse.json({ error: 'SearchAd 기간은 시작·종료일을 모두 올바르게 선택해 주세요.' }, { status: 400 });
+      }
+      if (job.searchadStart > job.searchadEnd) {
+        return NextResponse.json({ error: 'SearchAd 기간의 시작일이 종료일보다 늦습니다.' }, { status: 400 });
+      }
+      searchadStart = job.searchadStart;
+      searchadEnd = job.searchadEnd;
+    }
+
     validated.push({
       hospital_id: hid,
       steps_filter: steps.length < VALID_STEPS.length ? steps : null,
+      searchad_start_date: searchadStart,
+      searchad_end_date: searchadEnd,
     });
   }
 
@@ -46,9 +72,10 @@ export async function POST(request: Request) {
     .schema('analytics')
     .from('collect_jobs')
     .insert(
-      validated.map(({ hospital_id, steps_filter }) => ({
+      validated.map(({ hospital_id, steps_filter, searchad_start_date, searchad_end_date }) => ({
         hospital_id,
         ...(steps_filter ? { steps_filter } : {}),
+        ...(searchad_start_date ? { searchad_start_date, searchad_end_date } : {}),
       })),
     )
     .select('id, hospital_id');
