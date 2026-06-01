@@ -650,8 +650,19 @@ def main() -> None:
             all_days = list(_iter_dates_inclusive(start_d, end_d))
             total_days = len(all_days)
             for i, d in enumerate(all_days):
+                # 진단용 타이밍: API 수집 시간과 upsert 시간을 하루 단위로 분리 측정.
+                # 날이 갈수록 api 초가 늘면 throttling, 처음부터 균일하면 원래 그 정도.
+                t0 = time.monotonic()
                 rows = collect_one_account(searchad_base_url, d, account)
-                account_inserted += upsert_daily_metrics(supabase_url, service_key, rows)
+                t1 = time.monotonic()
+                inserted = upsert_daily_metrics(supabase_url, service_key, rows)
+                t2 = time.monotonic()
+                account_inserted += inserted
+                print(
+                    f"⏱️ {d} ({i + 1}/{total_days}) — {len(rows)}행 "
+                    f"· api {t1 - t0:.1f}s · upsert {t2 - t1:.1f}s",
+                    flush=True,
+                )
                 print(
                     "__PROGRESS__ "
                     + json.dumps(

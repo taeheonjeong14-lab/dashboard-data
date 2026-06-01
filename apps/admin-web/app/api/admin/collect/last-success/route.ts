@@ -20,10 +20,11 @@ export async function GET() {
   }>(`
     SELECT
       hospital_id,
-      MAX(CASE WHEN src = 'blog_metrics'  THEN metric_date END) AS blog_metrics,
-      MAX(CASE WHEN src = 'smartplace'    THEN metric_date END) AS smartplace,
-      MAX(CASE WHEN src = 'keyword_rank'  THEN metric_date END) AS keyword_rank,
-      MAX(CASE WHEN src = 'searchad'      THEN metric_date END) AS searchad
+      -- date 타입을 pg가 JS Date로 파싱해 .slice가 깨지므로 text('YYYY-MM-DD')로 캐스팅.
+      MAX(CASE WHEN src = 'blog_metrics'  THEN metric_date END)::text AS blog_metrics,
+      MAX(CASE WHEN src = 'smartplace'    THEN metric_date END)::text AS smartplace,
+      MAX(CASE WHEN src = 'keyword_rank'  THEN metric_date END)::text AS keyword_rank,
+      MAX(CASE WHEN src = 'searchad'      THEN metric_date END)::text AS searchad
     FROM (
       SELECT hospital_id, metric_date, 'blog_metrics' AS src
         FROM analytics.analytics_blog_daily_metrics
