@@ -16,7 +16,18 @@ import {
   HEALTH_CHECKUP_PROMPT_SYSTEMS_DX_MAX_CHARS,
   HEALTH_CHECKUP_PROMPT_SYSTEMS_IMP_MAX_CHARS,
 } from '@/lib/chart-app/health-checkup-limits';
-import { buildHealthCheckupInstructionBody } from '@/lib/chart-app/health-checkup-prompt-instructions';
+import {
+  buildHealthCheckupInstructionBody,
+  HEALTH_CHECKUP_GROUNDING_LINES,
+  HEALTH_CHECKUP_OWNER_TONE_LINES,
+  HEALTH_CHECKUP_OVERALL_RULE_LINES,
+  HEALTH_CHECKUP_FOLLOWUP_RULE_LINES,
+  healthCheckupRequiredCheckItemsLine,
+  healthCheckupOrganBlockLines,
+  healthCheckupImagingBlockLines,
+  healthCheckupLabInterpretationLines,
+  healthCheckupRecheckRuleLines,
+} from '@/lib/chart-app/health-checkup-prompt-instructions';
 import {
   HEALTH_CHECKUP_SYSTEMS_LLM_FIELD_KEYS,
   mergeHealthSystemsDemosWithLlmFields,
@@ -387,6 +398,11 @@ function buildSectionInstruction(
     '모든 문장은 인쇄되어 보호자에게 전달되는 공식 건강검진 보고서 톤으로 작성한다.',
     '확정 진단·단정적 병명 단정은 피하고, 관찰 소견·해석 가능한 범위·권고 중심으로 쓴다.',
     '',
+    ...HEALTH_CHECKUP_GROUNDING_LINES,
+    '',
+    '**보호자 대상 문체(호칭·말투)**',
+    ...HEALTH_CHECKUP_OWNER_TONE_LINES,
+    '',
   ];
   if (overallContext) {
     lines.push(
@@ -406,10 +422,7 @@ function buildSectionInstruction(
     case 'overall':
       lines.push(
         '========== 종합 소견 섹션만 재생성 ==========',
-        '이번 검진으로 진단 또는 의심할 수 있는 내용을 문단별로 작성한다.',
-        '질병이 여러 개라면 각 질병별로 문단을 나누어 설명하고, 핵심 근거자료를 관련 문단에 포함시킨다.',
-        '차트 본문에서 의심된다고 언급된 질병은 크던 작던 반드시 근거와 함께 언급할 것.',
-        '심각도 순으로 가장 심각한 것을 먼저, 가장 덜 심각한 것을 마지막에 써줄 것.',
+        ...HEALTH_CHECKUP_OVERALL_RULE_LINES,
         `글자 수: 공백 포함 최소 ${HEALTH_CHECKUP_PROMPT_MIN_OVERALL_CHARS}자 이상, 최대 ${HEALTH_CHECKUP_PROMPT_MAX_OVERALL_CHARS}자 이하.`,
         '출력 키: overallSummary (문자열)',
       );
@@ -417,8 +430,7 @@ function buildSectionInstruction(
     case 'followUp':
       lines.push(
         '========== 사후 관리 섹션만 재생성 ==========',
-        '종합 소견에서 설명된 각 질환에 대해 앞으로 어떤 조치가 필요하고 병원에서 어떤 계획으로 대응할지 작성한다.',
-        '질병이 여러 개라면 하나도 빠짐없이 각각에 대해 계획을 써줘. 보호자가 집에서 해야 할 사항도 포함한다.',
+        ...HEALTH_CHECKUP_FOLLOWUP_RULE_LINES,
         `글자 수: 공백 포함 최소 ${HEALTH_CHECKUP_PROMPT_MIN_FOLLOW_UP_CHARS}자 이상, 최대 ${HEALTH_CHECKUP_PROMPT_MAX_FOLLOW_UP_CHARS}자 이하.`,
         '출력 키: followUpCare (문자열)',
       );
@@ -426,13 +438,7 @@ function buildSectionInstruction(
     case 'recheck':
       lines.push(
         '========== 권장 재검진 섹션만 재생성 ==========',
-        '사후 관리에서 언급한 내용을 실제 액션 아이템으로 설명하는 부분이야.',
-        `형식: 각 필드는 "제목(최대 ${HEALTH_CHECKUP_MAX_RECHECK_TITLE_CHARS}자)\\n본문(최대 ${HEALTH_CHECKUP_MAX_RECHECK_BODY_CHARS}자)"`,
-        '해당 시기에 권장할 내용이 없으면 빈 문자열("")을 출력한다. 억지로 채우지 말 것.',
-        `recheckWithin1to2Weeks: 가장 단기적인 액션 아이템 — 짧은 명사구 제목 + 문장 형태 본문`,
-        `recheckWithin1Month: 1달 내 꼭 해야 할 액션 아이템`,
-        `recheckWithin3Months: 3달 내 한 번쯤 짚어야 할 액션 아이템`,
-        `recheckWithin6Months: 중장기 관리를 위한 액션 아이템`,
+        ...healthCheckupRecheckRuleLines(),
         '출력 키: recheckWithin1to2Weeks, recheckWithin1Month, recheckWithin3Months, recheckWithin6Months',
       );
       break;
@@ -445,17 +451,11 @@ function buildSectionInstruction(
         '모든 관련 검사 결과가 정상이더라도 핵심 검사 결과를 인용하여 "이러이러하여 정상이다" 형식으로 써줘.',
         fixedPhrase,
         '',
-        `[순환기&호흡기] hp3_circ_dx / hp3_circ_imp — 주요 진단 최대 ${HEALTH_CHECKUP_PROMPT_DENTAL_SKIN_DX_MAX_CHARS}자, 시사점 최대 ${HEALTH_CHECKUP_PROMPT_DENTAL_SKIN_IMP_MAX_CHARS}자`,
-        '관련 질환: 심장병, 심비대, 폐렴, 기관지염, 기관허탈, 폐수종, 흉수, 폐 종괴 등',
-        '인용 검사: 심장 크기, 폐 음영 증가 여부, 기관 협착, 흉수 여부, 심잡음, 호흡 패턴 이상',
+        ...healthCheckupOrganBlockLines('circ'),
         '',
-        `[소화기] hp3_digest_dx / hp3_digest_imp — 주요 진단 최대 ${HEALTH_CHECKUP_PROMPT_DENTAL_SKIN_DX_MAX_CHARS}자, 시사점 최대 ${HEALTH_CHECKUP_PROMPT_DENTAL_SKIN_IMP_MAX_CHARS}자`,
-        '관련 질환: 위염, 장염, 위장관 이물, 췌장염, 장 비후, 장 운동성 저하, 장 종괴 등',
-        '인용 검사: 췌장염 수치, 단백 수치 변화, 위장관 비후, 장 운동성 감소, 장내 가스, 복강 내 이물',
+        ...healthCheckupOrganBlockLines('digest'),
         '',
-        `[내분비계] hp3_endo_dx / hp3_endo_imp — 주요 진단 최대 ${HEALTH_CHECKUP_PROMPT_SYSTEMS_DX_MAX_CHARS}자, 시사점 최대 ${HEALTH_CHECKUP_PROMPT_SYSTEMS_IMP_MAX_CHARS}자`,
-        '관련 질환: 당뇨병, 갑상선 기능 이상, 쿠싱증후군, 에디슨병, 비만 관련 대사 이상 등',
-        '인용 검사: 혈당, 콜레스테롤, 중성지방, 호르몬 수치, 다음다뇨 여부, 식욕 변화',
+        ...healthCheckupOrganBlockLines('endo'),
         '',
         '출력 키: hp3_circ_dx, hp3_circ_imp, hp3_digest_dx, hp3_digest_imp, hp3_endo_dx, hp3_endo_imp',
       );
@@ -469,38 +469,27 @@ function buildSectionInstruction(
         '모든 관련 검사 결과가 정상이더라도 핵심 검사 결과를 인용하여 "이러이러하여 정상이다" 형식으로 써줘.',
         fixedPhrase,
         '',
-        `[신장·비뇨기계] hp3_renal_uro_dx / hp3_renal_uro_imp — 최대 ${HEALTH_CHECKUP_PROMPT_SYSTEMS_DX_MAX_CHARS}자 / ${HEALTH_CHECKUP_PROMPT_SYSTEMS_IMP_MAX_CHARS}자`,
-        '관련 질환: 신부전, 신장 결석, 방광 결석, 방광염, 요로 감염, 요로 확장, 단백뇨 등',
-        '인용 검사: BUN, Creatinine, SDMA, 전해질 이상, 단백뇨, 혈뇨, 요비중 이상, 신장 크기·구조 변화, 결석, 방광벽 비후',
+        ...healthCheckupOrganBlockLines('renal_uro'),
         '',
-        `[간담도계] hp3_hepatobiliary_dx / hp3_hepatobiliary_imp — 최대 ${HEALTH_CHECKUP_PROMPT_SYSTEMS_DX_MAX_CHARS}자 / ${HEALTH_CHECKUP_PROMPT_SYSTEMS_IMP_MAX_CHARS}자`,
-        '관련 질환: 간염, 지방간, 간 기능 저하, 담낭 슬러지, 담낭 점액종, 담석, 담관 폐색, 간 종괴 등',
-        '인용 검사: ALT, AST, ALKP, GGT, 빌리루빈, 알부민, 간비대, 담낭 슬러지, 담관 확장 여부',
+        ...healthCheckupOrganBlockLines('hepatobiliary'),
         '',
-        `[근골격계] hp3_msk_dx / hp3_msk_imp — 최대 ${HEALTH_CHECKUP_PROMPT_SYSTEMS_DX_MAX_CHARS}자 / ${HEALTH_CHECKUP_PROMPT_SYSTEMS_IMP_MAX_CHARS}자`,
-        '관련 질환: 관절염, 슬개골 탈구, 십자인대 손상, 고관절 이형성, 척추 질환, 디스크 질환, 골절, 근육 손상 등',
-        '인용 검사: 관절 변형 여부, 관절 간격 감소, 골 증식, 골절 여부, 척추 정렬 이상',
+        ...healthCheckupOrganBlockLines('msk'),
         '',
         '출력 키: hp3_renal_uro_dx, hp3_renal_uro_imp, hp3_hepatobiliary_dx, hp3_hepatobiliary_imp, hp3_msk_dx, hp3_msk_imp',
       );
       break;
     case 'systems4':
       lines.push(
-        '========== 치과 / 피부·외이도 섹션만 재생성 ==========',
+        '========== 치과 및 안과 / 피부·외이도 섹션만 재생성 ==========',
         '아래 두 계통 각각에 대해 주요 진단(_dx)과 시사점(_imp)을 쌍으로 작성한다.',
         '· 주요 진단: 팩트 중심 — 검진에서 발견된 결과를 설명',
         '· 시사점: 보호자가 이해할 수 있는 임상적 의미와 관찰 포인트',
         '모든 관련 검사 결과가 정상이더라도 핵심 검사 결과를 인용하여 "이러이러하여 정상이다" 형식으로 써줘.',
         fixedPhrase,
         '',
-        `[치과] hp4_dental_dx / hp4_dental_imp — 최대 ${HEALTH_CHECKUP_PROMPT_DENTAL_SKIN_DX_MAX_CHARS}자 / ${HEALTH_CHECKUP_PROMPT_DENTAL_SKIN_IMP_MAX_CHARS}자`,
-        '관련 질환: 치석, 치주염, 치은염, 치아 흔들림, 치아 파절, 치근 농양, 구내염, 구강 종괴 등',
-        '인용 검사: 치석 정도, 잇몸 염증 여부, 치아 흔들림·파절 여부, 구취 여부',
+        ...healthCheckupOrganBlockLines('dental'),
         '',
-        `[피부·외이도] hp4_skin_dx / hp4_skin_imp — 최대 ${HEALTH_CHECKUP_PROMPT_DENTAL_SKIN_DX_MAX_CHARS}자 / ${HEALTH_CHECKUP_PROMPT_DENTAL_SKIN_IMP_MAX_CHARS}자`,
-        '관련 질환(피부): 알레르기성 피부질환, 세균성 피부염, 진균성 피부염, 탈모, 피부 종괴, 습진 등',
-        '관련 질환(외이도): 외이염, 귀 진드기 감염, 외이도 협착, 귀 분비물, 귀 냄새 증가 등 (강아지)',
-        '인용 검사: 피부 상태, 귀 검사 결과 등 관련 소견',
+        ...healthCheckupOrganBlockLines('skin'),
         '',
         '출력 키: hp4_dental_dx, hp4_dental_imp, hp4_skin_dx, hp4_skin_imp',
       );
@@ -508,16 +497,10 @@ function buildSectionInstruction(
     case 'systems5':
       lines.push(
         '========== 방사선·초음파 섹션만 재생성 ==========',
-        '포커스는 질병보다 **사진 상의 특이점** 위주로 설명한다. 어느 부위 이미지 상 어느 부분에서 어떤 특이점이 보이는지 구체적으로 써줘.',
-        '보호자가 이해할 수 있도록 풀어서 설명도 함께 포함한다.',
         '장기별 섹션에서 이미 영상 결과를 인용했더라도 이 섹션에서 한 번 더 반복해도 된다.',
         fixedPhrase,
         '',
-        `[방사선] hp5_rad_interp — 최대 ${HEALTH_CHECKUP_PROMPT_IMAGING_INTERP_MAX_CHARS}자`,
-        '어느 부위 방사선 이미지 상 어느 부분에서 어떤 특이점이 보이는지 팩트 중심으로 설명해줘.',
-        '',
-        `[초음파] hp5_us_interp — 최대 ${HEALTH_CHECKUP_PROMPT_IMAGING_INTERP_MAX_CHARS}자`,
-        '어느 부위 초음파 이미지 상 어느 부분에서 어떤 특이점이 보이는지 팩트 중심으로 설명해줘.',
+        ...healthCheckupImagingBlockLines(),
         '',
         '출력 키: hp5_rad_interp, hp5_us_interp',
       );
@@ -525,11 +508,7 @@ function buildSectionInstruction(
     case 'lab':
       lines.push(
         '========== 혈액검사 해석 섹션만 재생성 ==========',
-        '혈액검사 결과 페이지 상단에 들어가는 전체 해석 요약이야.',
-        '임상적으로 의미 있는 이상 소견을 중심으로, 보호자가 이해할 수 있도록 해석해줘.',
-        '정상 범위를 벗어난 항목들의 의미, 관련 질환 가능성, 주의사항 등을 간결하게 설명해줘.',
-        '모든 수치가 정상이면 정상임을 알리되, 특히 유의할 점이 있으면 짧게 언급해줘.',
-        `글자 수 제한: 공백 포함 최대 ${HEALTH_CHECKUP_PROMPT_LAB_INTERP_MAX_CHARS}자.`,
+        ...healthCheckupLabInterpretationLines(),
         '출력 키: labInterpretation (문자열)',
       );
       break;
