@@ -406,7 +406,9 @@ async function pollAndRun() {
     if (Date.now() - lastProgressWrite >= 1500) flushProgress();
   };
   const progressTimer = setInterval(() => {
-    if (progressDirty) flushProgress();
+    // 진행 마커가 갱신됐으면 즉시 저장. 마커가 없어도(긴 하루 처리 중) 30초마다 updated_at을
+    // 갱신하는 하트비트를 보내, 워커가 죽으면 admin-ui가 updated_at 정체로 중단을 감지할 수 있게 한다.
+    if (progressDirty || Date.now() - lastProgressWrite >= 30_000) flushProgress();
   }, 1500);
 
   try {

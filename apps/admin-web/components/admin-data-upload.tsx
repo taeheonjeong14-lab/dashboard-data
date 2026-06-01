@@ -57,6 +57,7 @@ type CollectJob = {
   upserts: CollectUpsertItem[] | null;
   progress?: CollectProgress | null;
   steps_filter?: string[] | null;
+  updated_at?: string | null;
 };
 type CollectHistoryItem = {
   id: string;
@@ -67,6 +68,7 @@ type CollectHistoryItem = {
   created_at: string;
   started_at: string | null;
   finished_at: string | null;
+  updated_at?: string | null;
 };
 
 function formatKst(iso: string): string {
@@ -97,6 +99,15 @@ const STATUS_COLOR: Record<string, string> = {
   done: '#15803d',
   failed: '#991b1b',
 };
+
+// 워커가 이 시간 이상 updated_at을 갱신하지 않으면 '중단 추정'으로 본다.
+// 워커는 30초마다 하트비트로 updated_at을 갱신하므로, 3분(=6하트비트 누락)이면 죽은 것으로 판단.
+const STALE_JOB_MS = 3 * 60_000;
+function isJobStale(status: string, updatedAt?: string | null): boolean {
+  if (status !== 'running') return false; // 워커가 집어 든(running) 잡만 — pending은 큐 대기일 수 있음
+  if (!updatedAt) return false;
+  return Date.now() - new Date(updatedAt).getTime() > STALE_JOB_MS;
+}
 
 export default function AdminDataUpload() {
   const searchParams = useSearchParams();
@@ -348,6 +359,7 @@ export default function AdminDataUpload() {
                 output: null,
                 steps: j.steps,
                 upserts: j.upserts,
+                updated_at: j.updated_at,
               })),
         );
       } catch {
@@ -665,7 +677,9 @@ export default function AdminDataUpload() {
                 </div>
               )}
 
-              {collectJobs.map((collectJob) => (
+              {collectJobs.map((collectJob) => {
+                const stale = isJobStale(collectJob.status, collectJob.updated_at);
+                return (
                 <div key={collectJob.id} style={{ marginTop: 16 }}>
                   {/* 병원명 + 상태 배너 */}
                   <div
@@ -676,17 +690,22 @@ export default function AdminDataUpload() {
                       padding: '8px 12px',
                       marginBottom: 14,
                       borderRadius: 6,
-                      background: collectJob.status === 'done' ? '#f0fdf4' : collectJob.status === 'failed' ? '#fef2f2' : '#eff6ff',
-                      border: `1px solid ${collectJob.status === 'done' ? 'rgba(22,163,74,0.2)' : collectJob.status === 'failed' ? 'rgba(185,28,28,0.2)' : 'rgba(29,78,216,0.2)'}`,
+                      background: stale ? '#fffbeb' : collectJob.status === 'done' ? '#f0fdf4' : collectJob.status === 'failed' ? '#fef2f2' : '#eff6ff',
+                      border: `1px solid ${stale ? 'rgba(217,119,6,0.35)' : collectJob.status === 'done' ? 'rgba(22,163,74,0.2)' : collectJob.status === 'failed' ? 'rgba(185,28,28,0.2)' : 'rgba(29,78,216,0.2)'}`,
                     }}
                   >
                     <span style={{ fontSize: 14, fontWeight: 700, color: '#0f172a' }}>
                       {hospitals.find((h) => h.id === collectJob.hospital_id)?.name_ko ?? collectJob.hospital_id ?? '병원'}
                     </span>
-                    <span style={{ fontSize: 13, fontWeight: 700, color: collectJob.status === 'done' ? '#15803d' : collectJob.status === 'failed' ? '#991b1b' : '#1d4ed8' }}>
-                      {collectJob.status === 'done' ? '✓ 수집 완료' : collectJob.status === 'failed' ? '✗ 수집 실패' : collectJob.status === 'pending' ? '대기 중 (곧 시작)' : '⋯ 수집 실행 중'}
+                    <span style={{ fontSize: 13, fontWeight: 700, color: stale ? '#b45309' : collectJob.status === 'done' ? '#15803d' : collectJob.status === 'failed' ? '#991b1b' : '#1d4ed8' }}>
+                      {stale ? '⚠️ 워커 응답 없음 (중단 추정)' : collectJob.status === 'done' ? '✓ 수집 완료' : collectJob.status === 'failed' ? '✗ 수집 실패' : collectJob.status === 'pending' ? '대기 중 (곧 시작)' : '⋯ 수집 실행 중'}
                     </span>
                   </div>
+                  {stale && (
+                    <p style={{ margin: '-6px 0 14px', fontSize: 12, color: '#b45309', lineHeight: 1.5 }}>
+                      워커가 3분 이상 응답이 없습니다. 워커 컴퓨터가 꺼졌거나 멈췄을 수 있어요. 이미 수집된 날짜는 저장돼 있으니, 워커를 다시 켠 뒤 수집을 다시 시작하면 이어집니다.
+                    </p>
+                  )}
 
                   {/* 데이터 종류별 진행률 바 */}
                   {(() => {
@@ -838,7 +857,8 @@ export default function AdminDataUpload() {
                     </details>
                   )}
                 </div>
-              ))}
+                );
+              })}
 
               {/* 수집 이력 */}
               <div className="adminLegacyBlockBleed" style={{ marginTop: 24 }}>
@@ -862,6 +882,7 @@ export default function AdminDataUpload() {
                       const upserts = h.upserts ?? [];
                       const failedSteps = (h.steps ?? []).filter((s) => s.error);
                       const hasDetails = upserts.length > 0 || failedSteps.length > 0;
+                      const hStale = isJobStale(h.status, h.updated_at);
                       return (
                         <div
                           key={h.id}
@@ -877,7 +898,7 @@ export default function AdminDataUpload() {
                               </span>
                             </div>
                             <span style={{ display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap', marginLeft: 8 }}>
-                              <span style={{ fontWeight: 700, color: STATUS_COLOR[h.status] }}>{STATUS_LABEL[h.status]}</span>
+                              <span style={{ fontWeight: 700, color: hStale ? '#b45309' : STATUS_COLOR[h.status] }}>{hStale ? '⚠️ 중단 추정' : STATUS_LABEL[h.status]}</span>
                               <span style={{ color: '#94a3b8', fontSize: 11 }}>{expandedHistoryId === h.id ? '▴ 로그' : '▾ 로그'}</span>
                             </span>
                           </div>

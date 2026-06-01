@@ -12,7 +12,7 @@ export async function GET() {
   const { data: jobs, error } = await supabase
     .schema('analytics')
     .from('collect_jobs')
-    .select('id, hospital_id, status, steps, upserts, created_at, started_at, finished_at')
+    .select('id, hospital_id, status, steps, upserts, created_at, started_at, finished_at, updated_at')
     .order('created_at', { ascending: false })
     .limit(20);
 
