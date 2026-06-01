@@ -458,7 +458,7 @@ export default function AdminDataUpload() {
 
   async function runCollect() {
     setCollectSubmitting(true);
-    setCollectJobs([]);
+    // 진행 중인 잡 패널을 비우지 않는다 — 이미 돌고 있는 잡의 진행률도 계속 보이게.
     setCollectError(null);
     try {
       const useSearchadRange = !!searchadStart && !!searchadEnd && !searchadDateInvalid;
@@ -489,16 +489,22 @@ export default function AdminDataUpload() {
         setCollectError(data.error ?? '수집 요청 생성에 실패했습니다.');
         return;
       }
-      setCollectJobs(
-        data.jobs.map((j) => ({
+      setCollectJobs((prev) => {
+        const newOnes = data.jobs!.map((j) => ({
           id: j.id,
           hospital_id: j.hospitalId,
           status: 'pending' as const,
           output: null,
           steps: null,
           upserts: null,
-        })),
-      );
+        }));
+        const newIds = new Set(newOnes.map((j) => j.id));
+        // 기존에 진행 중(대기/수집 중)인 잡은 유지하고, 새 잡을 뒤에 추가(중복 id 제거).
+        const keptActive = prev.filter(
+          (j) => (j.status === 'pending' || j.status === 'running') && !newIds.has(j.id),
+        );
+        return [...keptActive, ...newOnes];
+      });
       void loadHistory();
     } catch (e) {
       setCollectError(e instanceof Error ? e.message : '알 수 없는 오류');
