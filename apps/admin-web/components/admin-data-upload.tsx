@@ -109,6 +109,72 @@ function isJobStale(status: string, updatedAt?: string | null): boolean {
   return Date.now() - new Date(updatedAt).getTime() > STALE_JOB_MS;
 }
 
+type CoverageData = {
+  applicable: boolean;
+  start?: string;
+  end?: string;
+  totalDays?: number;
+  collectedDays?: number;
+  firstMissing?: string | null;
+  lastCollected?: string | null;
+  days?: { date: string; collected: boolean }[];
+};
+
+// SearchAd 기간 지정 잡의 '날짜별 수집 여부'(✓/✗)를 보여준다 — 중간에 종료된 잡 점검용.
+function SearchadCoverage({ jobId }: { jobId: string }) {
+  const [data, setData] = useState<CoverageData | null>(null);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    fetch(`/api/admin/collect/coverage/${jobId}`, { credentials: 'include' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (!cancelled) setData(d as CoverageData); })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [jobId]);
+
+  if (loading) return <p style={{ margin: '8px 0 0', fontSize: 12, color: '#64748b' }}>날짜별 수집 확인 중…</p>;
+  if (!data || !data.applicable || !data.days) {
+    return <p style={{ margin: '8px 0 0', fontSize: 12, color: '#94a3b8' }}>기간 지정 수집이 아니라 날짜별 표시가 불가합니다.</p>;
+  }
+  return (
+    <div style={{ marginTop: 10 }}>
+      <p style={{ margin: '0 0 8px', fontSize: 13, fontWeight: 600, color: '#334155' }}>
+        날짜별 수집 ({data.collectedDays}/{data.totalDays}일)
+        {data.firstMissing && (
+          <span style={{ fontWeight: 400, color: '#b45309', marginLeft: 6 }}>· {data.firstMissing}부터 누락</span>
+        )}
+      </p>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+        {data.days.map((d) => (
+          <span
+            key={d.date}
+            title={d.date}
+            style={{
+              fontSize: 11,
+              padding: '2px 6px',
+              borderRadius: 4,
+              border: `1px solid ${d.collected ? 'rgba(22,163,74,0.3)' : 'rgba(185,28,28,0.3)'}`,
+              background: d.collected ? '#f0fdf4' : '#fef2f2',
+              color: d.collected ? '#15803d' : '#b91c1c',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {d.collected ? '✓' : '✗'} {d.date.slice(5)}
+          </span>
+        ))}
+      </div>
+      {data.lastCollected && (
+        <p style={{ margin: '8px 0 0', fontSize: 12, color: '#64748b' }}>
+          마지막 수집일 {data.lastCollected}. 다시 수집할 때 시작일을 그 다음날로 잡으면 이어집니다.
+        </p>
+      )}
+    </div>
+  );
+}
+
 export default function AdminDataUpload() {
   const searchParams = useSearchParams();
   const [section, setSection] = useState<UploadSection>('pdf');
@@ -314,6 +380,24 @@ export default function AdminDataUpload() {
       setCollectHistory(data.jobs ?? []);
     } finally {
       setHistoryLoading(false);
+    }
+  }
+
+  // '중단 추정' 잡을 수동으로 종료(failed)한다 — 워커가 죽어 reaper가 못 도는 경우 정리용.
+  async function cancelJob(id: string) {
+    try {
+      const res = await fetch('/api/admin/collect/cancel', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ jobId: id }),
+      });
+      if (res.ok) {
+        setCollectJobs((prev) => prev.map((j) => (j.id === id ? { ...j, status: 'failed' as const } : j)));
+        void loadHistory();
+      }
+    } catch {
+      /* 무시 */
     }
   }
 
@@ -697,14 +781,30 @@ export default function AdminDataUpload() {
                     <span style={{ fontSize: 14, fontWeight: 700, color: '#0f172a' }}>
                       {hospitals.find((h) => h.id === collectJob.hospital_id)?.name_ko ?? collectJob.hospital_id ?? '병원'}
                     </span>
-                    <span style={{ fontSize: 13, fontWeight: 700, color: stale ? '#b45309' : collectJob.status === 'done' ? '#15803d' : collectJob.status === 'failed' ? '#991b1b' : '#1d4ed8' }}>
-                      {stale ? '⚠️ 워커 응답 없음 (중단 추정)' : collectJob.status === 'done' ? '✓ 수집 완료' : collectJob.status === 'failed' ? '✗ 수집 실패' : collectJob.status === 'pending' ? '대기 중 (곧 시작)' : '⋯ 수집 실행 중'}
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: stale ? '#b45309' : collectJob.status === 'done' ? '#15803d' : collectJob.status === 'failed' ? '#991b1b' : '#1d4ed8' }}>
+                        {stale ? '⚠️ 워커 응답 없음 (중단 추정)' : collectJob.status === 'done' ? '✓ 수집 완료' : collectJob.status === 'failed' ? '✗ 수집 실패' : collectJob.status === 'pending' ? '대기 중 (곧 시작)' : '⋯ 수집 실행 중'}
+                      </span>
+                      {stale && (
+                        <button
+                          type="button"
+                          onClick={() => void cancelJob(collectJob.id)}
+                          style={{ fontSize: 12, fontWeight: 600, color: '#fff', background: '#b45309', border: 'none', borderRadius: 5, padding: '4px 10px', cursor: 'pointer' }}
+                        >
+                          종료
+                        </button>
+                      )}
                     </span>
                   </div>
                   {stale && (
                     <p style={{ margin: '-6px 0 14px', fontSize: 12, color: '#b45309', lineHeight: 1.5 }}>
                       워커가 3분 이상 응답이 없습니다. 워커 컴퓨터가 꺼졌거나 멈췄을 수 있어요. 이미 수집된 날짜는 저장돼 있으니, 워커를 다시 켠 뒤 수집을 다시 시작하면 이어집니다.
                     </p>
+                  )}
+                  {(stale || collectJob.status === 'failed') && (
+                    <div className="adminLegacyBlockBleed" style={{ marginBottom: 14 }}>
+                      <SearchadCoverage jobId={collectJob.id} />
+                    </div>
                   )}
 
                   {/* 데이터 종류별 진행률 바 */}
@@ -931,6 +1031,8 @@ export default function AdminDataUpload() {
                               onClick={(e) => e.stopPropagation()}
                               style={{ borderTop: '1px solid #e2e8f0', marginTop: 8, paddingTop: 8, cursor: 'default' }}
                             >
+                              <SearchadCoverage jobId={h.id} />
+                              <div style={{ marginTop: 10 }} />
                               {historyDetailLoading ? (
                                 <p style={{ margin: 0, fontSize: 12, color: '#64748b' }}>로그 불러오는 중…</p>
                               ) : historyDetail?.output ? (
