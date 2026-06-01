@@ -6,6 +6,7 @@ import type { HealthCheckupGeneratedContent } from '@/lib/chart-app/health-check
 import type { HealthReportPreviewModel } from '@/lib/chart-app/health-report-preview-model';
 import { parseHealthCheckupPayloadFromStorage } from '@/lib/chart-app/health-checkup-content-llm';
 import {
+  HEALTH_CHECKUP_MAX_COVER_BREED_CHARS,
   HEALTH_CHECKUP_MAX_COVER_CHECKUP_DATE_CHARS,
   HEALTH_CHECKUP_MAX_COVER_FIELD_CHARS,
   HEALTH_CHECKUP_MAX_COVER_SEX_CHARS,
@@ -247,9 +248,9 @@ function HealthCheckupReviewEditor({ draft, onChange, onSave, saving, activeSect
             <div style={{ minWidth: 0 }}>
               <label style={{ display: 'block' }}>
                 <span style={{ display: 'block', fontSize: 12, fontWeight: 500, color: '#52525b', marginBottom: 4 }}>품종</span>
-                <input className="hcu-rv-input" maxLength={HEALTH_CHECKUP_MAX_COVER_SHORT_FIELD_CHARS} value={draft.coverPatientBreed ?? ''} onChange={(e) => setCover('coverPatientBreed', e.target.value)} />
+                <input className="hcu-rv-input" maxLength={HEALTH_CHECKUP_MAX_COVER_BREED_CHARS} value={draft.coverPatientBreed ?? ''} onChange={(e) => setCover('coverPatientBreed', e.target.value)} />
               </label>
-              <CharCountLine current={(draft.coverPatientBreed ?? '').length} max={HEALTH_CHECKUP_MAX_COVER_SHORT_FIELD_CHARS} />
+              <CharCountLine current={(draft.coverPatientBreed ?? '').length} max={HEALTH_CHECKUP_MAX_COVER_BREED_CHARS} />
             </div>
           </div>
 
