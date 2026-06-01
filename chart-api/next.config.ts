@@ -5,7 +5,8 @@ const nextConfig: NextConfig = {
   // 모노레포 루트를 명시 — Turbopack이 워크스페이스 루트를 잘못 추론해 next/package.json을
   // 못 찾고, chart-api 바깥의 공유 패키지(packages/*)도 컴파일 못 하던 빌드 에러 방지.
   // (루트 = chart-api 의 상위 = 레포 루트)
-  // 참고: NEXT_PUBLIC_* 는 일반(비-Sensitive) 변수여야 vercel pull/build 가 값을 inline 함.
+  // 참고: 이 GHA 프리빌드 배포에선 모든 env(NEXT_PUBLIC·SERVICE_ROLE_KEY 등)가 일반(비-Sensitive)
+  // 이어야 vercel pull 이 값을 받아 빌드/런타임에 주입함. Sensitive면 undefined가 됨.
   turbopack: {
     root: path.join(__dirname, '..'),
   },
