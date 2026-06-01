@@ -49,3 +49,6 @@ Then `npm run build` and fix any drift.
 Schema matches Supabase (`core`, `robovet`). Use migrations from `dashboard-data/supabase/migrations` as source of truth for DB shape; do not run `db push` against prod without review.
 
 진료 차트·건강검진(vet-report 호환) API는 **`chart-api`** 디렉터리의 별도 Next 앱으로 분리되어 있습니다.
+
+<!-- 배포 필터 테스트: 이 줄은 의미 없는 주석이며 런타임에 영향 없음. -->
+
