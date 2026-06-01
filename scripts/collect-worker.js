@@ -40,6 +40,24 @@ function mmdd(ymd) {
   return ymd ? ymd.slice(5) : "";
 }
 
+// fetch 실패 진단용 — "TypeError: fetch failed"만으론 원인을 알 수 없어 .cause 체인을
+// 풀어서(ETIMEDOUT/ECONNRESET/ENOTFOUND/EADDRINUSE/ENOBUFS 등) 함께 보여준다.
+function describeError(err) {
+  if (!err) return "(no error)";
+  const parts = [String(err.message ?? err)];
+  if (err.code) parts.push(`code=${err.code}`);
+  if (err.details) parts.push(`details=${err.details}`);
+  let cause = err.cause;
+  let depth = 0;
+  while (cause && depth < 4) {
+    const code = cause.code || cause.errno;
+    parts.push(`cause=${code ? code + " " : ""}${cause.message ?? cause}`);
+    cause = cause.cause;
+    depth += 1;
+  }
+  return parts.join(" | ");
+}
+
 function parseCollectOutput(output) {
   const steps = [];
   const upserts = [];
@@ -240,7 +258,7 @@ async function reapStaleJobs() {
 
   const { data: stale, error: selErr } = await select;
   if (selErr) {
-    console.error("[collect-worker] reaper 조회 오류:", selErr.message);
+    console.error("[collect-worker] reaper 조회 오류:", describeError(selErr));
     return;
   }
   if (!stale || stale.length === 0) return;
@@ -332,6 +350,7 @@ async function pollAndRun() {
   const progressMap = {};
   let lastProgressWrite = 0;
   let progressDirty = false;
+  let progressWriteErrorLogged = false; // 진단: 진행률 저장이 '처음' 실패한 시각을 한 번만 남긴다.
   const flushProgress = () => {
     progressDirty = false;
     lastProgressWrite = Date.now();
@@ -339,8 +358,22 @@ async function pollAndRun() {
       .from("collect_jobs")
       .update({ progress: { ...progressMap }, updated_at: new Date().toISOString() })
       .eq("id", job.id)
-      .then(() => {})
-      .catch(() => {});
+      .then(({ error }) => {
+        if (error && !progressWriteErrorLogged) {
+          progressWriteErrorLogged = true;
+          console.error(
+            `[collect-worker] ⚠️ 진행률 저장 첫 실패 @ ${new Date().toISOString()} (job ${job.id}): ${describeError(error)}`,
+          );
+        }
+      })
+      .catch((e) => {
+        if (!progressWriteErrorLogged) {
+          progressWriteErrorLogged = true;
+          console.error(
+            `[collect-worker] ⚠️ 진행률 저장 첫 실패(throw) @ ${new Date().toISOString()} (job ${job.id}): ${describeError(e)}`,
+          );
+        }
+      });
   };
   const onProgress = (p) => {
     progressMap[p.step] = {
@@ -383,7 +416,8 @@ async function pollAndRun() {
       .eq("id", job.id);
 
     if (finalErr) {
-      console.error(`[collect-worker] 최종 상태(${status}) 저장 실패: ${job.id} — ${finalErr.message}`);
+      console.error(`[collect-worker] 최종 상태(${status}) 저장 실패: ${job.id} — ${describeError(finalErr)}`);
+      console.error("[collect-worker] 최종 저장 실패 원본 에러:", finalErr);
       // 상세 필드(output·steps·upserts) 없이 상태만이라도 확정해 행이 running으로 박히지 않게 한다.
       const { error: fbErr } = await supabase
         .from("collect_jobs")
@@ -395,7 +429,7 @@ async function pollAndRun() {
         })
         .eq("id", job.id);
       if (fbErr) {
-        console.error(`[collect-worker] 폴백 저장도 실패: ${job.id} — ${fbErr.message}. reaper가 ${STALE_JOB_TIMEOUT_MS / 60_000}분 후 회수합니다.`);
+        console.error(`[collect-worker] 폴백 저장도 실패: ${job.id} — ${describeError(fbErr)}. reaper가 ${STALE_JOB_TIMEOUT_MS / 60_000}분 후 회수합니다.`);
       } else {
         console.warn(`[collect-worker] 상태만 저장(폴백): ${job.id} = ${status} (상세 결과는 누락)`);
       }

@@ -678,7 +678,14 @@ def main() -> None:
             body = e.read().decode("utf-8", errors="ignore")
             print(f"❌ SearchAd HTTP 실패: hospital_id={hospital_id} status={e.code} body={body[:500]}")
         except Exception as e:
-            print(f"❌ SearchAd 수집 실패: hospital_id={hospital_id} err={e}")
+            # 진단: 연결/포트 고갈이면 reason에 WinError 코드(10055 ENOBUFS, 10048 EADDRINUSE,
+            # 10060 ETIMEDOUT 등)가 나온다. 에러 타입과 reason을 함께 남긴다.
+            reason = getattr(e, "reason", None)
+            print(
+                f"❌ SearchAd 수집 실패: hospital_id={hospital_id} "
+                f"err={type(e).__name__}: {e}"
+                + (f" reason={reason!r}" if reason is not None else "")
+            )
 
     print(f"\n✅ SearchAd 전체 처리 완료: total_upsert_rows={total_rows}")
 
