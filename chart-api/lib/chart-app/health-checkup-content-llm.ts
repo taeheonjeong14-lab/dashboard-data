@@ -320,7 +320,7 @@ async function generateHealthCheckupRawJson(model: string, prompt: string, schem
     '- Return exactly one JSON object (RFC8259). No markdown, no ``` fences, no commentary before or after.',
     '- Use UTF-8 JSON strings only; escape raw line breaks inside string values as \\n.',
   ].join(' ');
-  const output = await geminiGenerateText(`${prompt}\n\n${hint}`, { maxOutputTokens: 16384 });
+  const output = await geminiGenerateText(`${prompt}\n\n${hint}`, { maxOutputTokens: 16384, temperature: 0.18 });
   if (!output.trim()) throw new Error('Gemini returned empty content.');
   try {
     const parsed = tryParseJsonObject(output);
@@ -672,7 +672,7 @@ export async function generateHealthCheckupSection(
   ].join('\n');
 
   void model;
-  const output = await geminiGenerateText(`${prompt}\n\n${schemaHint}`, { maxOutputTokens: 16384 });
+  const output = await geminiGenerateText(`${prompt}\n\n${schemaHint}`, { maxOutputTokens: 16384, temperature: 0.18 });
   if (!output.trim()) throw new Error('Gemini returned empty content.');
 
   let parsed: unknown;

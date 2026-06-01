@@ -5,6 +5,8 @@
 export type GeminiTextOptions = {
   /** 기본 8192. 긴 버킷팅 JSON 등은 늘림 */
   maxOutputTokens?: number;
+  /** 기본 0.3. 사실 기반(저창의) 출력이 필요하면 낮춤(예: 건강검진 0.18) */
+  temperature?: number;
 };
 
 export async function geminiGenerateText(prompt: string, opts?: GeminiTextOptions): Promise<string> {
@@ -19,13 +21,14 @@ export async function geminiGenerateText(prompt: string, opts?: GeminiTextOption
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(key)}`;
 
   const maxOut = opts?.maxOutputTokens ?? 8192;
+  const temperature = opts?.temperature ?? 0.3;
 
   const res = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       contents: [{ parts: [{ text: prompt }] }],
-      generationConfig: { temperature: 0.3, maxOutputTokens: maxOut },
+      generationConfig: { temperature, maxOutputTokens: maxOut },
     }),
   });
 
