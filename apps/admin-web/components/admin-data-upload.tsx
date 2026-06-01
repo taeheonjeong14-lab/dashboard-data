@@ -130,6 +130,10 @@ export default function AdminDataUpload() {
   // SearchAd 기간 지정(선택). 비우면 기존 자동(빠진 날짜) 수집.
   const [searchadStart, setSearchadStart] = useState('');
   const [searchadEnd, setSearchadEnd] = useState('');
+  // 수집 이력 아이템 클릭 시 상세 로그(output)를 펼쳐 보여준다. (한 번에 하나만)
+  const [expandedHistoryId, setExpandedHistoryId] = useState<string | null>(null);
+  const [historyDetail, setHistoryDetail] = useState<CollectJob | null>(null);
+  const [historyDetailLoading, setHistoryDetailLoading] = useState(false);
 
   const totalSelected = Array.from(selection.values()).reduce((sum, s) => sum + s.size, 0);
   const totalPossible = hospitals.length * COLLECT_STEPS.length;
@@ -299,6 +303,26 @@ export default function AdminDataUpload() {
       setCollectHistory(data.jobs ?? []);
     } finally {
       setHistoryLoading(false);
+    }
+  }
+
+  // 이력 아이템을 펼치면 그 잡의 전체 output을 불러온다(목록 응답엔 output이 없음).
+  async function toggleHistoryDetail(id: string) {
+    if (expandedHistoryId === id) {
+      setExpandedHistoryId(null);
+      setHistoryDetail(null);
+      return;
+    }
+    setExpandedHistoryId(id);
+    setHistoryDetail(null);
+    setHistoryDetailLoading(true);
+    try {
+      const res = await fetch(`/api/admin/collect/status/${id}`, { credentials: 'include' });
+      if (res.ok) setHistoryDetail((await res.json()) as CollectJob);
+    } catch {
+      /* 무시 — 아래에서 "로그 없음" 처리 */
+    } finally {
+      setHistoryDetailLoading(false);
     }
   }
 
@@ -841,9 +865,10 @@ export default function AdminDataUpload() {
                       return (
                         <div
                           key={h.id}
-                          style={{ padding: '10px 12px', background: '#f8fafc', border: `1px solid ${failedSteps.length > 0 ? 'rgba(185,28,28,0.25)' : '#e2e8f0'}`, borderRadius: 6, fontSize: 12 }}
+                          onClick={() => void toggleHistoryDetail(h.id)}
+                          style={{ padding: '10px 12px', background: '#f8fafc', border: `1px solid ${failedSteps.length > 0 ? 'rgba(185,28,28,0.25)' : '#e2e8f0'}`, borderRadius: 6, fontSize: 12, cursor: 'pointer' }}
                         >
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: hasDetails ? 8 : 0 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: hasDetails || expandedHistoryId === h.id ? 8 : 0 }}>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                               <span style={{ fontWeight: 600, color: '#0f172a' }}>{hospitalName}</span>
                               <span style={{ color: '#64748b' }}>
@@ -851,8 +876,9 @@ export default function AdminDataUpload() {
                                 {h.finished_at && ` · ${durationSec(h.started_at, h.finished_at)}`}
                               </span>
                             </div>
-                            <span style={{ fontWeight: 700, color: STATUS_COLOR[h.status], whiteSpace: 'nowrap', marginLeft: 8 }}>
-                              {STATUS_LABEL[h.status]}
+                            <span style={{ display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap', marginLeft: 8 }}>
+                              <span style={{ fontWeight: 700, color: STATUS_COLOR[h.status] }}>{STATUS_LABEL[h.status]}</span>
+                              <span style={{ color: '#94a3b8', fontSize: 11 }}>{expandedHistoryId === h.id ? '▴ 로그' : '▾ 로그'}</span>
                             </span>
                           </div>
                           {failedSteps.length > 0 && (
@@ -877,6 +903,22 @@ export default function AdminDataUpload() {
                                   </span>
                                 </div>
                               ))}
+                            </div>
+                          )}
+                          {expandedHistoryId === h.id && (
+                            <div
+                              onClick={(e) => e.stopPropagation()}
+                              style={{ borderTop: '1px solid #e2e8f0', marginTop: 8, paddingTop: 8, cursor: 'default' }}
+                            >
+                              {historyDetailLoading ? (
+                                <p style={{ margin: 0, fontSize: 12, color: '#64748b' }}>로그 불러오는 중…</p>
+                              ) : historyDetail?.output ? (
+                                <pre style={{ margin: 0, fontSize: 11, lineHeight: 1.6, color: '#334155', background: '#fff', border: '1px solid #e2e8f0', borderRadius: 6, padding: 12, overflow: 'auto', maxHeight: 400, whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
+                                  {historyDetail.output}
+                                </pre>
+                              ) : (
+                                <p style={{ margin: 0, fontSize: 12, color: '#94a3b8' }}>저장된 로그가 없습니다.</p>
+                              )}
                             </div>
                           )}
                         </div>
