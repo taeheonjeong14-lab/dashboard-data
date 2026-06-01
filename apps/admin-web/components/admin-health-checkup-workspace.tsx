@@ -32,6 +32,12 @@ const OVER_MAX_WARNING = ' (최대 글자수를 초과하였습니다. 현재 �
 
 const labelGrid: CSSProperties = { fontSize: 13, display: 'grid', gap: 4 };
 
+// 장기별 '주요 진단 내용'에 자주 쓰는 상용구 — 원클릭으로 입력칸에 채운다.
+const DIAGNOSIS_QUICK_PHRASES = [
+  '이번 검진 프로그램에 포함되지 않은 영역입니다.',
+  '검진 결과 특이사항 발견되지 않았습니다.',
+] as const;
+
 const SPECIES_OPTIONS = ['Canine (개)', 'Feline (고양이)'] as const;
 const SEX_OPTIONS = ['암컷(중성화)', '수컷(중성화)', '암컷', '수컷'] as const;
 
@@ -970,34 +976,52 @@ export function AdminHealthCheckupWorkspace({
                     </div>
                   </summary>
                   <div style={{ padding: '12px 14px', display: 'grid', gap: 10 }}>
-                    {block.rows.map((row, ri) => (
+                    {block.rows.map((row, ri) => {
+                      const setRowContent = (v: string) => {
+                        setDraft((prev) => {
+                          const cur = getStructuredBlocksFromDraft(prev, k);
+                          if (!cur[bi] || cur[bi].variant !== 'rows') return prev;
+                          const nextBlocks = structuredClone(cur) as HealthSystemsReportBlock[];
+                          const b = nextBlocks[bi];
+                          if (b.variant !== 'rows') return prev;
+                          const nr = [...b.rows];
+                          nr[ri] = { ...nr[ri], content: v };
+                          nextBlocks[bi] = { ...b, rows: nr };
+                          return { ...prev, [k]: nextBlocks };
+                        });
+                      };
+                      const isDiagnosisRow = row.label.includes('주요 진단');
+                      return (
                       <label key={ri} style={{ fontSize: 12, display: 'grid', gap: 4 }}>
                         <span style={{ color: '#64748b' }}>{row.label}</span>
+                        {isDiagnosisRow && (
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 2 }}>
+                            {DIAGNOSIS_QUICK_PHRASES.map((phrase) => (
+                              <button
+                                key={phrase}
+                                type="button"
+                                onClick={() => setRowContent(phrase)}
+                                title="클릭하면 이 문구로 입력칸을 채웁니다"
+                                style={{ fontSize: 11, padding: '3px 8px', borderRadius: 5, border: '1px solid #cbd5e1', background: '#f1f5f9', color: '#334155', cursor: 'pointer', textAlign: 'left' }}
+                              >
+                                + {phrase}
+                              </button>
+                            ))}
+                          </div>
+                        )}
                         <textarea
                           rows={3}
                           style={{ width: '100%', padding: 8, fontSize: 13 }}
                           value={row.content}
-                          onChange={(e) => {
-                            const v = e.target.value;
-                            setDraft((prev) => {
-                              const cur = getStructuredBlocksFromDraft(prev, k);
-                              if (!cur[bi] || cur[bi].variant !== 'rows') return prev;
-                              const nextBlocks = structuredClone(cur) as HealthSystemsReportBlock[];
-                              const b = nextBlocks[bi];
-                              if (b.variant !== 'rows') return prev;
-                              const nr = [...b.rows];
-                              nr[ri] = { ...nr[ri], content: v };
-                              nextBlocks[bi] = { ...b, rows: nr };
-                              return { ...prev, [k]: nextBlocks };
-                            });
-                          }}
+                          onChange={(e) => setRowContent(e.target.value)}
                         />
                         <span style={{ fontSize: 11, color: row.content.length > rowMax ? '#b91c1c' : '#b45309' }}>
                           {row.content.length} / {rowMax}
                           {row.content.length > rowMax ? OVER_MAX_WARNING : ''}
                         </span>
                       </label>
-                    ))}
+                      );
+                    })}
                     {(() => {
                       const imgBlock = blocks[bi + 1];
                       if (!imgBlock || !isImageVariant(imgBlock.variant)) return null;
