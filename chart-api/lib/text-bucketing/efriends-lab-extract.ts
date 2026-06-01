@@ -43,6 +43,17 @@ function isEfriendsRadiologyResultSectionLine(t: string): boolean {
   return /\bradiology\s+result\b/i.test(t.trim());
 }
 
+/**
+ * 날짜 비교표(중복) 섹션 시작 신호.
+ * 우리가 쓰는 날짜별 표는 헤더가 `Name · Reference · Result · Unit` 순이고 참고구간 칸엔 날짜가 없다.
+ * 반면 같은 데이터를 여러 날짜로 나란히 비교하는 표는 헤더의 참고구간 칸에 날짜가 붙어
+ * `Reference 2026-05-25` 형태로 나온다. 이 줄부터는 앞 표와 중복되는 비교표이므로 lab 수집을 끊는다.
+ */
+const EFRIENDS_COMPARISON_REFERENCE_DATE_RE = /^reference\s+20\d{2}[-/.]\d{1,2}[-/.]\d{1,2}\b/i;
+function isEfriendsComparisonTableStartLine(t: string): boolean {
+  return EFRIENDS_COMPARISON_REFERENCE_DATE_RE.test(t.trim());
+}
+
 /** Lab 날짜 블록 안의 신체검사 서브섹션 제목 (Idexx 표 헤더 직전 한 줄). */
 function isEfriendsPhysicalExamSectionTitle(t: string): boolean {
   const s = t.replace(/\s+/g, " ").trim();
@@ -857,6 +868,14 @@ export function extractEfriendsLabAndPhysicalExamBuckets(
             sectionContextLine = null;
             break;
           }
+          if (isEfriendsComparisonTableStartLine(innerText)) {
+            // 날짜 비교표 시작 — 중복 데이터라 세션 종료하고 이후는 수집하지 않는다.
+            collectingPhysicalExam = false;
+            pendingDate = null;
+            pendingLabDateLines = [];
+            sectionContextLine = null;
+            break;
+          }
           if (isEfriendsLabDataEndNoiseLine(innerText)) {
             if (efriendsLabResumesAfterFooterNoise(pdfLines, i)) {
               physicalOut.push({ page: inner.page, text: inner.text, corrected: false });
@@ -915,6 +934,14 @@ export function extractEfriendsLabAndPhysicalExamBuckets(
         }
 
         if (EFRIENDS_CHART_VISIT_DATE_LINE_RE.test(innerText)) {
+          pendingDate = null;
+          pendingLabDateLines = [];
+          sectionContextLine = null;
+          break;
+        }
+
+        if (isEfriendsComparisonTableStartLine(innerText)) {
+          // 날짜 비교표 시작 — 중복 데이터라 세션 종료하고 이후는 수집하지 않는다.
           pendingDate = null;
           pendingLabDateLines = [];
           sectionContextLine = null;
@@ -1053,6 +1080,10 @@ export function parseEfriendsLabItemsFromBucketLines(lines: EfriendsBucketLine[]
       i += 1;
       continue;
     }
+    if (isEfriendsComparisonTableStartLine(t)) {
+      // 날짜 비교표(중복) 시작 — 이후 줄은 파싱하지 않는다(방어적).
+      break;
+    }
     if (extractLabDateTime(t)) {
       i += 1;
       continue;
@@ -1070,6 +1101,11 @@ export function parseEfriendsLabItemsFromBucketLines(lines: EfriendsBucketLine[]
       continue;
     }
     if (isEfriendsChartVisitMetaLine(t)) {
+      i += 1;
+      continue;
+    }
+    // 환자 문서 헤더 메타(Client:/Patient:)는 검사 행이 아님 — 비교표 앞머리에서 새어들어와도 무시.
+    if (/^(client|patient)\s*:/i.test(t)) {
       i += 1;
       continue;
     }
