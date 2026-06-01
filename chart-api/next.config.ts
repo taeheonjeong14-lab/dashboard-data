@@ -4,6 +4,7 @@ import path from 'node:path';
 const nextConfig: NextConfig = {
   // 모노레포 루트를 명시 — Turbopack이 워크스페이스 루트를 잘못 추론해 next/package.json을
   // 못 찾고, chart-api 바깥의 공유 패키지(packages/*)도 컴파일 못 하던 빌드 에러 방지.
+  // (루트 = chart-api 의 상위 = 레포 루트)
   turbopack: {
     root: path.join(__dirname, '..'),
   },
