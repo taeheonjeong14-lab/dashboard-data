@@ -3,6 +3,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { createServiceRoleClient } from '@/lib/supabase/service-role';
 
+export const maxDuration = 60;
+
 const CASE_IMAGE_BUCKET = 'case-image';
 const ALLOWED_EXT = new Set(['jpg', 'jpeg', 'png', 'webp']);
 
@@ -43,15 +45,18 @@ export async function POST(request: NextRequest) {
 
   try {
     const srvc = createServiceRoleClient();
-    const uploads: { path: string; token: string }[] = [];
-    for (const rawExt of exts) {
-      const e = String(rawExt).toLowerCase();
-      const ext = ALLOWED_EXT.has(e) ? e : 'jpg';
-      const path = `${hospitalId}/${runId}/${randomUUID()}.${ext}`;
-      const { data, error } = await srvc.storage.from(CASE_IMAGE_BUCKET).createSignedUploadUrl(path);
-      if (error || !data) throw new Error(error?.message ?? '서명 URL 생성 실패');
-      uploads.push({ path: data.path, token: data.token });
-    }
+    // 서명 URL을 병렬 생성한다(순차 for문은 이미지가 많을 때 함수 타임아웃 위험).
+    // Promise.all은 입력 순서를 보존하므로 클라이언트의 imageFiles[idx] 매핑이 유지된다.
+    const uploads = await Promise.all(
+      exts.map(async (rawExt) => {
+        const e = String(rawExt).toLowerCase();
+        const ext = ALLOWED_EXT.has(e) ? e : 'jpg';
+        const path = `${hospitalId}/${runId}/${randomUUID()}.${ext}`;
+        const { data, error } = await srvc.storage.from(CASE_IMAGE_BUCKET).createSignedUploadUrl(path);
+        if (error || !data) throw new Error(error?.message ?? '서명 URL 생성 실패');
+        return { path: data.path, token: data.token };
+      }),
+    );
     return NextResponse.json({ uploads });
   } catch (e) {
     console.error('POST /api/health-report/case-images/sign:', e);

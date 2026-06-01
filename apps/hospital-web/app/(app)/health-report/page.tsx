@@ -77,6 +77,8 @@ export default function HealthReportPage() {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [progressMessage, setProgressMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
+  // 이미지 일부/전부 업로드 실패 시 소프트 경고(제출 자체는 성공 — 강조·스티커는 저장됨).
+  const [imageWarning, setImageWarning] = useState('');
 
   const { hospitalId } = useHospital();
 
@@ -177,8 +179,8 @@ export default function HealthReportPage() {
   // Image upload — 서버에서 발급한 서명 URL로 case-image 버킷에 직접 업로드.
   // (서비스 롤이 경로/URL을 발급하므로 클라이언트 스토리지 RLS·함수 본문 크기 제한에 의존하지 않음)
   // ---------------------------------------------------------------------------
-  async function uploadImages(runId: string): Promise<string[]> {
-    if (imageFiles.length === 0) return [];
+  async function uploadImages(runId: string): Promise<{ paths: string[]; failed: number }> {
+    if (imageFiles.length === 0) return { paths: [], failed: 0 };
     const supabase = createClient();
     const exts = imageFiles.map((f) => (f.name.split('.').pop() || 'jpg').toLowerCase());
     const signRes = await fetch('/api/health-report/case-images/sign', {
@@ -186,25 +188,39 @@ export default function HealthReportPage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ runId, exts }),
     });
-    const signData = (await signRes.json()) as {
-      uploads?: { path: string; token: string }[]; error?: string;
+    // ok 체크를 .json() 앞에 둔다 — 타임아웃/에러 시 비-JSON 응답이 와도 "JSON" 파싱 에러가 아니라 진짜 원인이 뜨도록.
+    if (!signRes.ok) {
+      const err = (await signRes.json().catch(() => ({}))) as { error?: string };
+      throw new Error(err.error ?? `이미지 업로드 URL 생성에 실패했습니다. (HTTP ${signRes.status})`);
+    }
+    const signData = (await signRes.json().catch(() => ({}))) as {
+      uploads?: { path: string; token: string }[];
     };
-    if (!signRes.ok) throw new Error(signData.error ?? '이미지 업로드 URL 생성에 실패했습니다.');
     const uploads = signData.uploads ?? [];
 
+    // 동시 업로드 개수를 제한하고, 개별 실패는 허용한다(best-effort). 한 장이 실패해도 전체를 죽이지 않음.
+    const CONCURRENCY = 6;
     const paths: string[] = [];
-    await Promise.all(
-      uploads.map(async ({ path, token }, idx) => {
-        const file = imageFiles[idx];
-        if (!file) return;
-        const { error } = await supabase.storage
-          .from(CASE_IMAGE_BUCKET)
-          .uploadToSignedUrl(path, token, file, { contentType: file.type });
-        if (error) throw new Error(`이미지 업로드에 실패했습니다: ${error.message}`);
-        paths.push(path);
-      }),
-    );
-    return paths;
+    let failed = 0;
+    for (let i = 0; i < uploads.length; i += CONCURRENCY) {
+      const batch = uploads.slice(i, i + CONCURRENCY);
+      await Promise.all(
+        batch.map(async ({ path, token }, j) => {
+          const file = imageFiles[i + j];
+          if (!file) return;
+          try {
+            const { error } = await supabase.storage
+              .from(CASE_IMAGE_BUCKET)
+              .uploadToSignedUrl(path, token, file, { contentType: file.type });
+            if (error) throw error;
+            paths.push(path);
+          } catch {
+            failed += 1;
+          }
+        }),
+      );
+    }
+    return { paths, failed };
   }
 
   // ---------------------------------------------------------------------------
@@ -235,6 +251,7 @@ export default function HealthReportPage() {
     setProgressMessage('업로드 URL 생성 중…');
     setUploadProgress(0);
     setErrorMessage('');
+    setImageWarning('');
 
     try {
       // Step 1 — signed URL
@@ -272,11 +289,28 @@ export default function HealthReportPage() {
       if (!extractData.runId) throw new Error('runId를 받지 못했습니다.');
       const runId = extractData.runId;
 
-      // Step 4 — image upload + hospital_notes save (서버/서비스 롤; admin 목록·pre-fill에 표시됨)
+      // Step 4 — 이미지(best-effort) + hospital_notes(항상 저장)
+      // 이미지가 일부/전부 실패해도 강조사항·"병원 제출" 스티커(hospital_notes)는 반드시 저장한다.
       setStage('saving');
       setProgressMessage('접수 정보 저장 중…');
-      const imagePaths = await uploadImages(runId);
+      let imagePaths: string[] = [];
+      let imgFailed = 0;
+      let imgStepFailed = false;
+      try {
+        const r = await uploadImages(runId);
+        imagePaths = r.paths;
+        imgFailed = r.failed;
+      } catch {
+        imgStepFailed = true; // 서명 URL 단계 실패 등 — 그래도 notes는 저장한다
+      }
       await saveHospitalNotes(runId, imagePaths);
+      setImageWarning(
+        imgStepFailed
+          ? '이미지 업로드에 실패했지만 강조사항은 저장되었습니다. 이미지는 다시 등록해 주세요.'
+          : imgFailed > 0
+            ? `이미지 ${imgFailed}장 업로드에 실패했습니다. (강조사항은 저장됨)`
+            : '',
+      );
 
       setStage('done');
       setPdfFile(null);
@@ -500,6 +534,9 @@ export default function HealthReportPage() {
               {stage === 'done' && (
                 <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--success)', textAlign: 'center' }}>
                   요청 완료
+                  {imageWarning && (
+                    <div style={{ marginTop: '6px', fontWeight: 600, color: 'var(--danger)' }}>{imageWarning}</div>
+                  )}
                 </div>
               )}
             </>
