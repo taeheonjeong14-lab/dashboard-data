@@ -286,7 +286,7 @@ export default function AdminChartData() {
                 <span className="adminRailSub">
                   {item.patientName?.trim() ? `${item.patientName.trim()} · ` : ''}
                   {item.friendlyId?.trim() ?? '—'}
-                  {item.fromHospital ? (
+                  {item.isHealthCheckup && (
                     <span
                       style={{
                         marginLeft: 6,
@@ -300,9 +300,26 @@ export default function AdminChartData() {
                         verticalAlign: 'middle',
                       }}
                     >
-                      병원 제출
+                      건강검진
                     </span>
-                  ) : null}
+                  )}
+                  {item.isBlog && (
+                    <span
+                      style={{
+                        marginLeft: 6,
+                        display: 'inline-block',
+                        padding: '1px 6px',
+                        borderRadius: 4,
+                        background: '#dcfce7',
+                        color: '#15803d',
+                        fontSize: 10,
+                        fontWeight: 700,
+                        verticalAlign: 'middle',
+                      }}
+                    >
+                      블로그
+                    </span>
+                  )}
                 </span>
               </button>
             ))

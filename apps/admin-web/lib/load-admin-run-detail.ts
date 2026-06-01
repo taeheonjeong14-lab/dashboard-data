@@ -124,16 +124,19 @@ export async function loadAdminRunDetail(runId: string): Promise<RunDetailRespon
     sb
       .schema('health_report')
       .from('generated_run_content')
-      .select('id')
+      .select('content_type')
       .eq('parse_run_id', runId)
-      .eq('content_type', 'hospital_notes')
-      .maybeSingle(),
+      .in('content_type', ['hospital_notes', 'blog_case']),
   ]);
 
   for (const r of [docRes, basicRes, chartsRes, labsRes, plansRes, vacRes, vitalsRes, physicalRes]) {
     if (r.error) throw new Error(r.error.message);
   }
-  const fromHospitalWeb = hospitalWebRes.data != null;
+  const hospitalContentTypes = new Set(
+    (((hospitalWebRes.data ?? []) as { content_type?: unknown }[]) ?? []).map((r) => String(r.content_type ?? '')),
+  );
+  const isHealthCheckup = hospitalContentTypes.has('hospital_notes');
+  const isBlog = hospitalContentTypes.has('blog_case');
 
   const doc = docRes.data as Record<string, unknown> | null;
   const chartTypeRaw = doc?.chart_type;
@@ -272,7 +275,8 @@ export async function loadAdminRunDetail(runId: string): Promise<RunDetailRespon
       friendlyId: runRow.friendly_id != null ? String(runRow.friendly_id) : null,
       fileName: doc?.file_name != null ? String(doc.file_name) : null,
       chartType,
-      fromHospitalWeb,
+      isHealthCheckup,
+      isBlog,
     },
     basicInfo,
     chartTypeNotice: chartTypeNoticeFor(chartType),

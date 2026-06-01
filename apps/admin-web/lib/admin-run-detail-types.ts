@@ -22,7 +22,10 @@ export type RunDetailResponse = {
     friendlyId: string | null;
     fileName: string | null;
     chartType: RunDetailChartKind;
-    fromHospitalWeb: boolean;
+    /** hospital-ui 건강검진 리포트 제출(hospital_notes 존재) */
+    isHealthCheckup: boolean;
+    /** hospital-ui 블로그 컨텐츠 제출(blog_case 존재) */
+    isBlog: boolean;
   };
   basicInfo: {
     id: string;

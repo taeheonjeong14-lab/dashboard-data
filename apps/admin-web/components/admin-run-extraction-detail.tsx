@@ -939,9 +939,14 @@ export function AdminRunExtractionDetail({
               {result.run.chartType}
             </span>
           )}
-          {result.run.fromHospitalWeb && (
+          {result.run.isHealthCheckup && (
+            <span style={{ fontSize: 12, fontWeight: 700, color: '#1d4ed8', background: '#dbeafe', padding: '3px 8px', borderRadius: 4, border: '1px solid #bfdbfe' }}>
+              건강검진
+            </span>
+          )}
+          {result.run.isBlog && (
             <span style={{ fontSize: 12, fontWeight: 700, color: '#15803d', background: '#dcfce7', padding: '3px 8px', borderRadius: 4, border: '1px solid #bbf7d0' }}>
-              병원제출
+              블로그
             </span>
           )}
           <button
@@ -1002,7 +1007,21 @@ export function AdminRunExtractionDetail({
               {result.run.chartType}
             </span>
           )}
-          {result.run.fromHospitalWeb && (
+          {result.run.isHealthCheckup && (
+            <span style={{
+              fontSize: 11,
+              fontWeight: 700,
+              color: '#1d4ed8',
+              background: '#dbeafe',
+              padding: '2px 8px',
+              borderRadius: 20,
+              border: '1px solid #bfdbfe',
+              letterSpacing: '0.02em',
+            }}>
+              건강검진
+            </span>
+          )}
+          {result.run.isBlog && (
             <span style={{
               fontSize: 11,
               fontWeight: 700,
@@ -1013,7 +1032,7 @@ export function AdminRunExtractionDetail({
               border: '1px solid #bbf7d0',
               letterSpacing: '0.02em',
             }}>
-              병원제출
+              블로그
             </span>
           )}
           <span style={{ marginLeft: 'auto', display: 'inline-flex', gap: 6, alignItems: 'center', marginRight: 14 }}>

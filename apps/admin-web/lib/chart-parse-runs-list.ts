@@ -10,7 +10,10 @@ export type ParseRunListItem = {
   hospitalName: string | null;
   ownerName: string | null;
   patientName: string | null;
-  fromHospital: boolean;
+  /** hospital-ui 건강검진 리포트 제출(hospital_notes 존재) */
+  isHealthCheckup: boolean;
+  /** hospital-ui 블로그 컨텐츠 제출(blog_case 존재) */
+  isBlog: boolean;
 };
 
 function nonEmptyText(v: unknown): string | null {
@@ -42,7 +45,8 @@ function mapParseRunRow(row: Record<string, unknown>): ParseRunListItem | null {
     hospitalName: nonEmptyText(basic?.hospital_name),
     ownerName: nonEmptyText(basic?.owner_name),
     patientName: nonEmptyText(basic?.patient_name),
-    fromHospital: false,
+    isHealthCheckup: false,
+    isBlog: false,
   };
 }
 
@@ -76,19 +80,27 @@ export async function listRecentParseRuns(limit = 80): Promise<ParseRunListItem[
   const rows = (data ?? []) as Record<string, unknown>[];
   const items = rows.map(mapParseRunRow).filter((r): r is ParseRunListItem => r != null);
 
-  // 병원(hospital-ui) 제출 여부: hospital_notes content 가 있으면 표시
+  // hospital-ui 제출 출처 표시: hospital_notes=건강검진, blog_case=블로그.
   const ids = items.map((i) => i.id);
   if (ids.length > 0) {
-    const { data: notes } = await supabase
+    const { data: contents } = await supabase
       .schema('health_report')
       .from('generated_run_content')
-      .select('parse_run_id')
-      .eq('content_type', 'hospital_notes')
+      .select('parse_run_id, content_type')
+      .in('content_type', ['hospital_notes', 'blog_case'])
       .in('parse_run_id', ids);
-    const hospitalSet = new Set(
-      (notes ?? []).map((n) => String((n as { parse_run_id?: unknown }).parse_run_id ?? '')),
-    );
-    for (const it of items) it.fromHospital = hospitalSet.has(it.id);
+    const healthSet = new Set<string>();
+    const blogSet = new Set<string>();
+    for (const c of contents ?? []) {
+      const rid = String((c as { parse_run_id?: unknown }).parse_run_id ?? '');
+      const ct = String((c as { content_type?: unknown }).content_type ?? '');
+      if (ct === 'hospital_notes') healthSet.add(rid);
+      else if (ct === 'blog_case') blogSet.add(rid);
+    }
+    for (const it of items) {
+      it.isHealthCheckup = healthSet.has(it.id);
+      it.isBlog = blogSet.has(it.id);
+    }
   }
   return items;
 }
