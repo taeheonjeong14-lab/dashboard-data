@@ -15,6 +15,8 @@ from __future__ import annotations
 import base64
 import hashlib
 import hmac
+import http.client
+import io
 import json
 import os
 import time
@@ -22,7 +24,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 from urllib.error import HTTPError
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlsplit
 from urllib.request import Request, urlopen
 
 
@@ -197,6 +199,30 @@ def build_searchad_headers(method: str, uri: str, api_license: str, secret_key: 
     }
 
 
+# SearchAd API 호출은 keep-alive 영속 연결을 host별로 재사용한다.
+# (호출마다 새 연결을 열면 호출 수만큼 DNS 조회가 일어나 리졸버가 과부하 → getaddrinfo ENOTFOUND.
+#  연결을 재사용하면 DNS 조회는 host당 사실상 처음 1번이 된다.)
+_searchad_conns: dict[str, http.client.HTTPSConnection] = {}
+
+
+def _searchad_connection(base_url: str) -> tuple[http.client.HTTPSConnection, str]:
+    host = urlsplit(base_url.rstrip("/")).netloc
+    conn = _searchad_conns.get(host)
+    if conn is None:
+        conn = http.client.HTTPSConnection(host, timeout=60)
+        _searchad_conns[host] = conn
+    return conn, host
+
+
+def _searchad_reset(host: str) -> None:
+    conn = _searchad_conns.pop(host, None)
+    if conn is not None:
+        try:
+            conn.close()
+        except Exception:
+            pass
+
+
 def searchad_get(
     base_url: str,
     uri: str,
@@ -206,14 +232,33 @@ def searchad_get(
     customer_id: str,
 ) -> Any:
     query = urlencode(params)
-    url = f"{base_url.rstrip('/')}{uri}"
-    if query:
-        url = f"{url}?{query}"
+    path = f"{uri}?{query}" if query else uri
     headers = build_searchad_headers("GET", uri, api_license, secret_key, customer_id)
-    req = Request(url, headers=headers, method="GET")
-    with urlopen(req, timeout=60) as res:
-        body = res.read().decode("utf-8")
-    return json.loads(body) if body else {}
+    last_err: Exception | None = None
+    # keep-alive 연결이 만료/단절돼 있으면 한 번 닫고 재연결해 재시도.
+    for _attempt in range(2):
+        conn, host = _searchad_connection(base_url)
+        try:
+            conn.request("GET", path, headers=headers)
+            res = conn.getresponse()
+            body = res.read().decode("utf-8")  # 연결 재사용을 위해 본문을 끝까지 읽는다
+            if res.status >= 400:
+                raise HTTPError(
+                    f"{base_url.rstrip('/')}{uri}",
+                    res.status,
+                    body,
+                    res.headers,
+                    io.BytesIO(body.encode("utf-8")),
+                )
+            return json.loads(body) if body else {}
+        except HTTPError:
+            raise
+        except (http.client.HTTPException, OSError) as e:
+            last_err = e
+            _searchad_reset(host)
+    if last_err is not None:
+        raise last_err
+    return {}
 
 
 def fetch_campaigns(base_url: str, api_license: str, secret_key: str, customer_id: str) -> list[dict[str, Any]]:
