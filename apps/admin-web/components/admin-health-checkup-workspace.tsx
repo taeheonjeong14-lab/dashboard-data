@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties }
 import {
   HEALTH_CHECKUP_DENTAL_SKIN_ROW_MAX_CHARS,
   HEALTH_CHECKUP_LAB_INTERP_MAX_CHARS,
+  HEALTH_CHECKUP_MAX_COVER_BREED_CHARS,
   HEALTH_CHECKUP_MAX_COVER_CHECKUP_DATE_CHARS,
   HEALTH_CHECKUP_MAX_COVER_FIELD_CHARS,
   HEALTH_CHECKUP_MAX_COVER_SEX_CHARS,
@@ -769,7 +770,7 @@ export function AdminHealthCheckupWorkspace({
                   onChange={(e) =>
                     setDraft((d) => ({
                       ...d,
-                      coverPatientBreed: clamp(e.target.value, HEALTH_CHECKUP_MAX_COVER_SHORT_FIELD_CHARS),
+                      coverPatientBreed: clamp(e.target.value, HEALTH_CHECKUP_MAX_COVER_BREED_CHARS),
                     }))
                   }
                 />

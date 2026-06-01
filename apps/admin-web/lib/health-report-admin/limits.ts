@@ -8,6 +8,9 @@ export const HEALTH_CHECKUP_MAX_RECHECK_BODY_CHARS = 50;
 
 export const HEALTH_CHECKUP_MAX_COVER_FIELD_CHARS = 500;
 export const HEALTH_CHECKUP_MAX_COVER_SHORT_FIELD_CHARS = 7;
+// 품종은 "래브라도리트리버"(8자)처럼 7자를 넘는 경우가 흔해 별도로 넉넉히 둔다.
+// 표지의 품종 dd는 1fr 그리드 + overflow-wrap이라 길면 줄바꿈될 뿐 레이아웃은 안 깨진다.
+export const HEALTH_CHECKUP_MAX_COVER_BREED_CHARS = 20;
 export const HEALTH_CHECKUP_MAX_COVER_CHECKUP_DATE_CHARS = 32;
 export const HEALTH_CHECKUP_MAX_COVER_SEX_CHARS = 12;
 
