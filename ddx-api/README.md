@@ -50,5 +50,3 @@ Schema matches Supabase (`core`, `robovet`). Use migrations from `dashboard-data
 
 진료 차트·건강검진(vet-report 호환) API는 **`chart-api`** 디렉터리의 별도 Next 앱으로 분리되어 있습니다.
 
-<!-- 배포 필터 테스트 2회차: 이 줄은 의미 없는 주석이며 런타임에 영향 없음. -->
-
