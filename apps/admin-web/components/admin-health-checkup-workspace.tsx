@@ -1070,7 +1070,7 @@ export function AdminHealthCheckupWorkspace({
                               title={implicationPhrase}
                               style={{ fontSize: 11, padding: '3px 8px', borderRadius: 5, border: '1px solid #cbd5e1', background: '#f1f5f9', color: '#334155', cursor: 'pointer', textAlign: 'left' }}
                             >
-                              + 추천 시사점 문구 넣기
+                              + 특이사항 없는 경우 문구
                             </button>
                           </div>
                         )}
