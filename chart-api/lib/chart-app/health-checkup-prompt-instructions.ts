@@ -203,6 +203,7 @@ export function healthCheckupOrganBlockLines(key: string): string[] {
     `- 관련 질환: ${s.diseases}`,
     `- 인용 검사(데이터에 있으면 인용): ${s.citedTests}`,
     healthCheckupRequiredCheckItemsLine(key),
+    '- **주요 진단에 검사 수치를 쓰면 숫자만 적지 말고, 그 값이 정상인지·이상인지와 무슨 의미인지를 반드시 짧게 한마디 덧붙인다.**',
     '- 관련 근거가 없으면 위 고정 문구를 사용한다.',
     `- 주요 진단 최대 ${dxMax}자, 시사점 최대 ${impMax}자`,
   ];
@@ -231,6 +232,7 @@ export function healthCheckupLabInterpretationLines(): string[] {
     '- 혈액검사 결과 페이지 상단에 들어가는 전체 해석 요약이다.',
     '- 임상적으로 의미 있는 이상 소견을 중심으로 보호자가 이해할 수 있도록 해석한다.',
     '- 정상 범위를 벗어난 항목들의 의미, 관련 질환 가능성, 주의사항 등을 간결하게 설명한다.',
+    '- **수치를 언급할 때마다 숫자만 나열하지 말고, 그 값이 정상인지·이상인지와 무슨 의미인지를 반드시 짧게 함께 쓴다.**',
     '- 모든 수치가 정상이면 정상임을 알리되, 특히 유의할 점이 있으면 짧게 언급한다.',
     `- 글자 수 제한: 공백 포함 최대 ${HEALTH_CHECKUP_PROMPT_LAB_INTERP_MAX_CHARS}자`,
   ];
