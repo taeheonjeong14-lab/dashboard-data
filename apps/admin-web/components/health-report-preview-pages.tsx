@@ -9,6 +9,8 @@ import '@fontsource/pretendard/400.css';
 import '@fontsource/pretendard/500.css';
 import '@fontsource/pretendard/700.css';
 import '@fontsource/pretendard/900.css';
+import '@fontsource/hahmlet/400.css';
+import '@fontsource/hahmlet/800.css';
 
 import type {
   HealthReportCoverSheetProps,

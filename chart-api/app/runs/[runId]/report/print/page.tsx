@@ -13,6 +13,8 @@ import '@fontsource/pretendard/400.css';
 import '@fontsource/pretendard/500.css';
 import '@fontsource/pretendard/700.css';
 import '@fontsource/pretendard/900.css';
+import '@fontsource/hahmlet/400.css';
+import '@fontsource/hahmlet/800.css';
 import { PARSE_RUN_UUID_RE, parseRunExists } from '@/lib/parse-run-check';
 import { getChartPgPool } from '@/lib/db';
 import { hospitalRowFromDb } from '@/lib/chart-app/hospital-db';

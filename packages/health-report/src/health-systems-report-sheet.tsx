@@ -1,6 +1,7 @@
 import { Fragment } from "react";
 import "./health-systems-report-sheet.css";
 import { HealthReportInnerSheetHeader } from "./health-report-inner-sheet-header";
+import { iranSuffix } from "./korean-josa";
 
 export type HealthSystemsReportRow = {
   label: string;
@@ -360,7 +361,7 @@ export function HealthSystemsReportSheet({
                     <circle cx="12" cy="12" r="11" />
                     <path d="M6.5 12.5l3.5 3.6L17.5 8" />
                   </svg>
-                  <p className="hsr-disease-box__title">{block.name}이란?</p>
+                  <p className="hsr-disease-box__title">{block.name}{iranSuffix(block.name)}?</p>
                 </div>
                 <p className="hsr-disease-box__body">{block.body}</p>
               </div>

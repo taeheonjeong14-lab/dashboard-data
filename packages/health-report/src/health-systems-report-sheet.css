@@ -167,6 +167,7 @@
   flex-direction: column;
   gap: 1.5mm;
   padding: 3mm 4mm;
+  font-family: var(--report-a4-disease-box-font);
   border: 1px solid var(--report-a4-disease-box-title);
   border-left: 3px solid var(--report-a4-disease-box-title);
   border-radius: 8px;

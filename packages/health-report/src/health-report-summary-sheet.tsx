@@ -10,6 +10,23 @@ function splitParagraphs(text: string): string[] {
   return text.split(/\n/).map((p) => p.trim()).filter(Boolean);
 }
 
+/**
+ * 종합소견·사후관리 문단 렌더.
+ * 「번호. 주제명」으로 시작하는 줄(첫 줄)은 bold 처리하고, 그 아래 본문 줄은 기본 굵기로 둔다.
+ */
+function renderSummaryParagraph(para: string, i: number) {
+  const nl = para.indexOf("\n");
+  const firstLine = nl === -1 ? para : para.slice(0, nl);
+  const rest = nl === -1 ? null : para.slice(nl);
+  const numbered = /^\s*\d+\.\s/.test(firstLine);
+  return (
+    <p key={i} className="hrss-placeholder-text">
+      {numbered ? <span className="hrss-topic-num">{firstLine}</span> : firstLine}
+      {rest}
+    </p>
+  );
+}
+
 export type HealthReportSummaryTimelineItem = {
   intervalLabel: string;
   /** 카드 상단 제목(비우면 미표시). 저장 문자열은 첫 줄바꿈 기준으로 제목/본문 분리 */
@@ -82,9 +99,7 @@ export function HealthReportSummarySheet({
             <hr className="hrss-section-bar" />
           </div>
           <div className="hrss-section-body">
-            {splitParagraphs(overallSummary || " ").map((para, i) => (
-              <p key={i} className="hrss-placeholder-text">{para}</p>
-            ))}
+            {splitParagraphs(overallSummary || " ").map(renderSummaryParagraph)}
           </div>
         </section>
 
@@ -97,9 +112,7 @@ export function HealthReportSummarySheet({
             <hr className="hrss-section-bar" />
           </div>
           <div className="hrss-section-body">
-            {splitParagraphs(followUpPlan || " ").map((para, i) => (
-              <p key={i} className="hrss-placeholder-text">{para}</p>
-            ))}
+            {splitParagraphs(followUpPlan || " ").map(renderSummaryParagraph)}
           </div>
         </section>
 

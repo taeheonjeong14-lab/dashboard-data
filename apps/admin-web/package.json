@@ -11,6 +11,7 @@
     "@dashboard/chart-ingest": "*",
     "@dashboard/health-report": "*",
     "@dashboard/lab-normalize": "*",
+    "@fontsource/hahmlet": "^5.2.8",
     "@fontsource/noto-sans-kr": "^5.2.9",
     "@fontsource/pretendard": "^5.2.5",
     "@supabase/ssr": "^0.10.3",

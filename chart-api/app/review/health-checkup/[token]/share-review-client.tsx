@@ -27,7 +27,7 @@ import {
 import type { HealthPreviewEditableSection } from '@/app/components/report/health-report-preview-pages';
 import { joinTimelineCardText, splitTimelineCardText } from '@/lib/chart-app/health-report-timeline-card';
 import { parseHealthSystemsBlocksFromUnknown } from '@/lib/chart-app/health-report-systems-blocks-parse';
-import { coverCheckupDateToIsoInputValue } from '@dashboard/health-report';
+import { coverCheckupDateToIsoInputValue, iranSuffix } from '@dashboard/health-report';
 import { detectSpeciesProfile } from '@/lib/lab-category-map';
 import type { HealthSystemsReportBlock } from '@dashboard/health-report';
 import {
@@ -431,7 +431,7 @@ function HealthCheckupReviewEditor({ draft, onChange, onSave, saving, activeSect
                       {(b.diseaseOptions ?? []).map((opt, oi) =>
                         opt.enabled ? (
                           <label key={oi} style={{ display: 'block' }}>
-                            <span style={{ display: 'block', fontSize: 11, fontWeight: 500, color: '#52525b', marginBottom: 4 }}>{opt.name}이란?</span>
+                            <span style={{ display: 'block', fontSize: 11, fontWeight: 500, color: '#52525b', marginBottom: 4 }}>{opt.name}{iranSuffix(opt.name)}?</span>
                             <textarea className="hcu-rv-textarea" style={{ minHeight: 80 }} maxLength={DISEASE_BODY_MAX} value={opt.body} onChange={(e) => setSystemsOptionBody(key, bi, oi, e.target.value)} />
                             <CharCountLine current={opt.body.length} max={DISEASE_BODY_MAX} />
                           </label>

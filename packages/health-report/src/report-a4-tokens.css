@@ -37,6 +37,8 @@
     var(--report-a4-disease-box-body) 62%,
     var(--report-a4-disease-box-bg) 38%
   );
+  /** 질환 소개 박스 글씨체(제목·본문). 본문 폰트와 구분되는 감각적 모던 세리프(함렛). 병원 테마에서 override 가능 */
+  --report-a4-disease-box-font: 'Hahmlet', var(--report-a4-font-family);
   --report-a4-font-family:
     "Pretendard",
     "Noto Sans KR",

@@ -121,6 +121,11 @@
   margin-top: 1em;
 }
 
+/* 종합소견·사후관리: 「번호. 주제명」 줄만 bold */
+.hrss-topic-num {
+  font-weight: 700;
+}
+
 .hrss-timeline-bg {
   display: flex;
   flex-direction: column;

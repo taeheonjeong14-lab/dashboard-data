@@ -52,10 +52,10 @@
   "license": "MIT",
   "dependencies": {
     "@supabase/supabase-js": "^2.57.4",
-    "pg": "^8.13.0",
     "dotenv": "^17.2.3",
     "google-ads-api": "^23.0.0",
     "google-auth-library": "^10.6.2",
+    "pg": "^8.13.0",
     "puppeteer-core": "^21.0.0",
     "xlsx": "^0.18.5"
   }

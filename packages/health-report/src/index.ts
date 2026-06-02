@@ -10,5 +10,6 @@ export * from "./health-lab-report-sheet";
 export * from "./health-report-inner-sheet-header";
 
 export * from "./report-director-line";
+export * from "./korean-josa";
 export * from "./kst-date-format";
 export * from "./lab-range-parse";

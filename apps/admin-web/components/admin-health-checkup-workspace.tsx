@@ -23,6 +23,7 @@ import type { HealthCheckupGeneratedContent } from '@/lib/health-report-admin/ty
 import { joinTimelineCardText, splitTimelineCardText } from '@/lib/health-report-admin/timeline-card';
 import type { HealthSystemsReportBlock, HealthSystemsImageSlot } from '@/lib/health-report-admin/health-systems-types';
 import { parseHealthSystemsBlocksFromUnknown } from '@/lib/health-report-admin/health-systems-blocks-parse';
+import { iranSuffix } from '@dashboard/health-report';
 import { AdminHealthReportImageSlots, type CaseImageCandidate } from '@/components/admin-health-report-image-slots';
 import { AdminRunExtractionDetail } from '@/components/admin-run-extraction-detail';
 import { HealthReportPreviewModal } from '@/components/health-report-preview-modal';
@@ -1252,7 +1253,7 @@ export function AdminHealthCheckupWorkspace({
                             return (
                               <div key={oi} style={{ border: '1px solid #e2e8f0', borderRadius: 6, padding: 8, display: 'grid', gap: 6 }}>
                                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-                                  <span style={{ fontSize: 13, fontWeight: 600, color: '#334155' }}>{opt.name}이란?</span>
+                                  <span style={{ fontSize: 13, fontWeight: 600, color: '#334155' }}>{opt.name}{iranSuffix(opt.name)}?</span>
                                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                                     {generating && <span style={{ fontSize: 11, color: '#2563eb' }}>생성 중…</span>}
                                     <button
