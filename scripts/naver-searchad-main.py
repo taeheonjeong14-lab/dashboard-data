@@ -526,6 +526,7 @@ def collect_one_account(
     searchad_base_url: str,
     metric_date: str,
     account: dict[str, Any],
+    campaign_ids: set[str] | None = None,
 ) -> list[dict[str, Any]]:
     hospital_id = str(account.get("hospital_id") or "").strip()
     customer_id = str(account.get("customer_id") or "").strip()
@@ -536,11 +537,25 @@ def collect_one_account(
 
     campaigns = fetch_campaigns(searchad_base_url, api_license, secret_key, customer_id)
     rows: list[dict[str, Any]] = []
+    # 큰 계정은 하루치 수집만으로도 20분 넘게 걸릴 수 있어, 스톨 감지(무출력 hang)에 걸리지 않도록
+    # ~30초마다 살아있다는 진행 신호를 출력한다.
+    last_beat = time.monotonic()
+
+    def beat() -> None:
+        nonlocal last_beat
+        now = time.monotonic()
+        if now - last_beat >= 30:
+            last_beat = now
+            print(f"⏳ {metric_date} 수집 중… (누적 {len(rows)}행)", flush=True)
+
     for campaign in campaigns:
         campaign_id = str(campaign.get("nccCampaignId") or campaign.get("id") or "").strip()
         campaign_name = str(campaign.get("name") or "").strip() or None
         campaign_type = str(campaign.get("campaignTp") or "").strip() or None
         if not campaign_id:
+            continue
+        # 선택 캠페인 필터: 지정돼 있으면 해당 캠페인만 수집.
+        if campaign_ids and campaign_id not in campaign_ids:
             continue
         try:
             stats = fetch_campaign_stats(
@@ -644,6 +659,8 @@ def collect_one_account(
                         f"hospital_id={hospital_id} customer_id={customer_id} campaign_id={campaign_id} "
                         f"adgroup_id={adgroup_id} keyword_id={keyword_id} err={e}"
                     )
+                beat()
+            beat()
     return rows
 
 
@@ -654,6 +671,10 @@ def main() -> None:
     searchad_base_url = os.getenv("SEARCHAD_API_BASE_URL", "https://api.searchad.naver.com").strip()
     force_metric_date = os.getenv("SEARCHAD_METRIC_DATE", "").strip()
     target_hospital_id = os.getenv("COLLECT_HOSPITAL_ID", "").strip()
+    # 선택 캠페인(admin 화면). 지정되면 해당 campaign_id만 수집. 비어 있으면 전체.
+    campaign_ids: set[str] | None = {
+        c.strip() for c in os.getenv("SEARCHAD_CAMPAIGN_IDS", "").split(",") if c.strip()
+    } or None
     # 사용자 지정 기간(admin 화면). 둘 다 있으면 증분/청크를 끄고 이 구간만 수집.
     range_start = os.getenv("SEARCHAD_METRIC_START", "").strip()[:10]
     range_end = os.getenv("SEARCHAD_METRIC_END", "").strip()[:10]
@@ -690,7 +711,7 @@ def main() -> None:
                     f"🔎 SearchAd 수집(단일일 SEARCHAD_METRIC_DATE): hospital_id={hospital_id} "
                     f"customer_id={customer_id} metric_date={force_metric_date}"
                 )
-                rows = collect_one_account(searchad_base_url, force_metric_date, account)
+                rows = collect_one_account(searchad_base_url, force_metric_date, account, campaign_ids)
                 inserted = upsert_daily_metrics(supabase_url, service_key, rows)
                 update_last_synced_at(supabase_url, service_key, hospital_id, customer_id)
                 total_rows += inserted
@@ -739,7 +760,7 @@ def main() -> None:
                 # 진단용 타이밍: API 수집 시간과 upsert 시간을 하루 단위로 분리 측정.
                 # 날이 갈수록 api 초가 늘면 throttling, 처음부터 균일하면 원래 그 정도.
                 t0 = time.monotonic()
-                rows = collect_one_account(searchad_base_url, d, account)
+                rows = collect_one_account(searchad_base_url, d, account, campaign_ids)
                 t1 = time.monotonic()
                 inserted = upsert_daily_metrics(supabase_url, service_key, rows)
                 t2 = time.monotonic()

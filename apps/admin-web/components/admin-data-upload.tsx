@@ -207,6 +207,12 @@ export default function AdminDataUpload() {
   // SearchAd 기간 지정(선택). 비우면 기존 자동(빠진 날짜) 수집.
   const [searchadStart, setSearchadStart] = useState('');
   const [searchadEnd, setSearchadEnd] = useState('');
+  // SearchAd 캠페인 선택(병원별). 비어 있으면 전체 캠페인 수집.
+  const [campaignLists, setCampaignLists] = useState<Record<string, { id: string; name: string; type: string }[]>>({});
+  const [campaignLoading, setCampaignLoading] = useState<Record<string, boolean>>({});
+  const [campaignError, setCampaignError] = useState<Record<string, string>>({});
+  const [campaignSel, setCampaignSel] = useState<Map<string, Set<string>>>(new Map());
+  const [campaignOpen, setCampaignOpen] = useState<Set<string>>(new Set());
   // 수집 이력 아이템 클릭 시 상세 로그(output)를 펼쳐 보여준다. (한 번에 하나만)
   const [expandedHistoryId, setExpandedHistoryId] = useState<string | null>(null);
   const [historyDetail, setHistoryDetail] = useState<CollectJob | null>(null);
@@ -456,6 +462,52 @@ export default function AdminDataUpload() {
       .catch(() => {});
   }, [section]);
 
+  // 병원의 SearchAd 캠페인 목록을 네이버에서 불러온다(선택 수집용).
+  async function loadCampaigns(hid: string) {
+    setCampaignLoading((m) => ({ ...m, [hid]: true }));
+    setCampaignError((m) => ({ ...m, [hid]: '' }));
+    try {
+      const res = await fetch('/api/admin/collect/searchad-campaigns', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ hospitalId: hid }),
+      });
+      const data = (await res.json().catch(() => ({}))) as { campaigns?: { id: string; name: string; type: string }[]; error?: string };
+      if (!res.ok) {
+        setCampaignError((m) => ({ ...m, [hid]: data.error ?? '캠페인을 불러오지 못했습니다.' }));
+        return;
+      }
+      setCampaignLists((m) => ({ ...m, [hid]: data.campaigns ?? [] }));
+    } catch {
+      setCampaignError((m) => ({ ...m, [hid]: '캠페인을 불러오지 못했습니다.' }));
+    } finally {
+      setCampaignLoading((m) => ({ ...m, [hid]: false }));
+    }
+  }
+  function toggleCampaignOpen(hid: string) {
+    setCampaignOpen((prev) => {
+      const next = new Set(prev);
+      if (next.has(hid)) {
+        next.delete(hid);
+      } else {
+        next.add(hid);
+        if (!campaignLists[hid] && !campaignLoading[hid]) void loadCampaigns(hid);
+      }
+      return next;
+    });
+  }
+  function toggleCampaign(hid: string, cid: string, checked: boolean) {
+    setCampaignSel((prev) => {
+      const next = new Map(prev);
+      const s = new Set(next.get(hid) ?? []);
+      if (checked) s.add(cid);
+      else s.delete(cid);
+      next.set(hid, s);
+      return next;
+    });
+  }
+
   async function runCollect() {
     setCollectSubmitting(true);
     // 진행 중인 잡 패널을 비우지 않는다 — 이미 돌고 있는 잡의 진행률도 계속 보이게.
@@ -466,11 +518,15 @@ export default function AdminDataUpload() {
         .filter(([, steps]) => steps.size > 0)
         .map(([hospitalId, steps]) => {
           const stepArr = Array.from(steps);
+          const camp = campaignSel.get(hospitalId);
           return {
             hospitalId,
             steps: stepArr,
             ...(useSearchadRange && stepArr.includes('searchad')
               ? { searchadStart, searchadEnd }
+              : {}),
+            ...(stepArr.includes('searchad') && camp && camp.size > 0
+              ? { searchadCampaignIds: Array.from(camp) }
               : {}),
           };
         });
@@ -687,6 +743,44 @@ export default function AdminDataUpload() {
                                   )}
                                 </label>
                               ))}
+                              {selection.get(h.id)?.has('searchad') && (
+                                <div style={{ padding: '6px 14px 10px 48px', borderTop: '1px solid #f1f5f9', background: '#fcfdff' }}>
+                                  <button
+                                    type="button"
+                                    onClick={() => toggleCampaignOpen(h.id)}
+                                    style={{ fontSize: 12, fontWeight: 600, color: '#1d4ed8', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+                                  >
+                                    {campaignOpen.has(h.id) ? '▴' : '▾'} SearchAd 캠페인{' '}
+                                    {(campaignSel.get(h.id)?.size ?? 0) > 0 ? `(${campaignSel.get(h.id)!.size}개 선택)` : '(전체)'}
+                                  </button>
+                                  {campaignOpen.has(h.id) && (
+                                    <div style={{ marginTop: 6 }}>
+                                      {campaignLoading[h.id] ? (
+                                        <span style={{ fontSize: 12, color: '#64748b' }}>캠페인 불러오는 중…</span>
+                                      ) : campaignError[h.id] ? (
+                                        <span style={{ fontSize: 12, color: '#b91c1c' }}>{campaignError[h.id]}</span>
+                                      ) : (campaignLists[h.id] ?? []).length === 0 ? (
+                                        <span style={{ fontSize: 12, color: '#94a3b8' }}>캠페인이 없습니다.</span>
+                                      ) : (
+                                        <>
+                                          <div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 4 }}>아무것도 선택하지 않으면 전체 캠페인을 수집합니다.</div>
+                                          {campaignLists[h.id].map((c) => (
+                                            <label key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#475569', padding: '3px 0', cursor: 'pointer' }}>
+                                              <input
+                                                type="checkbox"
+                                                checked={campaignSel.get(h.id)?.has(c.id) ?? false}
+                                                onChange={(e) => toggleCampaign(h.id, c.id, e.target.checked)}
+                                              />
+                                              <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.name || c.id}</span>
+                                              {c.type && <span style={{ fontSize: 10, color: '#94a3b8', flexShrink: 0 }}>{c.type}</span>}
+                                            </label>
+                                          ))}
+                                        </>
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+                              )}
                             </div>
                           );
                         })}

@@ -11,7 +11,13 @@ export async function POST(request: Request) {
   if (!gate.ok) return gate.response;
 
   let body: {
-    jobs?: Array<{ hospitalId?: string; steps?: string[]; searchadStart?: string; searchadEnd?: string }>;
+    jobs?: Array<{
+      hospitalId?: string;
+      steps?: string[];
+      searchadStart?: string;
+      searchadEnd?: string;
+      searchadCampaignIds?: string[];
+    }>;
   } = {};
   try {
     body = (await request.json()) as typeof body;
@@ -31,6 +37,7 @@ export async function POST(request: Request) {
     steps_filter: string[] | null;
     searchad_start_date: string | null;
     searchad_end_date: string | null;
+    searchad_campaign_ids: string[] | null;
   }[] = [];
   for (const job of rawJobs) {
     const hid = (job.hospitalId ?? '').trim();
@@ -58,11 +65,19 @@ export async function POST(request: Request) {
       searchadEnd = job.searchadEnd;
     }
 
+    // SearchAd 선택 캠페인: searchad 단계 포함 + 비어있지 않을 때만. 빈 배열/미지정이면 전체 수집.
+    let searchadCampaignIds: string[] | null = null;
+    if (steps.includes('searchad') && Array.isArray(job.searchadCampaignIds)) {
+      const ids = job.searchadCampaignIds.map((c) => String(c).trim()).filter(Boolean);
+      if (ids.length > 0) searchadCampaignIds = ids;
+    }
+
     validated.push({
       hospital_id: hid,
       steps_filter: steps.length < VALID_STEPS.length ? steps : null,
       searchad_start_date: searchadStart,
       searchad_end_date: searchadEnd,
+      searchad_campaign_ids: searchadCampaignIds,
     });
   }
 
@@ -72,10 +87,11 @@ export async function POST(request: Request) {
     .schema('analytics')
     .from('collect_jobs')
     .insert(
-      validated.map(({ hospital_id, steps_filter, searchad_start_date, searchad_end_date }) => ({
+      validated.map(({ hospital_id, steps_filter, searchad_start_date, searchad_end_date, searchad_campaign_ids }) => ({
         hospital_id,
         ...(steps_filter ? { steps_filter } : {}),
         ...(searchad_start_date ? { searchad_start_date, searchad_end_date } : {}),
+        ...(searchad_campaign_ids ? { searchad_campaign_ids } : {}),
       })),
     )
     .select('id, hospital_id');

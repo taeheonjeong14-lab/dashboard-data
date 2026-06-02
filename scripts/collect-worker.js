@@ -353,6 +353,13 @@ async function pollAndRun() {
     extraEnv.SEARCHAD_METRIC_START = String(job.searchad_start_date).slice(0, 10);
     extraEnv.SEARCHAD_METRIC_END = String(job.searchad_end_date).slice(0, 10);
   }
+  // SearchAd 선택 캠페인: 지정돼 있으면 그 campaign_id만 수집(쉼표 구분 env).
+  if (Array.isArray(job.searchad_campaign_ids) && job.searchad_campaign_ids.length > 0) {
+    extraEnv.SEARCHAD_CAMPAIGN_IDS = job.searchad_campaign_ids
+      .map((c) => String(c).trim())
+      .filter(Boolean)
+      .join(",");
+  }
   const accSteps = [];
   const onStepDone = (step) => {
     accSteps.push(step);
