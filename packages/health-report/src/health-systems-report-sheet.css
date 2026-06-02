@@ -152,6 +152,82 @@
   border-bottom: 1px solid var(--hsr-line-weak);
 }
 
+/*
+ * 확진 질환 소개 박스(3·4p 전용). 고정 높이 28mm → 나머지 장기 섹션(flex:1 1 0)이 균등 축소.
+ * 페이지 어디에 들어가도 줄어드는 양이 일정하다.
+ */
+.hsr-section--disease {
+  flex: 0 0 28mm;
+}
+
+.hsr-disease-box {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5mm;
+  padding: 3mm 4mm;
+  border: 1px solid var(--report-a4-disease-box-title);
+  border-left: 3px solid var(--report-a4-disease-box-title);
+  border-radius: 8px;
+  /* 배경 10% 투명(불투명 90%) — 적응형 토큰 유지 */
+  background: color-mix(in srgb, var(--report-a4-disease-box-bg) 90%, transparent);
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+.hsr-disease-box__head {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 2mm;
+}
+
+/* 역동적 체크마크: 강조색 원 + 박스 배경색으로 도려낸 체크, 살짝 기울여 생동감 */
+.hsr-disease-box__check {
+  flex-shrink: 0;
+  width: 6mm;
+  height: 6mm;
+  transform: rotate(-8deg);
+  filter: drop-shadow(0 1px 1.5px rgba(0, 0, 0, 0.25));
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+.hsr-disease-box__check circle {
+  fill: var(--report-a4-disease-box-title);
+}
+
+.hsr-disease-box__check path {
+  fill: none;
+  stroke: var(--report-a4-disease-box-bg);
+  stroke-width: 2.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.hsr-disease-box__title {
+  margin: 0;
+  font-size: var(--report-a4-section-title-ko-font-size);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: var(--report-a4-disease-box-title);
+  line-height: var(--report-a4-section-title-line-height);
+}
+
+.hsr-disease-box__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  margin: 0;
+  overflow: hidden;
+  font-size: var(--report-a4-section-body-placeholder-font-size);
+  line-height: var(--report-a4-section-body-placeholder-line-height);
+  color: var(--report-a4-disease-box-body);
+  white-space: pre-wrap;
+  word-break: var(--report-a4-body-word-break);
+  overflow-wrap: var(--report-a4-body-overflow-wrap);
+}
+
 .hsr-section-head {
   flex-shrink: 0;
 }

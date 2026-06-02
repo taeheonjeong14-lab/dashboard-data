@@ -17,6 +17,8 @@ export type HealthSystemsReportBlock =
       titleEn: string;
       rows: Array<{ label: string; content: string }>;
       compact?: boolean;
+      /** 이 장기의 질환 소개 후보 목록(3·4p). 본문은 admin 토글 ON 시 생성. 페이지당 enabled 1개만 박스로 렌더. */
+      diseaseOptions?: { name: string; body: string; enabled: boolean }[];
     }
   | {
       variant: 'images';
@@ -63,6 +65,12 @@ export type HealthSystemsReportBlock =
         HealthSystemsImageSlot,
         HealthSystemsImageSlot,
       ];
+    }
+  | {
+      /** 확진 질환 소개 박스(3·4p, 페이지당 1개). 패키지 시트 타입과 패리티 유지. */
+      variant: 'diseaseInfo';
+      name: string;
+      body: string;
     };
 
 export const IMAGE_STRIP_CAPTION_PLACEHOLDER = '플레이스홀더 — 이미지 캡션';

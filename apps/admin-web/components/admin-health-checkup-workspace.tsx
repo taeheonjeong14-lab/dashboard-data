@@ -196,6 +196,8 @@ export function AdminHealthCheckupWorkspace({
   const [generatingSection, setGeneratingSection] = useState<string | null>(null);
   const [condensingSection, setCondensingSection] = useState<string | null>(null);
   const [genError, setGenError] = useState<string | null>(null);
+  const [diseaseGenKey, setDiseaseGenKey] = useState<string | null>(null);
+  const [diseaseAddText, setDiseaseAddText] = useState<Record<string, string>>({});
 
   const [imageCandidates, setImageCandidates] = useState<CaseImageCandidate[]>([]);
   const [candidatesRefreshKey, setCandidatesRefreshKey] = useState(0);
@@ -356,6 +358,56 @@ export function AdminHealthCheckupWorkspace({
     return map[k];
   }
 
+  // 장기 1개만 재생성: 같은 페이지 그룹을 생성해 받되, **누른 장기 블록 1개만** draft에 반영한다.
+  // 옆 장기·다른 페이지는 그대로 두고, 그 장기의 질환 후보는 이름이 같으면 토글(enabled)·본문(body)을 보존한다.
+  async function regenerateOrgan(k: SystemKey, blockIndex: number) {
+    const uiKey = `${k}-${blockIndex}`;
+    setGeneratingSection(uiKey);
+    setGenError(null);
+    try {
+      const res = await fetch('/api/admin/health-report/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          runId,
+          contentType: 'health_checkup',
+          section: systemKeyToApiSection(k),
+          checkupDate: checkupDate.trim(),
+          mustInclude: mustInclude.trim().slice(0, HEALTH_CHECKUP_MUST_INCLUDE_MAX_CHARS),
+        }),
+      });
+      const data = (await res.json()) as { error?: string; generated?: Partial<HealthCheckupGeneratedContent> };
+      if (!res.ok) throw new Error(data.error ?? `재생성 실패 (${res.status})`);
+      const genBlocks = data.generated
+        ? parseHealthSystemsBlocksFromUnknown((data.generated as Record<string, unknown>)[k])
+        : null;
+      const newBlock = genBlocks?.[blockIndex];
+      if (!newBlock || newBlock.variant !== 'rows') throw new Error('재생성 결과를 찾지 못했습니다.');
+      setDraft((prev) => {
+        const cur = getStructuredBlocksFromDraft(prev, k);
+        if (cur[blockIndex]?.variant !== 'rows') return prev;
+        const next = structuredClone(cur) as HealthSystemsReportBlock[];
+        const tgt = next[blockIndex];
+        if (tgt.variant !== 'rows') return prev;
+        tgt.rows = structuredClone(newBlock.rows);
+        // 질환 후보: 새 이름 목록으로 갱신하되, 같은 이름은 토글·본문을 이어받는다.
+        const prevOpts = tgt.diseaseOptions ?? [];
+        const merged = (newBlock.diseaseOptions ?? []).map((no) => {
+          const m = prevOpts.find((po) => po.name === no.name);
+          return m ? { ...no, enabled: m.enabled, body: m.body } : no;
+        });
+        if (merged.length) tgt.diseaseOptions = merged;
+        else delete tgt.diseaseOptions;
+        return { ...prev, [k]: next };
+      });
+    } catch (e) {
+      setGenError(e instanceof Error ? e.message : '재생성 실패');
+    } finally {
+      setGeneratingSection(null);
+    }
+  }
+
   async function generateSection(apiSection: string, uiSectionKey: string) {
     setGeneratingSection(uiSectionKey);
     setGenError(null);
@@ -381,6 +433,103 @@ export function AdminHealthCheckupWorkspace({
       setGenError(e instanceof Error ? e.message : '재생성 실패');
     } finally {
       setGeneratingSection(null);
+    }
+  }
+
+  // 질환 소개 후보(같은 인쇄 페이지 = 같은 SystemKey 안에서 enabled 1개만 허용)
+  const DISEASE_PAGE_GROUP_LABEL: Partial<Record<SystemKey, string>> = {
+    systemsPage3Blocks: '순환기&호흡기, 소화기, 내분비계',
+    systemsPage3bBlocks: '신장 및 비뇨기계, 간담도계, 근골격계',
+  };
+
+  function patchDiseaseOption(
+    k: SystemKey,
+    blockIndex: number,
+    optIndex: number,
+    patch: { name?: string; body?: string; enabled?: boolean },
+  ) {
+    setDraft((prev) => {
+      const cur = getStructuredBlocksFromDraft(prev, k);
+      const b0 = cur[blockIndex];
+      if (b0?.variant !== 'rows' || !b0.diseaseOptions?.[optIndex]) return prev;
+      const nextBlocks = structuredClone(cur) as HealthSystemsReportBlock[];
+      const b = nextBlocks[blockIndex];
+      if (b.variant !== 'rows' || !b.diseaseOptions) return prev;
+      b.diseaseOptions[optIndex] = { ...b.diseaseOptions[optIndex], ...patch };
+      return { ...prev, [k]: nextBlocks };
+    });
+  }
+
+  function addDiseaseOption(k: SystemKey, blockIndex: number, name: string) {
+    const n = name.trim().slice(0, 60);
+    if (!n) return;
+    setDraft((prev) => {
+      const cur = getStructuredBlocksFromDraft(prev, k);
+      if (cur[blockIndex]?.variant !== 'rows') return prev;
+      const nextBlocks = structuredClone(cur) as HealthSystemsReportBlock[];
+      const b = nextBlocks[blockIndex];
+      if (b.variant !== 'rows') return prev;
+      b.diseaseOptions = [...(b.diseaseOptions ?? []), { name: n, body: '', enabled: false }];
+      return { ...prev, [k]: nextBlocks };
+    });
+  }
+
+  function removeDiseaseOption(k: SystemKey, blockIndex: number, optIndex: number) {
+    setDraft((prev) => {
+      const cur = getStructuredBlocksFromDraft(prev, k);
+      if (cur[blockIndex]?.variant !== 'rows') return prev;
+      const nextBlocks = structuredClone(cur) as HealthSystemsReportBlock[];
+      const b = nextBlocks[blockIndex];
+      if (b.variant !== 'rows' || !b.diseaseOptions) return prev;
+      b.diseaseOptions = b.diseaseOptions.filter((_, i) => i !== optIndex);
+      if (b.diseaseOptions.length === 0) delete b.diseaseOptions;
+      return { ...prev, [k]: nextBlocks };
+    });
+  }
+
+  // 같은 페이지(SystemKey)에서 이미 enabled 된 다른 후보가 있는지.
+  function pageHasOtherEnabled(k: SystemKey, blockIndex: number, optIndex: number): boolean {
+    const blocks = getStructuredBlocksFromDraft(draft, k);
+    return blocks.some(
+      (b, bi) =>
+        b.variant === 'rows' &&
+        (b.diseaseOptions ?? []).some((o, oi) => o.enabled && !(bi === blockIndex && oi === optIndex)),
+    );
+  }
+
+  async function toggleDiseaseOption(
+    k: SystemKey,
+    blockIndex: number,
+    optIndex: number,
+    name: string,
+    hasBody: boolean,
+    nextEnabled: boolean,
+  ) {
+    if (nextEnabled && pageHasOtherEnabled(k, blockIndex, optIndex)) {
+      setGenError(`${DISEASE_PAGE_GROUP_LABEL[k] ?? '이 페이지의 장기들'}에서는 소개할 질환을 하나만 선택해야 합니다.`);
+      return;
+    }
+    setGenError(null);
+    patchDiseaseOption(k, blockIndex, optIndex, { enabled: nextEnabled });
+    if (!nextEnabled || hasBody) return;
+    // 본문이 없으면 토글 ON 시점에 생성
+    const genKey = `${k}-${blockIndex}-${optIndex}`;
+    setDiseaseGenKey(genKey);
+    try {
+      const res = await fetch('/api/admin/health-report/disease-intro', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ diseaseName: name, species: draft.coverPatientSpecies ?? '' }),
+      });
+      const data = (await res.json()) as { body?: string; error?: string };
+      if (!res.ok || !data.body) throw new Error(data.error ?? '질환 소개 생성 실패');
+      patchDiseaseOption(k, blockIndex, optIndex, { body: data.body });
+    } catch (e) {
+      setGenError(e instanceof Error ? e.message : '질환 소개 생성 실패');
+      patchDiseaseOption(k, blockIndex, optIndex, { enabled: false });
+    } finally {
+      setDiseaseGenKey(null);
     }
   }
 
@@ -1014,7 +1163,7 @@ export function AdminHealthCheckupWorkspace({
                   <summary style={{ padding: '10px 12px', fontWeight: 700, cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <span>{blockTitle}</span>
                     <div style={{ display: 'flex', gap: 6 }}>
-                      <button type="button" className="adminLegacySmallBtn" disabled={generatingSection !== null || condensingSection !== null || savingSection !== null} onClick={(e) => { e.preventDefault(); void generateSection(systemKeyToApiSection(k), `${k}-${bi}`); }}>
+                      <button type="button" className="adminLegacySmallBtn" disabled={generatingSection !== null || condensingSection !== null || savingSection !== null} onClick={(e) => { e.preventDefault(); void regenerateOrgan(k, bi); }}>
                         {generatingSection === `${k}-${bi}` ? '재생성 중…' : '다시 생성'}
                       </button>
                       <button type="button" className="adminLegacySmallBtn" disabled={generatingSection !== null || condensingSection !== null || savingSection !== null} onClick={(e) => { e.preventDefault(); void condenseSection(`${k}-${bi}`); }}>
@@ -1087,6 +1236,84 @@ export function AdminHealthCheckupWorkspace({
                       </label>
                       );
                     })}
+                    {(k === 'systemsPage3Blocks' || k === 'systemsPage3bBlocks') && (() => {
+                      const opts = block.diseaseOptions ?? [];
+                      const addKey = `${k}-${bi}`;
+                      return (
+                        <div style={{ borderTop: '1px dashed #e2e8f0', paddingTop: 10, marginTop: 4, display: 'grid', gap: 8 }}>
+                          <div style={{ fontSize: 12, fontWeight: 700, color: '#475569' }}>
+                            질환 소개 박스 <span style={{ fontWeight: 400, color: '#94a3b8' }}>(토글 ON 시 본문 생성 · 페이지당 1개만 ON)</span>
+                          </div>
+                          {opts.length === 0 && (
+                            <p style={{ fontSize: 11, color: '#94a3b8', margin: 0 }}>후보 질환이 없습니다. 아래에서 직접 추가할 수 있어요.</p>
+                          )}
+                          {opts.map((opt, oi) => {
+                            const generating = diseaseGenKey === `${k}-${bi}-${oi}`;
+                            return (
+                              <div key={oi} style={{ border: '1px solid #e2e8f0', borderRadius: 6, padding: 8, display: 'grid', gap: 6 }}>
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                                  <span style={{ fontSize: 13, fontWeight: 600, color: '#334155' }}>{opt.name}이란?</span>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                    {generating && <span style={{ fontSize: 11, color: '#2563eb' }}>생성 중…</span>}
+                                    <button
+                                      type="button"
+                                      disabled={generating}
+                                      onClick={() => void toggleDiseaseOption(k, bi, oi, opt.name, opt.body.trim().length > 0, !opt.enabled)}
+                                      style={{ fontSize: 11, fontWeight: 700, padding: '3px 12px', borderRadius: 999, border: '1px solid', borderColor: opt.enabled ? '#16a34a' : '#cbd5e1', background: opt.enabled ? '#16a34a' : '#f1f5f9', color: opt.enabled ? '#fff' : '#475569', cursor: 'pointer' }}
+                                    >
+                                      {opt.enabled ? 'ON' : 'OFF'}
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => removeDiseaseOption(k, bi, oi)}
+                                      title="후보 삭제"
+                                      style={{ fontSize: 11, padding: '3px 8px', borderRadius: 5, border: '1px solid #fecaca', background: '#fef2f2', color: '#b91c1c', cursor: 'pointer' }}
+                                    >
+                                      삭제
+                                    </button>
+                                  </div>
+                                </div>
+                                {opt.enabled && (
+                                  <div>
+                                    <textarea rows={3} style={{ width: '100%', padding: 8, fontSize: 13 }} maxLength={250} value={opt.body} onChange={(e) => patchDiseaseOption(k, bi, oi, { body: e.target.value })} />
+                                    <span style={{ fontSize: 11, color: opt.body.length > 250 ? '#b91c1c' : '#94a3b8' }}>
+                                      {opt.body.length} / 250{opt.body.length > 250 ? OVER_MAX_WARNING : ''}
+                                    </span>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                          <div style={{ display: 'flex', gap: 6 }}>
+                            <input
+                              type="text"
+                              placeholder="질환 직접 추가"
+                              maxLength={60}
+                              value={diseaseAddText[addKey] ?? ''}
+                              onChange={(e) => setDiseaseAddText((m) => ({ ...m, [addKey]: e.target.value }))}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  e.preventDefault();
+                                  addDiseaseOption(k, bi, diseaseAddText[addKey] ?? '');
+                                  setDiseaseAddText((m) => ({ ...m, [addKey]: '' }));
+                                }
+                              }}
+                              style={{ flex: 1, padding: 6, fontSize: 12 }}
+                            />
+                            <button
+                              type="button"
+                              className="adminLegacySmallBtn"
+                              onClick={() => {
+                                addDiseaseOption(k, bi, diseaseAddText[addKey] ?? '');
+                                setDiseaseAddText((m) => ({ ...m, [addKey]: '' }));
+                              }}
+                            >
+                              추가
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })()}
                     {(() => {
                       const imgBlock = blocks[bi + 1];
                       if (!imgBlock || !isImageVariant(imgBlock.variant)) return null;

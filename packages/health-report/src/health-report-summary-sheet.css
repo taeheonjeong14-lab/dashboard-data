@@ -50,12 +50,13 @@
 }
 
 /* 컨텐츠 길이와 무관하게 섹션 전체 높이 고정 */
+/* 재검진(timeline) 섹션을 10mm 줄이고 그 절반(5mm)씩을 두 섹션에 분배 → 각 85mm */
 .hrss-section--opinion {
-  flex: 0 0 80mm;
+  flex: 0 0 85mm;
 }
 
 .hrss-section--followup {
-  flex: 0 0 80mm;
+  flex: 0 0 85mm;
 }
 
 .hrss-section--timeline {
@@ -129,7 +130,7 @@
   margin-left: calc(-1 * var(--report-a4-sheet-padding-x));
   margin-right: calc(-1 * var(--report-a4-sheet-padding-x));
   width: calc(100% + 2 * var(--report-a4-sheet-padding-x));
-  padding: 4mm var(--report-a4-sheet-padding-x) 10mm;
+  padding: 2mm var(--report-a4-sheet-padding-x) 10mm;
   border-radius: 0;
   overflow: visible;
   background: linear-gradient(

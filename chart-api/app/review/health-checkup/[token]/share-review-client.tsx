@@ -79,6 +79,28 @@ function updateRowsBlockContent(
   });
 }
 
+/** 장기 rows 블록의 질환 후보 본문(diseaseOptions[i].body)을 갱신. (외부 검토링크는 본문 편집만) */
+function updateRowsBlockOptionBody(
+  blocks: HealthSystemsReportBlock[],
+  blockIndex: number,
+  optIndex: number,
+  body: string,
+): HealthSystemsReportBlock[] {
+  return blocks.map((b, bi) => {
+    if (bi !== blockIndex || b.variant !== 'rows' || !b.diseaseOptions) return b;
+    return {
+      ...b,
+      diseaseOptions: b.diseaseOptions.map((o, oi) =>
+        oi === optIndex ? { ...o, body: body.slice(0, DISEASE_BODY_MAX) } : o,
+      ),
+    };
+  });
+}
+
+/** 질환 소개 입력칸을 노출할 페이지(3·4p)만. */
+const DISEASE_BOX_PAGE_KEYS: PageBlocksKey[] = ['systemsPage3Blocks', 'systemsPage3bBlocks'];
+const DISEASE_BODY_MAX = 250;
+
 function coverSpeciesSelectValue(raw: string | null | undefined): string {
   const t = (raw ?? '').trim();
   if (!t) return '';
@@ -149,6 +171,17 @@ function HealthCheckupReviewEditor({ draft, onChange, onSave, saving, activeSect
   const setSystemsRow = (pageKey: PageBlocksKey, blockIndex: number, rowIndex: number, content: string) => {
     const list = blocksForEdit(draft, pageKey);
     const next = updateRowsBlockContent(list, blockIndex, rowIndex, content);
+    onChange({ ...draft, [pageKey]: next });
+  };
+
+  const setSystemsOptionBody = (
+    pageKey: PageBlocksKey,
+    blockIndex: number,
+    optIndex: number,
+    body: string,
+  ) => {
+    const list = blocksForEdit(draft, pageKey);
+    const next = updateRowsBlockOptionBody(list, blockIndex, optIndex, body);
     onChange({ ...draft, [pageKey]: next });
   };
 
@@ -390,6 +423,22 @@ function HealthCheckupReviewEditor({ draft, onChange, onSave, saving, activeSect
                       <CharCountLine current={row.content.length} max={rowMax} />
                     </div>
                   ))}
+                  {DISEASE_BOX_PAGE_KEYS.includes(key) && (b.diseaseOptions ?? []).some((o) => o.enabled) && (
+                    <div style={{ minWidth: 0, marginTop: 4, paddingTop: 12, borderTop: '1px dashed #e4e4e7', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      <p style={{ fontSize: 11, fontWeight: 600, color: '#52525b', margin: 0 }}>
+                        질환 소개 박스 <span style={{ fontWeight: 400, color: '#a1a1aa' }}>(본문 편집)</span>
+                      </p>
+                      {(b.diseaseOptions ?? []).map((opt, oi) =>
+                        opt.enabled ? (
+                          <label key={oi} style={{ display: 'block' }}>
+                            <span style={{ display: 'block', fontSize: 11, fontWeight: 500, color: '#52525b', marginBottom: 4 }}>{opt.name}이란?</span>
+                            <textarea className="hcu-rv-textarea" style={{ minHeight: 80 }} maxLength={DISEASE_BODY_MAX} value={opt.body} onChange={(e) => setSystemsOptionBody(key, bi, oi, e.target.value)} />
+                            <CharCountLine current={opt.body.length} max={DISEASE_BODY_MAX} />
+                          </label>
+                        ) : null,
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
             ))}

@@ -24,6 +24,7 @@ import {
   HEALTH_CHECKUP_FOLLOWUP_RULE_LINES,
   healthCheckupRequiredCheckItemsLine,
   HEALTH_CHECKUP_DX_IMP_GUIDE_LINES,
+  HEALTH_CHECKUP_DISEASE_BOX_RULE_LINES,
   healthCheckupOrganBlockLines,
   healthCheckupImagingBlockLines,
   healthCheckupLabInterpretationLines,
@@ -457,7 +458,10 @@ function buildSectionInstruction(
         '',
         ...healthCheckupOrganBlockLines('endo'),
         '',
+        '— 질환 소개 후보(이름만, 본문 금지) —',
+        ...HEALTH_CHECKUP_DISEASE_BOX_RULE_LINES,
         '출력 키: hp3_circ_dx, hp3_circ_imp, hp3_digest_dx, hp3_digest_imp, hp3_endo_dx, hp3_endo_imp',
+        '추가 출력 키(선택): hp3_circ_diseases, hp3_digest_diseases, hp3_endo_diseases (각각 확진 질환명 문자열 배열)',
       );
       break;
     case 'systems3b':
@@ -474,7 +478,10 @@ function buildSectionInstruction(
         '',
         ...healthCheckupOrganBlockLines('msk'),
         '',
+        '— 질환 소개 후보(이름만, 본문 금지) —',
+        ...HEALTH_CHECKUP_DISEASE_BOX_RULE_LINES,
         '출력 키: hp3_renal_uro_dx, hp3_renal_uro_imp, hp3_hepatobiliary_dx, hp3_hepatobiliary_imp, hp3_msk_dx, hp3_msk_imp',
+        '추가 출력 키(선택): hp3_renal_uro_diseases, hp3_hepatobiliary_diseases, hp3_msk_diseases (각각 확진 질환명 문자열 배열)',
       );
       break;
     case 'systems4':

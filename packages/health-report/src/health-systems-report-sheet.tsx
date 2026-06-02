@@ -26,6 +26,11 @@ export type HealthSystemsReportBlock =
       rows: HealthSystemsReportRow[];
       /** true면 표 두 행 높이 비율을 균등에 가깝게(5p 등에서 섹션을 낮게). */
       compact?: boolean;
+      /**
+       * 이 장기의 질환 소개 후보 목록(3·4p 전용). 이름은 LLM이 추리고, 본문은 admin에서 토글 ON 시 생성한다.
+       * 렌더 시 같은 인쇄 페이지의 장기들 중 enabled+본문 있는 1개만 `diseaseInfo` 박스로 삽입된다.
+       */
+      diseaseOptions?: { name: string; body: string; enabled: boolean }[];
     }
   | {
       variant: "images";
@@ -86,6 +91,16 @@ export type HealthSystemsReportBlock =
       titleKo: string;
       titleEn: string;
       note: string;
+    }
+  | {
+      /**
+       * 확진 질환 소개 박스(3·4p 전용, 페이지당 1개). 관련 장기 섹션 바로 뒤에 삽입되며
+       * 고정 높이(`.hsr-section--disease`)라 나머지 장기 섹션이 균등하게 축소된다.
+       * 제목은 "〈name〉이란?", 본문은 일반 질환 소개(최대 250자).
+       */
+      variant: "diseaseInfo";
+      name: string;
+      body: string;
     };
 
 /** 인쇄본 3페이지(장기계통 1/2: 순환·소화·내분비). */
@@ -97,7 +112,9 @@ export const HEALTH_REPORT_PAGE_DENTAL_SKIN = 5;
 /** 인쇄본 6페이지(방사선·초음파 / 이미지 그리드). 요약·장기 시트 다음 장. */
 export const HEALTH_REPORT_PAGE_RADIOLOGY_ULTRASOUND = 6;
 
-function blockShowsSectionHead(block: HealthSystemsReportBlock): boolean {
+function blockShowsSectionHead(
+  block: HealthSystemsReportBlock,
+): block is Extract<HealthSystemsReportBlock, { variant: "rows" | "omitted" }> {
   return block.variant === "rows" || block.variant === "omitted";
 }
 
@@ -187,7 +204,7 @@ export function HealthSystemsReportSheet({
         {blocks.map((block, i) => (
           <section
             key={`${block.variant}-${i}`}
-            className={`hsr-section ${block.variant === "omitted" ? "hsr-section--omitted" : ""}`}
+            className={`hsr-section${block.variant === "omitted" ? " hsr-section--omitted" : ""}${block.variant === "diseaseInfo" ? " hsr-section--disease" : ""}`}
           >
             {blockShowsSectionHead(block) ? (
               <div className="hsr-section-head">
@@ -330,6 +347,22 @@ export function HealthSystemsReportSheet({
                     </Fragment>
                   ))}
                 </div>
+              </div>
+            ) : block.variant === "diseaseInfo" ? (
+              <div className="hsr-disease-box">
+                <div className="hsr-disease-box__head">
+                  <svg
+                    className="hsr-disease-box__check"
+                    viewBox="0 0 24 24"
+                    aria-hidden
+                    focusable="false"
+                  >
+                    <circle cx="12" cy="12" r="11" />
+                    <path d="M6.5 12.5l3.5 3.6L17.5 8" />
+                  </svg>
+                  <p className="hsr-disease-box__title">{block.name}이란?</p>
+                </div>
+                <p className="hsr-disease-box__body">{block.body}</p>
               </div>
             ) : (
               <div className="hsr-section-body hsr-section-body--omitted">

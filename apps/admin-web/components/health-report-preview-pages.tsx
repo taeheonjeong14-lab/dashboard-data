@@ -42,10 +42,36 @@ export type HealthReportPreviewModelJson = {
   labInterpretation: string;
 };
 
+// 장기 블록에 귀속된 확진 질환(disease.name)이 있으면 그 장기 바로 뒤에 질환 소개 박스를 삽입.
+// chart-api(preview-model)도 동일 로직을 수행하므로, 이미 박스가 있으면 건너뛴다(중복 방지).
+// admin 미리보기는 클라이언트 렌더라, chart-api 버전과 무관하게 편집 결과가 즉시 반영되도록 여기서도 처리.
+type DiseaseOption = { name?: string; body?: string; enabled?: boolean };
+function withDiseaseBox(blocks: unknown[]): unknown[] {
+  const arr = Array.isArray(blocks) ? blocks : [];
+  if (arr.some((b) => (b as { variant?: string })?.variant === 'diseaseInfo')) return arr;
+  for (let i = 0; i < arr.length; i += 1) {
+    const o = arr[i] as { variant?: string; diseaseOptions?: DiseaseOption[] };
+    if (o?.variant !== 'rows' || !Array.isArray(o.diseaseOptions)) continue;
+    const opt = o.diseaseOptions.find(
+      (d) => d?.enabled && (d.name ?? '').trim() && (d.body ?? '').trim(),
+    );
+    if (!opt) continue;
+    const box = {
+      variant: 'diseaseInfo',
+      name: (opt.name ?? '').trim(),
+      body: (opt.body ?? '').trim().slice(0, 250),
+    };
+    return [...arr.slice(0, i + 1), box, ...arr.slice(i + 1)];
+  }
+  return arr;
+}
+
 export function HealthReportPreviewPages({ model }: { model: HealthReportPreviewModelJson }) {
   const coverProps = model.coverProps as HealthReportCoverSheetProps;
   const summaryProps = model.summaryProps as HealthReportSummarySheetProps;
   const outerCoverProps = model.outerCoverProps as HealthReportOuterCoverSheetProps;
+  const systemsPage3Blocks = withDiseaseBox(model.systemsPage3Blocks);
+  const systemsPage3bBlocks = withDiseaseBox(model.systemsPage3bBlocks);
 
   return (
     <div className="report-a4-tokens" style={{ background: '#ffffff' }}>
@@ -67,7 +93,7 @@ export function HealthReportPreviewPages({ model }: { model: HealthReportPreview
         hospitalLogoAlt={coverProps.hospitalLogoAlt}
         hospitalNameKo={coverProps.hospitalNameKo}
         hospitalNameEn={coverProps.hospitalNameEn}
-        blocks={model.systemsPage3Blocks as never}
+        blocks={systemsPage3Blocks as never}
         pageNumber={HEALTH_REPORT_PAGE_SYSTEMS}
         tokenOverrides={model.tokenOverrides ?? undefined}
       />
@@ -76,7 +102,7 @@ export function HealthReportPreviewPages({ model }: { model: HealthReportPreview
         hospitalLogoAlt={coverProps.hospitalLogoAlt}
         hospitalNameKo={coverProps.hospitalNameKo}
         hospitalNameEn={coverProps.hospitalNameEn}
-        blocks={model.systemsPage3bBlocks as never}
+        blocks={systemsPage3bBlocks as never}
         pageNumber={HEALTH_REPORT_PAGE_SYSTEMS_B}
         tokenOverrides={model.tokenOverrides ?? undefined}
       />

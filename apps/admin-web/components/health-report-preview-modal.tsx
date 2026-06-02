@@ -19,6 +19,35 @@ type PreviewResponse = {
   hint?: string;
 };
 
+// chart-api가 (옛 코드 등으로) diseaseOptions를 떨궈도 admin 미리보기는 draft를 직접 들고 있으므로,
+// draft의 장기 diseaseOptions를 model 블록에 titleKo 기준으로 덧입혀 박스가 항상 반영되게 한다.
+function overlayDiseaseFromDraft(
+  model: HealthReportPreviewModelJson,
+  draft: HealthCheckupGeneratedContent | null | undefined,
+): HealthReportPreviewModelJson {
+  if (!draft) return model;
+  const apply = (modelBlocks: unknown[], draftBlocks: unknown): unknown[] => {
+    if (!Array.isArray(modelBlocks)) return modelBlocks;
+    if (modelBlocks.some((b) => (b as { variant?: string })?.variant === 'diseaseInfo')) return modelBlocks;
+    const dArr = Array.isArray(draftBlocks) ? draftBlocks : [];
+    return modelBlocks.map((b) => {
+      const o = b as { variant?: string; titleKo?: string };
+      if (o?.variant !== 'rows') return b;
+      const src = dArr.find((x) => {
+        const xo = x as { variant?: string; titleKo?: string };
+        return xo?.variant === 'rows' && xo.titleKo === o.titleKo;
+      }) as { diseaseOptions?: unknown } | undefined;
+      if (src && Array.isArray(src.diseaseOptions)) return { ...o, diseaseOptions: src.diseaseOptions };
+      return b;
+    });
+  };
+  return {
+    ...model,
+    systemsPage3Blocks: apply(model.systemsPage3Blocks, (draft as Record<string, unknown>).systemsPage3Blocks),
+    systemsPage3bBlocks: apply(model.systemsPage3bBlocks, (draft as Record<string, unknown>).systemsPage3bBlocks),
+  };
+}
+
 export function HealthReportPreviewModal({
   open,
   onClose,
@@ -75,7 +104,7 @@ export function HealthReportPreviewModal({
         throw new Error([data.error ?? `HTTP ${res.status}`, extra].filter(Boolean).join('\n'));
       }
       if (!data.model) throw new Error(data.error ?? 'model 없음');
-      setModel(data.model);
+      setModel(overlayDiseaseFromDraft(data.model, payloadRef.current));
     } catch (e) {
       setError(e instanceof Error ? e.message : '미리보기 실패');
     } finally {

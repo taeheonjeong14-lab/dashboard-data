@@ -99,7 +99,21 @@ export function healthCheckupRequiredCheckItemsLine(key: string): string {
 /** 주요 진단(_dx)·시사점(_imp)의 역할 정의. 장기·검사 섹션 공통(전체/섹션 공유). */
 export const HEALTH_CHECKUP_DX_IMP_GUIDE_LINES: string[] = [
   '· 주요 진단(_dx): 이번 검진에서 **발견·관찰된 내용(팩트)** 을 설명한다. (예: "심장 크기가 정상보다 증가하였습니다.")',
+  '· 주요 진단(_dx)의 **표현 수위는 input 자료의 근거에 따라 아래 3가지로 명확히 구분**한다. 미포함과 정상소견을 한 문장에 묶어 "~는 포함되지 않았거나 특이 소견이 확인되지 않았습니다" 처럼 어중간하게 쓰지 말 것.',
+  '  ① 해당 질환의 유무를 판단할 근거가 input 자료에 **하나도 없으면** → 그 질환은 언급하지 않는다(만들어내지 않는다). 섹션 전체에 연결할 근거가 전혀 없을 때만 미포함 고정 문구를 쓴다.',
+  '  ② input 자료에 **확정 진단이 명확히 내려진 내용만** "~가 확인되었습니다" 같은 단정 표현을 쓴다.',
+  '  ③ 근거(검사 수치·영상·관찰 등)는 있으나 input 자료에 확정 진단 문구가 없으면 → "~를 추측해볼 수 있습니다 / ~의 가능성이 있습니다" 처럼 단정하지 않는 표현으로 쓴다.',
   '· 시사점(_imp): 그 소견이 **무엇을 의미하는지, 앞으로 어떤 위험이 있는지** 자세히 설명하고, 더해서 **언급된 질환을 앞으로 어떻게 대응·관리해야 하는지**까지 담는다. (예: "심부전이 의심되며, 진행 시 기침·호흡곤란 위험이 있어 정기적인 심장 검사와 약물 관리가 필요합니다.")',
+];
+
+/**
+ * 질환 소개 박스(3·4p) 생성 규칙. 전체/섹션 프롬프트 공유.
+ * 페이지: 3p = 순환기(circ)·소화기(digest)·내분비(endo), 4p = 신장비뇨(renal_uro)·간담도(hepatobiliary)·근골격(msk).
+ */
+export const HEALTH_CHECKUP_DISEASE_BOX_RULE_LINES: string[] = [
+  '· 질환 소개 후보(선택): 각 장기에 대해 **input 자료에서 확진(확정 진단)된 질환** 중 보호자에게 소개할 만한 질환들의 **이름만** 문자열 배열로 출력한다. **본문은 쓰지 않는다**(직원이 선택 시 별도로 생성).',
+  '· 확진이 아니거나(추측·가능성 수준이거나) 근거가 없으면 그 장기 배열은 **빈 배열**로 둔다. 없는 질환을 만들어내지 않는다.',
+  '· 질환명은 한국어 표준 용어로 간결하게 적는다. (예: "이첨판 폐쇄부전증(MMVD)", "쿠싱증후군", "슬개골 탈구")',
 ];
 
 /** 장기 섹션 순서(전체 생성에서 이 순서로 출력). */
@@ -343,6 +357,9 @@ export function buildHealthCheckupInstructionBody(opts: {
       '- **모든 관련 검사 결과가 정상이더라도**, 핵심 검사 결과를 인용하여 "이러이러하여 정상이다" 형식으로 써줘. 근거 없는 "정상입니다" 단독 문장은 피한다.',
       `- 주요 진단 최대 ${pDx}자, 시사점 최대 ${pImp}자 (치과/피부: 각 최대 ${pDxDentalSkin}자 / ${pImpDentalSkin}자)`,
       '',
+      '========== 질환 소개 박스(3·4p) 규칙 ==========',
+      ...HEALTH_CHECKUP_DISEASE_BOX_RULE_LINES,
+      '',
       '========== 미포함 고정 문구 규칙 ==========',
       `- 프로그램명: ${programPrefixForPhrase}`,
       `- 이번 검진 패키지에 포함되지 않은 계통·검사로, 차트·검사·이미지를 읽어도 그 섹션과 **직접 연결할 내용이 전혀 없을 때**에는 해당 섹션의 주요 진단·시사점 두 칸 모두에 아래 고정 문구만 넣는다. 앞뒤 공백·추가 문장 일절 금지.`,
@@ -363,6 +380,7 @@ export function buildHealthCheckupInstructionBody(opts: {
       '- hp3_renal_uro_dx, hp3_renal_uro_imp, hp3_hepatobiliary_dx, hp3_hepatobiliary_imp, hp3_msk_dx, hp3_msk_imp',
       '- hp4_dental_dx, hp4_dental_imp, hp4_skin_dx, hp4_skin_imp',
       '- hp5_rad_interp, hp5_us_interp',
+      '- (선택) 장기별 확진 질환명 배열(이름만, 문자열 배열): hp3_circ_diseases, hp3_digest_diseases, hp3_endo_diseases, hp3_renal_uro_diseases, hp3_hepatobiliary_diseases, hp3_msk_diseases',
       '- labInterpretation',
       '',
       '응답 스키마에 포함할 시스템 시트 문자열 키(전부 필수):',

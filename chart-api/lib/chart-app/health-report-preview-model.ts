@@ -37,6 +37,32 @@ function clampSystemsBlocks(blocks: HealthSystemsReportBlock[], max: number): He
   );
 }
 
+const DISEASE_BOX_BODY_MAX = 250;
+
+/**
+ * 같은 인쇄 페이지의 장기들 중 **enabled + 본문이 있는 질환 후보 1개**를 골라, 그 장기 섹션
+ * **바로 뒤**에 질환 소개 박스(diseaseInfo)를 삽입한다. 박스는 고정 높이(28mm)라 나머지 장기
+ * 섹션이 균등 축소된다. 페이지당 1개(장기 순서상 첫 번째 enabled).
+ */
+function insertDiseaseBoxFromOrganData(blocks: HealthSystemsReportBlock[]): HealthSystemsReportBlock[] {
+  if (blocks.some((b) => b.variant === 'diseaseInfo')) return blocks;
+  for (let i = 0; i < blocks.length; i += 1) {
+    const b = blocks[i];
+    if (b.variant !== 'rows' || !b.diseaseOptions) continue;
+    const opt = b.diseaseOptions.find((o) => o.enabled && o.name.trim() && o.body.trim());
+    if (!opt) continue;
+    const box: HealthSystemsReportBlock = {
+      variant: 'diseaseInfo',
+      name: opt.name.trim(),
+      body: clampChars(opt.body.trim(), DISEASE_BOX_BODY_MAX),
+    };
+    const out = blocks.slice();
+    out.splice(i + 1, 0, box);
+    return out;
+  }
+  return blocks;
+}
+
 export type LabReportPage = { groups: unknown[] };
 
 export type HealthReportPreviewModel = {
@@ -268,14 +294,18 @@ export function buildHealthReportPreviewModel(params: {
     SYSTEMS_P5_ROW_MAX,
   );
 
+  // 장기에 귀속된 확진 질환 데이터가 있으면 해당 장기 바로 뒤에 질환 소개 박스를 삽입(3·4p, 페이지당 1개).
+  const systemsPage3BlocksFinal = insertDiseaseBoxFromOrganData(systemsPage3Blocks);
+  const systemsPage3bBlocksFinal = insertDiseaseBoxFromOrganData(systemsPage3bBlocks);
+
   return {
     hospital,
     coverProps,
     summaryProps,
     outerCoverProps,
     tokenOverrides: tokenOverrides ?? null,
-    systemsPage3Blocks,
-    systemsPage3bBlocks,
+    systemsPage3Blocks: systemsPage3BlocksFinal,
+    systemsPage3bBlocks: systemsPage3bBlocksFinal,
     systemsPage4Blocks,
     systemsPage5Blocks,
     labPages: buildLabPages(source, speciesForLabel, Boolean(safeTrim(generated.labInterpretation))),

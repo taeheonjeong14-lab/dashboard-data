@@ -27,6 +27,32 @@ function setRowContent(
   }
 }
 
+const DISEASE_NAME_MAX = 60;
+
+/** LLM이 출력한 질환명 배열 → 정리된 고유 이름 목록. */
+function toDiseaseNames(v: unknown): string[] {
+  if (!Array.isArray(v)) return [];
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const x of v) {
+    if (typeof x !== 'string') continue;
+    const n = x.trim().slice(0, DISEASE_NAME_MAX);
+    if (!n || seen.has(n)) continue;
+    seen.add(n);
+    out.push(n);
+  }
+  return out;
+}
+
+/** 장기 rows 블록에 질환 소개 후보 목록을 설정(본문은 토글 ON 시 생성, 초기엔 비활성). */
+function setDiseaseOptions(blocks: HealthSystemsReportBlock[], blockIndex: number, names: string[]): void {
+  if (names.length === 0) return;
+  const b = blocks[blockIndex];
+  if (b?.variant === 'rows') {
+    b.diseaseOptions = names.map((name) => ({ name, body: '', enabled: false }));
+  }
+}
+
 function joinLegacyDxImp(dx: unknown, imp: unknown): string {
   const a = str(dx);
   const b = str(imp);
@@ -92,6 +118,14 @@ export function mergeHealthSystemsDemosWithLlmFields(o: Record<string, unknown>)
   setRowContent(p3b, 1, 1, str(o.hp3_hepatobiliary_imp));
   setRowContent(p3b, 2, 0, str(o.hp3_msk_dx));
   setRowContent(p3b, 2, 1, str(o.hp3_msk_imp));
+
+  // 질환 소개 후보 목록(이름만) — LLM이 장기별 확진 질환명을 추린다. 본문은 admin 토글 ON 시 생성.
+  setDiseaseOptions(p3a, 0, toDiseaseNames(o.hp3_circ_diseases));
+  setDiseaseOptions(p3a, 1, toDiseaseNames(o.hp3_digest_diseases));
+  setDiseaseOptions(p3a, 2, toDiseaseNames(o.hp3_endo_diseases));
+  setDiseaseOptions(p3b, 0, toDiseaseNames(o.hp3_renal_uro_diseases));
+  setDiseaseOptions(p3b, 1, toDiseaseNames(o.hp3_hepatobiliary_diseases));
+  setDiseaseOptions(p3b, 2, toDiseaseNames(o.hp3_msk_diseases));
 
   const p4 = cloneBlocks(DEMO_HEALTH_DENTAL_SKIN_BLOCKS);
   setRowContent(p4, 0, 0, str(o.hp4_dental_dx));

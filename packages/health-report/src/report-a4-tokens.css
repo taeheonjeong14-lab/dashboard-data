@@ -23,6 +23,20 @@
   --report-a4-page-bg: #ffffff;
   /** 세이지 그라데이션 푸터 등 어두운 배경 위 본문 */
   --report-a4-inverse-text: #ffffff;
+  /**
+   * 질환 소개 박스(3·4p) 색 — 병원 테마(tokenOverrides)에서 bg·body 두 개만 바꾸면 적응한다.
+   * - bg   : 박스 배경(병원 색)
+   * - body : 본문 글자색 — 어두운 배경=흰색(기본). 밝은 배경 병원은 #171717 등으로 override.
+   * - title: 본문색과 배경색을 섞어 "같은 계열 + 대비" 자동 도출(밝은/어두운 테마 모두 대비 유지).
+   *          본문색 비중을 높일수록 밝아지고, 배경(본색) 비중을 높일수록 본색에 가까워진다.
+   */
+  --report-a4-disease-box-bg: var(--report-a4-green-soft);
+  --report-a4-disease-box-body: var(--report-a4-inverse-text);
+  --report-a4-disease-box-title: color-mix(
+    in srgb,
+    var(--report-a4-disease-box-body) 62%,
+    var(--report-a4-disease-box-bg) 38%
+  );
   --report-a4-font-family:
     "Pretendard",
     "Noto Sans KR",
@@ -53,13 +67,14 @@
   /** 시트 미리보기(화면) 그림자 — 인쇄 시 시트 규칙에서 제거 */
   --report-a4-sheet-preview-shadow: 0 4px 24px rgba(0, 0, 0, 0.08);
   /** 요약(2p) 재검진 타임라인 */
-  --report-a4-timeline-labels-top: 4mm;
-  --report-a4-timeline-nodes-top: 12mm;
-  --report-a4-timeline-cards-top: 22mm;
+  /* 섹션을 10mm 줄인 만큼 내용물도 위로 당겨 푸터와의 여백 유지(아래로 밀림 방지) */
+  --report-a4-timeline-labels-top: 3mm;
+  --report-a4-timeline-nodes-top: 9mm;
+  --report-a4-timeline-cards-top: 18mm;
   --report-a4-timeline-interval-label-font-size: 14px;
   --report-a4-timeline-interval-label-font-weight: 700;
   --report-a4-timeline-line-thickness: 4px;
-  --report-a4-timeline-card-height: 100px;
+  --report-a4-timeline-card-height: 90px;
   --report-a4-timeline-bg-gradient-mid: #e8efe7;
   --report-a4-timeline-card-border-color: #d8e3d6;
   --report-a4-timeline-card-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);

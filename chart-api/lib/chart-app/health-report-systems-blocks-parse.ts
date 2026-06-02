@@ -16,6 +16,22 @@ function parseRow(v: unknown): HealthSystemsReportRow | null {
   return { label: o.label, content: o.content };
 }
 
+function parseDiseaseOptions(
+  v: unknown,
+): { name: string; body: string; enabled: boolean }[] | null {
+  if (!Array.isArray(v)) return null;
+  const out: { name: string; body: string; enabled: boolean }[] = [];
+  for (const item of v) {
+    if (!item || typeof item !== 'object') continue;
+    const o = item as Record<string, unknown>;
+    const name = typeof o.name === 'string' ? o.name : '';
+    if (!name.trim()) continue;
+    const body = typeof o.body === 'string' ? o.body : '';
+    out.push({ name, body, enabled: o.enabled === true });
+  }
+  return out.length ? out : null;
+}
+
 function parseImageSlot(v: unknown): HealthSystemsImageSlot | null {
   if (!v || typeof v !== 'object') return null;
   const o = v as Record<string, unknown>;
@@ -49,7 +65,22 @@ function parseBlock(v: unknown): HealthSystemsReportBlock | null {
     }
     if (rows.length === 0) return null;
     const compact = o.compact === true;
-    return { variant: 'rows', titleKo, titleEn, rows, ...(compact ? { compact: true } : {}) };
+    const diseaseOptions = parseDiseaseOptions(o.diseaseOptions);
+    return {
+      variant: 'rows',
+      titleKo,
+      titleEn,
+      rows,
+      ...(compact ? { compact: true } : {}),
+      ...(diseaseOptions ? { diseaseOptions } : {}),
+    };
+  }
+
+  if (o.variant === 'diseaseInfo') {
+    const name = typeof o.name === 'string' ? o.name : '';
+    const body = typeof o.body === 'string' ? o.body : '';
+    if (!name.trim() && !body.trim()) return null;
+    return { variant: 'diseaseInfo', name, body };
   }
 
   if (o.variant === 'images') {
