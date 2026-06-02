@@ -35,8 +35,9 @@ export async function POST(request: NextRequest) {
     '아래 질환을 보호자에게 소개하는 짧은 글을 작성한다.',
     '',
     '규칙:',
-    `- 공백 포함 ${BODY_MAX}자 이내, 한 문단(줄바꿈 없이).`,
-    '- 아래 3가지를 순서대로 자연스럽게 담는다: ① 질환에 대한 한 줄 설명, ② 악화될 경우 어떤 위험이 있는지, ③ 따라서 무엇이 중요한지.',
+    `- 공백 포함 **140자 이상 ${BODY_MAX}자 이하**, 한 문단(줄바꿈 없이). 너무 짧게 끝내지 말고 분량을 채운다.`,
+    '- 아래 **3가지를 모두 빠짐없이** 순서대로 자연스럽게 담는다(하나라도 생략 금지): ① 질환에 대한 한 줄 설명, ② 악화될 경우 어떤 위험이 있는지, ③ 따라서 무엇이 중요한지.',
+    '- 문장을 중간에 끊지 말고 반드시 완결된 문장으로 마무리한다.',
     '- 보호자 대상 공식 건강검진 보고서 톤(존댓말, 이해하기 쉬운 표현).',
     '- 특정 환자의 수치·소견은 넣지 말고 **질환 자체의 일반적인 소개**로 쓴다.',
     '- 한국어 수의학 표준 용어를 쓰되, 필요하면 「한국어(영어)」 형식으로 보조한다.',
@@ -49,7 +50,9 @@ export async function POST(request: NextRequest) {
     .join('\n');
 
   try {
-    const raw = await geminiGenerateText(prompt, { maxOutputTokens: 1024, temperature: 0.3 });
+    // maxOutputTokens 는 넉넉히 — Gemini 2.5 계열은 thinking 토큰이 이 한도를 함께 소모하므로
+    // 1024 처럼 빡빡하면 본문이 중간에 잘린다(MAX_TOKENS). 200자 본문 + thinking 여유 확보.
+    const raw = await geminiGenerateText(prompt, { maxOutputTokens: 4096, temperature: 0.3 });
     const text = raw.replace(/\s+/g, ' ').trim();
     if (!text) throw new Error('Gemini returned empty response.');
     return NextResponse.json({ body: text.slice(0, BODY_MAX) });

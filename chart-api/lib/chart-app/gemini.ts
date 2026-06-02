@@ -23,12 +23,20 @@ export async function geminiGenerateText(prompt: string, opts?: GeminiTextOption
   const maxOut = opts?.maxOutputTokens ?? 8192;
   const temperature = opts?.temperature ?? 0.3;
 
+  // Gemini 2.5-flash 계열은 thinking 토큰이 maxOutputTokens 를 함께 소모해, 짧은 답변도
+  // 본문이 중간에 잘린다(finishReason=MAX_TOKENS). 사실 기반 단답 생성에는 thinking 이
+  // 불필요하므로 끈다. (pro 는 thinkingBudget:0 을 거부할 수 있어 flash 계열만 적용)
+  const generationConfig: Record<string, unknown> = { temperature, maxOutputTokens: maxOut };
+  if (/2\.5-flash/i.test(model)) {
+    generationConfig.thinkingConfig = { thinkingBudget: 0 };
+  }
+
   const res = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       contents: [{ parts: [{ text: prompt }] }],
-      generationConfig: { temperature, maxOutputTokens: maxOut },
+      generationConfig,
     }),
   });
 
@@ -38,10 +46,16 @@ export async function geminiGenerateText(prompt: string, opts?: GeminiTextOption
   }
 
   const data = (await res.json()) as {
-    candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
+    candidates?: Array<{ content?: { parts?: Array<{ text?: string }> }; finishReason?: string }>;
   };
-  const text = data.candidates?.[0]?.content?.parts?.map((p) => p.text ?? '').join('') ?? '';
-  if (!text) throw new Error('Gemini returned empty text');
+  const cand = data.candidates?.[0];
+  const text = cand?.content?.parts?.map((p) => p.text ?? '').join('') ?? '';
+  if (!text) {
+    throw new Error(`Gemini returned empty text${cand?.finishReason ? ` (finishReason=${cand.finishReason})` : ''}`);
+  }
+  if (cand?.finishReason === 'MAX_TOKENS') {
+    console.warn(`[gemini] output truncated: finishReason=MAX_TOKENS model=${model} maxOut=${maxOut}`);
+  }
   return text;
 }
 
