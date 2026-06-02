@@ -11,14 +11,14 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { fetchSearchAdKeywordMetrics, type SearchAdRow } from "@/lib/queries";
+import { fetchSearchAdTopKeywords, type SearchAdRow } from "@/lib/queries";
 import {
   buildCampaignTable,
   buildCampaignTrend,
-  buildTopKeywords,
   deriveMetric,
   getDataBounds,
   type Granularity,
+  type KeywordPerf,
   type PerfTotals,
   type SearchAdMetricKey,
 } from "@/lib/searchad-aggregates";
@@ -114,8 +114,8 @@ export default function SearchAdSection({
   const [rangeEnd, setRangeEnd] = useState("");
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [typeFilter, setTypeFilter] = useState<string>("all");
-  // Top 키워드는 메인 fetch(키워드 제외)와 분리해, 선택 기간 한정으로 따로 비동기 로드한다.
-  const [keywordRows, setKeywordRows] = useState<SearchAdRow[]>([]);
+  // Top 키워드는 DB 집계(RPC)로 상위 N개만 받아 따로 비동기 로드한다(옵션 B).
+  const [topKeywords, setTopKeywords] = useState<KeywordPerf[]>([]);
   const [keywordLoading, setKeywordLoading] = useState(false);
 
   // 데이터에 존재하는 캠페인 유형 (campaign-level row 기준). campaign_type 미수집(NULL)이면 빈 목록.
@@ -146,14 +146,14 @@ export default function SearchAdSection({
   const keywordType = effectiveType === "all" ? undefined : effectiveType;
   useEffect(() => {
     if (mode !== "full" || !hospitalId || !clipped.start || !clipped.end) {
-      setKeywordRows([]);
+      setTopKeywords([]);
       return;
     }
     let cancelled = false;
     setKeywordLoading(true);
-    fetchSearchAdKeywordMetrics(hospitalId, keywordType, clipped.start, clipped.end)
-      .then((kr) => { if (!cancelled) setKeywordRows(kr); })
-      .catch(() => { if (!cancelled) setKeywordRows([]); })
+    fetchSearchAdTopKeywords(hospitalId, keywordType, clipped.start, clipped.end, 10)
+      .then((kw) => { if (!cancelled) setTopKeywords(kw); })
+      .catch(() => { if (!cancelled) setTopKeywords([]); })
       .finally(() => { if (!cancelled) setKeywordLoading(false); });
     return () => { cancelled = true; };
   }, [mode, hospitalId, keywordType, clipped.start, clipped.end]);
@@ -161,10 +161,6 @@ export default function SearchAdSection({
   const campaignTable = useMemo(
     () => (clipped.start ? buildCampaignTable(filteredRows, clipped.start, clipped.end) : []),
     [filteredRows, clipped],
-  );
-  const topKeywords = useMemo(
-    () => (clipped.start ? buildTopKeywords(keywordRows, clipped.start, clipped.end, 10) : []),
-    [keywordRows, clipped],
   );
   const trend = useMemo(
     () =>

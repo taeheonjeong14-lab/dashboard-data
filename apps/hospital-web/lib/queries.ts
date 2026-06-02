@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/client";
+import type { KeywordPerf } from "@/lib/searchad-aggregates";
 
 export type HospitalOption = {
   hospital_id: string;
@@ -791,29 +792,36 @@ export async function fetchSearchAdMetrics(
 }
 
 /**
- * Top 키워드 표용 — **키워드 레벨 행(keyword_id<>'')을 선택한 날짜 범위로만** 가져온다.
- * 전 기간 키워드(수십만)를 다 끌지 않도록 기간 한정. (추후 옵션 B: DB 집계로 상위 N개만 내려받기)
+ * Top 키워드 표용 — **DB에서 키워드별 합산·정렬 후 상위 N개만** 받는다(옵션 B).
+ * analytics.searchad_top_keywords(hospital, type, start, end, limit) RPC 호출.
+ * 키워드 원시 행(수십만)을 브라우저로 끌지 않고 집계 결과(N행)만 내려받아 기간 무관 즉시 렌더.
  */
-export async function fetchSearchAdKeywordMetrics(
+export async function fetchSearchAdTopKeywords(
   hospitalId: string,
   campaignType: string | undefined,
   startDate: string,
   endDate: string,
-): Promise<SearchAdRow[]> {
+  limit = 10,
+): Promise<KeywordPerf[]> {
   const supabase = createClient();
-  const rows = await fetchAllPages((from, to) => {
-    let q = supabase
-      .schema("analytics")
-      .from("analytics_searchad_daily_metrics")
-      .select(SEARCHAD_SELECT)
-      .eq("hospital_id", hospitalId)
-      .neq("keyword_id", "")
-      .gte("metric_date", startDate)
-      .lte("metric_date", endDate);
-    if (campaignType) q = q.eq("campaign_type", campaignType);
-    return q.order("metric_date", { ascending: false }).range(from, to);
+  const { data, error } = await supabase.schema("analytics").rpc("searchad_top_keywords", {
+    p_hospital_id: hospitalId,
+    p_campaign_type: campaignType ?? null,
+    p_start: startDate,
+    p_end: endDate,
+    p_limit: limit,
   });
-  return rows.map(mapSearchAdRow);
+  if (error) throw error;
+  const rows = (data ?? []) as Record<string, unknown>[];
+  return rows.map((r) => ({
+    keywordId: asStringOrNull(r.keyword_id) ?? "",
+    keywordName: asStringOrNull(r.keyword_name) ?? asStringOrNull(r.keyword_id) ?? "",
+    totals: {
+      impressions: asNumberOrNull(r.impressions) ?? 0,
+      clicks: asNumberOrNull(r.clicks) ?? 0,
+      cost: asNumberOrNull(r.cost) ?? 0,
+    },
+  }));
 }
 
 export async function fetchKeywordTargets(params: {
