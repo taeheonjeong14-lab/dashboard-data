@@ -293,16 +293,14 @@ export default function SearchAdSection({
         </div>
       )}
 
-      {/* 요약 KPI (파워링크 등 full 모드) */}
-      {mode === "full" && (
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-          <KpiBox label="노출" value={formatMetric("impressions", overall.impressions)} />
-          <KpiBox label="클릭" value={formatMetric("clicks", overall.clicks)} />
-          <KpiBox label="클릭율" value={formatMetric("ctr", deriveMetric(overall, "ctr"))} />
-          <KpiBox label="총비용" value={formatMetric("cost", overall.cost)} />
-          <KpiBox label="CPC" value={formatMetric("cpc", deriveMetric(overall, "cpc"))} />
-        </div>
-      )}
+      {/* 요약 KPI (캠페인단 합계) — full·summary(플레이스) 공통 */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+        <KpiBox label="노출" value={formatMetric("impressions", overall.impressions)} />
+        <KpiBox label="클릭" value={formatMetric("clicks", overall.clicks)} />
+        <KpiBox label="클릭율" value={formatMetric("ctr", deriveMetric(overall, "ctr"))} />
+        <KpiBox label="총비용" value={formatMetric("cost", overall.cost)} />
+        <KpiBox label="CPC" value={formatMetric("cpc", deriveMetric(overall, "cpc"))} />
+      </div>
 
       {/* 추세 (캠페인별 멀티라인) */}
       <section>

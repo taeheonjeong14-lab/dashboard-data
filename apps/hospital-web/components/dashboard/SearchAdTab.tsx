@@ -36,7 +36,7 @@ export default function SearchAdTab({
           return;
         }
 
-        const data = await fetchSearchAdMetrics(hid);
+        const data = await fetchSearchAdMetrics(hid, lockedType);
 
         if (!cancelled) {
           setHospitalId(hid);
@@ -59,7 +59,7 @@ export default function SearchAdTab({
     return () => {
       cancelled = true;
     };
-  }, [ctxHospitalId]);
+  }, [ctxHospitalId, lockedType]);
 
   if (loadState === "loading") {
     return <CenteredSpinner minHeight="60vh" />;

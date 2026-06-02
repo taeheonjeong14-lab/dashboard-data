@@ -748,26 +748,27 @@ export async function fetchPlacePeriodKpis(
 }
 
 /**
- * 검색광고 지표는 키워드 단위 일자 데이터라 전체 기간을 끌면 수만 행 → 순차 페이지네이션이
- * 사실상 멈춘 것처럼 보인다. 최근 N일로 제한해 행 수를 줄인다(대시보드 추세에 충분).
+ * 검색광고 지표는 한 병원에 유형(WEB_SITE/PLACE)·키워드 단위로 수십만 행이 쌓인다.
+ * 유형을 서버에서 필터하지 않으면 전체를 끌다 fetchAllPages 의 5만 행 상한에 막혀
+ * (오름차순이면) 옛날 데이터만 들어오고 최신(예: 올해)이 누락된다.
+ * → campaignType 으로 서버 필터 + 최신순(desc) 정렬해, 상한에 걸려도 최근치는 항상 보이게 한다.
  */
-const SEARCHAD_LOOKBACK_DAYS = 180;
-
-export async function fetchSearchAdMetrics(hospitalId: string): Promise<SearchAdRow[]> {
+export async function fetchSearchAdMetrics(
+  hospitalId: string,
+  campaignType?: string,
+): Promise<SearchAdRow[]> {
   const supabase = createClient();
-  const sinceDate = addCalendarDaysUtc(todayDateKeySeoul(), -SEARCHAD_LOOKBACK_DAYS);
-  const rows = await fetchAllPages((from, to) =>
-    supabase
+  const rows = await fetchAllPages((from, to) => {
+    let q = supabase
       .schema("analytics")
       .from("analytics_searchad_daily_metrics")
       .select(
         "metric_date,campaign_id,campaign_name,campaign_type,adgroup_id,adgroup_name,keyword_id,keyword_name,impressions,clicks,cost",
       )
-      .eq("hospital_id", hospitalId)
-      .gte("metric_date", sinceDate)
-      .order("metric_date", { ascending: true })
-      .range(from, to),
-  );
+      .eq("hospital_id", hospitalId);
+    if (campaignType) q = q.eq("campaign_type", campaignType);
+    return q.order("metric_date", { ascending: false }).range(from, to);
+  });
 
   return rows.map((r) => ({
     dateKey: String(r.metric_date ?? "").slice(0, 10),
