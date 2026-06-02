@@ -100,5 +100,5 @@ export default function SearchAdTab({
     );
   }
 
-  return <SearchAdSection rows={rows} lockedType={lockedType} mode={mode} />;
+  return <SearchAdSection rows={rows} hospitalId={hospitalId} lockedType={lockedType} mode={mode} />;
 }

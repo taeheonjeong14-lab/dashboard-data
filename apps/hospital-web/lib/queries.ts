@@ -747,30 +747,11 @@ export async function fetchPlacePeriodKpis(
   });
 }
 
-/**
- * 검색광고 지표는 한 병원에 유형(WEB_SITE/PLACE)·키워드 단위로 수십만 행이 쌓인다.
- * 유형을 서버에서 필터하지 않으면 전체를 끌다 fetchAllPages 의 5만 행 상한에 막혀
- * (오름차순이면) 옛날 데이터만 들어오고 최신(예: 올해)이 누락된다.
- * → campaignType 으로 서버 필터 + 최신순(desc) 정렬해, 상한에 걸려도 최근치는 항상 보이게 한다.
- */
-export async function fetchSearchAdMetrics(
-  hospitalId: string,
-  campaignType?: string,
-): Promise<SearchAdRow[]> {
-  const supabase = createClient();
-  const rows = await fetchAllPages((from, to) => {
-    let q = supabase
-      .schema("analytics")
-      .from("analytics_searchad_daily_metrics")
-      .select(
-        "metric_date,campaign_id,campaign_name,campaign_type,adgroup_id,adgroup_name,keyword_id,keyword_name,impressions,clicks,cost",
-      )
-      .eq("hospital_id", hospitalId);
-    if (campaignType) q = q.eq("campaign_type", campaignType);
-    return q.order("metric_date", { ascending: false }).range(from, to);
-  });
+const SEARCHAD_SELECT =
+  "metric_date,campaign_id,campaign_name,campaign_type,adgroup_id,adgroup_name,keyword_id,keyword_name,impressions,clicks,cost";
 
-  return rows.map((r) => ({
+function mapSearchAdRow(r: Record<string, unknown>): SearchAdRow {
+  return {
     dateKey: String(r.metric_date ?? "").slice(0, 10),
     campaignId: asStringOrNull(r.campaign_id) ?? "",
     campaignName: asStringOrNull(r.campaign_name),
@@ -782,7 +763,57 @@ export async function fetchSearchAdMetrics(
     impressions: asNumberOrNull(r.impressions) ?? 0,
     clicks: asNumberOrNull(r.clicks) ?? 0,
     cost: asNumberOrNull(r.cost) ?? 0,
-  }));
+  };
+}
+
+/**
+ * 메인 뷰(추세·KPI·캠페인표)용 — **캠페인·광고그룹 레벨만(keyword_id='')** 가져온다.
+ * 키워드 단위 행(한 병원 수십만)을 빼서 전 기간도 가볍게 로드된다.
+ * - campaignType 서버 필터 + 최신순(desc): 5만 상한에 걸려도 최근 데이터가 남게.
+ * - Top 키워드 표는 fetchSearchAdKeywordMetrics 로 기간 한정 별도 조회.
+ */
+export async function fetchSearchAdMetrics(
+  hospitalId: string,
+  campaignType?: string,
+): Promise<SearchAdRow[]> {
+  const supabase = createClient();
+  const rows = await fetchAllPages((from, to) => {
+    let q = supabase
+      .schema("analytics")
+      .from("analytics_searchad_daily_metrics")
+      .select(SEARCHAD_SELECT)
+      .eq("hospital_id", hospitalId)
+      .eq("keyword_id", "");
+    if (campaignType) q = q.eq("campaign_type", campaignType);
+    return q.order("metric_date", { ascending: false }).range(from, to);
+  });
+  return rows.map(mapSearchAdRow);
+}
+
+/**
+ * Top 키워드 표용 — **키워드 레벨 행(keyword_id<>'')을 선택한 날짜 범위로만** 가져온다.
+ * 전 기간 키워드(수십만)를 다 끌지 않도록 기간 한정. (추후 옵션 B: DB 집계로 상위 N개만 내려받기)
+ */
+export async function fetchSearchAdKeywordMetrics(
+  hospitalId: string,
+  campaignType: string | undefined,
+  startDate: string,
+  endDate: string,
+): Promise<SearchAdRow[]> {
+  const supabase = createClient();
+  const rows = await fetchAllPages((from, to) => {
+    let q = supabase
+      .schema("analytics")
+      .from("analytics_searchad_daily_metrics")
+      .select(SEARCHAD_SELECT)
+      .eq("hospital_id", hospitalId)
+      .neq("keyword_id", "")
+      .gte("metric_date", startDate)
+      .lte("metric_date", endDate);
+    if (campaignType) q = q.eq("campaign_type", campaignType);
+    return q.order("metric_date", { ascending: false }).range(from, to);
+  });
+  return rows.map(mapSearchAdRow);
 }
 
 export async function fetchKeywordTargets(params: {

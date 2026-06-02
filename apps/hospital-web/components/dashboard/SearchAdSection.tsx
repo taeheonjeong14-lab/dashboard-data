@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, Fragment } from "react";
+import { useEffect, useMemo, useState, Fragment } from "react";
 import {
   CartesianGrid,
   Legend,
@@ -11,7 +11,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import type { SearchAdRow } from "@/lib/queries";
+import { fetchSearchAdKeywordMetrics, type SearchAdRow } from "@/lib/queries";
 import {
   buildCampaignTable,
   buildCampaignTrend,
@@ -95,10 +95,13 @@ function addDaysToDateKey(dateKey: string, delta: number): string {
 
 export default function SearchAdSection({
   rows,
+  hospitalId,
   lockedType,
   mode = "full",
 }: {
   rows: SearchAdRow[];
+  /** Top 키워드 표를 선택 기간 한정으로 따로 조회할 때 사용. */
+  hospitalId?: string;
   /** 지정 시 그 캠페인 유형만 표시하고 유형 토글은 숨김 (예: "WEB_SITE", "PLACE"). */
   lockedType?: string;
   /** "summary" 면 추세 차트만 (캠페인 표·Top키워드 숨김). */
@@ -111,6 +114,9 @@ export default function SearchAdSection({
   const [rangeEnd, setRangeEnd] = useState("");
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [typeFilter, setTypeFilter] = useState<string>("all");
+  // Top 키워드는 메인 fetch(키워드 제외)와 분리해, 선택 기간 한정으로 따로 비동기 로드한다.
+  const [keywordRows, setKeywordRows] = useState<SearchAdRow[]>([]);
+  const [keywordLoading, setKeywordLoading] = useState(false);
 
   // 데이터에 존재하는 캠페인 유형 (campaign-level row 기준). campaign_type 미수집(NULL)이면 빈 목록.
   const availableTypes = useMemo(() => {
@@ -136,13 +142,29 @@ export default function SearchAdSection({
     [start, end, minB, maxB],
   );
 
+  // Top 키워드 표(full 모드)만 선택 기간 한정으로 키워드 레벨 행을 따로 가져온다.
+  const keywordType = effectiveType === "all" ? undefined : effectiveType;
+  useEffect(() => {
+    if (mode !== "full" || !hospitalId || !clipped.start || !clipped.end) {
+      setKeywordRows([]);
+      return;
+    }
+    let cancelled = false;
+    setKeywordLoading(true);
+    fetchSearchAdKeywordMetrics(hospitalId, keywordType, clipped.start, clipped.end)
+      .then((kr) => { if (!cancelled) setKeywordRows(kr); })
+      .catch(() => { if (!cancelled) setKeywordRows([]); })
+      .finally(() => { if (!cancelled) setKeywordLoading(false); });
+    return () => { cancelled = true; };
+  }, [mode, hospitalId, keywordType, clipped.start, clipped.end]);
+
   const campaignTable = useMemo(
     () => (clipped.start ? buildCampaignTable(filteredRows, clipped.start, clipped.end) : []),
     [filteredRows, clipped],
   );
   const topKeywords = useMemo(
-    () => (clipped.start ? buildTopKeywords(filteredRows, clipped.start, clipped.end, 10) : []),
-    [filteredRows, clipped],
+    () => (clipped.start ? buildTopKeywords(keywordRows, clipped.start, clipped.end, 10) : []),
+    [keywordRows, clipped],
   );
   const trend = useMemo(
     () =>
@@ -449,7 +471,13 @@ export default function SearchAdSection({
               </tr>
             </thead>
             <tbody>
-              {topKeywords.length === 0 ? (
+              {keywordLoading ? (
+                <tr>
+                  <td colSpan={6} className="py-6 text-center text-[var(--text-muted)]">
+                    키워드 데이터를 불러오는 중…
+                  </td>
+                </tr>
+              ) : topKeywords.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="py-6 text-center text-[var(--text-muted)]">
                     선택 기간에 키워드 데이터가 없습니다.
