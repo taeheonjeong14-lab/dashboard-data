@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "@dashboard/chart-ingest": "*",
+    "@dashboard/health-report": "*",
     "@dashboard/lab-normalize": "*",
     "@fontsource/noto-sans-kr": "^5.2.9",
     "@fontsource/pretendard": "^5.2.5",

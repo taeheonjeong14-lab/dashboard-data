@@ -10,7 +10,7 @@ import {
 } from '@/lib/chart-app/health-systems-demo-blocks';
 import { parseHealthSystemsBlocksFromUnknown } from '@/lib/chart-app/health-report-systems-blocks-parse';
 import { resolveHospitalReportTemplate } from '@/lib/chart-app/report-hospital-template';
-import { formatDirectorHospitalLine, spreadKoreanCharsForFooter } from '@/lib/chart-app/report-director-line';
+import { formatDirectorHospitalLine, spreadKoreanCharsForFooter } from '@dashboard/health-report';
 import { labItemCategory, detectSpeciesProfile, labCategorySortOrder } from '@/lib/lab-category-map';
 import { refineLabFlag } from '@dashboard/lab-normalize';
 import {

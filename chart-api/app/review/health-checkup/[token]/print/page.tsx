@@ -23,21 +23,23 @@ import { loadReportSourceData } from '@/lib/chart-app/report-source';
 import { buildHealthReportPreviewModel } from '@/lib/chart-app/health-report-preview-model';
 import { signImageSlotsInBlocks } from '@/lib/chart-app/health-report-blocks-sign-images';
 import { getHealthCheckupGeneratedContentForRun } from '@/lib/generated-run-content';
-import type { HealthReportCoverSheetProps } from '@/app/components/report/health-report-cover-sheet';
-import { HealthReportCoverSheet } from '@/app/components/report/health-report-cover-sheet';
-import type { HealthReportOuterCoverSheetProps } from '@/app/components/report/health-report-outer-cover-sheet';
-import { HealthReportOuterCoverSheet } from '@/app/components/report/health-report-outer-cover-sheet';
-import type { HealthReportSummarySheetProps } from '@/app/components/report/health-report-summary-sheet';
-import { HealthReportSummarySheet } from '@/app/components/report/health-report-summary-sheet';
+import type {
+  HealthReportCoverSheetProps,
+  HealthReportOuterCoverSheetProps,
+  HealthReportSummarySheetProps,
+  LabReportCategoryGroup,
+} from '@dashboard/health-report';
 import {
   HEALTH_REPORT_PAGE_DENTAL_SKIN,
   HEALTH_REPORT_PAGE_RADIOLOGY_ULTRASOUND,
   HEALTH_REPORT_PAGE_SYSTEMS,
   HEALTH_REPORT_PAGE_SYSTEMS_B,
+  HealthLabReportSheet,
+  HealthReportCoverSheet,
+  HealthReportOuterCoverSheet,
+  HealthReportSummarySheet,
   HealthSystemsReportSheet,
-} from '@/app/components/report/health-systems-report-sheet';
-import type { LabReportCategoryGroup } from '@/app/components/report/health-lab-report-sheet';
-import { HealthLabReportSheet } from '@/app/components/report/health-lab-report-sheet';
+} from '@dashboard/health-report';
 
 const LINK_CONTENT_TYPE = 'health_checkup';
 const LEGACY_LINK_CONTENT_TYPE = 'health-checkup';

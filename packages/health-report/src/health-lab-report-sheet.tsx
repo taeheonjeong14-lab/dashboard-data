@@ -1,6 +1,6 @@
 import "./health-lab-report-sheet.css";
 import { HealthReportInnerSheetHeader } from "./health-report-inner-sheet-header";
-import { parseReferenceRange, valuePositionPercent } from "@/lib/lab-range-parse";
+import { parseReferenceRange, valuePositionPercent } from "./lab-range-parse";
 
 export type LabReportItem = {
   itemName: string;

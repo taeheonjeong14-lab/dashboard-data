@@ -1,4 +1,4 @@
-import { coverCheckupDateToIsoInputValue } from '@/lib/kst-date-format';
+import { coverCheckupDateToIsoInputValue } from '@dashboard/health-report';
 
 function yyyyMmddFromInstantKst(instant: Date): string {
   const parts = new Intl.DateTimeFormat('en-US', {

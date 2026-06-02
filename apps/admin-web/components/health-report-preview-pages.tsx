@@ -10,21 +10,23 @@ import '@fontsource/pretendard/500.css';
 import '@fontsource/pretendard/700.css';
 import '@fontsource/pretendard/900.css';
 
-import type { HealthReportCoverSheetProps } from '@/components/health-report-print/health-report-cover-sheet';
-import { HealthReportCoverSheet } from '@/components/health-report-print/health-report-cover-sheet';
-import type { HealthReportOuterCoverSheetProps } from '@/components/health-report-print/health-report-outer-cover-sheet';
-import { HealthReportOuterCoverSheet } from '@/components/health-report-print/health-report-outer-cover-sheet';
-import type { HealthReportSummarySheetProps } from '@/components/health-report-print/health-report-summary-sheet';
-import { HealthReportSummarySheet } from '@/components/health-report-print/health-report-summary-sheet';
+import type {
+  HealthReportCoverSheetProps,
+  HealthReportOuterCoverSheetProps,
+  HealthReportSummarySheetProps,
+  LabReportCategoryGroup,
+} from '@dashboard/health-report';
 import {
   HEALTH_REPORT_PAGE_DENTAL_SKIN,
   HEALTH_REPORT_PAGE_RADIOLOGY_ULTRASOUND,
   HEALTH_REPORT_PAGE_SYSTEMS,
   HEALTH_REPORT_PAGE_SYSTEMS_B,
+  HealthLabReportSheet,
+  HealthReportCoverSheet,
+  HealthReportOuterCoverSheet,
+  HealthReportSummarySheet,
   HealthSystemsReportSheet,
-} from '@/components/health-report-print/health-systems-report-sheet';
-import type { LabReportCategoryGroup } from '@/components/health-report-print/health-lab-report-sheet';
-import { HealthLabReportSheet } from '@/components/health-report-print/health-lab-report-sheet';
+} from '@dashboard/health-report';
 
 /** chart-api `POST /api/report/health-checkup/preview` 응답의 `model` JSON */
 export type HealthReportPreviewModelJson = {

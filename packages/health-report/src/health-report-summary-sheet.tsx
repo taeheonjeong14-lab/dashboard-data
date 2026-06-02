@@ -1,7 +1,7 @@
 import "./health-report-summary-sheet.css";
 import { HealthReportInnerSheetHeader } from "./health-report-inner-sheet-header";
-import { formatKoreanShortDateKst } from "@/lib/kst-date-format";
-import { formatDirectorHospitalLine } from "@/lib/report-director-line";
+import { formatKoreanShortDateKst } from "./kst-date-format";
+import { formatDirectorHospitalLine } from "./report-director-line";
 
 /** 문단 단위로 쪼갠다. \n\n 있으면 그걸 기준으로, 없으면 \n 기준. */
 function splitParagraphs(text: string): string[] {

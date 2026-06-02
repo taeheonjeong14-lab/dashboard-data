@@ -27,15 +27,15 @@ import {
 import type { HealthPreviewEditableSection } from '@/app/components/report/health-report-preview-pages';
 import { joinTimelineCardText, splitTimelineCardText } from '@/lib/chart-app/health-report-timeline-card';
 import { parseHealthSystemsBlocksFromUnknown } from '@/lib/chart-app/health-report-systems-blocks-parse';
-import { coverCheckupDateToIsoInputValue } from '@/lib/kst-date-format';
+import { coverCheckupDateToIsoInputValue } from '@dashboard/health-report';
 import { detectSpeciesProfile } from '@/lib/lab-category-map';
-import type { HealthSystemsReportBlock } from '@/app/components/report/health-systems-report-sheet';
+import type { HealthSystemsReportBlock } from '@dashboard/health-report';
 import {
   DEMO_HEALTH_DENTAL_SKIN_BLOCKS,
   DEMO_HEALTH_SYSTEMS_BLOCKS,
   DEMO_HEALTH_SYSTEMS_PAGE_B_BLOCKS,
   DEMO_RADIOLOGY_ULTRASOUND_BLOCKS,
-} from '@/app/components/report/health-systems-report-sheet';
+} from '@dashboard/health-report';
 
 // Row char limits (not exported from health-checkup-systems-llm-merge)
 const SYSTEMS_ROW_MAX_P34 = 320;

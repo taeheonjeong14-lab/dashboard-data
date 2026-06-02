@@ -7,6 +7,7 @@ on:
     paths:
       - 'chart-api/**'
       - 'packages/lab-normalize/**'
+      - 'packages/health-report/**'
 
 env:
   VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}

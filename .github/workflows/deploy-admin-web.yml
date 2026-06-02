@@ -7,6 +7,7 @@ on:
       - 'apps/admin-web/**'
       - 'packages/lab-normalize/**'
       - 'packages/chart-ingest/**'
+      - 'packages/health-report/**'
 
 env:
   VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}

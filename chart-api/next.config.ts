@@ -10,7 +10,7 @@ const nextConfig: NextConfig = {
   turbopack: {
     root: path.join(__dirname, '..'),
   },
-  transpilePackages: ['@dashboard/lab-normalize'],
+  transpilePackages: ['@dashboard/lab-normalize', '@dashboard/health-report'],
   allowedDevOrigins: ['*.ngrok-free.app', '*.ngrok-free.dev', '*.ngrok.io', '*.ngrok.app'],
   serverExternalPackages: ['@sparticuz/chromium', 'playwright-core'],
   // bin/chromium.br is 64 MB — Vercel Hobby (50 MB/fn limit) will silently drop it.
