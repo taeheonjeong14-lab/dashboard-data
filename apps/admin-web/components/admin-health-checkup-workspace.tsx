@@ -441,6 +441,7 @@ export function AdminHealthCheckupWorkspace({
   const DISEASE_PAGE_GROUP_LABEL: Partial<Record<SystemKey, string>> = {
     systemsPage3Blocks: '순환기&호흡기, 소화기, 내분비계',
     systemsPage3bBlocks: '신장 및 비뇨기계, 간담도계, 근골격계',
+    systemsPage4Blocks: '치과 및 안과, 피부와 외이도',
   };
 
   function patchDiseaseOption(
@@ -1237,7 +1238,7 @@ export function AdminHealthCheckupWorkspace({
                       </label>
                       );
                     })}
-                    {(k === 'systemsPage3Blocks' || k === 'systemsPage3bBlocks') && (() => {
+                    {(k === 'systemsPage3Blocks' || k === 'systemsPage3bBlocks' || k === 'systemsPage4Blocks') && (() => {
                       const opts = block.diseaseOptions ?? [];
                       const addKey = `${k}-${bi}`;
                       return (

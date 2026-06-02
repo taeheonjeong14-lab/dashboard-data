@@ -66,12 +66,39 @@ function withDiseaseBox(blocks: unknown[]): unknown[] {
   return arr;
 }
 
+// 5p(치과/피부) 전용: 박스가 들어가면 치과 이미지(2줄·6장)를 1줄·3장으로 줄이고, 해당 장기 뒤에 splice.
+function withDiseaseBoxPage5(blocks: unknown[]): unknown[] {
+  const arr = Array.isArray(blocks) ? blocks : [];
+  if (arr.some((b) => (b as { variant?: string })?.variant === 'diseaseInfo')) return arr;
+  const idx = arr.findIndex((b) => {
+    const o = b as { variant?: string; diseaseOptions?: DiseaseOption[] };
+    return (
+      o?.variant === 'rows' &&
+      Array.isArray(o.diseaseOptions) &&
+      o.diseaseOptions.some((d) => d?.enabled && (d.name ?? '').trim() && (d.body ?? '').trim())
+    );
+  });
+  if (idx === -1) return arr;
+  const reduced = arr.map((b) => {
+    const o = b as { variant?: string; titleKo?: string; titleEn?: string; images?: unknown[] };
+    if (o?.variant === 'imagesGrid2x3' && Array.isArray(o.images)) {
+      return { variant: 'images', titleKo: o.titleKo, titleEn: o.titleEn, images: o.images.slice(0, 3) };
+    }
+    return b;
+  });
+  const organ = arr[idx] as { diseaseOptions: DiseaseOption[] };
+  const opt = organ.diseaseOptions.find((d) => d?.enabled && (d.name ?? '').trim() && (d.body ?? '').trim())!;
+  const box = { variant: 'diseaseInfo', name: (opt.name ?? '').trim(), body: (opt.body ?? '').trim().slice(0, 200) };
+  return [...reduced.slice(0, idx + 1), box, ...reduced.slice(idx + 1)];
+}
+
 export function HealthReportPreviewPages({ model }: { model: HealthReportPreviewModelJson }) {
   const coverProps = model.coverProps as HealthReportCoverSheetProps;
   const summaryProps = model.summaryProps as HealthReportSummarySheetProps;
   const outerCoverProps = model.outerCoverProps as HealthReportOuterCoverSheetProps;
   const systemsPage3Blocks = withDiseaseBox(model.systemsPage3Blocks);
   const systemsPage3bBlocks = withDiseaseBox(model.systemsPage3bBlocks);
+  const systemsPage4Blocks = withDiseaseBoxPage5(model.systemsPage4Blocks);
 
   return (
     <div className="report-a4-tokens" style={{ background: '#ffffff' }}>
@@ -111,7 +138,7 @@ export function HealthReportPreviewPages({ model }: { model: HealthReportPreview
         hospitalLogoAlt={coverProps.hospitalLogoAlt}
         hospitalNameKo={coverProps.hospitalNameKo}
         hospitalNameEn={coverProps.hospitalNameEn}
-        blocks={model.systemsPage4Blocks as never}
+        blocks={systemsPage4Blocks as never}
         pageNumber={HEALTH_REPORT_PAGE_DENTAL_SKIN}
         tokenOverrides={model.tokenOverrides ?? undefined}
       />

@@ -45,6 +45,7 @@ function overlayDiseaseFromDraft(
     ...model,
     systemsPage3Blocks: apply(model.systemsPage3Blocks, (draft as Record<string, unknown>).systemsPage3Blocks),
     systemsPage3bBlocks: apply(model.systemsPage3bBlocks, (draft as Record<string, unknown>).systemsPage3bBlocks),
+    systemsPage4Blocks: apply(model.systemsPage4Blocks, (draft as Record<string, unknown>).systemsPage4Blocks),
   };
 }
 

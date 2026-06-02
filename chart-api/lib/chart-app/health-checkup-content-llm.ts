@@ -20,6 +20,7 @@ import {
   buildHealthCheckupInstructionBody,
   HEALTH_CHECKUP_GROUNDING_LINES,
   HEALTH_CHECKUP_OWNER_TONE_LINES,
+  HEALTH_CHECKUP_VALUE_INTERPRETATION_LINES,
   HEALTH_CHECKUP_OVERALL_RULE_LINES,
   HEALTH_CHECKUP_FOLLOWUP_RULE_LINES,
   healthCheckupRequiredCheckItemsLine,
@@ -405,6 +406,9 @@ function buildSectionInstruction(
     '**보호자 대상 문체(호칭·말투)**',
     ...HEALTH_CHECKUP_OWNER_TONE_LINES,
     '',
+    '**검사 수치 해석(전 섹션 공통)**',
+    ...HEALTH_CHECKUP_VALUE_INTERPRETATION_LINES,
+    '',
   ];
   if (overallContext) {
     lines.push(
@@ -496,7 +500,10 @@ function buildSectionInstruction(
         '',
         ...healthCheckupOrganBlockLines('skin'),
         '',
+        '— 질환 소개 후보(이름만, 본문 금지) —',
+        ...HEALTH_CHECKUP_DISEASE_BOX_RULE_LINES,
         '출력 키: hp4_dental_dx, hp4_dental_imp, hp4_skin_dx, hp4_skin_imp',
+        '추가 출력 키(선택): hp4_dental_diseases, hp4_skin_diseases (각각 확진 질환명 문자열 배열)',
       );
       break;
     case 'systems5':

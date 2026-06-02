@@ -185,6 +185,9 @@ export function HealthSystemsReportSheet({
   ) {
     sheetClasses.push("hsr-sheet--tight-table-image-gap");
   }
+  if (blocks.some((b) => b.variant === "diseaseInfo")) {
+    sheetClasses.push("hsr-sheet--has-disease");
+  }
   const sheetClass = sheetClasses.join(" ");
 
   return (

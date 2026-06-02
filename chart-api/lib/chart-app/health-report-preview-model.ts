@@ -1,6 +1,6 @@
 import type { ReportSourceData } from '@/lib/chart-app/report-types';
 import type { HealthCheckupGeneratedContent } from '@/lib/chart-app/health-checkup-content-llm';
-import type { HealthSystemsReportBlock } from '@/lib/chart-app/health-systems-demo-blocks';
+import type { HealthSystemsReportBlock, HealthSystemsImageSlot } from '@/lib/chart-app/health-systems-demo-blocks';
 import type { HospitalRow } from '@/lib/chart-app/hospitals-types';
 import {
   DEMO_HEALTH_DENTAL_SKIN_BLOCKS,
@@ -61,6 +61,43 @@ function insertDiseaseBoxFromOrganData(blocks: HealthSystemsReportBlock[]): Heal
     return out;
   }
   return blocks;
+}
+
+/**
+ * 5p(치과 및 안과 / 피부와 외이도) 전용: enabled 질환 후보가 있으면
+ *  - 치과 이미지(imagesGrid2x3, 2줄·6장)를 1줄·3장(images)으로 축소해 공간을 확보하고
+ *  - 그 질환이 속한 장기(치과/피부) rows 블록 바로 뒤에 질환 소개 박스를 삽입한다. (페이지당 1개)
+ */
+function insertDiseaseBoxPage5(blocks: HealthSystemsReportBlock[]): HealthSystemsReportBlock[] {
+  if (blocks.some((b) => b.variant === 'diseaseInfo')) return blocks;
+  const idx = blocks.findIndex(
+    (b) => b.variant === 'rows' && !!b.diseaseOptions?.some((o) => o.enabled && o.name.trim() && o.body.trim()),
+  );
+  if (idx === -1) return blocks;
+  // 치과 이미지 2줄 → 1줄(3장)로 축소
+  const reduced: HealthSystemsReportBlock[] = blocks.map((b) =>
+    b.variant === 'imagesGrid2x3'
+      ? {
+          variant: 'images',
+          titleKo: b.titleKo,
+          titleEn: b.titleEn,
+          images: [b.images[0], b.images[1], b.images[2]] as [
+            HealthSystemsImageSlot,
+            HealthSystemsImageSlot,
+            HealthSystemsImageSlot,
+          ],
+        }
+      : b,
+  );
+  const organ = blocks[idx] as Extract<HealthSystemsReportBlock, { variant: 'rows' }>;
+  const opt = organ.diseaseOptions!.find((o) => o.enabled && o.name.trim() && o.body.trim())!;
+  const box: HealthSystemsReportBlock = {
+    variant: 'diseaseInfo',
+    name: opt.name.trim(),
+    body: clampChars(opt.body.trim(), DISEASE_BOX_BODY_MAX),
+  };
+  reduced.splice(idx + 1, 0, box);
+  return reduced;
 }
 
 export type LabReportPage = { groups: unknown[] };
@@ -297,6 +334,7 @@ export function buildHealthReportPreviewModel(params: {
   // 장기에 귀속된 확진 질환 데이터가 있으면 해당 장기 바로 뒤에 질환 소개 박스를 삽입(3·4p, 페이지당 1개).
   const systemsPage3BlocksFinal = insertDiseaseBoxFromOrganData(systemsPage3Blocks);
   const systemsPage3bBlocksFinal = insertDiseaseBoxFromOrganData(systemsPage3bBlocks);
+  const systemsPage4BlocksFinal = insertDiseaseBoxPage5(systemsPage4Blocks);
 
   return {
     hospital,
@@ -306,7 +344,7 @@ export function buildHealthReportPreviewModel(params: {
     tokenOverrides: tokenOverrides ?? null,
     systemsPage3Blocks: systemsPage3BlocksFinal,
     systemsPage3bBlocks: systemsPage3bBlocksFinal,
-    systemsPage4Blocks,
+    systemsPage4Blocks: systemsPage4BlocksFinal,
     systemsPage5Blocks,
     labPages: buildLabPages(source, speciesForLabel, Boolean(safeTrim(generated.labInterpretation))),
     labInterpretation: clampChars(safeTrim(generated.labInterpretation), LAB_INTERPRETATION_MAX),

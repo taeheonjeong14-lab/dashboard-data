@@ -132,6 +132,9 @@ export function mergeHealthSystemsDemosWithLlmFields(o: Record<string, unknown>)
   setRowContent(p4, 0, 1, str(o.hp4_dental_imp));
   setRowContent(p4, 2, 0, str(o.hp4_skin_dx));
   setRowContent(p4, 2, 1, str(o.hp4_skin_imp));
+  // 5p 질환 소개 후보 — 치과 및 안과(block 0), 피부와 외이도(block 2)
+  setDiseaseOptions(p4, 0, toDiseaseNames(o.hp4_dental_diseases));
+  setDiseaseOptions(p4, 2, toDiseaseNames(o.hp4_skin_diseases));
 
   const p5 = cloneBlocks(DEMO_RADIOLOGY_ULTRASOUND_BLOCKS);
   const radInterp = str(o.hp5_rad_interp) || joinLegacyDxImp(o.hp5_rad_dx, o.hp5_rad_imp);
