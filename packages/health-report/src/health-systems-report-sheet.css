@@ -173,6 +173,7 @@
   border-radius: 8px;
   /* 배경 10% 투명(불투명 90%) — 적응형 토큰 유지 */
   background: color-mix(in srgb, var(--report-a4-disease-box-bg) 90%, transparent);
+  font-style: italic;
   -webkit-print-color-adjust: exact;
   print-color-adjust: exact;
 }

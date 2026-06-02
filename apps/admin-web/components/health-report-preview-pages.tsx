@@ -9,8 +9,6 @@ import '@fontsource/pretendard/400.css';
 import '@fontsource/pretendard/500.css';
 import '@fontsource/pretendard/700.css';
 import '@fontsource/pretendard/900.css';
-import '@fontsource/hahmlet/400.css';
-import '@fontsource/hahmlet/800.css';
 
 import type {
   HealthReportCoverSheetProps,
@@ -61,7 +59,7 @@ function withDiseaseBox(blocks: unknown[]): unknown[] {
     const box = {
       variant: 'diseaseInfo',
       name: (opt.name ?? '').trim(),
-      body: (opt.body ?? '').trim().slice(0, 250),
+      body: (opt.body ?? '').trim().slice(0, 200),
     };
     return [...arr.slice(0, i + 1), box, ...arr.slice(i + 1)];
   }

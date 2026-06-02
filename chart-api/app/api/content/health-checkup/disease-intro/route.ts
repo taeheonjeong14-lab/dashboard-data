@@ -5,7 +5,7 @@ import { geminiGenerateText } from '@/lib/chart-app/gemini';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
-const BODY_MAX = 250;
+const BODY_MAX = 200;
 
 // 질환 소개 박스 본문을 온디맨드로 생성한다(admin 토글 ON 시 호출).
 // 특정 환자 수치/소견이 아니라 "질환 자체의 일반 소개"이며, 3가지를 순서대로 담는다:

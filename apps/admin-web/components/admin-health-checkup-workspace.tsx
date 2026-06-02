@@ -1276,9 +1276,9 @@ export function AdminHealthCheckupWorkspace({
                                 </div>
                                 {opt.enabled && (
                                   <div>
-                                    <textarea rows={3} style={{ width: '100%', padding: 8, fontSize: 13 }} maxLength={250} value={opt.body} onChange={(e) => patchDiseaseOption(k, bi, oi, { body: e.target.value })} />
+                                    <textarea rows={3} style={{ width: '100%', padding: 8, fontSize: 13 }} maxLength={200} value={opt.body} onChange={(e) => patchDiseaseOption(k, bi, oi, { body: e.target.value })} />
                                     <span style={{ fontSize: 11, color: opt.body.length > 250 ? '#b91c1c' : '#94a3b8' }}>
-                                      {opt.body.length} / 250{opt.body.length > 250 ? OVER_MAX_WARNING : ''}
+                                      {opt.body.length} / 200{opt.body.length > 200 ? OVER_MAX_WARNING : ''}
                                     </span>
                                   </div>
                                 )}

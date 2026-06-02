@@ -37,7 +37,7 @@ function clampSystemsBlocks(blocks: HealthSystemsReportBlock[], max: number): He
   );
 }
 
-const DISEASE_BOX_BODY_MAX = 250;
+const DISEASE_BOX_BODY_MAX = 200;
 
 /**
  * 같은 인쇄 페이지의 장기들 중 **enabled + 본문이 있는 질환 후보 1개**를 골라, 그 장기 섹션

@@ -99,7 +99,7 @@ function updateRowsBlockOptionBody(
 
 /** 질환 소개 입력칸을 노출할 페이지(3·4p)만. */
 const DISEASE_BOX_PAGE_KEYS: PageBlocksKey[] = ['systemsPage3Blocks', 'systemsPage3bBlocks'];
-const DISEASE_BODY_MAX = 250;
+const DISEASE_BODY_MAX = 200;
 
 function coverSpeciesSelectValue(raw: string | null | undefined): string {
   const t = (raw ?? '').trim();
