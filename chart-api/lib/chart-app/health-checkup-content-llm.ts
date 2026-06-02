@@ -23,6 +23,7 @@ import {
   HEALTH_CHECKUP_OVERALL_RULE_LINES,
   HEALTH_CHECKUP_FOLLOWUP_RULE_LINES,
   healthCheckupRequiredCheckItemsLine,
+  HEALTH_CHECKUP_DX_IMP_GUIDE_LINES,
   healthCheckupOrganBlockLines,
   healthCheckupImagingBlockLines,
   healthCheckupLabInterpretationLines,
@@ -446,8 +447,7 @@ function buildSectionInstruction(
       lines.push(
         '========== 장기 시트 (순환기&호흡기 / 소화기 / 내분비) 섹션만 재생성 ==========',
         '아래 세 계통 각각에 대해 주요 진단(_dx)과 시사점(_imp)을 쌍으로 작성한다.',
-        '· 주요 진단: 팩트 중심 — 검진에서 발견된 결과를 설명',
-        '· 시사점: 보호자가 이해할 수 있는 임상적 의미와 관찰 포인트',
+        ...HEALTH_CHECKUP_DX_IMP_GUIDE_LINES,
         '모든 관련 검사 결과가 정상이더라도 핵심 검사 결과를 인용하여 "이러이러하여 정상이다" 형식으로 써줘.',
         fixedPhrase,
         '',
@@ -464,8 +464,7 @@ function buildSectionInstruction(
       lines.push(
         '========== 장기 시트 (신장·비뇨기 / 간담도 / 근골격) 섹션만 재생성 ==========',
         '아래 세 계통 각각에 대해 주요 진단(_dx)과 시사점(_imp)을 쌍으로 작성한다.',
-        '· 주요 진단: 팩트 중심 — 검진에서 발견된 결과를 설명',
-        '· 시사점: 보호자가 이해할 수 있는 임상적 의미와 관찰 포인트',
+        ...HEALTH_CHECKUP_DX_IMP_GUIDE_LINES,
         '모든 관련 검사 결과가 정상이더라도 핵심 검사 결과를 인용하여 "이러이러하여 정상이다" 형식으로 써줘.',
         fixedPhrase,
         '',
@@ -482,8 +481,7 @@ function buildSectionInstruction(
       lines.push(
         '========== 치과 및 안과 / 피부·외이도 섹션만 재생성 ==========',
         '아래 두 계통 각각에 대해 주요 진단(_dx)과 시사점(_imp)을 쌍으로 작성한다.',
-        '· 주요 진단: 팩트 중심 — 검진에서 발견된 결과를 설명',
-        '· 시사점: 보호자가 이해할 수 있는 임상적 의미와 관찰 포인트',
+        ...HEALTH_CHECKUP_DX_IMP_GUIDE_LINES,
         '모든 관련 검사 결과가 정상이더라도 핵심 검사 결과를 인용하여 "이러이러하여 정상이다" 형식으로 써줘.',
         fixedPhrase,
         '',
