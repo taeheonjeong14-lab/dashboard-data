@@ -747,8 +747,15 @@ export async function fetchPlacePeriodKpis(
   });
 }
 
+/**
+ * 검색광고 지표는 키워드 단위 일자 데이터라 전체 기간을 끌면 수만 행 → 순차 페이지네이션이
+ * 사실상 멈춘 것처럼 보인다. 최근 N일로 제한해 행 수를 줄인다(대시보드 추세에 충분).
+ */
+const SEARCHAD_LOOKBACK_DAYS = 180;
+
 export async function fetchSearchAdMetrics(hospitalId: string): Promise<SearchAdRow[]> {
   const supabase = createClient();
+  const sinceDate = addCalendarDaysUtc(todayDateKeySeoul(), -SEARCHAD_LOOKBACK_DAYS);
   const rows = await fetchAllPages((from, to) =>
     supabase
       .schema("analytics")
@@ -757,6 +764,7 @@ export async function fetchSearchAdMetrics(hospitalId: string): Promise<SearchAd
         "metric_date,campaign_id,campaign_name,campaign_type,adgroup_id,adgroup_name,keyword_id,keyword_name,impressions,clicks,cost",
       )
       .eq("hospital_id", hospitalId)
+      .gte("metric_date", sinceDate)
       .order("metric_date", { ascending: true })
       .range(from, to),
   );
