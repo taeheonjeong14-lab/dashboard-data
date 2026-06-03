@@ -101,13 +101,10 @@ export default function PlaceInflowSection({
       <header className="mb-4">
         <h2
           id="place-inflow"
-          className="text-base font-semibold text-[var(--text)] sm:text-lg"
+          className="text-base font-semibold text-[var(--text)]"
         >
           플레이스 유입수
         </h2>
-        <p className="mt-1 text-sm text-[var(--text-muted)]">
-          기간 내 일/월/연 단위 플레이스 유입수 추이입니다.
-        </p>
       </header>
 
       {errorMessage ? (

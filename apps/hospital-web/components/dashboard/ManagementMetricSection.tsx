@@ -237,7 +237,7 @@ export default function ManagementMetricSection({
       ) : (
         <div className="flex flex-col gap-8">
           <div>
-            <h3 className="mb-2 text-sm font-medium text-[var(--text-secondary)]">{title} 추이</h3>
+            <h3 className="mb-2 text-base font-semibold text-[var(--text)]">{title} 추이</h3>
             <div className="mb-3 flex flex-wrap items-end gap-3">
               <div className="flex flex-wrap gap-2">
                 <label className="flex flex-col gap-0.5 text-xs text-[var(--text-muted)]">
@@ -427,7 +427,7 @@ export default function ManagementMetricSection({
 
           <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
             <div>
-              <h3 className="mb-2 text-sm font-medium text-[var(--text-secondary)]">
+              <h3 className="mb-2 text-base font-semibold text-[var(--text)]">
                 전년 동월 대비 {title} 비교 분석 (월간, 최근 12개월)
               </h3>
               <div className="h-[320px] w-full min-w-0">
@@ -509,7 +509,7 @@ export default function ManagementMetricSection({
             </div>
 
             <div>
-              <h3 className="mb-2 text-sm font-medium text-[var(--text-secondary)]">
+              <h3 className="mb-2 text-base font-semibold text-[var(--text)]">
                 요일별 {title} 분석
               </h3>
               <div className="h-[320px] w-full min-w-0">

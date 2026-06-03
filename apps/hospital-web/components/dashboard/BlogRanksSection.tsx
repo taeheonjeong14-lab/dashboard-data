@@ -142,7 +142,6 @@ export default function BlogRanksSection({
   hospitalId = null,
   loading = false,
   title = "주요 키워드 · 블로그 노출 순위",
-  description = "가장 최신 수집 기준, 주요 키워드별 네이버 블로그 노출 순위입니다.",
   headingId = "blog-ranks-section",
   variant = "detailed",
 }: BlogRanksSectionProps) {
@@ -372,11 +371,10 @@ export default function BlogRanksSection({
         className={`${variant === "simple" ? "" : "bg-[var(--bg-raised)] "}p-4 sm:p-5`}
       >
         {title && (
-          <h2 id={headingId} className="mb-2 text-base font-semibold text-[var(--text)] sm:text-lg">
+          <h2 id={headingId} className="mb-2 text-base font-semibold text-[var(--text)]">
             {title}
           </h2>
         )}
-        {description && <p className="mb-3 text-sm text-[var(--text-muted)]">{description}</p>}
         {loading && (
           <p className="text-sm text-[var(--text-secondary)]">데이터를 불러오는 중...</p>
         )}

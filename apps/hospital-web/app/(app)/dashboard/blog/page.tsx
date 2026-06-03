@@ -110,14 +110,12 @@ export default function BlogDashboardPage() {
       <div style={{ display: "flex", flexDirection: "column", gap: 24, marginBottom: 24 }}>
         <BlogMetricSection
           title="블로그 조회수"
-          description="일별·월별·연별 블로그 조회수 추이입니다."
           rows={blogRows}
           metric="views"
           valueSuffix="회"
         />
         <BlogMetricSection
           title="순 방문자 수"
-          description="일별·월별·연별 블로그 순 방문자 수 추이입니다."
           rows={blogRows}
           metric="uniqueVisitors"
           valueSuffix="명"
@@ -130,7 +128,6 @@ export default function BlogDashboardPage() {
           hospitalId={hospitalId}
           variant="detailed"
           title="주요 키워드 · 블로그 노출 순위"
-          description="가장 최신 수집 기준, 주요 키워드별 네이버 블로그 노출 순위입니다."
           headingId="blog-ranks-heading"
         />
       </div>

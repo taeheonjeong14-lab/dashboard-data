@@ -114,7 +114,7 @@ export default function PlaceDashboardPage() {
       <section style={{ paddingBottom: 24 }}>
         <h2
           style={{
-            fontSize: "15px",
+            fontSize: "16px",
             fontWeight: 600,
             color: "var(--text)",
             marginBottom: "12px",
@@ -122,15 +122,6 @@ export default function PlaceDashboardPage() {
         >
           플레이스 키워드 순위
         </h2>
-        <p
-          style={{
-            fontSize: "13px",
-            color: "var(--text-secondary)",
-            marginBottom: "12px",
-          }}
-        >
-          최신 수집 기준 네이버 스마트플레이스 검색 순위입니다.
-        </p>
         {rankRows.length === 0 ? (
           <p
             style={{
