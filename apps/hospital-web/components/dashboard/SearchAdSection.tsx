@@ -338,7 +338,7 @@ export default function SearchAdSection({
                   stroke={LINE_COLORS[i % LINE_COLORS.length]}
                   strokeWidth={2}
                   dot={false}
-                  connectNulls
+                  connectNulls={false}
                 />
               ))}
             </LineChart>

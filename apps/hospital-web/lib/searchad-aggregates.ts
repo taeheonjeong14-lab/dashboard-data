@@ -231,7 +231,9 @@ export function buildCampaignTrend(
     };
     for (const c of campaigns) {
       const t = byCampBucket.get(c.id)?.get(bk) ?? null;
-      point[c.id] = t ? deriveMetric(t, metric) : null;
+      // 그 기간에 실제로 노출이 있었던(=돌아간) 캠페인만 값 표시. 시작 전·중단 후(노출 0)는
+      // null 로 둬서 선이 그 구간에 안 그려지게 한다.
+      point[c.id] = t && t.impressions > 0 ? deriveMetric(t, metric) : null;
     }
     return point;
   });
