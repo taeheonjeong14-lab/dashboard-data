@@ -751,11 +751,15 @@ export async function fetchPlacePeriodKpis(
 const SEARCHAD_SELECT =
   "metric_date,campaign_id,campaign_name,campaign_type,adgroup_id,adgroup_name,keyword_id,keyword_name,impressions,clicks,cost";
 
-// 모든 병원·양쪽 탭(파워링크/플레이스) 공통: 검색광고는 최대 6개월(180일)만 노출한다.
-// 메인 fetch가 이 범위로 묶이면 날짜 선택기 min/max도 6개월로 정해지고, Top키워드 조회도 그 안에 머문다.
-const SEARCHAD_MAX_LOOKBACK_DAYS = 180;
+// 모든 병원·양쪽 탭(파워링크/플레이스) 공통 검색광고 노출 하한.
+// "180일"이 아니라 **현재 달에서 6개월 전인 달의 1일**부터 보여준다(달 경계가 깔끔).
+// 예: 오늘 2026-06-03 → 2025-12-01 (= 최소 6개월 + 이번 달 일수만큼).
 export function searchAdSinceDate(): string {
-  return addCalendarDaysUtc(todayDateKeySeoul(), -SEARCHAD_MAX_LOOKBACK_DAYS);
+  const [y, m] = todayDateKeySeoul().split("-").map(Number);
+  const monthsZeroBased = y * 12 + (m - 1) - 6; // 6개월 전 달
+  const ty = Math.floor(monthsZeroBased / 12);
+  const tm = (monthsZeroBased % 12) + 1;
+  return `${ty}-${String(tm).padStart(2, "0")}-01`;
 }
 
 function mapSearchAdRow(r: Record<string, unknown>): SearchAdRow {
