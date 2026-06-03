@@ -208,80 +208,83 @@ export default function SalesDashboardPage() {
   };
 
   return (
-    <div className="grid grid-cols-1 gap-4 lg:grid-cols-[2fr_8fr]">
-      {/* 좌측 레일: 기간 선택기 + 고정 핵심 지표 */}
-      <aside className="flex flex-col gap-3">
-        {bounds && (
-          <div className="flex flex-col gap-2 rounded-md border border-[var(--border)] bg-[var(--bg)] p-3">
-            <div className="flex flex-wrap gap-2">
-              <label className="flex flex-1 flex-col gap-0.5 text-xs text-[var(--text-muted)]">
-                시작
-                <input
-                  type="date"
-                  className="h-8 border border-[var(--border-strong)] bg-[var(--bg)] px-2 text-xs text-[var(--text)]"
-                  min={minB}
-                  max={maxB}
-                  value={rangeStart || minB}
-                  onChange={(e) => setRangeStart(e.target.value)}
-                />
-              </label>
-              <label className="flex flex-1 flex-col gap-0.5 text-xs text-[var(--text-muted)]">
-                종료
-                <input
-                  type="date"
-                  className="h-8 border border-[var(--border-strong)] bg-[var(--bg)] px-2 text-xs text-[var(--text)]"
-                  min={minB}
-                  max={maxB}
-                  value={rangeEnd || maxB}
-                  onChange={(e) => setRangeEnd(e.target.value)}
-                />
-              </label>
-            </div>
-            <div className="flex flex-wrap gap-1">
-              {(
-                [
-                  ["all", "전체"],
-                  ["1y", "최근 1년"],
-                  ["3y", "최근 3년"],
-                ] as const
-              ).map(([key, label]) => (
-                <button
-                  key={key}
-                  type="button"
-                  onClick={() => setPreset(key)}
-                  className="h-8 flex-1 cursor-pointer border border-[var(--border-strong)] bg-[var(--bg)] px-2 text-xs text-[var(--text-secondary)] hover:bg-[var(--bg-subtle)]"
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
+    <div className="flex flex-col gap-4">
+      {/* 기간 선택기 — 탭 바로 아래, 가로 전체 (그래프 제어) */}
+      {bounds && (
+        <div className="flex flex-wrap items-end gap-3 rounded-md border border-[var(--border)] bg-[var(--bg)] p-3">
+          <div className="flex flex-wrap gap-2">
+            <label className="flex flex-col gap-0.5 text-xs text-[var(--text-muted)]">
+              시작
+              <input
+                type="date"
+                className="h-8 border border-[var(--border-strong)] bg-[var(--bg)] px-2 text-xs text-[var(--text)]"
+                min={minB}
+                max={maxB}
+                value={rangeStart || minB}
+                onChange={(e) => setRangeStart(e.target.value)}
+              />
+            </label>
+            <label className="flex flex-col gap-0.5 text-xs text-[var(--text-muted)]">
+              종료
+              <input
+                type="date"
+                className="h-8 border border-[var(--border-strong)] bg-[var(--bg)] px-2 text-xs text-[var(--text)]"
+                min={minB}
+                max={maxB}
+                value={rangeEnd || maxB}
+                onChange={(e) => setRangeEnd(e.target.value)}
+              />
+            </label>
           </div>
-        )}
+          <div className="flex flex-wrap gap-1">
+            {(
+              [
+                ["all", "전체"],
+                ["1y", "최근 1년"],
+                ["3y", "최근 3년"],
+              ] as const
+            ).map(([key, label]) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setPreset(key)}
+                className="h-8 cursor-pointer border border-[var(--border-strong)] bg-[var(--bg)] px-2.5 text-xs text-[var(--text-secondary)] hover:bg-[var(--bg-subtle)]"
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
-        <FixedKpiBox label={fixed.refLabel} value={formatWon(fixed.refSales)} />
-        <FixedKpiBox
-          label="전년 동월 대비"
-          value={yoyValue}
-          tone={yoyTone}
-          sub={fixed.monthLabel ? `${fixed.monthLabel} 기준` : undefined}
-        />
-        <FixedKpiBox label="올해 누적 매출 (YTD)" value={formatWon(fixed.ytd)} sub={fixed.ytdSub} />
-      </aside>
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[2fr_8fr]">
+        {/* 좌측 레일: 고정 핵심 지표 (기간 무관) */}
+        <aside className="flex flex-col gap-3">
+          <FixedKpiBox label={fixed.refLabel} value={formatWon(fixed.refSales)} />
+          <FixedKpiBox
+            label="전년 동월 대비"
+            value={yoyValue}
+            tone={yoyTone}
+            sub={fixed.monthLabel ? `${fixed.monthLabel} 기준` : undefined}
+          />
+          <FixedKpiBox label="올해 누적 매출 (YTD)" value={formatWon(fixed.ytd)} sub={fixed.ytdSub} />
+        </aside>
 
-      {/* 우측: 매출 그래프(레일 기간 선택을 따름) */}
-      <div>
-        <ManagementMetricSection
-          title="매출"
-          rows={rows}
-          metric="sales"
-          valueFormat="currency"
-          hideHeader
-          rangeStart={rangeStart}
-          rangeEnd={rangeEnd}
-          onRangeStartChange={setRangeStart}
-          onRangeEndChange={setRangeEnd}
-          hideRangeControls
-        />
+        {/* 우측: 매출 그래프(상단 기간 선택을 따름) */}
+        <div>
+          <ManagementMetricSection
+            title="매출"
+            rows={rows}
+            metric="sales"
+            valueFormat="currency"
+            hideHeader
+            rangeStart={rangeStart}
+            rangeEnd={rangeEnd}
+            onRangeStartChange={setRangeStart}
+            onRangeEndChange={setRangeEnd}
+            hideRangeControls
+          />
+        </div>
       </div>
     </div>
   );
