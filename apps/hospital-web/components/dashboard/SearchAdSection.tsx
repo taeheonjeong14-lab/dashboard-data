@@ -375,7 +375,11 @@ export default function SearchAdSection({
                   name={c.name}
                   stroke={LINE_COLORS[i % LINE_COLORS.length]}
                   strokeWidth={2}
-                  dot={false}
+                  dot={
+                    granularity === "day"
+                      ? false
+                      : { r: 3, fill: LINE_COLORS[i % LINE_COLORS.length], strokeWidth: 0 }
+                  }
                   connectNulls={false}
                 />
               ))}
