@@ -86,13 +86,6 @@ function clipRange(start: string, end: string, minB: string, maxB: string) {
   return { start: s, end: e };
 }
 
-function addDaysToDateKey(dateKey: string, delta: number): string {
-  const [y, m, d] = dateKey.split("-").map(Number);
-  const t = Date.UTC(y, m - 1, d) + delta * 86400000;
-  const dt = new Date(t);
-  return `${dt.getUTCFullYear()}-${String(dt.getUTCMonth() + 1).padStart(2, "0")}-${String(dt.getUTCDate()).padStart(2, "0")}`;
-}
-
 export default function SearchAdSection({
   rows,
   hospitalId,
@@ -189,19 +182,6 @@ export default function SearchAdSection({
     return computeYAxisConfig(maxOfNullable(vals));
   }, [trend]);
 
-  const setPreset = (preset: "all" | "1y" | "3y") => {
-    if (!bounds) return;
-    if (preset === "all") {
-      setRangeStart(bounds.min);
-      setRangeEnd(bounds.max);
-      return;
-    }
-    const years = preset === "1y" ? 1 : 3;
-    const from = addDaysToDateKey(bounds.max, -years * 365);
-    setRangeStart(from < bounds.min ? bounds.min : from);
-    setRangeEnd(bounds.max);
-  };
-
   const toggleExpand = (id: string) =>
     setExpanded((prev) => {
       const next = new Set(prev);
@@ -246,30 +226,11 @@ export default function SearchAdSection({
             />
           </label>
         </div>
-        <div className="flex flex-wrap gap-1">
-          {(
-            [
-              ["all", "전체"],
-              ["1y", "최근 1년"],
-              ["3y", "최근 3년"],
-            ] as const
-          ).map(([key, label]) => (
-            <button
-              key={key}
-              type="button"
-              onClick={() => setPreset(key)}
-              className="h-8 border border-[var(--border-strong)] bg-[var(--bg)] px-2.5 text-xs text-[var(--text-secondary)] hover:bg-[var(--bg-subtle)]"
-            >
-              {label}
-            </button>
-          ))}
-        </div>
         <div className="ml-auto flex rounded border border-[var(--border-strong)] p-0.5">
           {(
             [
               ["day", "일간"],
               ["month", "월간"],
-              ["year", "연간"],
             ] as const
           ).map(([g, label]) => (
             <button
