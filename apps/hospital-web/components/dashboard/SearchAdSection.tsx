@@ -258,7 +258,7 @@ export default function SearchAdSection({
               key={key}
               type="button"
               onClick={() => setPreset(key)}
-              className="h-8 border border-[var(--border-strong)] bg-[var(--bg)] px-2.5 text-xs text-[var(--text-secondary)] hover:bg-[var(--bg-subtle)]"
+              className="h-8 cursor-pointer border border-[var(--border-strong)] bg-[var(--bg)] px-2.5 text-xs text-[var(--text-secondary)] hover:bg-[var(--bg-subtle)]"
             >
               {label}
             </button>
@@ -275,7 +275,7 @@ export default function SearchAdSection({
               key={g}
               type="button"
               onClick={() => setGranularity(g)}
-              className={`px-2.5 py-1 text-xs ${
+              className={`cursor-pointer px-2.5 py-1 text-xs ${
                 granularity === g
                   ? "bg-[var(--accent)] text-white"
                   : "text-[var(--text-secondary)] hover:text-[var(--text)]"
@@ -297,7 +297,7 @@ export default function SearchAdSection({
                 key={key}
                 type="button"
                 onClick={() => setTypeFilter(key)}
-                className={`h-7 rounded border px-2.5 text-xs ${
+                className={`h-7 cursor-pointer rounded border px-2.5 text-xs ${
                   typeFilter === key
                     ? "border-[var(--accent)] bg-[var(--accent)] text-white"
                     : "border-[var(--border-strong)] bg-[var(--bg)] text-[var(--text-secondary)] hover:bg-[var(--bg-subtle)]"
@@ -328,7 +328,7 @@ export default function SearchAdSection({
                 key={m.key}
                 type="button"
                 onClick={() => setTrendMetric(m.key)}
-                className={`px-2.5 py-1 text-xs ${
+                className={`cursor-pointer px-2.5 py-1 text-xs ${
                   trendMetric === m.key
                     ? "bg-[var(--accent)] text-white"
                     : "text-[var(--text-secondary)] hover:text-[var(--text)]"
