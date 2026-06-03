@@ -257,7 +257,7 @@ export default function SalesDashboardPage() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[2fr_8fr]">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[180px_1fr]">
         {/* 좌측 레일: 고정 핵심 지표 (기간 무관) */}
         <aside className="flex flex-col gap-3">
           <FixedKpiBox label={fixed.refLabel} value={formatWon(fixed.refSales)} />
