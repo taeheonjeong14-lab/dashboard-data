@@ -96,6 +96,8 @@ export type ManagementMetricSectionProps = {
   valueFormat: "currency" | "integer" | "decimal";
   /** currency가 아닐 때 단위 (예: 건, 명) */
   valueSuffix?: string;
+  /** 상단 제목·부제 블록을 숨긴다(title 자체는 내부 차트 라벨에 계속 사용). */
+  hideHeader?: boolean;
 };
 
 function formatValue(
@@ -139,6 +141,7 @@ export default function ManagementMetricSection({
   metric,
   valueFormat,
   valueSuffix,
+  hideHeader,
 }: ManagementMetricSectionProps) {
   const bounds = useMemo(() => getDataBounds(rows), [rows]);
   const [granularity, setGranularity] = useState<Granularity>("month");
@@ -220,10 +223,12 @@ export default function ManagementMetricSection({
 
   return (
     <section>
-      <header className="mb-4">
-        <h2 className="text-base font-semibold text-[var(--text)] sm:text-lg">{title}</h2>
-        {description ? <p className="mt-1 text-sm text-[var(--text-muted)]">{description}</p> : null}
-      </header>
+      {!hideHeader && (
+        <header className="mb-4">
+          <h2 className="text-base font-semibold text-[var(--text)] sm:text-lg">{title}</h2>
+          {description ? <p className="mt-1 text-sm text-[var(--text-muted)]">{description}</p> : null}
+        </header>
+      )}
 
       {!hasData ? (
         <p className="border border-[var(--border)] bg-[var(--bg)] p-4 text-sm text-[var(--text-muted)]">

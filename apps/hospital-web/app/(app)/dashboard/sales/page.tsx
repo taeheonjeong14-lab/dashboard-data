@@ -102,10 +102,10 @@ export default function SalesDashboardPage() {
       <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
         <ManagementMetricSection
           title="매출"
-          description="일별·월별·연별 매출 추이입니다."
           rows={rows}
           metric="sales"
           valueFormat="currency"
+          hideHeader
         />
       </div>
     </div>
