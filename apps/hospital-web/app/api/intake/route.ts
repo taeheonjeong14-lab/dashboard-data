@@ -40,7 +40,8 @@ export async function POST(request: NextRequest) {
     if (hErr) throw new Error(hErr.message);
     if (!hosp) return NextResponse.json({ error: '존재하지 않는 병원입니다.' }, { status: 404 });
 
-    const { error } = await svc
+    // 1) 접수 본문 저장 (pets 는 정규화 테이블로 분리, 원본은 answers 에 유지)
+    const { data: inserted, error } = await svc
       .schema('intake')
       .from('submissions')
       .insert({
@@ -49,14 +50,41 @@ export async function POST(request: NextRequest) {
         owner_phone: a.ownerPhone?.trim() || null,
         owner_address: a.ownerAddress?.trim() || null,
         pet_count: typeof a.petCount === 'number' && a.petCount > 0 ? a.petCount : a.pets.length,
-        pets: a.pets ?? [],
         referral: a.referral ?? {},
         consent_required: !!a.consentRequired,
         consent_marketing: !!a.consentMarketing,
         answers: a,
         status: 'submitted',
-      });
+      })
+      .select('id')
+      .single();
     if (error) throw new Error(error.message);
+
+    // 2) 펫 단위 정규화 저장 (분석/조회용)
+    const submissionId = (inserted as { id: string }).id;
+    const petRows = (a.pets ?? []).map((p, i) => ({
+      submission_id: submissionId,
+      hospital_id: hospitalId,
+      pet_index: i,
+      name: p.name?.trim() || null,
+      species: p.species || null,
+      breed: p.breed?.trim() || null,
+      breed_other: p.breedOther?.trim() || null,
+      birth_date: p.birthDate?.trim() ? p.birthDate.trim() : null,
+      age_unknown: !!p.ageUnknown,
+      age_text: p.ageText?.trim() || null,
+      sex: p.sex || null,
+      registration: p.registration || null,
+      insurance: p.insurance || null,
+      symptoms: Array.isArray(p.symptoms) ? p.symptoms : [],
+      symptom_other: p.symptomOther?.trim() || null,
+      survey_linked: !!p.surveyLinked,
+      survey_session_id: p.surveySessionId || null,
+    }));
+    if (petRows.length > 0) {
+      const { error: petErr } = await svc.schema('intake').from('submission_pets').insert(petRows);
+      if (petErr) throw new Error(petErr.message);
+    }
 
     return NextResponse.json({ ok: true });
   } catch (e) {
