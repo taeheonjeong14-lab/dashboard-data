@@ -114,7 +114,7 @@ export type PetAnswer = {
   registration: string;
   insurance: string;
   symptoms: string[];     // 복수
-  symptomOther: string;   // 증상 '기타' 직접입력
+  symptomDetail: string;  // 선택한 증상 상세 설명(선택). '기타' 증상 설명도 여기로.
   surveyLinked?: boolean;   // 사전문진에서 프리필됨 (증상은 사전문진에서 상세 수집 → 접수증선 생략)
   surveySessionId?: string; // 연결된 사전문진 세션 id
 };
@@ -143,7 +143,7 @@ export function emptyPet(): PetAnswer {
     name: '', species: '', breed: '', breedOther: '',
     birthDate: '', ageUnknown: false, ageText: '',
     sex: '', registration: '', insurance: '',
-    symptoms: [], symptomOther: '',
+    symptoms: [], symptomDetail: '',
   };
 }
 

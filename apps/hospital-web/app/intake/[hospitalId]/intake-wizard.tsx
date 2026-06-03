@@ -116,7 +116,7 @@ function petFromSurveyMatch(m: SurveyMatch): PetAnswer {
     registration: '',
     insurance: '',
     symptoms: [],
-    symptomOther: '',
+    symptomDetail: '',
     surveyLinked: true,
     surveySessionId: m.id,
   };
@@ -560,8 +560,8 @@ function StepBody(props: {
           };
           return (<div>{petTag}<Q>주된 증상 및 내원 사유를 선택해 주세요{hint('(여러 개 선택 가능)')}</Q>
             <MultiChoices options={SYMPTOM_OPTIONS} values={pet.symptoms} onToggle={toggle} />
-            {pet.symptoms.includes('other') && <input value={pet.symptomOther} onChange={(e) => props.patchPet(i, { symptomOther: e.target.value })}
-              placeholder="기타 증상을 입력해 주세요" style={{ ...inputStyle, marginTop: 12 }} />}</div>);
+            <input value={pet.symptomDetail} onChange={(e) => props.patchPet(i, { symptomDetail: e.target.value })}
+              placeholder="상세 증상을 적어주세요 (선택)" style={{ ...inputStyle, marginTop: 12 }} /></div>);
         }
       }
       return null;

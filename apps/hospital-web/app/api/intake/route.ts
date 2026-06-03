@@ -77,7 +77,7 @@ export async function POST(request: NextRequest) {
       registration: p.registration || null,
       insurance: p.insurance || null,
       symptoms: Array.isArray(p.symptoms) ? p.symptoms : [],
-      symptom_other: p.symptomOther?.trim() || null,
+      symptom_detail: p.symptomDetail?.trim() || null,
       survey_linked: !!p.surveyLinked,
       survey_session_id: p.surveySessionId || null,
     }));

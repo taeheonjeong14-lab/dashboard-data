@@ -47,7 +47,7 @@ export async function GET(request: Request) {
         registration: String(p.registration ?? ''),
         insurance: String(p.insurance ?? ''),
         symptoms: Array.isArray(p.symptoms) ? p.symptoms : [],
-        symptomOther: String(p.symptom_other ?? ''),
+        symptomDetail: String(p.symptom_detail ?? ''),
       }));
     return { ...r, pets, submission_pets: undefined };
   });

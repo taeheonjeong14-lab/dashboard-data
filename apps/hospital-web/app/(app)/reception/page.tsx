@@ -17,7 +17,7 @@ function mapPet(p: Record<string, unknown>): PetAnswer {
     registration: String(p.registration ?? ''),
     insurance: String(p.insurance ?? ''),
     symptoms: Array.isArray(p.symptoms) ? (p.symptoms as string[]) : [],
-    symptomOther: String(p.symptom_other ?? ''),
+    symptomDetail: String(p.symptom_detail ?? ''),
     surveyLinked: p.survey_linked === true ? true : undefined,
     surveySessionId: p.survey_session_id ? String(p.survey_session_id) : undefined,
   };

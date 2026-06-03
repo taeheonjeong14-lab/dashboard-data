@@ -22,3 +22,6 @@ __pycache__/
 *.pyc
 
 .vercel
+
+# 개인정보 포함 마이그레이션 원본 (커밋 금지)
+data-migration/

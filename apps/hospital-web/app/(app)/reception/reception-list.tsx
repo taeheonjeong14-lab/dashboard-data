@@ -316,7 +316,7 @@ function Detail({ s, onOpenSurvey }: { s: Submission; onOpenSurvey: (ids: string
           {(() => {
             const hasSymptoms = (p.symptoms ?? []).length > 0;
             if (hasSymptoms) {
-              const v = p.symptoms.map((sym) => (sym === 'other' ? (p.symptomOther || '기타') : labelOf(SYMPTOM_OPTIONS, sym))).join(', ');
+              const v = p.symptoms.map((sym) => (sym === 'other' ? (p.symptomDetail || '기타') : labelOf(SYMPTOM_OPTIONS, sym))).join(', ');
               return <Row k="증상/내원사유" v={v} />;
             }
             if (p.surveyLinked && p.surveySessionId) {

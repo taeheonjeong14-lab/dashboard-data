@@ -23,7 +23,7 @@ type Pet = {
   name?: string; species?: string; breed?: string; breedOther?: string;
   birthDate?: string; ageUnknown?: boolean; ageText?: string;
   sex?: string; registration?: string; insurance?: string;
-  symptoms?: string[]; symptomOther?: string;
+  symptoms?: string[]; symptomDetail?: string;
 };
 type Referral = { channel?: string; onlineMedia?: string[]; acquaintanceDetail?: string; otherDetail?: string };
 type Submission = {
@@ -58,7 +58,7 @@ function petBreed(p: Pet): string {
   return p.breedOther || p.breed || '—';
 }
 function petSymptoms(p: Pet): string {
-  const list = (p.symptoms ?? []).map((s) => (s === 'other' ? (p.symptomOther || '기타') : (SYMPTOM[s] ?? s)));
+  const list = (p.symptoms ?? []).map((s) => (s === 'other' ? (p.symptomDetail || '기타') : (SYMPTOM[s] ?? s)));
   return list.length ? list.join(', ') : '—';
 }
 function referralText(r: Referral): string {
