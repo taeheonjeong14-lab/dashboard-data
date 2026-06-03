@@ -321,7 +321,8 @@ export default function SearchAdSection({
 
       {/* 추세 (캠페인별 멀티라인) */}
       <section>
-        <div className="mb-2 flex flex-wrap items-center justify-end gap-2">
+        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+          <h3 className="text-base font-semibold text-[var(--text)]">캠페인별 추세</h3>
           <div className="flex rounded border border-[var(--border-strong)] p-0.5">
             {METRICS.map((m) => (
               <button
@@ -392,7 +393,7 @@ export default function SearchAdSection({
       <div className="grid grid-cols-1 gap-8 xl:grid-cols-2">
       {/* 캠페인 / 광고그룹 성과표 */}
       <section>
-        <h3 className="mb-2 text-sm font-medium text-[var(--text-secondary)]">
+        <h3 className="mb-2 text-base font-semibold text-[var(--text)]">
           캠페인 · 광고그룹 성과
         </h3>
         <div className="overflow-x-auto border border-[var(--border)]">
@@ -453,7 +454,7 @@ export default function SearchAdSection({
 
       {/* 클릭수 상위 키워드 */}
       <section>
-        <h3 className="mb-2 text-sm font-medium text-[var(--text-secondary)]">
+        <h3 className="mb-2 text-base font-semibold text-[var(--text)]">
           클릭수 상위 키워드 (Top 10)
         </h3>
         <div className="overflow-x-auto border border-[var(--border)]">
