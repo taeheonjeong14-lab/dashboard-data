@@ -208,7 +208,7 @@ export default function SalesDashboardPage() {
   };
 
   return (
-    <div className="grid grid-cols-1 gap-4 lg:grid-cols-[3fr_7fr]">
+    <div className="grid grid-cols-1 gap-4 lg:grid-cols-[2fr_8fr]">
       {/* 좌측 레일: 기간 선택기 + 고정 핵심 지표 */}
       <aside className="flex flex-col gap-3">
         {bounds && (
