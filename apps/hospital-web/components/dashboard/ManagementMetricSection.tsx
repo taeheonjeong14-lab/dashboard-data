@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import {
   Bar,
   BarChart,
@@ -105,6 +105,8 @@ export type ManagementMetricSectionProps = {
   onRangeEndChange?: (v: string) => void;
   /** 내부 날짜 입력·프리셋 버튼을 숨긴다(기간을 외부에서 제공할 때). */
   hideRangeControls?: boolean;
+  /** 추이 차트 우측에 세로로 붙일 보조 콘텐츠(예: 선택 기간 KPI 박스). */
+  trendAside?: ReactNode;
 };
 
 function formatValue(
@@ -154,6 +156,7 @@ export default function ManagementMetricSection({
   onRangeStartChange,
   onRangeEndChange,
   hideRangeControls,
+  trendAside,
 }: ManagementMetricSectionProps) {
   const bounds = useMemo(() => getDataBounds(rows), [rows]);
   const [granularity, setGranularity] = useState<Granularity>("month");
@@ -225,15 +228,15 @@ export default function ManagementMetricSection({
     [weekdayRows],
   );
 
-  const setPreset = (preset: "all" | "1y" | "3y") => {
+  const setPreset = (preset: "all" | "1y" | "6m") => {
     if (!bounds) return;
     if (preset === "all") {
       setRangeStart(bounds.min);
       setRangeEnd(bounds.max);
       return;
     }
-    const years = preset === "1y" ? 1 : 3;
-    const from = addDaysToDateKey(bounds.max, -years * 365);
+    const days = preset === "1y" ? 365 : 180;
+    const from = addDaysToDateKey(bounds.max, -days);
     setRangeStart(from < bounds.min ? bounds.min : from);
     setRangeEnd(bounds.max);
   };
@@ -257,11 +260,13 @@ export default function ManagementMetricSection({
         <div className="flex flex-col gap-8">
           <div>
             <h3 className="mb-2 text-base font-semibold text-[var(--text)]">{title} 추이</h3>
+            <div className="flex flex-col gap-4 lg:flex-row">
+              <div className="min-w-0 lg:flex-1">
             <div className="mb-3 flex flex-wrap items-end gap-3">
               {!hideRangeControls && (
                 <>
                   <div className="flex flex-wrap gap-2">
-                    <label className="flex flex-col gap-0.5 text-xs text-[var(--text-muted)]">
+                    <label className="flex items-center gap-1.5 text-xs text-[var(--text-muted)]">
                       시작
                       <input
                         type="date"
@@ -272,7 +277,7 @@ export default function ManagementMetricSection({
                         onChange={(e) => setRangeStart(e.target.value)}
                       />
                     </label>
-                    <label className="flex flex-col gap-0.5 text-xs text-[var(--text-muted)]">
+                    <label className="flex items-center gap-1.5 text-xs text-[var(--text-muted)]">
                       종료
                       <input
                         type="date"
@@ -289,7 +294,7 @@ export default function ManagementMetricSection({
                       [
                         ["all", "전체"],
                         ["1y", "최근 1년"],
-                        ["3y", "최근 3년"],
+                        ["6m", "최근 6개월"],
                       ] as const
                     ).map(([key, label]) => (
                       <button
@@ -327,7 +332,7 @@ export default function ManagementMetricSection({
                 ))}
               </div>
             </div>
-            <div className="h-[280px] w-full min-w-0">
+              <div className="h-[280px] w-full min-w-0">
               <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={200}>
                 <LineChart data={chartData} margin={{ top: 8, right: 12, bottom: 8, left: 4 }}>
                   <CartesianGrid stroke="#e5e8eb" strokeDasharray="3 3" />
@@ -442,6 +447,11 @@ export default function ManagementMetricSection({
                   )}
                 </LineChart>
               </ResponsiveContainer>
+              </div>
+              </div>
+              {trendAside ? (
+                <div className="shrink-0 lg:w-[168px]">{trendAside}</div>
+              ) : null}
             </div>
             <p className="mt-1 text-xs italic text-[var(--text-muted)]">
               기간은 서울 기준 날짜이며, 차트에 값이 없는 구간은 선이 끊깁니다.
