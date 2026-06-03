@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 const pageTitles: Record<string, string> = {
   '/dashboard': '경영 대시보드',
   '/dashboard/sales': '매출',
+  '/dashboard/visits': '진료건수',
   '/dashboard/patients': '신규환자',
   '/dashboard/blog': '블로그',
   '/dashboard/place': '플레이스',

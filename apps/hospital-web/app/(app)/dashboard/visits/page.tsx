@@ -11,7 +11,7 @@ import ManagementMetricSection from "@/components/dashboard/ManagementMetricSect
 
 type LoadState = "loading" | "error" | "done";
 
-export default function SalesDashboardPage() {
+export default function VisitsDashboardPage() {
   const [loadState, setLoadState] = useState<LoadState>("loading");
   const [error, setError] = useState<string | null>(null);
   const [hospitalId, setHospitalId] = useState<string | null>(null);
@@ -101,11 +101,12 @@ export default function SalesDashboardPage() {
     <div>
       <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
         <ManagementMetricSection
-          title="매출"
-          description="일별·월별·연별 매출 추이입니다."
+          title="진료 건수"
+          description="진료 건수 추이입니다."
           rows={rows}
-          metric="sales"
-          valueFormat="currency"
+          metric="visits"
+          valueFormat="integer"
+          valueSuffix="건"
         />
       </div>
     </div>

@@ -8,6 +8,7 @@ import { StickyHeader } from "@/components/ui/sticky-header";
 
 const TABS = [
   { href: "/dashboard/sales", label: "매출" },
+  { href: "/dashboard/visits", label: "진료건수" },
   { href: "/dashboard/patients", label: "신규환자" },
   { href: "/dashboard/blog", label: "블로그" },
   { href: "/dashboard/place", label: "플레이스" },
