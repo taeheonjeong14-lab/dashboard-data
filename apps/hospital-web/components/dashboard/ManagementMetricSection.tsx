@@ -98,6 +98,13 @@ export type ManagementMetricSectionProps = {
   valueSuffix?: string;
   /** 상단 제목·부제 블록을 숨긴다(title 자체는 내부 차트 라벨에 계속 사용). */
   hideHeader?: boolean;
+  /** 외부(레일 등)에서 기간을 제어할 때. 둘 다 주면 controlled 모드. */
+  rangeStart?: string;
+  rangeEnd?: string;
+  onRangeStartChange?: (v: string) => void;
+  onRangeEndChange?: (v: string) => void;
+  /** 내부 날짜 입력·프리셋 버튼을 숨긴다(기간을 외부에서 제공할 때). */
+  hideRangeControls?: boolean;
 };
 
 function formatValue(
@@ -142,11 +149,23 @@ export default function ManagementMetricSection({
   valueFormat,
   valueSuffix,
   hideHeader,
+  rangeStart: rangeStartProp,
+  rangeEnd: rangeEndProp,
+  onRangeStartChange,
+  onRangeEndChange,
+  hideRangeControls,
 }: ManagementMetricSectionProps) {
   const bounds = useMemo(() => getDataBounds(rows), [rows]);
   const [granularity, setGranularity] = useState<Granularity>("month");
-  const [rangeStart, setRangeStart] = useState<string>("");
-  const [rangeEnd, setRangeEnd] = useState<string>("");
+  const [internalStart, setInternalStart] = useState<string>("");
+  const [internalEnd, setInternalEnd] = useState<string>("");
+  const isRangeControlled = rangeStartProp !== undefined && rangeEndProp !== undefined;
+  const rangeStart = isRangeControlled ? rangeStartProp : internalStart;
+  const rangeEnd = isRangeControlled ? rangeEndProp : internalEnd;
+  const setRangeStart = (v: string) =>
+    isRangeControlled ? onRangeStartChange?.(v) : setInternalStart(v);
+  const setRangeEnd = (v: string) =>
+    isRangeControlled ? onRangeEndChange?.(v) : setInternalEnd(v);
 
   const effectiveBounds = bounds ?? { min: "", max: "" };
   const minB = effectiveBounds.min;
@@ -239,48 +258,52 @@ export default function ManagementMetricSection({
           <div>
             <h3 className="mb-2 text-base font-semibold text-[var(--text)]">{title} 추이</h3>
             <div className="mb-3 flex flex-wrap items-end gap-3">
-              <div className="flex flex-wrap gap-2">
-                <label className="flex flex-col gap-0.5 text-xs text-[var(--text-muted)]">
-                  시작
-                  <input
-                    type="date"
-                    className="h-8 border border-[var(--border-strong)] bg-[var(--bg)] px-2 text-xs text-[var(--text)]"
-                    min={minB}
-                    max={maxSelectable}
-                    value={rangeStart || minB}
-                    onChange={(e) => setRangeStart(e.target.value)}
-                  />
-                </label>
-                <label className="flex flex-col gap-0.5 text-xs text-[var(--text-muted)]">
-                  종료
-                  <input
-                    type="date"
-                    className="h-8 border border-[var(--border-strong)] bg-[var(--bg)] px-2 text-xs text-[var(--text)]"
-                    min={minB}
-                    max={maxSelectable}
-                    value={rangeEnd || maxSelectable}
-                    onChange={(e) => setRangeEnd(e.target.value)}
-                  />
-                </label>
-              </div>
-              <div className="flex flex-wrap gap-1">
-                {(
-                  [
-                    ["all", "전체"],
-                    ["1y", "최근 1년"],
-                    ["3y", "최근 3년"],
-                  ] as const
-                ).map(([key, label]) => (
-                  <button
-                    key={key}
-                    type="button"
-                    onClick={() => setPreset(key)}
-                    className="h-8 border border-[var(--border-strong)] bg-[var(--bg)] px-2.5 text-xs text-[var(--text-secondary)] hover:bg-[var(--bg-subtle)]"
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
+              {!hideRangeControls && (
+                <>
+                  <div className="flex flex-wrap gap-2">
+                    <label className="flex flex-col gap-0.5 text-xs text-[var(--text-muted)]">
+                      시작
+                      <input
+                        type="date"
+                        className="h-8 border border-[var(--border-strong)] bg-[var(--bg)] px-2 text-xs text-[var(--text)]"
+                        min={minB}
+                        max={maxSelectable}
+                        value={rangeStart || minB}
+                        onChange={(e) => setRangeStart(e.target.value)}
+                      />
+                    </label>
+                    <label className="flex flex-col gap-0.5 text-xs text-[var(--text-muted)]">
+                      종료
+                      <input
+                        type="date"
+                        className="h-8 border border-[var(--border-strong)] bg-[var(--bg)] px-2 text-xs text-[var(--text)]"
+                        min={minB}
+                        max={maxSelectable}
+                        value={rangeEnd || maxSelectable}
+                        onChange={(e) => setRangeEnd(e.target.value)}
+                      />
+                    </label>
+                  </div>
+                  <div className="flex flex-wrap gap-1">
+                    {(
+                      [
+                        ["all", "전체"],
+                        ["1y", "최근 1년"],
+                        ["3y", "최근 3년"],
+                      ] as const
+                    ).map(([key, label]) => (
+                      <button
+                        key={key}
+                        type="button"
+                        onClick={() => setPreset(key)}
+                        className="h-8 cursor-pointer border border-[var(--border-strong)] bg-[var(--bg)] px-2.5 text-xs text-[var(--text-secondary)] hover:bg-[var(--bg-subtle)]"
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
               <div className="ml-auto flex rounded border border-[var(--border-strong)] p-0.5">
                 {(
                   [

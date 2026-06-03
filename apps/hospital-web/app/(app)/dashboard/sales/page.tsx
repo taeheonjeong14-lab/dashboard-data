@@ -7,6 +7,7 @@ import {
   fetchHospitalManagementKpis,
   type HospitalManagementDayRow,
 } from "@/lib/queries";
+import { getDataBounds } from "@/lib/management-aggregates";
 import ManagementMetricSection from "@/components/dashboard/ManagementMetricSection";
 
 type LoadState = "loading" | "error" | "done";
@@ -22,22 +23,39 @@ function formatWon(v: number | null): string {
   return `${won.toLocaleString("ko-KR")}원`;
 }
 
-async function fetchVetCount(): Promise<number | null> {
-  try {
-    const res = await fetch("/api/settings/hospital");
-    if (!res.ok) return null;
-    const data = (await res.json()) as { hospital?: { vetCount?: number | null } | null };
-    return data.hospital?.vetCount ?? null;
-  } catch {
-    return null;
-  }
+function seoulMonthKey(): string {
+  return new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Seoul" })
+    .format(new Date())
+    .slice(0, 7);
 }
 
-function SalesKpiBox({ label, value, sub }: { label: string; value: string; sub?: string }) {
+function addDaysToDateKey(dateKey: string, delta: number): string {
+  const [y, m, d] = dateKey.split("-").map(Number);
+  const t = Date.UTC(y, m - 1, d) + delta * 86400000;
+  const dt = new Date(t);
+  return `${dt.getUTCFullYear()}-${String(dt.getUTCMonth() + 1).padStart(2, "0")}-${String(dt.getUTCDate()).padStart(2, "0")}`;
+}
+
+function FixedKpiBox({
+  label,
+  value,
+  tone,
+  sub,
+}: {
+  label: string;
+  value: string;
+  tone?: "up" | "down";
+  sub?: string;
+}) {
+  const color = tone === "up" ? "#16a34a" : tone === "down" ? "#dc2626" : "var(--text)";
+  const arrow = tone === "up" ? "▲" : tone === "down" ? "▼" : "";
   return (
     <div className="rounded-md border border-[var(--accent)]/20 bg-[var(--accent-subtle)] px-4 py-3.5">
       <div className="text-xs text-[var(--text-secondary)]">{label}</div>
-      <div className="mt-1.5 text-2xl font-bold tabular-nums text-[var(--text)]">{value}</div>
+      <div className="mt-1.5 text-2xl font-bold tabular-nums" style={{ color }}>
+        {arrow ? <span className="mr-1 text-xl">{arrow}</span> : null}
+        {value}
+      </div>
       {sub ? <div className="mt-0.5 text-xs text-[var(--text-muted)]">{sub}</div> : null}
     </div>
   );
@@ -48,7 +66,8 @@ export default function SalesDashboardPage() {
   const [error, setError] = useState<string | null>(null);
   const [hospitalId, setHospitalId] = useState<string | null>(null);
   const [rows, setRows] = useState<HospitalManagementDayRow[]>([]);
-  const [vetCount, setVetCount] = useState<number | null>(null);
+  const [rangeStart, setRangeStart] = useState<string>("");
+  const [rangeEnd, setRangeEnd] = useState<string>("");
 
   const { hospitalId: ctxHospitalId } = useHospital();
 
@@ -65,16 +84,10 @@ export default function SalesDashboardPage() {
           }
           return;
         }
-
-        const [data, vc] = await Promise.all([
-          fetchHospitalManagementKpis(hid),
-          fetchVetCount(),
-        ]);
-
+        const data = await fetchHospitalManagementKpis(hid);
         if (!cancelled) {
           setHospitalId(hid);
           setRows(data);
-          setVetCount(vc);
           setLoadState("done");
         }
       } catch (err) {
@@ -95,21 +108,45 @@ export default function SalesDashboardPage() {
     };
   }, [ctxHospitalId]);
 
-  // 월 단위 행으로 총 매출·월 평균·수의사 1인당 월 평균을 계산한다.
-  const kpis = useMemo(() => {
-    const monthRows = rows.filter((r) => r.periodType === "month" && r.sales != null);
-    const monthCount = monthRows.length;
-    const total = monthRows.reduce((acc, r) => acc + (r.sales ?? 0), 0);
-    const monthlyAvg = monthCount > 0 ? total / monthCount : null;
-    const perVetMonthly =
-      monthlyAvg != null && vetCount != null && vetCount > 0 ? monthlyAvg / vetCount : null;
+  const bounds = useMemo(() => getDataBounds(rows), [rows]);
+  const minB = bounds?.min ?? "";
+  const maxB = bounds?.max ?? "";
+
+  // 기간 무관 고정 지표: 최근 종료월 매출 / 전년 동월 대비 / 올해 누적(YTD)
+  const fixed = useMemo(() => {
+    const months = rows
+      .filter((r) => r.periodType === "month" && r.sales != null)
+      .map((r) => ({ key: r.dateKey.slice(0, 7), sales: r.sales as number }))
+      .sort((a, b) => (a.key < b.key ? -1 : 1));
+    const curKey = seoulMonthKey();
+    const completed = months.filter((m) => m.key < curKey);
+    const ref = completed.length ? completed[completed.length - 1] : null;
+    if (!ref) {
+      return {
+        refLabel: "최근 월 매출",
+        monthLabel: undefined as string | undefined,
+        refSales: null,
+        yoyPct: null,
+        ytd: null,
+        ytdSub: undefined as string | undefined,
+      };
+    }
+    const [ry, rm] = ref.key.split("-").map(Number);
+    const prevKey = `${ry - 1}-${String(rm).padStart(2, "0")}`;
+    const prev = months.find((m) => m.key === prevKey)?.sales ?? null;
+    const yoyPct = prev != null && prev > 0 ? ((ref.sales - prev) / prev) * 100 : null;
+    const ytd = months
+      .filter((m) => m.key.startsWith(`${ry}-`) && m.key <= ref.key)
+      .reduce((acc, m) => acc + m.sales, 0);
     return {
-      total: monthCount > 0 ? total : null,
-      monthlyAvg,
-      monthCount,
-      perVetMonthly,
+      refLabel: `${rm}월 매출`,
+      monthLabel: `${rm}월`,
+      refSales: ref.sales,
+      yoyPct,
+      ytd,
+      ytdSub: `${ry}년 1~${rm}월 누적`,
     };
-  }, [rows, vetCount]);
+  }, [rows]);
 
   if (loadState === "loading") {
     return <CenteredSpinner minHeight="60vh" />;
@@ -150,33 +187,102 @@ export default function SalesDashboardPage() {
     );
   }
 
+  const yoyValue =
+    fixed.yoyPct == null
+      ? "—"
+      : `${fixed.yoyPct >= 0 ? "+" : ""}${fixed.yoyPct.toFixed(1)}%`;
+  const yoyTone =
+    fixed.yoyPct == null ? undefined : fixed.yoyPct >= 0 ? "up" : "down";
+
+  const setPreset = (preset: "all" | "1y" | "3y") => {
+    if (!bounds) return;
+    if (preset === "all") {
+      setRangeStart(bounds.min);
+      setRangeEnd(bounds.max);
+      return;
+    }
+    const years = preset === "1y" ? 1 : 3;
+    const from = addDaysToDateKey(bounds.max, -years * 365);
+    setRangeStart(from < bounds.min ? bounds.min : from);
+    setRangeEnd(bounds.max);
+  };
+
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <SalesKpiBox
-          label="총 매출"
-          value={formatWon(kpis.total)}
-          sub={kpis.monthCount > 0 ? `${kpis.monthCount}개월 합계` : undefined}
+    <div className="grid grid-cols-1 gap-4 lg:grid-cols-[3fr_7fr]">
+      {/* 좌측 레일: 기간 선택기 + 고정 핵심 지표 */}
+      <aside className="flex flex-col gap-3">
+        {bounds && (
+          <div className="flex flex-col gap-2 rounded-md border border-[var(--border)] bg-[var(--bg)] p-3">
+            <div className="flex flex-wrap gap-2">
+              <label className="flex flex-1 flex-col gap-0.5 text-xs text-[var(--text-muted)]">
+                시작
+                <input
+                  type="date"
+                  className="h-8 border border-[var(--border-strong)] bg-[var(--bg)] px-2 text-xs text-[var(--text)]"
+                  min={minB}
+                  max={maxB}
+                  value={rangeStart || minB}
+                  onChange={(e) => setRangeStart(e.target.value)}
+                />
+              </label>
+              <label className="flex flex-1 flex-col gap-0.5 text-xs text-[var(--text-muted)]">
+                종료
+                <input
+                  type="date"
+                  className="h-8 border border-[var(--border-strong)] bg-[var(--bg)] px-2 text-xs text-[var(--text)]"
+                  min={minB}
+                  max={maxB}
+                  value={rangeEnd || maxB}
+                  onChange={(e) => setRangeEnd(e.target.value)}
+                />
+              </label>
+            </div>
+            <div className="flex flex-wrap gap-1">
+              {(
+                [
+                  ["all", "전체"],
+                  ["1y", "최근 1년"],
+                  ["3y", "최근 3년"],
+                ] as const
+              ).map(([key, label]) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setPreset(key)}
+                  className="h-8 flex-1 cursor-pointer border border-[var(--border-strong)] bg-[var(--bg)] px-2 text-xs text-[var(--text-secondary)] hover:bg-[var(--bg-subtle)]"
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <FixedKpiBox label={fixed.refLabel} value={formatWon(fixed.refSales)} />
+        <FixedKpiBox
+          label="전년 동월 대비"
+          value={yoyValue}
+          tone={yoyTone}
+          sub={fixed.monthLabel ? `${fixed.monthLabel} 기준` : undefined}
         />
-        <SalesKpiBox label="월 평균 매출" value={formatWon(kpis.monthlyAvg)} />
-        <SalesKpiBox
-          label="수의사 1인 평균 월 매출"
-          value={formatWon(kpis.perVetMonthly)}
-          sub={
-            vetCount != null && vetCount > 0
-              ? `수의사 ${vetCount}명 기준`
-              : "병원 설정에서 수의사 수를 입력해 주세요"
-          }
+        <FixedKpiBox label="올해 누적 매출 (YTD)" value={formatWon(fixed.ytd)} sub={fixed.ytdSub} />
+      </aside>
+
+      {/* 우측: 매출 그래프(레일 기간 선택을 따름) */}
+      <div>
+        <ManagementMetricSection
+          title="매출"
+          rows={rows}
+          metric="sales"
+          valueFormat="currency"
+          hideHeader
+          rangeStart={rangeStart}
+          rangeEnd={rangeEnd}
+          onRangeStartChange={setRangeStart}
+          onRangeEndChange={setRangeEnd}
+          hideRangeControls
         />
       </div>
-
-      <ManagementMetricSection
-        title="매출"
-        rows={rows}
-        metric="sales"
-        valueFormat="currency"
-        hideHeader
-      />
     </div>
   );
 }
