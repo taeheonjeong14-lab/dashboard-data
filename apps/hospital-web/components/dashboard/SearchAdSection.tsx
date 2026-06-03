@@ -76,6 +76,13 @@ function formatMetric(metric: SearchAdMetricKey, v: number | null): string {
   }
 }
 
+function addDaysToDateKey(dateKey: string, delta: number): string {
+  const [y, m, d] = dateKey.split("-").map(Number);
+  const t = Date.UTC(y, m - 1, d) + delta * 86400000;
+  const dt = new Date(t);
+  return `${dt.getUTCFullYear()}-${String(dt.getUTCMonth() + 1).padStart(2, "0")}-${String(dt.getUTCDate()).padStart(2, "0")}`;
+}
+
 function clipRange(start: string, end: string, minB: string, maxB: string) {
   let s = start < minB ? minB : start;
   let e = end > maxB ? maxB : end;
@@ -182,6 +189,20 @@ export default function SearchAdSection({
     return computeYAxisConfig(maxOfNullable(vals));
   }, [trend]);
 
+  const setPreset = (preset: "all" | "1m") => {
+    if (!bounds) return;
+    if (preset === "all") {
+      // 전체 = 현재 데이터 경계(이미 최대 6개월로 제한됨)
+      setRangeStart(bounds.min);
+      setRangeEnd(bounds.max);
+      return;
+    }
+    // 최근 1개월 (최신 데이터일 기준 30일, 6개월 하한으로 클램프)
+    const from = addDaysToDateKey(bounds.max, -30);
+    setRangeStart(from < bounds.min ? bounds.min : from);
+    setRangeEnd(bounds.max);
+  };
+
   const toggleExpand = (id: string) =>
     setExpanded((prev) => {
       const next = new Set(prev);
@@ -225,6 +246,23 @@ export default function SearchAdSection({
               onChange={(e) => setRangeEnd(e.target.value)}
             />
           </label>
+        </div>
+        <div className="flex flex-wrap gap-1">
+          {(
+            [
+              ["all", "전체(최대 6개월)"],
+              ["1m", "최근 1개월"],
+            ] as const
+          ).map(([key, label]) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => setPreset(key)}
+              className="h-8 border border-[var(--border-strong)] bg-[var(--bg)] px-2.5 text-xs text-[var(--text-secondary)] hover:bg-[var(--bg-subtle)]"
+            >
+              {label}
+            </button>
+          ))}
         </div>
         <div className="ml-auto flex rounded border border-[var(--border-strong)] p-0.5">
           {(
