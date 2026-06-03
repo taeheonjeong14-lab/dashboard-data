@@ -751,6 +751,13 @@ export async function fetchPlacePeriodKpis(
 const SEARCHAD_SELECT =
   "metric_date,campaign_id,campaign_name,campaign_type,adgroup_id,adgroup_name,keyword_id,keyword_name,impressions,clicks,cost";
 
+// 모든 병원·양쪽 탭(파워링크/플레이스) 공통: 검색광고는 최대 6개월(180일)만 노출한다.
+// 메인 fetch가 이 범위로 묶이면 날짜 선택기 min/max도 6개월로 정해지고, Top키워드 조회도 그 안에 머문다.
+const SEARCHAD_MAX_LOOKBACK_DAYS = 180;
+export function searchAdSinceDate(): string {
+  return addCalendarDaysUtc(todayDateKeySeoul(), -SEARCHAD_MAX_LOOKBACK_DAYS);
+}
+
 function mapSearchAdRow(r: Record<string, unknown>): SearchAdRow {
   return {
     dateKey: String(r.metric_date ?? "").slice(0, 10),
@@ -768,23 +775,23 @@ function mapSearchAdRow(r: Record<string, unknown>): SearchAdRow {
 }
 
 /**
- * 메인 뷰(추세·KPI·캠페인표)용 — **캠페인·광고그룹 레벨만(keyword_id='')** 가져온다.
- * 키워드 단위 행(한 병원 수십만)을 빼서 전 기간도 가볍게 로드된다.
- * - campaignType 서버 필터 + 최신순(desc): 5만 상한에 걸려도 최근 데이터가 남게.
- * - Top 키워드 표는 fetchSearchAdKeywordMetrics 로 기간 한정 별도 조회.
+ * 메인 뷰(추세·KPI·캠페인표)용 — **캠페인·광고그룹 레벨만(keyword_id='')**, **최근 6개월만** 가져온다.
+ * 여기서 정해진 날짜 경계가 화면 선택기와 Top키워드 조회 범위를 6개월로 묶는다.
  */
 export async function fetchSearchAdMetrics(
   hospitalId: string,
   campaignType?: string,
 ): Promise<SearchAdRow[]> {
   const supabase = createClient();
+  const since = searchAdSinceDate();
   const rows = await fetchAllPages((from, to) => {
     let q = supabase
       .schema("analytics")
       .from("analytics_searchad_daily_metrics")
       .select(SEARCHAD_SELECT)
       .eq("hospital_id", hospitalId)
-      .eq("keyword_id", "");
+      .eq("keyword_id", "")
+      .gte("metric_date", since);
     if (campaignType) q = q.eq("campaign_type", campaignType);
     return q.order("metric_date", { ascending: false }).range(from, to);
   });
@@ -804,10 +811,13 @@ export async function fetchSearchAdTopKeywords(
   limit = 10,
 ): Promise<KeywordPerf[]> {
   const supabase = createClient();
+  // 6개월 하한을 한 번 더 보장(어떤 경우에도 6개월 초과 집계 금지).
+  const since = searchAdSinceDate();
+  const effStart = startDate > since ? startDate : since;
   const { data, error } = await supabase.schema("analytics").rpc("searchad_top_keywords", {
     p_hospital_id: hospitalId,
     p_campaign_type: campaignType ?? null,
-    p_start: startDate,
+    p_start: effStart,
     p_end: endDate,
     p_limit: limit,
   });
