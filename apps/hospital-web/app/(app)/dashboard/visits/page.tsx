@@ -102,11 +102,11 @@ export default function VisitsDashboardPage() {
       <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
         <ManagementMetricSection
           title="진료 건수"
-          description="진료 건수 추이입니다."
           rows={rows}
           metric="visits"
           valueFormat="integer"
           valueSuffix="건"
+          hideHeader
         />
       </div>
     </div>

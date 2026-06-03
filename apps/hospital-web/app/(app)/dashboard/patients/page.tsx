@@ -101,11 +101,11 @@ export default function PatientsDashboardPage() {
     <div>
       <ManagementMetricSection
         title="신규환자 유입"
-        description="신규환자 유입 추이입니다."
         rows={rows}
         metric="newPatients"
         valueFormat="integer"
         valueSuffix="명"
+        hideHeader
       />
     </div>
   );
