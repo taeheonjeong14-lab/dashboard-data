@@ -123,7 +123,25 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
       intake_survey_enabled: intakeSurveyEnabled,
     };
 
-    return NextResponse.json({ form: base });
+    // 경쟁병원(최대 3) — 테이블 미생성 가능성 대비 방어적으로 조회
+    let competitors: { slot: number; name: string; naver_blog_id: string }[] = [];
+    {
+      const r = await supabase
+        .schema('analytics')
+        .from('analytics_hospital_competitors')
+        .select('slot, name, naver_blog_id')
+        .eq('hospital_id', hospitalId)
+        .order('slot', { ascending: true });
+      if (!r.error && Array.isArray(r.data)) {
+        competitors = r.data.map((c) => ({
+          slot: Number((c as { slot?: number }).slot) || 0,
+          name: String((c as { name?: string }).name || ''),
+          naver_blog_id: String((c as { naver_blog_id?: string }).naver_blog_id || ''),
+        }));
+      }
+    }
+
+    return NextResponse.json({ form: { ...base, competitors } });
   } catch (e) {
     return NextResponse.json({ error: formatSupabaseError(e) }, { status: 500 });
   }

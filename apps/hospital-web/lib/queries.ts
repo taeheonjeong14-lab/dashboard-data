@@ -845,6 +845,64 @@ export async function fetchPlaceReviewStats(
   }
 }
 
+/** 병원별 등록된 경쟁 병원(최대 3). */
+export type HospitalCompetitor = { slot: number; name: string; naverBlogId: string | null };
+
+export async function fetchCompetitors(hospitalId: string): Promise<HospitalCompetitor[]> {
+  try {
+    const supabase = createClient();
+    const { data } = await supabase
+      .schema("analytics")
+      .from("analytics_hospital_competitors")
+      .select("slot, name, naver_blog_id")
+      .eq("hospital_id", hospitalId)
+      .eq("is_active", true)
+      .order("slot", { ascending: true });
+    return (data ?? []).map((r) => ({
+      slot: Number((r as { slot?: number }).slot) || 0,
+      name: String((r as { name?: string }).name || ""),
+      naverBlogId: asStringOrNull((r as { naver_blog_id?: unknown }).naver_blog_id),
+    }));
+  } catch {
+    return [];
+  }
+}
+
+/** 경쟁사 순위(최신 수집 기준). channel별·slot별·키워드별 순위. */
+export type CompetitorRank = {
+  channel: "blog" | "place";
+  slot: number;
+  keyword: string;
+  rank: number | null;
+};
+
+export async function fetchCompetitorRanks(hospitalId: string): Promise<CompetitorRank[]> {
+  try {
+    const supabase = createClient();
+    const { data } = await supabase
+      .schema("analytics")
+      .from("analytics_competitor_ranks")
+      .select("channel, slot, keyword, rank_value, metric_date")
+      .eq("hospital_id", hospitalId)
+      .order("metric_date", { ascending: false });
+    const seen = new Set<string>();
+    const out: CompetitorRank[] = [];
+    for (const r of data ?? []) {
+      const channel = String((r as { channel?: string }).channel || "");
+      const slot = Number((r as { slot?: number }).slot) || 0;
+      const keyword = String((r as { keyword?: string }).keyword || "");
+      if (channel !== "blog" && channel !== "place") continue;
+      const key = `${channel}|${slot}|${keyword}`;
+      if (seen.has(key)) continue; // metric_date desc 정렬이므로 최신만 유지
+      seen.add(key);
+      out.push({ channel, slot, keyword, rank: asNumberOrNull((r as { rank_value?: unknown }).rank_value) });
+    }
+    return out;
+  } catch {
+    return [];
+  }
+}
+
 export async function fetchPlacePeriodKpis(
   hospitalId: string
 ): Promise<PlacePeriodDayRow[]> {

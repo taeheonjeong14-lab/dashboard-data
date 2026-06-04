@@ -2,7 +2,7 @@
 
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
-import { BarChart2, FileHeart, Stethoscope, ClipboardList, ClipboardCheck, Newspaper } from 'lucide-react';
+import { BarChart2, FileHeart, Stethoscope, ClipboardList, ClipboardCheck, Newspaper, Swords } from 'lucide-react';
 
 const navGroups = [
   {
@@ -16,6 +16,7 @@ const navGroups = [
     title: '마케팅',
     items: [
       { href: '/dashboard', label: '경영 대시보드', icon: BarChart2, matchPrefix: '/dashboard' },
+      { href: '/competitor-analysis', label: '경쟁병원 분석', icon: Swords, matchPrefix: '/competitor-analysis' },
       { href: '/health-report', label: '건강검진 리포트', icon: FileHeart, matchPrefix: '/health-report' },
       { href: '/blog', label: '블로그 컨텐츠', icon: Newspaper, matchPrefix: '/blog' },
     ],

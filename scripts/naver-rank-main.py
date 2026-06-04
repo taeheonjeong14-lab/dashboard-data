@@ -511,6 +511,68 @@ def get_place_rank_with_pagination(page, keyword: str, store_name: str, integrat
         return None, None
 
 
+def get_place_ranks_with_pagination(page, keyword: str, targets: list[str]) -> dict[str, int | None]:
+    """통합검색 플레이스 섹션에서 '여러 상호명'의 순위를 한 번의 탐색(페이지네이션)으로 찾는다.
+    우리 병원 + 경쟁사를 한 검색에서 같이 찾기 위함. 반환: {원본 target 문자열: rank or None}. 광고 제외."""
+    result: dict[str, int | None] = {t: None for t in targets if t}
+    norm_map: dict[str, str] = {}  # normalized store name -> original
+    for t in targets:
+        if t:
+            norm_map[_normalize_store_name(t)] = t
+    if not norm_map:
+        return result
+    try:
+        container_sel = None
+        for sel in SELECTOR_PLACE_CONTAINER:
+            if page.query_selector(sel):
+                container_sel = sel
+                break
+        if not container_sel:
+            return result
+
+        total_rank_offset = 0
+        max_pages = 4  # 경쟁사가 낮은 순위일 수 있어 우리 것만 찾을 때보다 한 페이지 더 본다
+        for _ in range(max_pages):
+            ul = page.query_selector(container_sel)
+            if not ul:
+                break
+            items = ul.query_selector_all(CARD_PLACE)
+            if not items:
+                items = ul.query_selector_all("li[data-nmb_vcl-doc-id], li[data-nmb_vcle-doc-id]")
+            rank = total_rank_offset
+            for li in items:
+                if is_place_card_ad(li):
+                    continue
+                rank += 1
+                name_el = li.query_selector("span.jVsoy")
+                name = (name_el.inner_text() or "").strip() if name_el else ""
+                nn = _normalize_store_name(name)
+                for nt, orig in norm_map.items():
+                    if result.get(orig) is not None:
+                        continue
+                    if nn == nt or (nt and nt in nn) or (name and nt in name):
+                        result[orig] = rank
+            total_rank_offset = rank
+            if all(result.get(o) is not None for o in norm_map.values()):
+                break
+            next_btn = page.query_selector('div.cmm_pgs.x5Efp a.cmm_pg_next:not([aria-disabled="true"])')
+            if not next_btn:
+                break
+            next_btn.click()
+            page.wait_for_load_state("domcontentloaded", timeout=10000)
+            page.wait_for_timeout(300)
+            container_sel = None
+            for sel in SELECTOR_PLACE_CONTAINER:
+                if page.query_selector(sel):
+                    container_sel = sel
+                    break
+            if not container_sel:
+                break
+        return result
+    except Exception:
+        return result
+
+
 def _is_truthy_env(name: str) -> bool:
     raw = os.getenv(name)
     if raw is None:
@@ -590,21 +652,26 @@ def check_place_ranking(
     return out
 
 
-def check_place_ranking_on_page(page, keyword: str, store_name: str) -> dict:
+def check_place_ranking_on_page(page, keyword: str, store_name: str, competitor_stores: list[str] | None = None) -> dict:
     """
     주입된 Playwright page를 재사용하며 플레이스 순위를 확인한다.
     (탭 누적 방지를 위해 page를 새로 만들지 않는다.)
+    competitor_stores 가 주어지면 같은 한 번의 검색에서 경쟁사 상호 순위도 함께 찾는다.
     """
+    competitor_stores = [s for s in (competitor_stores or []) if s]
     encoded_kw = quote(keyword)
     integrated_url = f"https://search.naver.com/search.naver?query={encoded_kw}"
-    out = {"keyword": keyword, "store_name": store_name, "rank": None, "url": None, "error": None}
+    out = {"keyword": keyword, "store_name": store_name, "rank": None, "url": None, "error": None, "competitor_ranks": {}}
 
     for attempt in range(PAGE_LOAD_RETRY_COUNT + 1):
         timeout_ms = _set_page_load_timeout_for_attempt(attempt)
         try:
             page.goto(integrated_url, wait_until="domcontentloaded", timeout=timeout_ms)
             page.wait_for_timeout(100)
-            out["rank"], out["url"] = get_place_rank_with_pagination(page, keyword, store_name, integrated_url)
+            ranks = get_place_ranks_with_pagination(page, keyword, [store_name] + competitor_stores)
+            out["rank"] = ranks.get(store_name)
+            out["url"] = None
+            out["competitor_ranks"] = {s: ranks.get(s) for s in competitor_stores}
             out["error"] = None
             break
         except PlaywrightTimeout:
@@ -1079,15 +1146,38 @@ def check_naver_ranking(
     return out
 
 
-def check_naver_ranking_on_page(page, keyword: str, target_blog_id: str) -> dict:
+def _scan_blog_tab_competitors(page, competitor_blog_ids: list[str]) -> dict[str, int | None]:
+    """
+    이미 로드된 블로그 탭 DOM에서 경쟁사 블로그ID별 순위를 재스캔한다.
+    (추가 검색/네비게이션 없이 우리 블로그 스캔과 같은 컨테이너를 다시 훑는다.)
+    """
+    out: dict[str, int | None] = {}
+    for cid in competitor_blog_ids:
+        nid = normalize_blog_id(cid)
+        if not nid or nid in out:
+            continue
+        rank = None
+        for container_sel in SELECTOR_BLOG_TAB_CONTAINER:
+            r, _url = find_rank_in_cards(page, container_sel, CARD_BLOG_TAB, nid, max_cards=20)
+            if r is not None:
+                rank = r
+                break
+        out[nid] = rank
+    return out
+
+
+def check_naver_ranking_on_page(
+    page, keyword: str, target_blog_id: str, competitor_blog_ids: list[str] | None = None
+) -> dict:
     """
     주입된 Playwright page를 재사용하며 블로그 순위를 확인한다.
     (탭 누적 방지를 위해 page를 새로 만들지 않는다.)
+    competitor_blog_ids 가 주어지면 같은 블로그 탭 로드 결과에서 경쟁사 순위도 함께 스캔한다.
     """
     target_id = normalize_blog_id(target_blog_id)
     encoded_kw = quote(keyword)
     integrated_url = f"https://search.naver.com/search.naver?query={encoded_kw}"
-    out = {"keyword": keyword, "error": None, "sections": {}}
+    out = {"keyword": keyword, "error": None, "sections": {}, "competitor_blog_tab": {}}
 
     for attempt in range(PAGE_LOAD_RETRY_COUNT + 1):
         timeout_ms = _set_page_load_timeout_for_attempt(attempt)
@@ -1132,6 +1222,9 @@ def check_naver_ranking_on_page(page, keyword: str, target_blog_id: str) -> dict
                     rank, blog_url = _blog_tab_rank_fallback(page, target_id)
                 out["sections"]["블로그(탭)"] = rank
                 out["sections"]["블로그(탭)_URL"] = blog_url
+                # 같은 블로그 탭 로드 결과에서 경쟁사 순위도 재스캔(추가 검색 없음)
+                if competitor_blog_ids:
+                    out["competitor_blog_tab"] = _scan_blog_tab_competitors(page, competitor_blog_ids)
             else:
                 out["sections"]["블로그(탭)"] = None
                 out["sections"]["블로그(탭)_URL"] = None
@@ -1292,6 +1385,78 @@ def read_place_input_from_supabase() -> list[tuple[str, str, str | None]]:
         seen.add(dedupe_key)
         pairs.append((keyword, store_name, hospital_id))
     return pairs
+
+
+# 병원별 경쟁사: {hospital_id: [(slot, name, blog_id), ...]} — main()에서 1회 로드, 워커가 참조.
+_COMPETITORS_BY_HOSPITAL: dict[str, list[tuple[int, str, str | None]]] = {}
+
+
+def read_competitors_from_supabase() -> dict[str, list[tuple[int, str, str | None]]]:
+    """analytics_hospital_competitors 에서 활성 경쟁사 목록을 병원별로 읽는다.
+    COLLECT_HOSPITAL_ID 가 있으면 그 병원만."""
+    supabase_url = os.getenv("SUPABASE_URL")
+    service_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+    if not supabase_url or not service_key:
+        return {}
+    params = {
+        "select": "hospital_id,slot,name,naver_blog_id",
+        "is_active": "eq.true",
+        "order": "hospital_id.asc,slot.asc",
+    }
+    target = os.getenv("COLLECT_HOSPITAL_ID", "").strip()
+    if target:
+        params["hospital_id"] = f"eq.{target}"
+    url = f"{supabase_url.rstrip('/')}/rest/v1/analytics_hospital_competitors?{urlencode(params)}"
+    req = Request(url, headers=_supabase_headers(service_key, profile="analytics"), method="GET")
+    out: dict[str, list[tuple[int, str, str | None]]] = {}
+    try:
+        with urlopen(req, timeout=20) as res:
+            rows = json.loads(res.read().decode("utf-8"))
+        for r in rows or []:
+            hid = str(r.get("hospital_id") or "").strip()
+            name = str(r.get("name") or "").strip()
+            if not hid or not name:
+                continue
+            slot = int(r.get("slot") or 0)
+            blog_id = str(r.get("naver_blog_id") or "").strip() or None
+            out.setdefault(hid, []).append((slot, name, blog_id))
+    except Exception as e:
+        print(f"ℹ️ 경쟁사 조회 실패(무시): {e}")
+    return out
+
+
+# 블로그ID(account_id) → hospital_id 맵 — 블로그 워커가 경쟁사 조회용으로 참조.
+_HOSPITAL_BY_BLOG_ID: dict[str, str] = {}
+
+
+def read_blog_hospital_map_from_supabase() -> dict[str, str]:
+    """analytics_blog_keyword_targets 에서 account_id → hospital_id 맵을 읽는다.
+    COLLECT_HOSPITAL_ID 가 있으면 그 병원만. 블로그 워커가 경쟁사 매칭에 사용."""
+    supabase_url = os.getenv("SUPABASE_URL")
+    service_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+    if not supabase_url or not service_key:
+        return {}
+    params = {
+        "select": "account_id,hospital_id",
+        "is_active": "eq.true",
+    }
+    target = os.getenv("COLLECT_HOSPITAL_ID", "").strip()
+    if target:
+        params["hospital_id"] = f"eq.{target}"
+    url = f"{supabase_url.rstrip('/')}/rest/v1/analytics_blog_keyword_targets?{urlencode(params)}"
+    req = Request(url, headers=_supabase_headers(service_key, profile="analytics"), method="GET")
+    out: dict[str, str] = {}
+    try:
+        with urlopen(req, timeout=20) as res:
+            rows = json.loads(res.read().decode("utf-8"))
+        for r in rows or []:
+            bid = normalize_blog_id(str(r.get("account_id") or "").strip())
+            hid = str(r.get("hospital_id") or "").strip()
+            if bid and hid:
+                out[bid] = hid
+    except Exception as e:
+        print(f"ℹ️ 블로그 hospital 맵 조회 실패(무시): {e}")
+    return out
 
 
 def write_output_excel(
@@ -1630,6 +1795,53 @@ def upload_place_ranks_to_supabase(place_results: list[dict], metric_date: str |
     return len(payload)
 
 
+def upload_competitor_ranks_to_supabase(results: list[dict], channel: str, metric_date: str | None = None) -> int:
+    """결과(item['competitors']=[{slot,name,rank}])에서 경쟁사 순위를 analytics_competitor_ranks 에 업서트."""
+    supabase_url = os.getenv("SUPABASE_URL")
+    service_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+    if not supabase_url or not service_key or not results:
+        return 0
+    resolved_metric_date = metric_date or os.getenv("RANK_METRIC_DATE") or _to_kst_date_str()
+    collected_at = datetime.utcnow().isoformat() + "Z"
+    payload = []
+    seen: set[tuple] = set()
+    for item in results:
+        hid = str(item.get("hospital_id") or "").strip()
+        keyword = str(item.get("keyword") or "").strip()
+        if not hid or not keyword:
+            continue
+        for c in item.get("competitors") or []:
+            slot = int(c.get("slot") or 0)
+            if slot < 1 or slot > 3:
+                continue
+            key = (hid, slot, channel, resolved_metric_date, keyword)
+            if key in seen:
+                continue
+            seen.add(key)
+            payload.append({
+                "hospital_id": hid,
+                "slot": slot,
+                "channel": channel,
+                "metric_date": resolved_metric_date,
+                "keyword": keyword,
+                "rank_value": _to_rank_value(c.get("rank")),
+                "name": c.get("name"),
+                "metadata": {},
+                "collected_at": collected_at,
+            })
+    if not payload:
+        return 0
+    params = {"on_conflict": "hospital_id,slot,channel,metric_date,keyword"}
+    url = f"{supabase_url.rstrip('/')}/rest/v1/analytics_competitor_ranks?{urlencode(params)}"
+    headers = _supabase_headers(service_key, profile="analytics")
+    headers["Prefer"] = "resolution=merge-duplicates,return=minimal"
+    req = Request(url, data=json.dumps(payload).encode("utf-8"), headers=headers, method="POST")
+    with urlopen(req, timeout=40):
+        pass
+    print(f"✅ 경쟁사({channel}) 순위 업서트 완료: {len(payload)}건 (metric_date={resolved_metric_date})")
+    return len(payload)
+
+
 def _split_roundrobin(items: list, n: int) -> list[list]:
     """items를 n개 버킷에 라운드로빈으로 분배. 빈 버킷은 제거."""
     buckets: list[list] = [[] for _ in range(n)]
@@ -1721,16 +1933,30 @@ def _worker_blog_chunk(worker_id: int, pairs_chunk: list, use_debug_chrome: bool
             for blog_id, kw in pairs_chunk:
                 if _blocked_event.is_set():
                     break
-                data = check_naver_ranking_on_page(page, kw, blog_id)
+                hospital_id = _HOSPITAL_BY_BLOG_ID.get(normalize_blog_id(blog_id), "")
+                comps = _COMPETITORS_BY_HOSPITAL.get(hospital_id, []) if hospital_id else []
+                competitor_blog_ids = [b for (_s, _n, b) in comps if b]
+                data = check_naver_ranking_on_page(page, kw, blog_id, competitor_blog_ids)
                 data["blog_id"] = blog_id
+                cbt = data.get("competitor_blog_tab") or {}
                 row = {
                     "blog_id": blog_id,
                     "keyword": kw,
+                    "hospital_id": hospital_id or None,
                     "sections": data.get("sections"),
                     "error": data.get("error"),
+                    "competitors": [
+                        {"slot": slot, "name": name, "rank": cbt.get(normalize_blog_id(b))}
+                        for (slot, name, b) in comps if b
+                    ],
                 }
                 with _print_lock:
                     print_result(data)
+                    if competitor_blog_ids:
+                        comp_txt = ", ".join(
+                            f"{name}:{cbt.get(normalize_blog_id(b))}" for (_s, name, b) in comps if b
+                        )
+                        print(f"   🏁 경쟁사 블로그(탭): {comp_txt}")
                 chunk_results.append(row)
                 _bump_rank_progress(kw)
                 if _detect_block(page):
@@ -1768,14 +1994,21 @@ def _worker_place_chunk(worker_id: int, place_chunk: list, use_debug_chrome: boo
             for kw, store, hospital_id in place_chunk:
                 if _blocked_event.is_set():
                     break
-                data = check_place_ranking_on_page(page, kw, store)
+                comps = _COMPETITORS_BY_HOSPITAL.get(hospital_id or "", [])
+                competitor_stores = [name for (_slot, name, _blog) in comps]
+                data = check_place_ranking_on_page(page, kw, store, competitor_stores)
                 data["hospital_id"] = hospital_id
+                cr = data.get("competitor_ranks") or {}
+                data["competitors"] = [
+                    {"slot": slot, "name": name, "rank": cr.get(name)} for (slot, name, _blog) in comps
+                ]
                 with _print_lock:
                     err = data.get("error")
                     if err:
                         print(f"⚠️ [{kw} / {store}] 에러: {err}")
                     else:
-                        print(f"📌 [{kw} / {store}] 플레이스: {data.get('rank')}위")
+                        comp_txt = ", ".join(f"{name}:{cr.get(name)}" for (_s, name, _b) in comps) if comps else ""
+                        print(f"📌 [{kw} / {store}] 플레이스: {data.get('rank')}위" + (f" | 경쟁사 {comp_txt}" if comp_txt else ""))
                 chunk_results.append(data)
                 _bump_rank_progress(f"{kw} / {store}")
                 if _detect_block(page):
@@ -1893,6 +2126,13 @@ def main():
         except Exception as e:
             print(f"❌ DB 입력 조회 실패: {e}")
             return
+        # 경쟁사 로드(1회) — 워커가 같은 검색에서 우리+경쟁사 순위를 함께 찾는다.
+        global _COMPETITORS_BY_HOSPITAL, _HOSPITAL_BY_BLOG_ID
+        _COMPETITORS_BY_HOSPITAL = read_competitors_from_supabase()
+        _HOSPITAL_BY_BLOG_ID = read_blog_hospital_map_from_supabase()
+        if _COMPETITORS_BY_HOSPITAL:
+            _n = sum(len(v) for v in _COMPETITORS_BY_HOSPITAL.values())
+            print(f"🏁 경쟁사 {_n}곳 로드({len(_COMPETITORS_BY_HOSPITAL)}개 병원) — 순위 비교 대상 포함")
     else:
         if Path(input_path).exists():
             pairs = read_input_excel(input_path)
@@ -1976,11 +2216,19 @@ def main():
             upload_blog_ranks_to_supabase(results, metric_date=metric_date)
         except Exception as e:
             print(f"❌ Supabase 업로드 실패: {e}")
+        try:
+            upload_competitor_ranks_to_supabase(results, "blog", metric_date=metric_date)
+        except Exception as e:
+            print(f"❌ 경쟁사(블로그) 순위 업로드 실패: {e}")
     if upload_db and place_results:
         try:
             upload_place_ranks_to_supabase(place_results, metric_date=metric_date)
         except Exception as e:
             print(f"❌ Supabase 플레이스 업로드 실패: {e}")
+        try:
+            upload_competitor_ranks_to_supabase(place_results, "place", metric_date=metric_date)
+        except Exception as e:
+            print(f"❌ 경쟁사(플레이스) 순위 업로드 실패: {e}")
 
     if export_excel:
         write_output_excel(output_path, results, place_results if place_results else None)

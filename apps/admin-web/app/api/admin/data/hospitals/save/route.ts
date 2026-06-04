@@ -52,6 +52,7 @@ type FormBody = {
     googleads_customer_id?: string;
     googleads_refresh_token_encrypted?: string;
     intake_survey_enabled?: boolean;
+    competitors?: { slot?: number; name?: string; naver_blog_id?: string }[];
   };
 };
 
@@ -190,6 +191,34 @@ export async function POST(request: Request) {
           })),
         );
       if (ptErr) throw ptErr;
+    }
+
+    // 경쟁병원(최대 3) — delete 후 재삽입. 테이블 미생성 가능성 대비 방어적으로(실패해도 병원 저장 유지).
+    try {
+      await supabase
+        .schema('analytics')
+        .from('analytics_hospital_competitors')
+        .delete()
+        .eq('hospital_id', resolvedHospitalId);
+      const competitors = Array.isArray(hospitalForm.competitors) ? hospitalForm.competitors : [];
+      const compRows = competitors
+        .map((c, i) => ({
+          hospital_id: resolvedHospitalId,
+          slot: Number(c?.slot) || i + 1,
+          name: (c?.name || '').trim(),
+          naver_blog_id: (c?.naver_blog_id || '').trim() || null,
+          is_active: true,
+        }))
+        .filter((c) => c.name && c.slot >= 1 && c.slot <= 3);
+      if (compRows.length > 0) {
+        const { error: compErr } = await supabase
+          .schema('analytics')
+          .from('analytics_hospital_competitors')
+          .insert(compRows);
+        if (compErr) throw compErr;
+      }
+    } catch (e) {
+      console.warn('경쟁병원 저장 생략(테이블 미존재 가능):', e instanceof Error ? e.message : e);
     }
 
     return NextResponse.json({ ok: true });

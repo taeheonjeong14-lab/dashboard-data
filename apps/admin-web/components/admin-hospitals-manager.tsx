@@ -42,7 +42,24 @@ const EMPTY_FORM = {
   googleads_customer_id: '',
   googleads_refresh_token_encrypted: '',
   intake_survey_enabled: false,
+  competitors: [
+    { slot: 1, name: '', naver_blog_id: '' },
+    { slot: 2, name: '', naver_blog_id: '' },
+    { slot: 3, name: '', naver_blog_id: '' },
+  ],
 };
+
+function normalizeCompetitors(raw: unknown): { slot: number; name: string; naver_blog_id: string }[] {
+  const arr = Array.isArray(raw) ? (raw as Record<string, unknown>[]) : [];
+  return [1, 2, 3].map((slot) => {
+    const found = arr.find((c) => Number(c?.slot) === slot);
+    return {
+      slot,
+      name: String(found?.name || ''),
+      naver_blog_id: String(found?.naver_blog_id || ''),
+    };
+  });
+}
 
 const fieldLabelStyle: React.CSSProperties = {
   fontSize: 11,
@@ -158,6 +175,7 @@ export default function AdminHospitalsManager() {
         ...(apiForm as Partial<typeof EMPTY_FORM>),
         blog_keywords: toKeywordArray(apiForm.blog_keywords_text),
         place_keywords: toKeywordArray(apiForm.place_keywords_text),
+        competitors: normalizeCompetitors(apiForm.competitors),
       });
     } catch (e) {
       setMessage(`상세 조회 실패: ${formatSupabaseError(e)}`);
@@ -427,6 +445,36 @@ export default function AdminHospitalsManager() {
               </div>
               <LabeledField label="스마트플레이스 리뷰 URL (리뷰 수집용)">
                 <input value={form.smartplace_review_url} onChange={(e) => setForm((f) => ({ ...f, smartplace_review_url: e.target.value }))} style={fieldStyle} />
+              </LabeledField>
+              <LabeledField label="경쟁병원 (최대 3 · 상호명 + 네이버 블로그 ID)">
+                <div style={{ display: 'grid', gap: 6 }}>
+                  {form.competitors.map((c, i) => (
+                    <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                      <input
+                        placeholder={`경쟁병원 ${i + 1} 상호명(플레이스 표기 그대로)`}
+                        value={c.name}
+                        onChange={(e) =>
+                          setForm((f) => ({
+                            ...f,
+                            competitors: f.competitors.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)),
+                          }))
+                        }
+                        style={fieldStyle}
+                      />
+                      <input
+                        placeholder="네이버 블로그 ID"
+                        value={c.naver_blog_id}
+                        onChange={(e) =>
+                          setForm((f) => ({
+                            ...f,
+                            competitors: f.competitors.map((x, j) => (j === i ? { ...x, naver_blog_id: e.target.value } : x)),
+                          }))
+                        }
+                        style={fieldStyle}
+                      />
+                    </div>
+                  ))}
+                </div>
               </LabeledField>
               <LabeledField label="네이버 블로그 ID">
                 <input value={form.naver_blog_id} onChange={(e) => setForm((f) => ({ ...f, naver_blog_id: e.target.value }))} style={fieldStyle} />
