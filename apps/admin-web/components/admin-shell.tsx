@@ -42,7 +42,7 @@ export function AdminShell({
           <main
             style={{
               flex: 1,
-              padding: '28px',
+              padding: 'var(--admin-content-pad)',
               background: 'var(--bg-subtle)',
               minHeight: 'calc(100vh - var(--topbar-height))',
             }}

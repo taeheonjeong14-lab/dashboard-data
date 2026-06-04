@@ -17,8 +17,11 @@
   --danger-subtle: #fdecee;
   --success: #15c47e;
   --success-subtle: #e8f9f1;
+  --warning: #d97706;
+  --warning-subtle: #fef3c7;
   --radius: 8px;
   --radius-lg: 16px;
+  --admin-content-pad: 28px;
   --sidebar-width: 200px;
   /* admin 은 로고를 hospital-web 보다 크게 노출하기 위해 top-bar 도 더 높게(60px). */
   --topbar-height: 60px;

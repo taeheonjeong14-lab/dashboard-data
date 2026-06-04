@@ -98,13 +98,12 @@ export function ReceptionList({ items, hasHospital, loadError, hospitalId }: {
   useEffect(() => { setOrigin(window.location.origin); }, []);
   const formUrl = hospitalId && origin ? `${origin}/intake/${hospitalId}` : '';
   const [linkCopied, setLinkCopied] = useState(false);
-  const [linkModalOpen, setLinkModalOpen] = useState(false);
   async function copyLink() {
     if (!formUrl) return;
     try {
       await navigator.clipboard.writeText(formUrl);
       setLinkCopied(true);
-      setTimeout(() => setLinkCopied(false), 1500);
+      setTimeout(() => setLinkCopied(false), 3000);
     } catch { /* 클립보드 미지원/거부 */ }
   }
 
@@ -122,10 +121,16 @@ export function ReceptionList({ items, hasHospital, loadError, hospitalId }: {
         {hasHospital && (
           <button
             type="button"
-            onClick={() => setLinkModalOpen(true)}
-            style={{ padding: '9px 16px', border: 'none', borderRadius: 'var(--radius)', background: 'var(--accent)', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', flexShrink: 0 }}
+            onClick={copyLink}
+            disabled={!formUrl}
+            style={{
+              padding: '9px 16px', border: 'none', borderRadius: 'var(--radius)',
+              background: linkCopied ? 'var(--success)' : 'var(--accent)', color: '#fff',
+              fontSize: 13, fontWeight: 600, cursor: formUrl ? 'pointer' : 'default', flexShrink: 0,
+              transition: 'background 0.15s',
+            }}
           >
-            보호자 접수 링크
+            {linkCopied ? '링크 복사 완료' : '보호자 접수 링크'}
           </button>
         )}
       </div>
@@ -181,7 +186,7 @@ export function ReceptionList({ items, hasHospital, loadError, hospitalId }: {
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
                   <thead>
                     <tr style={{ background: 'var(--bg-subtle)' }}>
-                      {['접수일 및 시간', '보호자', '연락처', '환자', '사전문진', '바로가기'].map((h) => (
+                      {['접수일 및 시간', '보호자', '연락처', '환자', '사전문진'].map((h) => (
                         <th key={h} style={thStyle}>{h}</th>
                       ))}
                     </tr>
@@ -209,13 +214,6 @@ export function ReceptionList({ items, hasHospital, loadError, hospitalId }: {
                           <td style={{ ...tdStyle, color: 'var(--text)' }}>{isFirstOfSubmission ? (s.owner_name ?? '—') : ''}</td>
                           <td style={tdStyle}>{isFirstOfSubmission ? (s.owner_phone ?? '—') : ''}</td>
                           <td style={{ ...tdStyle, whiteSpace: 'normal', color: 'var(--text)' }}>{p?.name?.trim() || '—'}</td>
-                          <td style={tdStyle}>
-                            {linkedId ? (
-                              <span style={surveyBadgeStyle}>완료</span>
-                            ) : (
-                              <span style={{ color: 'var(--text-muted)' }}>—</span>
-                            )}
-                          </td>
                           <td style={tdStyle}>
                             {linkedId ? (
                               <button
@@ -266,30 +264,6 @@ export function ReceptionList({ items, hasHospital, loadError, hospitalId }: {
         />
       )}
 
-      {linkModalOpen && hasHospital && (
-        <div onClick={() => setLinkModalOpen(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: 16 }}>
-          <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', maxWidth: 460, background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: 24, boxShadow: '0 8px 32px rgba(0,0,0,0.18)' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-              <h2 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: 'var(--text)' }}>보호자 접수 링크</h2>
-              <button type="button" onClick={() => setLinkModalOpen(false)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 18, color: 'var(--text-muted)', lineHeight: 1 }}>×</button>
-            </div>
-            <p style={{ margin: '0 0 16px', fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
-              이 링크를 보호자에게 공유하면, 보호자가 직접 초진 접수증을 작성할 수 있습니다.
-            </p>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: 'var(--bg-subtle)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', marginBottom: 16 }}>
-              <span style={{ flex: 1, minWidth: 0, fontSize: 12.5, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{formUrl || '—'}</span>
-              <button type="button" onClick={copyLink} disabled={!formUrl}
-                style={{ flexShrink: 0, padding: '6px 12px', fontSize: 12.5, fontWeight: 600, cursor: formUrl ? 'pointer' : 'default', borderRadius: 'var(--radius)', border: `1px solid ${linkCopied ? 'var(--success)' : 'var(--border-strong)'}`, background: 'var(--bg)', color: linkCopied ? 'var(--success)' : 'var(--text)' }}>
-                {linkCopied ? '복사됨' : '복사'}
-              </button>
-            </div>
-            <button type="button" onClick={() => setLinkModalOpen(false)}
-              style={{ width: '100%', padding: '11px', border: 'none', borderRadius: 'var(--radius)', background: 'var(--accent)', color: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>
-              완료
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
@@ -400,16 +374,6 @@ const thStyle: CSSProperties = {
 };
 const tdStyle: CSSProperties = {
   padding: '11px 14px', color: 'var(--text-secondary)', whiteSpace: 'nowrap',
-};
-const surveyBadgeStyle: CSSProperties = {
-  display: 'inline-block',
-  padding: '2px 8px',
-  fontSize: 11,
-  fontWeight: 600,
-  lineHeight: 1.6,
-  color: 'var(--success)',
-  background: 'var(--success-subtle)',
-  borderRadius: 999,
 };
 const surveyLinkBtnStyle: CSSProperties = {
   display: 'inline-flex',

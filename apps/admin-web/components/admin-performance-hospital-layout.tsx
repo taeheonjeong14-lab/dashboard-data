@@ -13,7 +13,7 @@ import {
 } from 'react';
 import { isHospitalUuid } from '@/lib/admin-stats/hospital-id';
 
-const divider = 'rgba(15, 23, 42, 0.1)';
+const divider = 'var(--border)';
 
 export type PerformanceHospitalRow = {
   id: string;
@@ -135,9 +135,9 @@ export default function AdminPerformanceHospitalLayout({ children }: { children:
           </div>
           <div style={{ maxHeight: 'min(66vh, calc(100vh - 220px))', overflow: 'auto' }}>
             {listError ? (
-              <p style={{ margin: '10px 10px', fontSize: 12, color: '#b91c1c' }}>{listError}</p>
+              <p style={{ margin: '10px 10px', fontSize: 12, color: 'var(--danger)' }}>{listError}</p>
             ) : filteredHospitals.length === 0 ? (
-              <p style={{ margin: '10px 10px', fontSize: 12, color: '#64748b' }}>
+              <p style={{ margin: '10px 10px', fontSize: 12, color: 'var(--text-muted)' }}>
                 {hospitals.length === 0 ? '등록된 병원이 없습니다.' : '검색 결과 없음'}
               </p>
             ) : (
@@ -159,7 +159,7 @@ export default function AdminPerformanceHospitalLayout({ children }: { children:
         </aside>
         <div className="adminLayoutMainPane">
           <div className="adminLayoutMainColumnInset">
-            <p className="adminLegacyStatus" style={{ color: '#b91c1c' }}>
+            <p className="adminLegacyStatus" style={{ color: 'var(--danger)' }}>
               유효하지 않은 병원 ID입니다. 왼쪽에서 병원을 선택하세요.
             </p>
           </div>
@@ -195,9 +195,9 @@ export default function AdminPerformanceHospitalLayout({ children }: { children:
           </div>
           <div style={{ maxHeight: 'min(66vh, calc(100vh - 220px))', overflow: 'auto' }}>
             {listError ? (
-              <p style={{ margin: '10px 10px', fontSize: 12, color: '#b91c1c' }}>{listError}</p>
+              <p style={{ margin: '10px 10px', fontSize: 12, color: 'var(--danger)' }}>{listError}</p>
             ) : filteredHospitals.length === 0 ? (
-              <p style={{ margin: '10px 10px', fontSize: 12, color: '#64748b' }}>
+              <p style={{ margin: '10px 10px', fontSize: 12, color: 'var(--text-muted)' }}>
                 {hospitals.length === 0 ? '등록된 병원이 없습니다.' : '검색 결과 없음'}
               </p>
             ) : (
@@ -244,7 +244,7 @@ export default function AdminPerformanceHospitalLayout({ children }: { children:
                     style={{
                       fontSize: 13,
                       fontWeight: active ? 800 : 600,
-                      color: active ? '#0f172a' : '#64748b',
+                      color: active ? 'var(--text)' : 'var(--text-muted)',
                       textDecoration: 'none',
                       padding: '8px 12px',
                       borderRadius: 0,

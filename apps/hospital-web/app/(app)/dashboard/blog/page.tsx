@@ -106,8 +106,21 @@ export default function BlogDashboardPage() {
   }
 
   return (
-    <div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 24, marginBottom: 24 }}>
+    <div style={{ display: "flex", flexWrap: "wrap", alignItems: "flex-start", gap: 24 }}>
+      {/* 좌측: 주요 키워드 · 블로그 노출 순위 (3) */}
+      <div style={{ flex: "3 1 300px", minWidth: 0 }}>
+        <BlogRanksSection
+          rows={rankRows}
+          hospitalId={hospitalId}
+          variant="detailed"
+          singleColumn
+          title="주요 키워드 · 블로그 노출 순위"
+          headingId="blog-ranks-heading"
+        />
+      </div>
+
+      {/* 우측: 조회수 · 순 방문자 수 그래프 (7) */}
+      <div style={{ flex: "7 1 360px", minWidth: 0, display: "flex", flexDirection: "column", gap: 24 }}>
         <BlogMetricSection
           title="블로그 조회수"
           rows={blogRows}
@@ -119,16 +132,6 @@ export default function BlogDashboardPage() {
           rows={blogRows}
           metric="uniqueVisitors"
           valueSuffix="명"
-        />
-      </div>
-
-      <div style={{ marginBottom: 24 }}>
-        <BlogRanksSection
-          rows={rankRows}
-          hospitalId={hospitalId}
-          variant="detailed"
-          title="주요 키워드 · 블로그 노출 순위"
-          headingId="blog-ranks-heading"
         />
       </div>
     </div>

@@ -11,7 +11,7 @@ import {
   type HistoryItem,
 } from '@/lib/chart-history-normalize';
 
-const divider = 'rgba(15, 23, 42, 0.1)';
+const divider = 'var(--border)';
 
 function formatRailDateShort(iso: string): string {
   if (!iso) return '—';
@@ -301,15 +301,15 @@ export default function AdminHealthReport() {
         )}
         <div style={{ maxHeight: 'min(66vh, calc(100vh - 260px))', overflow: 'auto' }}>
           {runsLoading ? (
-            <p style={{ margin: '10px 10px', fontSize: 12, color: '#64748b' }}>불러오는 중…</p>
+            <p style={{ margin: '10px 10px', fontSize: 12, color: 'var(--text-muted)' }}>불러오는 중…</p>
           ) : runsError ? (
-            <p style={{ margin: '10px 10px', fontSize: 12, color: '#b91c1c' }}>{runsError}</p>
+            <p style={{ margin: '10px 10px', fontSize: 12, color: 'var(--danger)' }}>{runsError}</p>
           ) : runs.length === 0 ? (
-            <p style={{ margin: '10px 10px', fontSize: 12, color: '#64748b', lineHeight: 1.5 }}>
+            <p style={{ margin: '10px 10px', fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.5 }}>
               아직 저장된 건강검진 컨텐츠가 없습니다. chart-api에서 생성·저장된 뒤 여기 목록에 나타납니다.
             </p>
           ) : filteredRuns.length === 0 ? (
-            <p style={{ margin: '10px 10px', fontSize: 12, color: '#64748b' }}>검색 결과 없음</p>
+            <p style={{ margin: '10px 10px', fontSize: 12, color: 'var(--text-muted)' }}>검색 결과 없음</p>
           ) : (
             filteredRuns.map((r) => (
               <button
@@ -323,7 +323,7 @@ export default function AdminHealthReport() {
                   <span style={{ fontWeight: 700, color: 'inherit', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {r.hospitalName?.trim() || '병원명 없음'}
                   </span>
-                  <span style={{ fontSize: 11, color: '#94a3b8', flexShrink: 0 }}>
+                  <span style={{ fontSize: 11, color: 'var(--text-muted)', flexShrink: 0 }}>
                     {formatRailDateShort(r.updatedAt)}
                   </span>
                 </div>
@@ -354,11 +354,11 @@ export default function AdminHealthReport() {
             <div style={{ borderTop: `1px solid ${divider}`, paddingTop: 12 }}>
               {runs.some((r) => r.parseRunId === selectedId) && (
                 <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                  {deleteError && <span style={{ fontSize: 12, color: '#b91c1c' }}>{deleteError}</span>}
+                  {deleteError && <span style={{ fontSize: 12, color: 'var(--danger)' }}>{deleteError}</span>}
                   <button
                     type="button"
                     className="adminLegacySmallBtn"
-                    style={{ color: '#b91c1c', borderColor: '#fecaca' }}
+                    style={{ color: 'var(--danger)', borderColor: 'var(--danger-subtle)' }}
                     disabled={deleting}
                     onClick={() => void deleteReport(selectedId)}
                     title="이 건강검진 리포트만 삭제 (차트 추출 데이터는 유지)"
@@ -375,7 +375,7 @@ export default function AdminHealthReport() {
               />
             </div>
           ) : (
-            <p style={{ fontSize: 14, color: '#64748b' }}>목록에서 항목을 선택해 주세요.</p>
+            <p style={{ fontSize: 14, color: 'var(--text-muted)' }}>목록에서 항목을 선택해 주세요.</p>
           )}
         </div>
       </div>
@@ -410,12 +410,12 @@ export default function AdminHealthReport() {
               placeholder="병원·환자·기록번호 검색"
               value={chartSearch}
               onChange={(e) => setChartSearch(e.target.value)}
-              style={{ flex: '1 1 180px', minWidth: 0, padding: '6px 10px', border: '1px solid #e2e8f0', borderRadius: 4, fontSize: 13, outline: 'none' }}
+              style={{ flex: '1 1 180px', minWidth: 0, padding: '6px 10px', border: '1px solid var(--border)', borderRadius: 4, fontSize: 13, outline: 'none' }}
             />
             <select
               value={chartFilterHospital}
               onChange={(e) => setChartFilterHospital(e.target.value)}
-              style={{ flex: '1 1 140px', padding: '6px 8px', border: '1px solid #e2e8f0', borderRadius: 4, fontSize: 13 }}
+              style={{ flex: '1 1 140px', padding: '6px 8px', border: '1px solid var(--border)', borderRadius: 4, fontSize: 13 }}
             >
               <option value="">병원 전체</option>
               {chartHospitalOptions.map((h) => <option key={h} value={h}>{h}</option>)}
@@ -423,7 +423,7 @@ export default function AdminHealthReport() {
             <select
               value={chartFilterMonth}
               onChange={(e) => setChartFilterMonth(e.target.value)}
-              style={{ flex: '1 1 120px', padding: '6px 8px', border: '1px solid #e2e8f0', borderRadius: 4, fontSize: 13 }}
+              style={{ flex: '1 1 120px', padding: '6px 8px', border: '1px solid var(--border)', borderRadius: 4, fontSize: 13 }}
             >
               <option value="">추출월 전체</option>
               {chartMonthOptions.map((m) => (
@@ -435,11 +435,11 @@ export default function AdminHealthReport() {
           {/* 목록 */}
           <div style={{ flex: 1, overflowY: 'auto' }}>
             {chartRunsLoading ? (
-              <p style={{ margin: '16px', fontSize: 13, color: '#64748b' }}>불러오는 중…</p>
+              <p style={{ margin: '16px', fontSize: 13, color: 'var(--text-muted)' }}>불러오는 중…</p>
             ) : chartRunsError ? (
-              <p style={{ margin: '16px', fontSize: 13, color: '#b91c1c' }}>{chartRunsError}</p>
+              <p style={{ margin: '16px', fontSize: 13, color: 'var(--danger)' }}>{chartRunsError}</p>
             ) : filteredChartRuns.length === 0 ? (
-              <p style={{ margin: '16px', fontSize: 13, color: '#64748b' }}>
+              <p style={{ margin: '16px', fontSize: 13, color: 'var(--text-muted)' }}>
                 {chartRuns.length === 0 ? '차트 기록이 없습니다.' : '검색 결과가 없습니다.'}
               </p>
             ) : (
@@ -473,22 +473,22 @@ export default function AdminHealthReport() {
                       alignItems: 'flex-start',
                       gap: 10,
                     }}
-                    onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = '#f8fafc'; }}
+                    onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'var(--bg-subtle)'; }}
                     onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; }}
                   >
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, flexWrap: 'wrap' }}>
-                        <span style={{ fontWeight: 700, fontSize: 13, color: '#0f172a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        <span style={{ fontWeight: 700, fontSize: 13, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                           {hospitalGroupKey(item.hospitalName) || '병원명 없음'}
                         </span>
                         {item.patientName && (
-                          <span style={{ fontSize: 12, color: '#475569' }}>{item.patientName}</span>
+                          <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{item.patientName}</span>
                         )}
                         {item.friendlyId && (
-                          <span style={{ fontSize: 11, color: '#94a3b8' }}>{item.friendlyId}</span>
+                          <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{item.friendlyId}</span>
                         )}
                       </div>
-                      <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
                         {new Date(item.createdAt).toLocaleDateString('ko-KR')} 추출
                       </div>
                     </div>
@@ -499,8 +499,8 @@ export default function AdminHealthReport() {
                         fontWeight: 600,
                         padding: '2px 8px',
                         borderRadius: 999,
-                        background: '#dcfce7',
-                        color: '#15803d',
+                        background: 'var(--success-subtle)',
+                        color: 'var(--success)',
                         whiteSpace: 'nowrap',
                       }}>
                         리포트 {new Date(reportCreatedAt).toLocaleDateString('ko-KR')}

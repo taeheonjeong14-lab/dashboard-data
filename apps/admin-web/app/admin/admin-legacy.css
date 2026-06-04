@@ -1,20 +1,23 @@
-/* 관리자 공통 CSS — 모던 SaaS 스타일 */
+/* 관리자 공통 CSS — flat / line-divided 스타일 (hospital-web 토큰 시스템 사용) */
 :root {
   --admin-secondary-rail-width: 280px;
-  --admin-divider: rgba(15, 23, 42, 0.08);
+  --admin-divider: var(--border);
   --admin-main-inset-start: 16px;
   --admin-main-inset-end: 16px;
   --admin-col-content-pad-y: 12px;
-  --admin-radius: 6px;
-  --admin-radius-lg: 10px;
-  --admin-radius-xl: 14px;
+  --admin-radius: var(--radius);
+  --admin-radius-lg: var(--radius);
+  --admin-radius-xl: var(--radius-lg);
 }
 
 /* ── 2열 레이아웃 ──────────────────────────────── */
 .adminLayout2WithMain {
   display: grid;
   grid-template-columns: var(--admin-secondary-rail-width) minmax(0, 1fr);
-  min-height: 72vh;
+  /* 메인 영역의 패딩(--admin-content-pad)을 음수 마진으로 상쇄해 full-bleed:
+     2차 레일이 좌측 메뉴바·상단바·우측 메인 경계에 여백 없이 딱 붙는다. */
+  margin: calc(-1 * var(--admin-content-pad, 28px));
+  min-height: calc(100vh - var(--topbar-height));
   align-items: stretch;
   column-gap: 0;
 }
@@ -22,11 +25,11 @@
 .adminLayoutSecondaryRail {
   width: var(--admin-secondary-rail-width);
   max-width: var(--admin-secondary-rail-width);
-  border-right: 1px solid var(--admin-divider);
+  border-right: 1px solid var(--border);
   padding: 0;
   align-self: stretch;
   box-sizing: border-box;
-  background: #fff;
+  background: var(--bg);
 }
 
 .adminRailToolbar {
@@ -34,7 +37,7 @@
   gap: 8px;
   align-items: center;
   padding: var(--admin-col-content-pad-y) 12px;
-  border-bottom: 1px solid var(--admin-divider);
+  border-bottom: 1px solid var(--border);
   box-sizing: border-box;
 }
 
@@ -54,7 +57,7 @@
   margin-right: calc(-1 * var(--admin-main-inset-end));
   padding: 14px var(--admin-main-inset-end) 14px var(--admin-main-inset-start);
   border: 0;
-  border-bottom: 1px solid var(--admin-divider);
+  border-bottom: 1px solid var(--border);
   background: transparent;
   box-sizing: border-box;
 }
@@ -68,7 +71,7 @@
   margin-right: calc(-1 * var(--admin-main-inset-end));
   padding: 0 var(--admin-main-inset-end) 0 var(--admin-main-inset-start);
   border: 0;
-  border-bottom: 1px solid var(--admin-divider);
+  border-bottom: 1px solid var(--border);
   background: transparent;
   margin-bottom: 0;
 }
@@ -76,24 +79,24 @@
 .adminMainAccordion:last-of-type { border-bottom: 0; }
 
 .adminMainAccordion.adminHospitalFormAccordion > summary.adminAccordionSummary {
-  background: #f8fafc;
-  border-left: 3px solid #6366f1;
-  border-radius: 0 var(--admin-radius) var(--admin-radius) 0;
+  background: var(--bg-subtle);
+  border-left: 3px solid var(--accent);
+  border-radius: 0 var(--radius) var(--radius) 0;
   box-sizing: border-box;
   transition: background 0.15s ease, filter 0.15s ease;
 }
 
 .adminMainAccordion.adminHospitalFormAccordion[open] > summary.adminAccordionSummary {
-  background: #eef2ff;
-  border-left-color: #4f46e5;
+  background: var(--accent-subtle);
+  border-left-color: var(--accent-hover);
 }
 
 .adminMainAccordion.adminHospitalFormAccordion > summary.adminAccordionSummary:hover {
-  filter: brightness(0.97);
+  filter: brightness(0.98);
 }
 
 .adminMainAccordion.adminHospitalFormAccordion > summary.adminAccordionSummary::after {
-  color: #4338ca;
+  color: var(--accent);
 }
 
 /* ── 단일 컬럼 페이지 ─────────────────────────── */
@@ -110,7 +113,7 @@
   display: flex;
   gap: 5px;
   flex-wrap: wrap;
-  border-bottom: 1px solid var(--admin-divider);
+  border-bottom: 1px solid var(--border);
 }
 
 .adminRailFilterSelect {
@@ -118,10 +121,10 @@
   min-width: 0;
   font: inherit;
   font-size: 11.5px;
-  color: #475569;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  border-radius: 4px;
+  color: var(--text-secondary);
+  background: var(--bg-subtle);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
   padding: 3px 4px;
   cursor: pointer;
   box-sizing: border-box;
@@ -139,12 +142,12 @@
   padding: 10px 12px;
   margin: 0;
   border: 0;
-  border-bottom: 1px solid var(--admin-divider);
+  border-bottom: 1px solid var(--border);
   background: transparent;
   font: inherit;
   font-size: 13.5px;
   font-weight: 500;
-  color: #475569;
+  color: var(--text-secondary);
   cursor: pointer;
   line-height: 1.4;
   box-sizing: border-box;
@@ -154,14 +157,14 @@
 .adminRailRow:last-child { border-bottom: 0; }
 
 .adminRailRow:hover {
-  color: #0f172a;
-  background: #f8fafc;
+  color: var(--text);
+  background: var(--bg-subtle);
 }
 
 .adminRailRowActive {
-  color: #1d4ed8;
+  color: var(--accent);
   font-weight: 600;
-  background: #eff6ff;
+  background: var(--accent-subtle);
 }
 
 .adminRailSub {
@@ -169,7 +172,7 @@
   margin-top: 3px;
   font-size: 11.5px;
   font-weight: 400;
-  color: #64748b;
+  color: var(--text-muted);
   line-height: 1.4;
 }
 
@@ -182,7 +185,7 @@ details > summary::-webkit-details-marker { display: none; }
   max-width: 1280px;
   margin: 0 auto;
   padding: 0;
-  color: #0f172a;
+  color: var(--text);
 }
 
 .adminLegacyTopHeader {
@@ -191,16 +194,16 @@ details > summary::-webkit-details-marker { display: none; }
 
 .adminLegacyTopHeader h1 {
   margin: 0 0 6px;
-  font-size: 22px;
+  font-size: 20px;
   font-weight: 700;
   letter-spacing: -0.02em;
-  color: #0f172a;
+  color: var(--text);
 }
 
 .adminLegacyTopHeader p {
   margin: 0 0 14px;
-  color: #64748b;
-  font-size: 14px;
+  color: var(--text-muted);
+  font-size: 13px;
 }
 
 .adminLegacyEnvCheck {
@@ -209,10 +212,10 @@ details > summary::-webkit-details-marker { display: none; }
   margin-top: 2px;
   margin-bottom: 10px;
   font-size: 12px;
-  color: #475569;
-  background: #f1f5f9;
-  border: 1px solid #e2e8f0;
-  border-radius: var(--admin-radius);
+  color: var(--text-secondary);
+  background: var(--bg-subtle);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
   padding: 4px 10px;
 }
 
@@ -226,7 +229,7 @@ details > summary::-webkit-details-marker { display: none; }
 
 .adminLegacyActions button {
   padding: 8px 16px;
-  border-radius: var(--admin-radius);
+  border-radius: var(--radius);
   font-weight: 600;
   font-size: 13.5px;
   cursor: pointer;
@@ -237,53 +240,49 @@ details > summary::-webkit-details-marker { display: none; }
 /* ── 버튼 ─────────────────────────────────────── */
 .adminLegacySecondaryBtn {
   padding: 5px 12px;
-  border-radius: 6px;
+  border-radius: var(--radius);
   font-size: 12.5px;
   font-weight: 600;
   font-family: inherit;
   cursor: pointer;
-  transition: background 0.14s ease, border-color 0.14s ease, box-shadow 0.14s ease;
-  border: 1px solid #e2e8f0;
-  background: #f8fafc;
-  color: #334155;
+  transition: background 0.14s ease, border-color 0.14s ease;
+  border: 1px solid var(--border-strong);
+  background: var(--bg);
+  color: var(--text-secondary);
   text-decoration: none;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
 }
 
 .adminLegacySecondaryBtn:hover:not(:disabled) {
-  background: #f1f5f9;
-  border-color: #cbd5e1;
-  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
+  background: var(--bg-subtle);
+  border-color: var(--text-muted);
 }
 
 .adminLegacySecondaryBtn:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 3px rgba(100, 116, 139, 0.2), 0 1px 2px rgba(15, 23, 42, 0.04);
+  box-shadow: 0 0 0 3px var(--accent-subtle);
 }
 
 .adminLegacyPrimaryBtn {
   padding: 5px 12px;
-  border-radius: 6px;
+  border-radius: var(--radius);
   font-size: 12.5px;
   font-weight: 600;
   font-family: inherit;
   cursor: pointer;
-  transition: background 0.14s ease, box-shadow 0.14s ease;
+  transition: background 0.14s ease;
   border: 0;
-  background: #2563eb;
+  background: var(--accent);
   color: #fff;
   text-decoration: none;
-  box-shadow: 0 1px 3px rgba(37, 99, 235, 0.35), 0 0 0 1px rgba(37, 99, 235, 0.2);
 }
 
 .adminLegacyPrimaryBtn:hover:not(:disabled) {
-  background: #1d4ed8;
-  box-shadow: 0 2px 5px rgba(37, 99, 235, 0.4), 0 0 0 1px rgba(37, 99, 235, 0.25);
+  background: var(--accent-hover);
 }
 
 .adminLegacyPrimaryBtn:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.25), 0 1px 3px rgba(37, 99, 235, 0.35);
+  box-shadow: 0 0 0 3px var(--accent-subtle);
 }
 
 .adminLegacyPrimaryBtn:disabled,
@@ -300,27 +299,32 @@ details > summary::-webkit-details-marker { display: none; }
   margin-bottom: 12px;
   font-size: 13px;
   font-weight: 500;
-  color: #1d4ed8;
+  color: var(--accent);
   display: flex;
   align-items: center;
   gap: 6px;
 }
 
-/* ── 패널 ─────────────────────────────────────── */
+/* ── 패널 (flat: 박스 제거, 위 구분선으로만 분리) ── */
 .adminLegacyPanel {
-  background: #ffffff;
-  border: 1px solid #e2e8f0;
-  border-radius: var(--admin-radius-lg);
-  padding: 20px;
-  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+}
+
+.adminLegacyPanel + .adminLegacyPanel {
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border);
 }
 
 .adminLegacyPanel h2 {
   margin-top: 0;
   margin-bottom: 14px;
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 700;
-  color: #0f172a;
+  color: var(--text);
 }
 
 /* ── 업로드 그리드 ────────────────────────────── */
@@ -337,16 +341,16 @@ details > summary::-webkit-details-marker { display: none; }
   gap: 5px;
   font-size: 12.5px;
   font-weight: 600;
-  color: #334155;
+  color: var(--text-secondary);
 }
 
 .adminLegacyUploadGrid input,
 .adminLegacyUploadGrid select {
   padding: 8px 10px;
-  border-radius: var(--admin-radius);
-  border: 1px solid #e2e8f0;
-  background: #fff;
-  color: #0f172a;
+  border-radius: var(--radius);
+  border: 1px solid var(--border-strong);
+  background: var(--bg);
+  color: var(--text);
   font: inherit;
   font-size: 13.5px;
   transition: border-color 0.12s ease, box-shadow 0.12s ease;
@@ -355,8 +359,8 @@ details > summary::-webkit-details-marker { display: none; }
 .adminLegacyUploadGrid input:focus,
 .adminLegacyUploadGrid select:focus {
   outline: none;
-  border-color: #3b82f6;
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-subtle);
 }
 
 .adminLegacyUploadActions {
@@ -364,18 +368,18 @@ details > summary::-webkit-details-marker { display: none; }
   gap: 8px;
 }
 
-/* ── 요약 박스 ────────────────────────────────── */
+/* ── 요약 박스 (강조용 — 테두리 없이 옅은 배경) ── */
 .adminLegacySummaryBox {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: 8px;
   margin-top: 10px;
   padding: 12px 14px;
-  border-radius: var(--admin-radius);
-  background: #f0f9ff;
-  border: 1px solid #bae6fd;
+  border-radius: var(--radius);
+  background: var(--accent-subtle);
+  border: 0;
   font-size: 13px;
-  color: #0c4a6e;
+  color: var(--accent);
 }
 
 /* ── 디테일 패널 테이블 ──────────────────────── */
@@ -385,36 +389,36 @@ details > summary::-webkit-details-marker { display: none; }
   font-size: 12px;
 }
 .adminDetailTable th {
-  background: #f1f5f9;
-  color: #475569;
+  background: var(--bg-subtle);
+  color: var(--text-secondary);
   font-weight: 600;
   font-size: 11px;
   text-align: left;
   padding: 6px 8px;
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px solid var(--border);
   white-space: nowrap;
 }
 .adminDetailTable td {
   padding: 6px 8px;
-  color: #0f172a;
+  color: var(--text);
   vertical-align: middle;
-  border-bottom: 1px solid #f1f5f9;
+  border-bottom: 1px solid var(--border);
 }
 .adminDetailTable tbody tr:last-child td {
   border-bottom: none;
 }
 .adminDetailTable tbody tr:hover td {
-  background: #f8fafc;
+  background: var(--bg-subtle);
 }
 
-/* ── 테이블 ───────────────────────────────────── */
+/* ── 테이블 (flat: 감싸는 박스 제거) ───────────── */
 .adminLegacyTableWrap {
   width: 100%;
   overflow: auto;
-  border-radius: var(--admin-radius-lg);
-  background: #ffffff;
-  border: 1px solid #e2e8f0;
-  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.05);
+  border-radius: 0;
+  background: transparent;
+  border: 0;
+  border-top: 1px solid var(--border);
 }
 
 .adminLegacyPage table {
@@ -430,27 +434,27 @@ details > summary::-webkit-details-marker { display: none; }
   padding: 10px 14px;
   text-align: left;
   vertical-align: middle;
-  color: #0f172a;
+  color: var(--text);
 }
 
 .adminLegacyPage th {
-  background: #f8fafc;
-  color: #64748b;
-  font-size: 11.5px;
+  background: var(--bg);
+  color: var(--text-muted);
+  font-size: 11px;
   font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.04em;
   position: sticky;
   top: 0;
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px solid var(--border);
 }
 
 .adminLegacyPage tr + tr td {
-  border-top: 1px solid #f1f5f9;
+  border-top: 1px solid var(--border);
 }
 
 .adminLegacyPage tbody tr:hover {
-  background: #f8fafc;
+  background: var(--bg-subtle);
 }
 
 .adminLegacyUrlCell {
@@ -463,66 +467,63 @@ details > summary::-webkit-details-marker { display: none; }
 .adminLegacyMonoCell {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
   font-size: 12px;
-  color: #475569;
+  color: var(--text-secondary);
 }
 
 /* ── 소형 버튼 ────────────────────────────────── */
 .adminLegacySmallBtn {
-  border: 1px solid #e2e8f0;
-  background: #f8fafc;
-  border-radius: 6px;
+  border: 1px solid var(--border-strong);
+  background: var(--bg);
+  border-radius: var(--radius);
   padding: 5px 12px;
   font-size: 12.5px;
   font-weight: 600;
   cursor: pointer;
   transition: background 0.12s ease, border-color 0.12s ease;
-  color: #334155;
+  color: var(--text-secondary);
   font-family: inherit;
   text-decoration: none;
 }
 
 .adminLegacySmallBtn:hover:not(:disabled) {
-  background: #f1f5f9;
-  border-color: #cbd5e1;
+  background: var(--bg-subtle);
+  border-color: var(--text-muted);
 }
 
 .adminLegacySmallBtn:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 3px rgba(100, 116, 139, 0.18);
+  box-shadow: 0 0 0 3px var(--accent-subtle);
 }
 
 /* ── 위험 버튼 ────────────────────────────────── */
 .adminLegacyDangerBtn {
-  border: 1px solid rgba(185, 28, 28, 0.3);
+  border: 1px solid var(--danger);
   background: transparent;
-  border-radius: 6px;
+  border-radius: var(--radius);
   padding: 5px 12px;
   font-size: 12.5px;
   font-weight: 600;
   cursor: pointer;
   transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease;
-  color: #991b1b;
+  color: var(--danger);
   font-family: inherit;
   text-decoration: none;
 }
 
 .adminLegacyDangerBtn:hover:not(:disabled) {
-  background: #fef2f2;
-  border-color: rgba(185, 28, 28, 0.55);
-  color: #7f1d1d;
+  background: var(--danger-subtle);
 }
 
 .adminLegacyDangerBtn:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 3px rgba(185, 28, 28, 0.2);
+  box-shadow: 0 0 0 3px var(--danger-subtle);
 }
 
-/* ── 모달 ─────────────────────────────────────── */
+/* ── 모달 (정당한 elevation — 카드 유지) ───────── */
 .adminLegacyModalBackdrop {
   position: fixed;
   inset: 0;
   background: rgba(15, 23, 42, 0.4);
-  backdrop-filter: blur(2px);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -532,10 +533,10 @@ details > summary::-webkit-details-marker { display: none; }
 
 .adminLegacyModalCard {
   width: min(680px, 100%);
-  background: #ffffff;
-  border-radius: var(--admin-radius-xl);
-  border: 1px solid #e2e8f0;
-  box-shadow: 0 20px 60px rgba(15, 23, 42, 0.18), 0 4px 16px rgba(15, 23, 42, 0.08);
+  background: var(--bg);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.18);
   padding: 24px;
   max-height: min(80vh, 740px);
   overflow: auto;
@@ -544,9 +545,9 @@ details > summary::-webkit-details-marker { display: none; }
 .adminLegacyModalCard h3 {
   margin-top: 0;
   margin-bottom: 16px;
-  font-size: 17px;
+  font-size: 16px;
   font-weight: 700;
-  color: #0f172a;
+  color: var(--text);
   letter-spacing: -0.01em;
 }
 
@@ -560,16 +561,16 @@ details > summary::-webkit-details-marker { display: none; }
   gap: 4px;
   font-size: 12.5px;
   font-weight: 600;
-  color: #334155;
+  color: var(--text-secondary);
 }
 
 .adminLegacyModalForm input,
 .adminLegacyModalForm select {
   padding: 8px 10px;
-  border-radius: var(--admin-radius);
-  border: 1px solid #e2e8f0;
-  background: #f8fafc;
-  color: #0f172a;
+  border-radius: var(--radius);
+  border: 1px solid var(--border-strong);
+  background: var(--bg);
+  color: var(--text);
   font: inherit;
   font-size: 13.5px;
   transition: border-color 0.12s ease, box-shadow 0.12s ease;
@@ -577,10 +578,10 @@ details > summary::-webkit-details-marker { display: none; }
 
 .adminLegacyModalForm textarea {
   padding: 8px 10px;
-  border-radius: var(--admin-radius);
-  border: 1px solid #e2e8f0;
-  background: #f8fafc;
-  color: #0f172a;
+  border-radius: var(--radius);
+  border: 1px solid var(--border-strong);
+  background: var(--bg);
+  color: var(--text);
   font: inherit;
   font-size: 13.5px;
   resize: vertical;
@@ -591,16 +592,15 @@ details > summary::-webkit-details-marker { display: none; }
 .adminLegacyModalForm textarea:focus,
 .adminLegacyModalForm select:focus {
   outline: none;
-  border-color: #3b82f6;
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12);
-  background: #fff;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-subtle);
 }
 
 .adminLegacyModalForm h4 {
   margin: 6px 0 0;
   font-size: 13px;
   font-weight: 700;
-  color: #334155;
+  color: var(--text-secondary);
 }
 
 .adminLegacyModalActions {
@@ -609,14 +609,14 @@ details > summary::-webkit-details-marker { display: none; }
   gap: 8px;
   margin-top: 6px;
   padding-top: 16px;
-  border-top: 1px solid #f1f5f9;
+  border-top: 1px solid var(--border);
 }
 
 .adminLegacyModalActions button {
-  border: 1px solid #e2e8f0;
-  background: #f8fafc;
-  color: #334155;
-  border-radius: var(--admin-radius);
+  border: 1px solid var(--border-strong);
+  background: var(--bg);
+  color: var(--text-secondary);
+  border-radius: var(--radius);
   padding: 8px 16px;
   cursor: pointer;
   font-size: 13.5px;
@@ -626,20 +626,18 @@ details > summary::-webkit-details-marker { display: none; }
 }
 
 .adminLegacyModalActions button:hover {
-  background: #f1f5f9;
-  border-color: #cbd5e1;
+  background: var(--bg-subtle);
+  border-color: var(--text-muted);
 }
 
 .adminLegacyModalActions button[type='submit'] {
-  background: #2563eb;
+  background: var(--accent);
   color: #fff;
   border-color: transparent;
-  box-shadow: 0 1px 3px rgba(37, 99, 235, 0.3);
 }
 
 .adminLegacyModalActions button[type='submit']:hover:not(:disabled) {
-  background: #1d4ed8;
-  box-shadow: 0 2px 5px rgba(37, 99, 235, 0.4);
+  background: var(--accent-hover);
 }
 
 .adminLegacyModalActions button:disabled {
@@ -666,7 +664,7 @@ details > summary::-webkit-details-marker { display: none; }
   transform: translateY(-52%);
   font-size: 14px;
   font-weight: 700;
-  color: #94a3b8;
+  color: var(--text-muted);
   transition: transform 0.16s ease;
 }
 
@@ -692,7 +690,7 @@ details > summary::-webkit-details-marker { display: none; }
   transform: translateY(-52%);
   font-size: 14px;
   font-weight: 700;
-  color: #94a3b8;
+  color: var(--text-muted);
   transition: transform 0.16s ease;
 }
 
@@ -704,15 +702,15 @@ details > summary::-webkit-details-marker { display: none; }
 .adminHealthWorkspace input,
 .adminHealthWorkspace textarea,
 .adminHealthWorkspace select {
-  border: 1px solid #cbd5e1;
-  border-radius: 4px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
   padding: 7px 8px;
   font-size: 13px;
   font-family: inherit;
   box-sizing: border-box;
   width: 100%;
-  background: #fff;
-  color: #0f172a;
+  background: var(--bg);
+  color: var(--text);
   transition: border-color 0.12s ease, box-shadow 0.12s ease;
 }
 
@@ -720,8 +718,8 @@ details > summary::-webkit-details-marker { display: none; }
 .adminHealthWorkspace textarea:focus,
 .adminHealthWorkspace select:focus {
   outline: none;
-  border-color: #3b82f6;
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-subtle);
 }
 
 /* ── 반응형 ───────────────────────────────────── */

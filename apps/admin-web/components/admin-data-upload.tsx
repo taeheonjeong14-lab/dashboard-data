@@ -15,6 +15,7 @@ const COLLECT_STEPS = [
   { key: 'smartplace', label: '스마트플레이스 유입' },
   { key: 'keyword_rank', label: '블로그/플레이스 키워드 순위' },
   { key: 'searchad', label: 'SearchAd 일별 성과' },
+  { key: 'place_reviews', label: '스마트플레이스 리뷰 추이' },
 ] as const;
 
 type StepKey = (typeof COLLECT_STEPS)[number]['key'];
@@ -94,10 +95,10 @@ const STATUS_LABEL: Record<string, string> = {
   failed: '실패',
 };
 const STATUS_COLOR: Record<string, string> = {
-  pending: '#64748b',
-  running: '#1d4ed8',
-  done: '#15803d',
-  failed: '#991b1b',
+  pending: 'var(--text-muted)',
+  running: 'var(--accent)',
+  done: 'var(--success)',
+  failed: 'var(--danger)',
 };
 
 // 워커가 이 시간 이상 updated_at을 갱신하지 않으면 '중단 추정'으로 본다.
@@ -135,16 +136,16 @@ function SearchadCoverage({ jobId }: { jobId: string }) {
     return () => { cancelled = true; };
   }, [jobId]);
 
-  if (loading) return <p style={{ margin: '8px 0 0', fontSize: 12, color: '#64748b' }}>날짜별 수집 확인 중…</p>;
+  if (loading) return <p style={{ margin: '8px 0 0', fontSize: 12, color: 'var(--text-muted)' }}>날짜별 수집 확인 중…</p>;
   if (!data || !data.applicable || !data.days) {
-    return <p style={{ margin: '8px 0 0', fontSize: 12, color: '#94a3b8' }}>기간 지정 수집이 아니라 날짜별 표시가 불가합니다.</p>;
+    return <p style={{ margin: '8px 0 0', fontSize: 12, color: 'var(--text-muted)' }}>기간 지정 수집이 아니라 날짜별 표시가 불가합니다.</p>;
   }
   return (
     <div style={{ marginTop: 10 }}>
-      <p style={{ margin: '0 0 8px', fontSize: 13, fontWeight: 600, color: '#334155' }}>
+      <p style={{ margin: '0 0 8px', fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)' }}>
         날짜별 수집 ({data.collectedDays}/{data.totalDays}일)
         {data.firstMissing && (
-          <span style={{ fontWeight: 400, color: '#b45309', marginLeft: 6 }}>· {data.firstMissing}부터 누락</span>
+          <span style={{ fontWeight: 400, color: 'var(--warning)', marginLeft: 6 }}>· {data.firstMissing}부터 누락</span>
         )}
       </p>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
@@ -157,8 +158,8 @@ function SearchadCoverage({ jobId }: { jobId: string }) {
               padding: '2px 6px',
               borderRadius: 4,
               border: `1px solid ${d.collected ? 'rgba(22,163,74,0.3)' : 'rgba(185,28,28,0.3)'}`,
-              background: d.collected ? '#f0fdf4' : '#fef2f2',
-              color: d.collected ? '#15803d' : '#b91c1c',
+              background: d.collected ? 'var(--success-subtle)' : 'var(--danger-subtle)',
+              color: d.collected ? 'var(--success)' : 'var(--danger)',
               whiteSpace: 'nowrap',
             }}
           >
@@ -167,7 +168,7 @@ function SearchadCoverage({ jobId }: { jobId: string }) {
         ))}
       </div>
       {data.lastCollected && (
-        <p style={{ margin: '8px 0 0', fontSize: 12, color: '#64748b' }}>
+        <p style={{ margin: '8px 0 0', fontSize: 12, color: 'var(--text-muted)' }}>
           마지막 수집일 {data.lastCollected}. 다시 수집할 때 시작일을 그 다음날로 잡으면 이어집니다.
         </p>
       )}
@@ -617,7 +618,7 @@ export default function AdminDataUpload() {
     borderBottom: '1px solid rgba(15, 23, 42, 0.1)',
     borderRadius: 0,
     background: 'transparent',
-    color: '#0f172a',
+    color: 'var(--text)',
     font: 'inherit',
     width: '100%',
   };
@@ -631,11 +632,11 @@ export default function AdminDataUpload() {
     textAlign: 'center',
     gap: 8,
     minHeight: 132,
-    border: '1.5px dashed #cbd5e1',
+    border: '1.5px dashed var(--border-strong)',
     borderRadius: 10,
     padding: '22px 20px',
     cursor: 'pointer',
-    background: '#f8fafc',
+    background: 'var(--bg-subtle)',
     userSelect: 'none',
     transition: 'border-color 0.15s, background 0.15s',
   };
@@ -649,11 +650,11 @@ export default function AdminDataUpload() {
                 <div style={{ display: 'grid', gap: 16 }}>
                   {/* 3단계 트리 체크박스 */}
                   {hospitalsLoading ? (
-                    <p style={{ margin: 0, fontSize: 13, color: '#64748b' }}>병원 목록 불러오는 중…</p>
+                    <p style={{ margin: 0, fontSize: 13, color: 'var(--text-muted)' }}>병원 목록 불러오는 중…</p>
                   ) : hospitalsError ? (
-                    <p style={{ margin: 0, fontSize: 13, color: '#b91c1c' }}>{hospitalsError}</p>
+                    <p style={{ margin: 0, fontSize: 13, color: 'var(--danger)' }}>{hospitalsError}</p>
                   ) : (
-                    <div style={{ border: '1px solid #e2e8f0', borderRadius: 8, overflow: 'hidden' }}>
+                    <div style={{ border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
                       {/* 1단계: 전체 선택 */}
                       <label
                         style={{
@@ -661,12 +662,12 @@ export default function AdminDataUpload() {
                           alignItems: 'center',
                           gap: 8,
                           padding: '10px 14px',
-                          background: '#e2e8f0',
-                          borderBottom: '1px solid #cbd5e1',
+                          background: 'var(--border)',
+                          borderBottom: '1px solid var(--border-strong)',
                           cursor: 'pointer',
                           fontSize: 13,
                           fontWeight: 700,
-                          color: '#0f172a',
+                          color: 'var(--text)',
                           userSelect: 'none',
                         }}
                       >
@@ -676,7 +677,7 @@ export default function AdminDataUpload() {
                           onChange={(e) => toggleAll(e.target.checked)}
                         />
                         전체 병원 / 전체 항목
-                        <span style={{ fontWeight: 400, color: '#64748b', marginLeft: 2, fontSize: 12 }}>
+                        <span style={{ fontWeight: 400, color: 'var(--text-muted)', marginLeft: 2, fontSize: 12 }}>
                           ({selection.size}/{hospitals.length}개 병원)
                         </span>
                       </label>
@@ -689,7 +690,7 @@ export default function AdminDataUpload() {
                           const hIndeterminate = (hSteps?.size ?? 0) > 0 && !hChecked;
                           const isLast = hi === hospitals.length - 1;
                           return (
-                            <div key={h.id} style={{ borderBottom: isLast ? 'none' : '1px solid #e2e8f0' }}>
+                            <div key={h.id} style={{ borderBottom: isLast ? 'none' : '1px solid var(--border)' }}>
                               {/* 병원 행 */}
                               <label
                                 style={{
@@ -697,12 +698,12 @@ export default function AdminDataUpload() {
                                   alignItems: 'center',
                                   gap: 8,
                                   padding: '9px 14px 9px 28px',
-                                  background: '#f8fafc',
-                                  borderBottom: '1px solid #f1f5f9',
+                                  background: 'var(--bg-subtle)',
+                                  borderBottom: '1px solid var(--bg-subtle)',
                                   cursor: 'pointer',
                                   fontSize: 13,
                                   fontWeight: 600,
-                                  color: '#334155',
+                                  color: 'var(--text-secondary)',
                                   userSelect: 'none',
                                 }}
                               >
@@ -723,10 +724,10 @@ export default function AdminDataUpload() {
                                     gap: 8,
                                     padding: '7px 14px 7px 48px',
                                     borderBottom:
-                                      si < COLLECT_STEPS.length - 1 ? '1px solid #f8fafc' : 'none',
+                                      si < COLLECT_STEPS.length - 1 ? '1px solid var(--bg-subtle)' : 'none',
                                     cursor: 'pointer',
                                     fontSize: 12,
-                                    color: '#475569',
+                                    color: 'var(--text-secondary)',
                                     userSelect: 'none',
                                   }}
                                 >
@@ -737,18 +738,18 @@ export default function AdminDataUpload() {
                                   />
                                   <span style={{ flex: 1 }}>{step.label}</span>
                                   {collectLastSuccess?.[h.id]?.[step.key] && (
-                                    <span style={{ fontSize: 11, color: '#94a3b8', marginLeft: 4, whiteSpace: 'nowrap' }}>
+                                    <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 4, whiteSpace: 'nowrap' }}>
                                       {new Date(collectLastSuccess[h.id][step.key] + 'T00:00:00').toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' })}
                                     </span>
                                   )}
                                 </label>
                               ))}
                               {selection.get(h.id)?.has('searchad') && (
-                                <div style={{ padding: '6px 14px 10px 48px', borderTop: '1px solid #f1f5f9', background: '#fcfdff' }}>
+                                <div style={{ padding: '6px 14px 10px 48px', borderTop: '1px solid var(--bg-subtle)', background: 'var(--bg-raised)' }}>
                                   <button
                                     type="button"
                                     onClick={() => toggleCampaignOpen(h.id)}
-                                    style={{ fontSize: 12, fontWeight: 600, color: '#1d4ed8', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+                                    style={{ fontSize: 12, fontWeight: 600, color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
                                   >
                                     {campaignOpen.has(h.id) ? '▴' : '▾'} SearchAd 캠페인{' '}
                                     {(campaignSel.get(h.id)?.size ?? 0) > 0 ? `(${campaignSel.get(h.id)!.size}개 선택)` : '(전체)'}
@@ -756,23 +757,23 @@ export default function AdminDataUpload() {
                                   {campaignOpen.has(h.id) && (
                                     <div style={{ marginTop: 6 }}>
                                       {campaignLoading[h.id] ? (
-                                        <span style={{ fontSize: 12, color: '#64748b' }}>캠페인 불러오는 중…</span>
+                                        <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>캠페인 불러오는 중…</span>
                                       ) : campaignError[h.id] ? (
-                                        <span style={{ fontSize: 12, color: '#b91c1c' }}>{campaignError[h.id]}</span>
+                                        <span style={{ fontSize: 12, color: 'var(--danger)' }}>{campaignError[h.id]}</span>
                                       ) : (campaignLists[h.id] ?? []).length === 0 ? (
-                                        <span style={{ fontSize: 12, color: '#94a3b8' }}>캠페인이 없습니다.</span>
+                                        <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>캠페인이 없습니다.</span>
                                       ) : (
                                         <>
-                                          <div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 4 }}>아무것도 선택하지 않으면 전체 캠페인을 수집합니다.</div>
+                                          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>아무것도 선택하지 않으면 전체 캠페인을 수집합니다.</div>
                                           {campaignLists[h.id].map((c) => (
-                                            <label key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#475569', padding: '3px 0', cursor: 'pointer' }}>
+                                            <label key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--text-secondary)', padding: '3px 0', cursor: 'pointer' }}>
                                               <input
                                                 type="checkbox"
                                                 checked={campaignSel.get(h.id)?.has(c.id) ?? false}
                                                 onChange={(e) => toggleCampaign(h.id, c.id, e.target.checked)}
                                               />
                                               <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.name || c.id}</span>
-                                              {c.type && <span style={{ fontSize: 10, color: '#94a3b8', flexShrink: 0 }}>{c.type}</span>}
+                                              {c.type && <span style={{ fontSize: 10, color: 'var(--text-muted)', flexShrink: 0 }}>{c.type}</span>}
                                             </label>
                                           ))}
                                         </>
@@ -790,9 +791,9 @@ export default function AdminDataUpload() {
 
                   {/* SearchAd 기간 지정 (searchad 선택 시만) */}
                   {anySearchadSelected && (
-                    <div style={{ border: '1px solid #e2e8f0', borderRadius: 8, padding: '12px 14px', background: '#f8fafc' }}>
-                      <p style={{ margin: '0 0 8px', fontSize: 13, fontWeight: 600, color: '#334155' }}>
-                        SearchAd 수집 기간 <span style={{ fontWeight: 400, color: '#94a3b8' }}>(선택)</span>
+                    <div style={{ border: '1px solid var(--border)', borderRadius: 8, padding: '12px 14px', background: 'var(--bg-subtle)' }}>
+                      <p style={{ margin: '0 0 8px', fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)' }}>
+                        SearchAd 수집 기간 <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>(선택)</span>
                       </p>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                         <input
@@ -800,27 +801,27 @@ export default function AdminDataUpload() {
                           value={searchadStart}
                           max={searchadEnd || undefined}
                           onChange={(e) => setSearchadStart(e.target.value)}
-                          style={{ fontSize: 13, padding: '6px 8px', border: '1px solid #cbd5e1', borderRadius: 6, color: '#0f172a' }}
+                          style={{ fontSize: 13, padding: '6px 8px', border: '1px solid var(--border-strong)', borderRadius: 6, color: 'var(--text)' }}
                         />
-                        <span style={{ fontSize: 13, color: '#64748b' }}>~</span>
+                        <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>~</span>
                         <input
                           type="date"
                           value={searchadEnd}
                           min={searchadStart || undefined}
                           onChange={(e) => setSearchadEnd(e.target.value)}
-                          style={{ fontSize: 13, padding: '6px 8px', border: '1px solid #cbd5e1', borderRadius: 6, color: '#0f172a' }}
+                          style={{ fontSize: 13, padding: '6px 8px', border: '1px solid var(--border-strong)', borderRadius: 6, color: 'var(--text)' }}
                         />
                         {(searchadStart || searchadEnd) && (
                           <button
                             type="button"
                             onClick={() => { setSearchadStart(''); setSearchadEnd(''); }}
-                            style={{ fontSize: 12, color: '#64748b', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 4px' }}
+                            style={{ fontSize: 12, color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 4px' }}
                           >
                             지우기
                           </button>
                         )}
                       </div>
-                      <p style={{ margin: '8px 0 0', fontSize: 12, color: searchadDateInvalid ? '#b91c1c' : '#94a3b8', lineHeight: 1.5 }}>
+                      <p style={{ margin: '8px 0 0', fontSize: 12, color: searchadDateInvalid ? 'var(--danger)' : 'var(--text-muted)', lineHeight: 1.5 }}>
                         {searchadDateInvalid
                           ? '시작일이 종료일보다 늦습니다.'
                           : searchadDateIncomplete
@@ -843,7 +844,7 @@ export default function AdminDataUpload() {
                         : `수집 시작 (${selection.size}개 병원)`}
                     </button>
                     {!isAnySelected && !hospitalsLoading && (
-                      <p style={{ margin: '6px 0 0', fontSize: 12, color: '#94a3b8' }}>
+                      <p style={{ margin: '6px 0 0', fontSize: 12, color: 'var(--text-muted)' }}>
                         병원과 항목을 하나 이상 선택해 주세요.
                       </p>
                     )}
@@ -855,7 +856,7 @@ export default function AdminDataUpload() {
               {collectError && (
                 <div
                   className="adminLegacyBlockBleed"
-                  style={{ color: '#991b1b', borderBottom: '1px solid rgba(185,28,28,0.25)' }}
+                  style={{ color: 'var(--danger)', borderBottom: '1px solid rgba(185,28,28,0.25)' }}
                 >
                   <p style={{ margin: 0, fontSize: 14 }}>{collectError}</p>
                 </div>
@@ -874,22 +875,22 @@ export default function AdminDataUpload() {
                       padding: '8px 12px',
                       marginBottom: 14,
                       borderRadius: 6,
-                      background: stale ? '#fffbeb' : collectJob.status === 'done' ? '#f0fdf4' : collectJob.status === 'failed' ? '#fef2f2' : '#eff6ff',
+                      background: stale ? 'var(--warning-subtle)' : collectJob.status === 'done' ? 'var(--success-subtle)' : collectJob.status === 'failed' ? 'var(--danger-subtle)' : 'var(--accent-subtle)',
                       border: `1px solid ${stale ? 'rgba(217,119,6,0.35)' : collectJob.status === 'done' ? 'rgba(22,163,74,0.2)' : collectJob.status === 'failed' ? 'rgba(185,28,28,0.2)' : 'rgba(29,78,216,0.2)'}`,
                     }}
                   >
-                    <span style={{ fontSize: 14, fontWeight: 700, color: '#0f172a' }}>
+                    <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>
                       {hospitals.find((h) => h.id === collectJob.hospital_id)?.name_ko ?? collectJob.hospital_id ?? '병원'}
                     </span>
                     <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <span style={{ fontSize: 13, fontWeight: 700, color: stale ? '#b45309' : collectJob.status === 'done' ? '#15803d' : collectJob.status === 'failed' ? '#991b1b' : '#1d4ed8' }}>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: stale ? 'var(--warning)' : collectJob.status === 'done' ? 'var(--success)' : collectJob.status === 'failed' ? 'var(--danger)' : 'var(--accent)' }}>
                         {stale ? '⚠️ 워커 응답 없음 (중단 추정)' : collectJob.status === 'done' ? '✓ 수집 완료' : collectJob.status === 'failed' ? '✗ 수집 실패' : collectJob.status === 'pending' ? '대기 중 (곧 시작)' : '⋯ 수집 실행 중'}
                       </span>
                       {stale && (
                         <button
                           type="button"
                           onClick={() => void cancelJob(collectJob.id)}
-                          style={{ fontSize: 12, fontWeight: 600, color: '#fff', background: '#b45309', border: 'none', borderRadius: 5, padding: '4px 10px', cursor: 'pointer' }}
+                          style={{ fontSize: 12, fontWeight: 600, color: '#fff', background: 'var(--warning)', border: 'none', borderRadius: 5, padding: '4px 10px', cursor: 'pointer' }}
                         >
                           종료
                         </button>
@@ -897,7 +898,7 @@ export default function AdminDataUpload() {
                     </span>
                   </div>
                   {stale && (
-                    <p style={{ margin: '-6px 0 14px', fontSize: 12, color: '#b45309', lineHeight: 1.5 }}>
+                    <p style={{ margin: '-6px 0 14px', fontSize: 12, color: 'var(--warning)', lineHeight: 1.5 }}>
                       워커가 3분 이상 응답이 없습니다. 워커 컴퓨터가 꺼졌거나 멈췄을 수 있어요. 이미 수집된 날짜는 저장돼 있으니, 워커를 다시 켠 뒤 수집을 다시 시작하면 이어집니다.
                     </p>
                   )}
@@ -919,7 +920,7 @@ export default function AdminDataUpload() {
                     );
                     return (
                       <div className="adminLegacyBlockBleed">
-                        <p style={{ margin: '0 0 10px', fontSize: 13, fontWeight: 600, color: '#334155' }}>진행률</p>
+                        <p style={{ margin: '0 0 10px', fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)' }}>진행률</p>
                         <div style={{ display: 'grid', gap: 12 }}>
                           {stepKeys.map((s) => {
                             const p = collectJob.progress?.[s.key];
@@ -938,17 +939,17 @@ export default function AdminDataUpload() {
                             return (
                               <div key={s.key}>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                                  <span style={{ fontSize: 13, color: '#334155' }}>{s.label}</span>
-                                  <span style={{ fontSize: 12, color: stepDone ? '#15803d' : '#64748b' }}>
+                                  <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{s.label}</span>
+                                  <span style={{ fontSize: 12, color: stepDone ? 'var(--success)' : 'var(--text-muted)' }}>
                                     {statusText}{!stepDone && pct > 0 ? ` (${pct}%)` : ''}
                                   </span>
                                 </div>
-                                <div style={{ height: 8, borderRadius: 4, background: '#e2e8f0', overflow: 'hidden' }}>
+                                <div style={{ height: 8, borderRadius: 4, background: 'var(--border)', overflow: 'hidden' }}>
                                   <div
                                     style={{
                                       width: `${pct}%`,
                                       height: '100%',
-                                      background: stepDone ? '#15803d' : '#3182f6',
+                                      background: stepDone ? 'var(--success)' : 'var(--accent)',
                                       transition: 'width 0.4s ease',
                                     }}
                                   />
@@ -964,14 +965,14 @@ export default function AdminDataUpload() {
                   {/* 수집 결과 요약 */}
                   {collectJob.upserts && collectJob.upserts.length > 0 && (
                     <div className="adminLegacyBlockBleed">
-                      <p style={{ margin: '0 0 10px', fontSize: 13, fontWeight: 600, color: '#334155' }}>
+                      <p style={{ margin: '0 0 10px', fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)' }}>
                         수집 결과{collectJob.status === 'running' ? ' (진행 중)' : ''}
                       </p>
-                      <div style={{ display: 'grid', gap: 8, background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, padding: '12px 14px' }}>
+                      <div style={{ display: 'grid', gap: 8, background: 'var(--bg-subtle)', border: '1px solid var(--border)', borderRadius: 8, padding: '12px 14px' }}>
                         {collectJob.upserts.map((u) => (
-                          <div key={u.label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 13, color: '#0f172a' }}>
+                          <div key={u.label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 13, color: 'var(--text)' }}>
                             <span>{u.label}</span>
-                            <span style={{ fontWeight: 700, color: '#1d4ed8', background: '#eff6ff', padding: '2px 8px', borderRadius: 4, fontSize: 12 }}>
+                            <span style={{ fontWeight: 700, color: 'var(--accent)', background: 'var(--accent-subtle)', padding: '2px 8px', borderRadius: 4, fontSize: 12 }}>
                               {u.count.toLocaleString()}건
                             </span>
                           </div>
@@ -988,20 +989,20 @@ export default function AdminDataUpload() {
                     const renderStepRow = (s: CollectStepResult) => (
                       <li key={`${s.hospitalId ?? ''}-${s.index}-${s.name}`} style={{ fontSize: 13, padding: '4px 0', borderBottom: '1px solid rgba(15,23,42,0.05)' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <span style={{ color: s.error ? '#991b1b' : '#475569' }}>
-                            <span style={{ color: s.error ? '#b91c1c' : '#15803d', marginRight: 6 }}>{s.error ? '✗' : '✓'}</span>
+                          <span style={{ color: s.error ? 'var(--danger)' : 'var(--text-secondary)' }}>
+                            <span style={{ color: s.error ? 'var(--danger)' : 'var(--success)', marginRight: 6 }}>{s.error ? '✗' : '✓'}</span>
                             {s.index}. {s.name}
                           </span>
-                          <span style={{ color: '#94a3b8', fontSize: 12, flexShrink: 0, marginLeft: 8 }}>{s.durationSec.toFixed(1)}s</span>
+                          <span style={{ color: 'var(--text-muted)', fontSize: 12, flexShrink: 0, marginLeft: 8 }}>{s.durationSec.toFixed(1)}s</span>
                         </div>
-                        {s.error && <p style={{ margin: '3px 0 0 18px', fontSize: 12, color: '#b91c1c', lineHeight: 1.4 }}>{s.error}</p>}
+                        {s.error && <p style={{ margin: '3px 0 0 18px', fontSize: 12, color: 'var(--danger)', lineHeight: 1.4 }}>{s.error}</p>}
                       </li>
                     );
 
                     if (!isBatch) {
                       return (
                         <div className="adminLegacyBlockBleed">
-                          <p style={{ margin: '0 0 10px', fontSize: 13, fontWeight: 600, color: '#334155' }}>
+                          <p style={{ margin: '0 0 10px', fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)' }}>
                             실행 단계{collectJob.status === 'running' ? ' (진행 중)' : ''}
                           </p>
                           <ol style={{ margin: 0, padding: 0, listStyle: 'none', display: 'grid', gap: 4 }}>{steps.map(renderStepRow)}</ol>
@@ -1023,7 +1024,7 @@ export default function AdminDataUpload() {
 
                     return (
                       <div className="adminLegacyBlockBleed">
-                        <p style={{ margin: '0 0 10px', fontSize: 13, fontWeight: 600, color: '#334155' }}>
+                        <p style={{ margin: '0 0 10px', fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)' }}>
                           실행 단계{collectJob.status === 'running' ? ' (진행 중)' : ''}
                         </p>
                         <div style={{ display: 'grid', gap: 6 }}>
@@ -1031,10 +1032,10 @@ export default function AdminDataUpload() {
                             const anyFail = g.steps.some((s) => s.error);
                             const doneCount = g.steps.filter((s) => !s.error).length;
                             return (
-                              <div key={g.hospitalId} style={{ border: `1px solid ${anyFail ? 'rgba(185,28,28,0.3)' : '#e2e8f0'}`, borderRadius: 6, overflow: 'hidden' }}>
-                                <div style={{ background: anyFail ? '#fef2f2' : '#f1f5f9', padding: '6px 12px', fontSize: 12, fontWeight: 600, color: anyFail ? '#991b1b' : '#334155', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <div key={g.hospitalId} style={{ border: `1px solid ${anyFail ? 'rgba(185,28,28,0.3)' : 'var(--border)'}`, borderRadius: 6, overflow: 'hidden' }}>
+                                <div style={{ background: anyFail ? 'var(--danger-subtle)' : 'var(--bg-subtle)', padding: '6px 12px', fontSize: 12, fontWeight: 600, color: anyFail ? 'var(--danger)' : 'var(--text-secondary)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                   <span>{g.hospitalName ?? g.hospitalId}</span>
-                                  <span style={{ fontWeight: 400, color: anyFail ? '#b91c1c' : '#15803d', fontSize: 11 }}>{doneCount}/{g.steps.length} 완료</span>
+                                  <span style={{ fontWeight: 400, color: anyFail ? 'var(--danger)' : 'var(--success)', fontSize: 11 }}>{doneCount}/{g.steps.length} 완료</span>
                                 </div>
                                 <ol style={{ margin: 0, padding: '2px 12px', listStyle: 'none', display: 'grid', gap: 0 }}>{g.steps.map(renderStepRow)}</ol>
                               </div>
@@ -1051,7 +1052,7 @@ export default function AdminDataUpload() {
                       <summary className="adminAccordionSummary" style={{ cursor: 'pointer', fontWeight: 600, fontSize: 13, listStyle: 'none', padding: '12px 0' }}>
                         상세 로그 보기
                       </summary>
-                      <pre style={{ margin: '8px 0 16px', fontSize: 11, lineHeight: 1.6, color: '#334155', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 6, padding: 14, overflow: 'auto', maxHeight: 400, whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
+                      <pre style={{ margin: '8px 0 16px', fontSize: 11, lineHeight: 1.6, color: 'var(--text-secondary)', background: 'var(--bg-subtle)', border: '1px solid var(--border)', borderRadius: 6, padding: 14, overflow: 'auto', maxHeight: 400, whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
                         {collectJob.output}
                       </pre>
                     </details>
@@ -1063,18 +1064,18 @@ export default function AdminDataUpload() {
               {/* 수집 이력 */}
               <div className="adminLegacyBlockBleed" style={{ marginTop: 24 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-                  <p style={{ margin: 0, fontSize: 13, fontWeight: 600, color: '#334155' }}>최근 수집 이력</p>
+                  <p style={{ margin: 0, fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)' }}>최근 수집 이력</p>
                   <button
                     type="button"
                     onClick={() => void loadHistory()}
                     disabled={historyLoading}
-                    style={{ fontSize: 12, color: '#64748b', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+                    style={{ fontSize: 12, color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
                   >
                     {historyLoading ? '불러오는 중…' : '새로고침'}
                   </button>
                 </div>
                 {collectHistory.length === 0 ? (
-                  <p style={{ margin: 0, fontSize: 13, color: '#94a3b8' }}>수집 이력이 없습니다.</p>
+                  <p style={{ margin: 0, fontSize: 13, color: 'var(--text-muted)' }}>수집 이력이 없습니다.</p>
                 ) : (
                   <div style={{ display: 'grid', gap: 6 }}>
                     {collectHistory.map((h) => {
@@ -1087,37 +1088,37 @@ export default function AdminDataUpload() {
                         <div
                           key={h.id}
                           onClick={() => void toggleHistoryDetail(h.id)}
-                          style={{ padding: '10px 12px', background: '#f8fafc', border: `1px solid ${failedSteps.length > 0 ? 'rgba(185,28,28,0.25)' : '#e2e8f0'}`, borderRadius: 6, fontSize: 12, cursor: 'pointer' }}
+                          style={{ padding: '10px 12px', background: 'var(--bg-subtle)', border: `1px solid ${failedSteps.length > 0 ? 'rgba(185,28,28,0.25)' : 'var(--border)'}`, borderRadius: 6, fontSize: 12, cursor: 'pointer' }}
                         >
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: hasDetails || expandedHistoryId === h.id ? 8 : 0 }}>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                              <span style={{ fontWeight: 600, color: '#0f172a' }}>{hospitalName}</span>
-                              <span style={{ color: '#64748b' }}>
+                              <span style={{ fontWeight: 600, color: 'var(--text)' }}>{hospitalName}</span>
+                              <span style={{ color: 'var(--text-muted)' }}>
                                 {formatKst(h.created_at)}
                                 {h.finished_at && ` · ${durationSec(h.started_at, h.finished_at)}`}
                               </span>
                             </div>
                             <span style={{ display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap', marginLeft: 8 }}>
-                              <span style={{ fontWeight: 700, color: hStale ? '#b45309' : STATUS_COLOR[h.status] }}>{hStale ? '⚠️ 중단 추정' : STATUS_LABEL[h.status]}</span>
-                              <span style={{ color: '#94a3b8', fontSize: 11 }}>{expandedHistoryId === h.id ? '▴ 로그' : '▾ 로그'}</span>
+                              <span style={{ fontWeight: 700, color: hStale ? 'var(--warning)' : STATUS_COLOR[h.status] }}>{hStale ? '⚠️ 중단 추정' : STATUS_LABEL[h.status]}</span>
+                              <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>{expandedHistoryId === h.id ? '▴ 로그' : '▾ 로그'}</span>
                             </span>
                           </div>
                           {failedSteps.length > 0 && (
                             <div style={{ display: 'grid', gap: 4, borderTop: '1px solid rgba(185,28,28,0.2)', paddingTop: 7, marginBottom: upserts.length > 0 ? 8 : 0 }}>
                               {failedSteps.map((s) => (
-                                <div key={`${s.index}-${s.name}`} style={{ color: '#991b1b' }}>
+                                <div key={`${s.index}-${s.name}`} style={{ color: 'var(--danger)' }}>
                                   <span style={{ fontWeight: 600 }}>✗ {s.index}. {s.name}</span>
-                                  {s.error && <span style={{ color: '#b91c1c', marginLeft: 6 }}>— {s.error}</span>}
+                                  {s.error && <span style={{ color: 'var(--danger)', marginLeft: 6 }}>— {s.error}</span>}
                                 </div>
                               ))}
                             </div>
                           )}
                           {upserts.length > 0 && (
-                            <div style={{ display: 'grid', gap: 3, borderTop: '1px solid #e2e8f0', paddingTop: 7 }}>
+                            <div style={{ display: 'grid', gap: 3, borderTop: '1px solid var(--border)', paddingTop: 7 }}>
                               {upserts.map((u) => (
-                                <div key={u.label} style={{ display: 'flex', justifyContent: 'space-between', color: '#475569' }}>
+                                <div key={u.label} style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-secondary)' }}>
                                   <span>{u.label}</span>
-                                  <span style={{ fontWeight: 600, color: u.skipped ? '#94a3b8' : '#1d4ed8' }}>
+                                  <span style={{ fontWeight: 600, color: u.skipped ? 'var(--text-muted)' : 'var(--accent)' }}>
                                     {u.skipped
                                       ? '이미 최신'
                                       : `${u.count.toLocaleString()}건${u.dateRange ? ` (${u.dateRange})` : ''}`}
@@ -1129,18 +1130,18 @@ export default function AdminDataUpload() {
                           {expandedHistoryId === h.id && (
                             <div
                               onClick={(e) => e.stopPropagation()}
-                              style={{ borderTop: '1px solid #e2e8f0', marginTop: 8, paddingTop: 8, cursor: 'default' }}
+                              style={{ borderTop: '1px solid var(--border)', marginTop: 8, paddingTop: 8, cursor: 'default' }}
                             >
                               <SearchadCoverage jobId={h.id} />
                               <div style={{ marginTop: 10 }} />
                               {historyDetailLoading ? (
-                                <p style={{ margin: 0, fontSize: 12, color: '#64748b' }}>로그 불러오는 중…</p>
+                                <p style={{ margin: 0, fontSize: 12, color: 'var(--text-muted)' }}>로그 불러오는 중…</p>
                               ) : historyDetail?.output ? (
-                                <pre style={{ margin: 0, fontSize: 11, lineHeight: 1.6, color: '#334155', background: '#fff', border: '1px solid #e2e8f0', borderRadius: 6, padding: 12, overflow: 'auto', maxHeight: 400, whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
+                                <pre style={{ margin: 0, fontSize: 11, lineHeight: 1.6, color: 'var(--text-secondary)', background: '#fff', border: '1px solid var(--border)', borderRadius: 6, padding: 12, overflow: 'auto', maxHeight: 400, whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
                                   {historyDetail.output}
                                 </pre>
                               ) : (
-                                <p style={{ margin: 0, fontSize: 12, color: '#94a3b8' }}>저장된 로그가 없습니다.</p>
+                                <p style={{ margin: 0, fontSize: 12, color: 'var(--text-muted)' }}>저장된 로그가 없습니다.</p>
                               )}
                             </div>
                           )}
@@ -1159,17 +1160,17 @@ export default function AdminDataUpload() {
                     {/* 병원 + 차트 종류 */}
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                       <div style={{ display: 'grid', gap: 4 }}>
-                        <label htmlFor="hospitalId" style={{ fontSize: 12, fontWeight: 600, color: '#64748b' }}>
+                        <label htmlFor="hospitalId" style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)' }}>
                           병원
                         </label>
                         {hospitalsLoading ? (
-                          <p style={{ margin: 0, fontSize: 13, color: '#64748b' }}>불러오는 중…</p>
+                          <p style={{ margin: 0, fontSize: 13, color: 'var(--text-muted)' }}>불러오는 중…</p>
                         ) : hospitalsError ? (
-                          <p style={{ margin: 0, fontSize: 13, color: '#b91c1c' }}>{hospitalsError}</p>
+                          <p style={{ margin: 0, fontSize: 13, color: 'var(--danger)' }}>{hospitalsError}</p>
                         ) : hospitals.length === 0 ? (
-                          <p style={{ margin: 0, fontSize: 13, color: '#475569' }}>
+                          <p style={{ margin: 0, fontSize: 13, color: 'var(--text-secondary)' }}>
                             등록된 병원이 없습니다.{' '}
-                            <Link href="/admin/users/hospitals" style={{ fontWeight: 700, color: '#0f172a' }}>병원 관리</Link>에서 추가해 주세요.
+                            <Link href="/admin/users/hospitals" style={{ fontWeight: 700, color: 'var(--text)' }}>병원 관리</Link>에서 추가해 주세요.
                           </p>
                         ) : (
                           <select id="hospitalId" name="hospitalId" required defaultValue="" style={selectLineStyle}>
@@ -1181,7 +1182,7 @@ export default function AdminDataUpload() {
                         )}
                       </div>
                       <div style={{ display: 'grid', gap: 4 }}>
-                        <label htmlFor="chartType" style={{ fontSize: 12, fontWeight: 600, color: '#64748b' }}>
+                        <label htmlFor="chartType" style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)' }}>
                           차트 종류
                         </label>
                         <select id="chartType" name="chartType" value={chartType} onChange={(e) => setChartType(e.target.value)} style={selectLineStyle}>
@@ -1206,20 +1207,20 @@ export default function AdminDataUpload() {
                       onClick={() => fileInputRef.current?.click()}
                       style={{
                         ...dropzoneBaseStyle,
-                        border: `1.5px dashed ${isDragOver ? '#3b82f6' : selectedFile ? '#22c55e' : '#cbd5e1'}`,
-                        background: isDragOver ? '#eff6ff' : selectedFile ? '#f0fdf4' : '#f8fafc',
+                        border: `1.5px dashed ${isDragOver ? 'var(--accent)' : selectedFile ? 'var(--success)' : 'var(--border-strong)'}`,
+                        background: isDragOver ? 'var(--accent-subtle)' : selectedFile ? 'var(--success-subtle)' : 'var(--bg-subtle)',
                       }}
                     >
-                      <Upload size={26} style={{ color: isDragOver ? '#3b82f6' : selectedFile ? '#16a34a' : '#94a3b8' }} />
+                      <Upload size={26} style={{ color: isDragOver ? 'var(--accent)' : selectedFile ? 'var(--success)' : 'var(--text-muted)' }} />
                       {selectedFile ? (
                         <div>
-                          <p style={{ margin: 0, fontSize: 14, fontWeight: 600, color: '#15803d' }}>{selectedFile.name}</p>
-                          <p style={{ margin: '2px 0 0', fontSize: 12, color: '#64748b' }}>{(selectedFile.size / 1024 / 1024).toFixed(1)} MB · 클릭해서 다시 선택</p>
+                          <p style={{ margin: 0, fontSize: 14, fontWeight: 600, color: 'var(--success)' }}>{selectedFile.name}</p>
+                          <p style={{ margin: '2px 0 0', fontSize: 12, color: 'var(--text-muted)' }}>{(selectedFile.size / 1024 / 1024).toFixed(1)} MB · 클릭해서 다시 선택</p>
                         </div>
                       ) : (
                         <div>
-                          <p style={{ margin: 0, fontSize: 14, fontWeight: 600, color: '#334155' }}>PDF 드래그 또는 클릭해서 선택</p>
-                          <p style={{ margin: '2px 0 0', fontSize: 12, color: '#94a3b8' }}>최대 30MB · 텍스트 기반 PDF</p>
+                          <p style={{ margin: 0, fontSize: 14, fontWeight: 600, color: 'var(--text-secondary)' }}>PDF 드래그 또는 클릭해서 선택</p>
+                          <p style={{ margin: '2px 0 0', fontSize: 12, color: 'var(--text-muted)' }}>최대 30MB · 텍스트 기반 PDF</p>
                         </div>
                       )}
                     </div>
@@ -1233,7 +1234,7 @@ export default function AdminDataUpload() {
 
                     {/* 이미지 업로드 */}
                     <div style={{ marginTop: 4 }}>
-                      <div style={{ fontSize: 12, fontWeight: 600, color: '#64748b', marginBottom: 6 }}>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 6 }}>
                         관련 이미지 (선택) — 추출 완료 후 AI가 자동 분류·분석합니다
                       </div>
                       <div
@@ -1246,10 +1247,10 @@ export default function AdminDataUpload() {
                         onClick={() => imageInputRef.current?.click()}
                         style={dropzoneBaseStyle}
                       >
-                        <Upload size={26} style={{ color: '#94a3b8' }} />
+                        <Upload size={26} style={{ color: 'var(--text-muted)' }} />
                         <div>
-                          <p style={{ margin: 0, fontSize: 14, fontWeight: 600, color: '#334155' }}>이미지 드래그 또는 클릭해서 선택</p>
-                          <p style={{ margin: '2px 0 0', fontSize: 12, color: '#94a3b8' }}>JPEG / PNG / WebP · 최대 {MAX_IMAGES}장 · 장당 8MB · 자동 압축 후 분석</p>
+                          <p style={{ margin: 0, fontSize: 14, fontWeight: 600, color: 'var(--text-secondary)' }}>이미지 드래그 또는 클릭해서 선택</p>
+                          <p style={{ margin: '2px 0 0', fontSize: 12, color: 'var(--text-muted)' }}>JPEG / PNG / WebP · 최대 {MAX_IMAGES}장 · 장당 8MB · 자동 압축 후 분석</p>
                         </div>
                       </div>
                       <input
@@ -1274,23 +1275,23 @@ export default function AdminDataUpload() {
                                 alignItems: 'center',
                                 gap: 6,
                                 padding: '4px 8px',
-                                background: '#eff6ff',
-                                border: '1px solid #bfdbfe',
+                                background: 'var(--accent-subtle)',
+                                border: '1px solid var(--accent-subtle)',
                                 borderRadius: 6,
                                 fontSize: 11,
-                                color: '#1d4ed8',
+                                color: 'var(--accent)',
                               }}
                             >
                               <span style={{ maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                 {f.name}
                               </span>
-                              <span style={{ color: '#94a3b8', flexShrink: 0 }}>
+                              <span style={{ color: 'var(--text-muted)', flexShrink: 0 }}>
                                 {(f.size / 1024 / 1024).toFixed(1)}MB
                               </span>
                               <button
                                 type="button"
                                 onClick={(e) => { e.stopPropagation(); removeImageFile(i); }}
-                                style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#94a3b8', padding: 0, fontSize: 13, lineHeight: 1 }}
+                                style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 0, fontSize: 13, lineHeight: 1 }}
                               >
                                 ×
                               </button>
@@ -1309,32 +1310,32 @@ export default function AdminDataUpload() {
 
               {isExtractRunning && (
                 <div className="adminLegacyBlockBleed">
-                  <p style={{ margin: 0, fontSize: 13, color: '#1d4ed8' }}>추출 중입니다…</p>
+                  <p style={{ margin: 0, fontSize: 13, color: 'var(--accent)' }}>추출 중입니다…</p>
                 </div>
               )}
               {!isExtractRunning && extractSuccess && (
                 <div className="adminLegacyBlockBleed">
-                  <p style={{ margin: 0, fontSize: 13, color: '#15803d', fontWeight: 600 }}>✓ 추출 성공했습니다.</p>
+                  <p style={{ margin: 0, fontSize: 13, color: 'var(--success)', fontWeight: 600 }}>✓ 추출 성공했습니다.</p>
                 </div>
               )}
               {!isExtractRunning && error && (
                 <div className="adminLegacyBlockBleed">
-                  <p style={{ margin: 0, fontSize: 13, color: '#b91c1c' }}>{error}</p>
+                  <p style={{ margin: 0, fontSize: 13, color: 'var(--danger)' }}>{error}</p>
                 </div>
               )}
               {imageAnalysisStatus === 'uploading' && (
                 <div className="adminLegacyBlockBleed">
-                  <p style={{ margin: 0, fontSize: 13, color: '#1d4ed8' }}>이미지 분석 중… (OpenAI Vision)</p>
+                  <p style={{ margin: 0, fontSize: 13, color: 'var(--accent)' }}>이미지 분석 중… (OpenAI Vision)</p>
                 </div>
               )}
               {imageAnalysisStatus === 'done' && (
                 <div className="adminLegacyBlockBleed">
-                  <p style={{ margin: 0, fontSize: 13, color: '#15803d', fontWeight: 600 }}>✓ 이미지 분석 완료. 추출 결과 하단에서 확인하세요.</p>
+                  <p style={{ margin: 0, fontSize: 13, color: 'var(--success)', fontWeight: 600 }}>✓ 이미지 분석 완료. 추출 결과 하단에서 확인하세요.</p>
                 </div>
               )}
               {imageAnalysisStatus === 'error' && imageAnalysisError && (
                 <div className="adminLegacyBlockBleed">
-                  <p style={{ margin: 0, fontSize: 13, color: '#b91c1c' }}>이미지 분석 오류: {imageAnalysisError}</p>
+                  <p style={{ margin: 0, fontSize: 13, color: 'var(--danger)' }}>이미지 분석 오류: {imageAnalysisError}</p>
                 </div>
               )}
             </>
@@ -1346,13 +1347,13 @@ export default function AdminDataUpload() {
                     fontSize: 22,
                     margin: '0 0 8px',
                     fontWeight: 700,
-                    color: '#0f172a',
+                    color: 'var(--text)',
                     letterSpacing: '-0.02em',
                   }}
                 >
                   경영통계 업로드
                 </h1>
-                <p style={{ margin: 0, color: '#475569', fontSize: 14, lineHeight: 1.55 }}>
+                <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: 14, lineHeight: 1.55 }}>
                   병원별 실적·엑셀 업로드 및 차트 종류별 안내는 아래 콘솔에서 처리합니다. (기존 <strong>통계</strong>{' '}
                   메뉴에 있던 화면과 동일합니다.)
                 </p>

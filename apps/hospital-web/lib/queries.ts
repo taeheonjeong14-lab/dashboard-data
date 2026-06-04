@@ -62,6 +62,8 @@ export type BlogRankSummaryRow = {
   blog_rank_pet_popular_url: string | null;
   /** 가장 최근 수집일 (Asia/Seoul YYYY-MM-DD). 모든 row 동일 값. */
   latestDateKey: string | null;
+  /** 화살표 비교 기준이 된 수집일(약 14일 전, 폴백 적용 후). 모든 row 동일 값. */
+  baselineDateKey: string | null;
 };
 
 /** 블로그 KPI 시계열 (analytics.chart_blog_period_view). dateKey는 Asia/Seoul 기준 YYYY-MM-DD. */
@@ -83,6 +85,31 @@ export type BlogRankTrendPoint = {
 export type PlaceRankSummaryRow = {
   keyword: string;
   rank_value: number | null;
+  /** 14일 전(폴백 적용) 대비 순위 변동. 1=상승(숫자↓), -1=하락, 0=동일/비교불가 */
+  rank_value_trend: -1 | 0 | 1;
+  /** 가장 최근 수집일 (Asia/Seoul YYYY-MM-DD). 모든 row 동일 값. */
+  latestDateKey: string | null;
+  /** 화살표 비교 기준이 된 수집일(약 14일 전, 폴백 적용 후). 모든 row 동일 값. */
+  baselineDateKey: string | null;
+};
+
+/** 플레이스 리뷰 통계 (최근 6개월) — analytics.analytics_place_reviews 집계. */
+export type PlaceReviewStats = {
+  /** 최근 6개월 월별 리뷰 수 (오래된→최신, 6개) */
+  monthly: { monthKey: string; monthLabel: string; count: number }[];
+  /** 5단계 감성 분포 카운트 */
+  strongPositiveCount: number;
+  positiveCount: number;
+  neutralCount: number;
+  negativeCount: number;
+  strongNegativeCount: number;
+  /** 최근 6개월 부정 리뷰 목록 (강한 부정 먼저). strong=강한 부정 */
+  negativeReviews: {
+    reviewDate: string;
+    authorId: string | null;
+    content: string | null;
+    strong: boolean;
+  }[];
 };
 
 /** 플레이스 KPI 시계열 (analytics.chart_place_period_view). */
@@ -534,14 +561,20 @@ export async function fetchSummaryBlogRanks(hospitalId: string): Promise<BlogRan
           asStringOrNull(row.blog_rank_popular_url) ??
           asStringOrNull(row.blog_rank_pet_popular_url),
         latestDateKey: null,
+        baselineDateKey: null,
       }))
       .sort((a, b) => a.keyword.localeCompare(b.keyword, "ko"));
   }
 
   const dateKeys = Array.from(new Set(stamped.map((item) => item.dateKey))).sort();
+  const dateKeySet = new Set(dateKeys);
   const latestDateKey = dateKeys.at(-1) as string;
-  const baselineTarget = addCalendarDaysUtc(latestDateKey, -30);
-  const baselineDateKey = dateKeys.filter((key) => key <= baselineTarget).at(-1) ?? null;
+  // 화살표 비교 기준: 정확히 14일 전. 그 날짜에 수집이 없으면 아래 우선순위로 폴백.
+  const BASELINE_OFFSET_PRIORITY = [14, 15, 13, 16, 12, 17, 11, 18, 10, 19, 20];
+  const baselineDateKey =
+    BASELINE_OFFSET_PRIORITY.map((offset) => addCalendarDaysUtc(latestDateKey, -offset)).find(
+      (key) => dateKeySet.has(key),
+    ) ?? null;
 
   const latestRows = stamped
     .filter((item) => item.dateKey === latestDateKey)
@@ -572,6 +605,7 @@ export async function fetchSummaryBlogRanks(hospitalId: string): Promise<BlogRan
           previous?.blog_rank_pet_popular ?? null
         ),
         latestDateKey,
+        baselineDateKey,
       } as BlogRankSummaryRow;
     })
     .sort((a, b) => a.keyword.localeCompare(b.keyword, "ko"));
@@ -635,6 +669,23 @@ export async function fetchBlogKeywordRankTrend(
   return Array.from(byDate.values()).sort((a, b) => a.dateKey.localeCompare(b.dateKey));
 }
 
+/** 순위 화살표 비교 기준: 정확히 14일 전, 없으면 아래 우선순위로 폴백(블로그·플레이스 공통). */
+const RANK_BASELINE_OFFSET_PRIORITY = [14, 15, 13, 16, 12, 17, 11, 18, 10, 19, 20];
+function pickBaselineDateKey(latestDateKey: string, dateKeySet: Set<string>): string | null {
+  return (
+    RANK_BASELINE_OFFSET_PRIORITY.map((offset) => addCalendarDaysUtc(latestDateKey, -offset)).find(
+      (key) => dateKeySet.has(key),
+    ) ?? null
+  );
+}
+/** 순위(작을수록 좋음) 변동. 1=상승(현재가 더 작음), -1=하락, 0=동일/비교불가 */
+function rankTrend(current: number | null, previous: number | null): -1 | 0 | 1 {
+  if (current == null || previous == null) return 0;
+  if (current < previous) return 1;
+  if (current > previous) return -1;
+  return 0;
+}
+
 export async function fetchSummaryPlaceRanks(
   hospitalId: string
 ): Promise<PlaceRankSummaryRow[]> {
@@ -649,12 +700,149 @@ export async function fetchSummaryPlaceRanks(
       .range(from, to),
   );
 
-  return latestSnapshotRows(data)
-    .map((row) => ({
-      keyword: asStringOrNull(row.keyword) ?? "-",
-      rank_value: asNumberOrNull(row.rank_value),
+  const stamped = data
+    .map((row) => {
+      const date = parseDateValue(row);
+      if (!date) return null;
+      return { row, dateKey: toSeoulDateKey(date) };
+    })
+    .filter(
+      (item): item is { row: Record<string, unknown>; dateKey: string } => item !== null
+    );
+
+  if (stamped.length === 0) {
+    return latestSnapshotRows(data)
+      .map((row) => ({
+        keyword: asStringOrNull(row.keyword) ?? "-",
+        rank_value: asNumberOrNull(row.rank_value),
+        rank_value_trend: 0 as const,
+        latestDateKey: null,
+        baselineDateKey: null,
+      }))
+      .sort((a, b) => a.keyword.localeCompare(b.keyword, "ko"));
+  }
+
+  const dateKeys = Array.from(new Set(stamped.map((item) => item.dateKey))).sort();
+  const dateKeySet = new Set(dateKeys);
+  const latestDateKey = dateKeys.at(-1) as string;
+  const baselineDateKey = pickBaselineDateKey(latestDateKey, dateKeySet);
+
+  // 특정 수집일의 keyword→rank_value 맵 (같은 날 중복 행은 마지막 non-null 유지)
+  const snapshotByKeyword = (dk: string) => {
+    const map = new Map<string, number | null>();
+    for (const item of stamped) {
+      if (item.dateKey !== dk) continue;
+      const keyword = asStringOrNull(item.row.keyword) ?? "-";
+      const rv = asNumberOrNull(item.row.rank_value);
+      map.set(keyword, rv ?? map.get(keyword) ?? null);
+    }
+    return map;
+  };
+
+  const latestMap = snapshotByKeyword(latestDateKey);
+  const baselineMap = baselineDateKey
+    ? snapshotByKeyword(baselineDateKey)
+    : new Map<string, number | null>();
+
+  return Array.from(latestMap.entries())
+    .map(([keyword, rank_value]) => ({
+      keyword,
+      rank_value,
+      rank_value_trend: rankTrend(rank_value, baselineMap.get(keyword) ?? null),
+      latestDateKey,
+      baselineDateKey,
     }))
     .sort((a, b) => a.keyword.localeCompare(b.keyword, "ko"));
+}
+
+export async function fetchPlaceReviewStats(
+  hospitalId: string
+): Promise<PlaceReviewStats> {
+  // 최근 6개월 월 버킷(현재월 포함, 오래된→최신)
+  const todayKey = todayDateKeySeoul();
+  const [ty, tm] = todayKey.split("-").map(Number);
+  const monthly: PlaceReviewStats["monthly"] = [];
+  for (let i = 11; i >= 0; i--) {
+    const d = new Date(Date.UTC(ty, tm - 1 - i, 1));
+    const y = d.getUTCFullYear();
+    const m = d.getUTCMonth() + 1;
+    monthly.push({ monthKey: `${y}-${String(m).padStart(2, "0")}`, monthLabel: `${m}월`, count: 0 });
+  }
+  const startDate = `${monthly[0]!.monthKey}-01`; // 추이(차트): 최근 12개월
+  const sentimentStart = `${monthly[6]!.monthKey}-01`; // 긍정/부정 집계: 최근 6개월
+  const empty: PlaceReviewStats = {
+    monthly,
+    strongPositiveCount: 0,
+    positiveCount: 0,
+    neutralCount: 0,
+    negativeCount: 0,
+    strongNegativeCount: 0,
+    negativeReviews: [],
+  };
+
+  try {
+    const supabase = createClient();
+    const rows = await fetchAllPages((from, to) =>
+      supabase
+        .schema("analytics")
+        .from("analytics_place_reviews")
+        // UI 는 방문일(visit_date) 기준. 예전 행(visit_date null) 대비 review_date 도 폴백으로 함께 조회.
+        .select("visit_date, review_date, author_id, content, sentiment")
+        .eq("hospital_id", hospitalId)
+        .gte("visit_date", startDate)
+        .order("visit_date", { ascending: false })
+        .range(from, to),
+    );
+
+    const monthIndex = new Map(monthly.map((m, i) => [m.monthKey, i] as const));
+    let strongPositiveCount = 0;
+    let positiveCount = 0;
+    let neutralCount = 0;
+    let negativeCount = 0;
+    let strongNegativeCount = 0;
+    const negativeReviews: PlaceReviewStats["negativeReviews"] = [];
+
+    for (const row of rows) {
+      const dateKey = asStringOrNull(row.visit_date) ?? asStringOrNull(row.review_date);
+      const sentiment = asStringOrNull(row.sentiment);
+      if (dateKey) {
+        const idx = monthIndex.get(dateKey.slice(0, 7));
+        if (idx != null) monthly[idx]!.count += 1;
+      }
+      // 긍정/부정 집계·부정 목록은 최근 6개월만 (추이 차트만 12개월)
+      if (!dateKey || dateKey < sentimentStart) continue;
+      if (sentiment === "strong_positive") strongPositiveCount += 1;
+      else if (sentiment === "positive") positiveCount += 1;
+      else if (sentiment === "neutral") neutralCount += 1;
+      else if (sentiment === "negative" || sentiment === "strong_negative") {
+        const strong = sentiment === "strong_negative";
+        if (strong) strongNegativeCount += 1;
+        else negativeCount += 1;
+        negativeReviews.push({
+          reviewDate: dateKey ?? "",
+          authorId: asStringOrNull(row.author_id),
+          content: asStringOrNull(row.content),
+          strong,
+        });
+      }
+    }
+
+    // 강한 부정을 먼저(목록 상단). 같은 그룹 내에서는 방문일 최신순(쿼리 정렬) 유지.
+    negativeReviews.sort((a, b) => (b.strong ? 1 : 0) - (a.strong ? 1 : 0));
+
+    return {
+      monthly,
+      strongPositiveCount,
+      positiveCount,
+      neutralCount,
+      negativeCount,
+      strongNegativeCount,
+      negativeReviews,
+    };
+  } catch {
+    // 테이블 미생성/권한 등 — 빈 통계로 폴백(다른 위젯은 정상 동작).
+    return empty;
+  }
 }
 
 export async function fetchPlacePeriodKpis(

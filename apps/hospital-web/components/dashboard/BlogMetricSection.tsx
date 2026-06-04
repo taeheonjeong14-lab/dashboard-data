@@ -99,15 +99,15 @@ export default function BlogMetricSection({
     [chartData],
   );
 
-  const setPreset = (preset: "all" | "1y" | "3y") => {
+  const setPreset = (preset: "all" | "1y" | "6m") => {
     if (!bounds) return;
     if (preset === "all") {
       setRangeStart(bounds.min);
       setRangeEnd(bounds.max);
       return;
     }
-    const years = preset === "1y" ? 1 : 3;
-    const from = addDaysFromDateKey(bounds.max, -years * 365);
+    const days = preset === "1y" ? 365 : 180;
+    const from = addDaysFromDateKey(bounds.max, -days);
     setRangeStart(from < bounds.min ? bounds.min : from);
     setRangeEnd(bounds.max);
   };
@@ -156,14 +156,14 @@ export default function BlogMetricSection({
                 [
                   ["all", "전체"],
                   ["1y", "최근 1년"],
-                  ["3y", "최근 3년"],
+                  ["6m", "최근 6개월"],
                 ] as const
               ).map(([key, label]) => (
                 <button
                   key={key}
                   type="button"
                   onClick={() => setPreset(key)}
-                  className="h-8 border border-[var(--border-strong)] bg-[var(--bg)] px-2.5 text-xs text-[var(--text-secondary)] hover:bg-[var(--bg-subtle)]"
+                  className="h-8 cursor-pointer border border-[var(--border-strong)] bg-[var(--bg)] px-2.5 text-xs text-[var(--text-secondary)] hover:bg-[var(--bg-subtle)]"
                 >
                   {label}
                 </button>

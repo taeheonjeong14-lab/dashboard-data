@@ -19,7 +19,7 @@ function CategoryLabCell({ name, species }: { name: string; species: LabCanonica
   const cat = labItemCategory(name, species);
   const isOther = cat.key === 'other';
   return (
-    <td style={{ padding: 4, fontSize: 11, whiteSpace: 'nowrap', color: isOther ? '#dc2626' : '#475569' }}>
+    <td style={{ padding: 4, fontSize: 11, whiteSpace: 'nowrap', color: isOther ? 'var(--danger)' : 'var(--text-secondary)' }}>
       {cat.shortLabel}
     </td>
   );
@@ -30,7 +30,7 @@ function NormalizedLabCell({ name }: { name: string }) {
   const recognized = isRecognizedLabItem(name);
   return (
     <td
-      style={{ padding: 4, color: recognized ? '#64748b' : '#dc2626', fontWeight: recognized ? 400 : 700 }}
+      style={{ padding: 4, color: recognized ? 'var(--text-muted)' : 'var(--danger)', fontWeight: recognized ? 400 : 700 }}
       title={recognized ? undefined : '정규화 실패: 표준 항목으로 인식되지 않아 리포트에서 Other 로 분류됩니다.'}
     >
       {name}
@@ -66,7 +66,7 @@ type DraftPlanGroup = PlanViewGroup;
 
 type DraftLabGroup = RunDetailResponse['labItemsByDate'][number];
 
-const divider = 'rgba(15, 23, 42, 0.1)';
+const divider = 'var(--border)';
 
 function planViewGroupsFromResult(res: RunDetailResponse): PlanViewGroup[] {
   if (res.chartBodyByDate.length > 0) {
@@ -211,7 +211,7 @@ function FindingOverlay({ spots, imageRef }: { spots: FindingSpot[]; imageRef: R
         const cy = (s.cy / 100) * dims.h;
         const r = (s.r / 100) * Math.min(dims.w, dims.h);
         return (
-          <circle key={i} cx={cx} cy={cy} r={r} fill="rgba(239,68,68,0.25)" stroke="#ef4444" strokeWidth={1.5} />
+          <circle key={i} cx={cx} cy={cy} r={r} fill="rgba(239,68,68,0.25)" stroke="var(--danger)" strokeWidth={1.5} />
         );
       })}
     </svg>
@@ -228,7 +228,7 @@ function CaseImageCard({ img }: { img: CaseImage }) {
     <>
       <div
         style={{
-          border: `1px solid ${img.isClearFinding ? '#fca5a5' : img.hasNotableFinding ? '#fde68a' : '#e2e8f0'}`,
+          border: `1px solid ${img.isClearFinding ? 'var(--danger-subtle)' : img.hasNotableFinding ? 'var(--warning-subtle)' : 'var(--border)'}`,
           borderRadius: 8,
           overflow: 'hidden',
           background: '#fff',
@@ -238,7 +238,7 @@ function CaseImageCard({ img }: { img: CaseImage }) {
       >
         {/* Thumbnail */}
         <div
-          style={{ position: 'relative', background: '#0f172a', cursor: img.signedUrl ? 'pointer' : 'default' }}
+          style={{ position: 'relative', background: 'var(--text)', cursor: img.signedUrl ? 'pointer' : 'default' }}
           onClick={() => img.signedUrl && setOpen(true)}
         >
           {img.signedUrl ? (
@@ -249,7 +249,7 @@ function CaseImageCard({ img }: { img: CaseImage }) {
               style={{ width: '100%', height: 160, objectFit: 'contain', display: 'block' }}
             />
           ) : (
-            <div style={{ height: 120, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#475569', fontSize: 12 }}>
+            <div style={{ height: 120, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)', fontSize: 12 }}>
               이미지 없음
             </div>
           )}
@@ -262,7 +262,7 @@ function CaseImageCard({ img }: { img: CaseImage }) {
                 position: 'absolute',
                 top: 6,
                 right: 6,
-                background: img.isClearFinding ? '#dc2626' : '#d97706',
+                background: img.isClearFinding ? 'var(--danger)' : 'var(--warning)',
                 color: '#fff',
                 fontSize: 10,
                 fontWeight: 700,
@@ -279,15 +279,15 @@ function CaseImageCard({ img }: { img: CaseImage }) {
         <div style={{ padding: '8px 10px', flex: 1, display: 'flex', flexDirection: 'column', gap: 4 }}>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
             {examLabel && (
-              <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 6px', borderRadius: 4, background: '#dbeafe', color: '#1d4ed8' }}>
+              <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 6px', borderRadius: 4, background: 'var(--accent-subtle)', color: 'var(--accent)' }}>
                 {examLabel}{subLabel ? ` · ${subLabel}` : ''}
               </span>
             )}
           </div>
           {img.briefComment && (
-            <p style={{ margin: 0, fontSize: 12, color: '#334155', lineHeight: 1.5 }}>{img.briefComment}</p>
+            <p style={{ margin: 0, fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.5 }}>{img.briefComment}</p>
           )}
-          <p style={{ margin: 0, fontSize: 11, color: '#94a3b8', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          <p style={{ margin: 0, fontSize: 11, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {img.fileName}
           </p>
         </div>
@@ -433,7 +433,7 @@ function CaseImagesSection({ runId }: { runId: string }) {
   useEffect(() => { void load(); }, [load]);
 
   const sectionStyle = {
-    border: '1px solid #e2e8f0',
+    border: '1px solid var(--border)',
     background: '#fff',
     borderRadius: 6,
     overflow: 'hidden',
@@ -445,15 +445,15 @@ function CaseImagesSection({ runId }: { runId: string }) {
     padding: '9px 14px',
     fontSize: 12.5,
     fontWeight: 700,
-    color: '#334155',
+    color: 'var(--text-secondary)',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: 8,
     flexWrap: 'wrap' as const,
     userSelect: 'none' as const,
-    background: '#f1f5f9',
-    borderBottom: '1px solid #e2e8f0',
+    background: 'var(--bg-subtle)',
+    borderBottom: '1px solid var(--border)',
     letterSpacing: '0.01em',
   };
 
@@ -477,14 +477,14 @@ function CaseImagesSection({ runId }: { runId: string }) {
       </summary>
       <div style={{ padding: '12px 14px' }}>
         {loading ? (
-          <p style={{ margin: 0, fontSize: 13, color: '#64748b' }}>불러오는 중…</p>
+          <p style={{ margin: 0, fontSize: 13, color: 'var(--text-muted)' }}>불러오는 중…</p>
         ) : error ? (
-          <p style={{ margin: 0, fontSize: 13, color: '#b91c1c' }}>{error}</p>
+          <p style={{ margin: 0, fontSize: 13, color: 'var(--danger)' }}>{error}</p>
         ) : images.length === 0 ? (
-          <p style={{ margin: 0, fontSize: 13, color: '#94a3b8' }}>
+          <p style={{ margin: 0, fontSize: 13, color: 'var(--text-muted)' }}>
             이미지가 없습니다. 차트 데이터 수집 시 이미지를 첨부하면 여기에 분석 결과가 표시됩니다.
             {autoRetrying && (
-              <span style={{ display: 'block', marginTop: 4, color: '#64748b' }}>
+              <span style={{ display: 'block', marginTop: 4, color: 'var(--text-muted)' }}>
                 분석 중일 수 있습니다 — 20초 후 자동 새로고침…
               </span>
             )}
@@ -500,9 +500,9 @@ function CaseImagesSection({ runId }: { runId: string }) {
                     padding: '5px 0',
                     fontSize: 12,
                     fontWeight: 700,
-                    color: '#475569',
+                    color: 'var(--text-secondary)',
                     userSelect: 'none',
-                    borderBottom: '1px solid #e2e8f0',
+                    borderBottom: '1px solid var(--border)',
                     marginBottom: 8,
                     display: 'flex',
                     alignItems: 'center',
@@ -510,7 +510,7 @@ function CaseImagesSection({ runId }: { runId: string }) {
                   }}
                 >
                   <span>{imageSectionTitle(key)}</span>
-                  <span style={{ fontWeight: 400, color: '#94a3b8', fontSize: 11 }}>{sectionImages.length}장</span>
+                  <span style={{ fontWeight: 400, color: 'var(--text-muted)', fontSize: 11 }}>{sectionImages.length}장</span>
                 </summary>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 12 }}>
                   {sectionImages.map((img) => (
@@ -886,7 +886,7 @@ export function AdminRunExtractionDetail({
   }
 
   if (loading && !result) {
-    return <p style={{ fontSize: 14, color: '#64748b' }}>상세 불러오는 중…</p>;
+    return <p style={{ fontSize: 14, color: 'var(--text-muted)' }}>상세 불러오는 중…</p>;
   }
   if (error || !result) {
     return (
@@ -894,8 +894,8 @@ export function AdminRunExtractionDetail({
         style={{
           padding: 16,
           border: `1px solid ${divider}`,
-          background: '#fef2f2',
-          color: '#991b1b',
+          background: 'var(--danger-subtle)',
+          color: 'var(--danger)',
           fontSize: 14,
         }}
       >
@@ -905,7 +905,7 @@ export function AdminRunExtractionDetail({
   }
 
   const sectionStyle = {
-    border: '1px solid #e2e8f0',
+    border: '1px solid var(--border)',
     background: '#fff',
     borderRadius: 6,
     overflow: 'hidden',
@@ -917,15 +917,15 @@ export function AdminRunExtractionDetail({
     padding: '9px 14px',
     fontSize: 12.5,
     fontWeight: 700,
-    color: '#334155',
+    color: 'var(--text-secondary)',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: 8,
     flexWrap: 'wrap' as const,
     userSelect: 'none' as const,
-    background: '#f1f5f9',
-    borderBottom: '1px solid #e2e8f0',
+    background: 'var(--bg-subtle)',
+    borderBottom: '1px solid var(--border)',
     letterSpacing: '0.01em',
   };
 
@@ -935,17 +935,17 @@ export function AdminRunExtractionDetail({
         <header style={{ marginBottom: 16, display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center' }}>
           <h1 style={{ margin: 0, fontSize: 20, fontWeight: 800 }}>추출 결과</h1>
           {result.run.chartType && (
-            <span style={{ fontSize: 12, color: '#64748b', background: '#f1f5f9', padding: '3px 8px', borderRadius: 4 }}>
+            <span style={{ fontSize: 12, color: 'var(--text-muted)', background: 'var(--bg-subtle)', padding: '3px 8px', borderRadius: 4 }}>
               {result.run.chartType}
             </span>
           )}
           {result.run.isHealthCheckup && (
-            <span style={{ fontSize: 12, fontWeight: 700, color: '#1d4ed8', background: '#dbeafe', padding: '3px 8px', borderRadius: 4, border: '1px solid #bfdbfe' }}>
+            <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--accent)', background: 'var(--accent-subtle)', padding: '3px 8px', borderRadius: 4, border: '1px solid var(--accent-subtle)' }}>
               건강검진
             </span>
           )}
           {result.run.isBlog && (
-            <span style={{ fontSize: 12, fontWeight: 700, color: '#15803d', background: '#dcfce7', padding: '3px 8px', borderRadius: 4, border: '1px solid #bbf7d0' }}>
+            <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--success)', background: 'var(--success-subtle)', padding: '3px 8px', borderRadius: 4, border: '1px solid var(--success-subtle)' }}>
               블로그
             </span>
           )}
@@ -974,22 +974,22 @@ export function AdminRunExtractionDetail({
       ) : (
         <div style={{ marginBottom: 14, display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
           {result.basicInfo?.hospitalName && (
-            <span style={{ fontSize: 14, fontWeight: 700, color: '#0f172a' }}>
+            <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>
               {result.basicInfo.hospitalName}
             </span>
           )}
           {result.basicInfo?.patientName && (
-            <span style={{ fontSize: 13, color: '#334155' }}>
+            <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
               {result.basicInfo.patientName}
             </span>
           )}
           {result.basicInfo?.ownerName && (
-            <span style={{ fontSize: 12, color: '#64748b' }}>
+            <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
               ({result.basicInfo.ownerName})
             </span>
           )}
           {(result.run.friendlyId || result.run.id) && (
-            <span style={{ fontSize: 11, color: '#94a3b8', fontFamily: 'ui-monospace, monospace' }}>
+            <span style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'ui-monospace, monospace' }}>
               {result.run.friendlyId ?? result.run.id.slice(0, 8)}
             </span>
           )}
@@ -997,11 +997,11 @@ export function AdminRunExtractionDetail({
             <span style={{
               fontSize: 11,
               fontWeight: 700,
-              color: '#1d4ed8',
-              background: '#dbeafe',
+              color: 'var(--accent)',
+              background: 'var(--accent-subtle)',
               padding: '2px 8px',
               borderRadius: 20,
-              border: '1px solid #bfdbfe',
+              border: '1px solid var(--accent-subtle)',
               letterSpacing: '0.02em',
             }}>
               {result.run.chartType}
@@ -1011,11 +1011,11 @@ export function AdminRunExtractionDetail({
             <span style={{
               fontSize: 11,
               fontWeight: 700,
-              color: '#1d4ed8',
-              background: '#dbeafe',
+              color: 'var(--accent)',
+              background: 'var(--accent-subtle)',
               padding: '2px 8px',
               borderRadius: 20,
-              border: '1px solid #bfdbfe',
+              border: '1px solid var(--accent-subtle)',
               letterSpacing: '0.02em',
             }}>
               건강검진
@@ -1025,11 +1025,11 @@ export function AdminRunExtractionDetail({
             <span style={{
               fontSize: 11,
               fontWeight: 700,
-              color: '#15803d',
-              background: '#dcfce7',
+              color: 'var(--success)',
+              background: 'var(--success-subtle)',
               padding: '2px 8px',
               borderRadius: 20,
-              border: '1px solid #bbf7d0',
+              border: '1px solid var(--success-subtle)',
               letterSpacing: '0.02em',
             }}>
               블로그
@@ -1060,7 +1060,7 @@ export function AdminRunExtractionDetail({
       )}
 
       {saveError ? (
-        <div style={{ marginBottom: 12, padding: 12, border: `1px solid ${divider}`, background: '#fef2f2', color: '#991b1b', fontSize: 13 }}>
+        <div style={{ marginBottom: 12, padding: 12, border: `1px solid ${divider}`, background: 'var(--danger-subtle)', color: 'var(--danger)', fontSize: 13 }}>
           {saveError}
         </div>
       ) : null}
@@ -1146,7 +1146,7 @@ export function AdminRunExtractionDetail({
                 ] as const
               ).map(([key, label]) => (
                 <label key={key} style={{ display: 'grid', gap: 4, fontSize: 13 }}>
-                  <span style={{ color: '#64748b', fontWeight: 600 }}>{label}</span>
+                  <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}>{label}</span>
                   <input
                     className="adminLegacyInput"
                     value={draftBasic[key]}
@@ -1160,25 +1160,25 @@ export function AdminRunExtractionDetail({
             <dl style={{ margin: '10px 0 0', display: 'grid', gridTemplateColumns: '7rem 1fr', gap: 6, fontSize: 13 }}>
               {result.basicInfo ? (
                 <>
-                  <dt style={{ color: '#64748b' }}>병원명</dt>
+                  <dt style={{ color: 'var(--text-muted)' }}>병원명</dt>
                   <dd style={{ margin: 0 }}>{result.basicInfo.hospitalName ?? '—'}</dd>
-                  <dt style={{ color: '#64748b' }}>보호자</dt>
+                  <dt style={{ color: 'var(--text-muted)' }}>보호자</dt>
                   <dd style={{ margin: 0 }}>{result.basicInfo.ownerName ?? '—'}</dd>
-                  <dt style={{ color: '#64748b' }}>환자</dt>
+                  <dt style={{ color: 'var(--text-muted)' }}>환자</dt>
                   <dd style={{ margin: 0 }}>{result.basicInfo.patientName ?? '—'}</dd>
-                  <dt style={{ color: '#64748b' }}>종/품종</dt>
+                  <dt style={{ color: 'var(--text-muted)' }}>종/품종</dt>
                   <dd style={{ margin: 0 }}>
                     {[result.basicInfo.species, result.basicInfo.breed].filter(Boolean).join(' / ') || '—'}
                   </dd>
-                  <dt style={{ color: '#64748b' }}>생일/나이</dt>
+                  <dt style={{ color: 'var(--text-muted)' }}>생일/나이</dt>
                   <dd style={{ margin: 0 }}>
                     {result.basicInfo.birth ?? '—'} / {result.basicInfo.age != null ? `${result.basicInfo.age}세` : '—'}
                   </dd>
-                  <dt style={{ color: '#64748b' }}>성별</dt>
+                  <dt style={{ color: 'var(--text-muted)' }}>성별</dt>
                   <dd style={{ margin: 0 }}>{result.basicInfo.sex ?? '—'}</dd>
                 </>
               ) : (
-                <p style={{ gridColumn: '1 / -1', margin: 0, color: '#64748b' }}>기본 정보 행이 없습니다. 저장 시 생성됩니다.</p>
+                <p style={{ gridColumn: '1 / -1', margin: 0, color: 'var(--text-muted)' }}>기본 정보 행이 없습니다. 저장 시 생성됩니다.</p>
               )}
             </dl>
           )}
@@ -1337,8 +1337,8 @@ export function AdminRunExtractionDetail({
         </summary>
         <div style={{ borderTop: 'none' }}>
           {(editing.chartBody && draftChart ? draftChart : result.chartBodyByDate).map((c) => (
-            <details key={c.id} open style={{ borderBottom: '1px solid #e2e8f0' }}>
-              <summary style={{ padding: '7px 12px', fontSize: 12, fontWeight: 700, color: '#475569', cursor: 'pointer', listStyle: 'none', background: '#f8fafc', borderBottom: '1px solid #e2e8f0', userSelect: 'none' }}>
+            <details key={c.id} open style={{ borderBottom: '1px solid var(--border)' }}>
+              <summary style={{ padding: '7px 12px', fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', cursor: 'pointer', listStyle: 'none', background: 'var(--bg-subtle)', borderBottom: '1px solid var(--border)', userSelect: 'none' }}>
                 {c.dateTime}
               </summary>
               <div style={{ padding: '10px 12px' }}>
@@ -1353,7 +1353,7 @@ export function AdminRunExtractionDetail({
                     style={{ width: '100%', fontFamily: 'inherit', fontSize: 13, padding: 8, border: `1px solid ${divider}` }}
                   />
                 ) : (
-                  <pre style={{ margin: 0, whiteSpace: 'pre-wrap', fontSize: 13, padding: 10, background: '#f8fafc', border: `1px solid ${divider}` }}>
+                  <pre style={{ margin: 0, whiteSpace: 'pre-wrap', fontSize: 13, padding: 10, background: 'var(--bg-subtle)', border: `1px solid ${divider}` }}>
                     {c.bodyText || '—'}
                   </pre>
                 )}
@@ -1402,13 +1402,13 @@ export function AdminRunExtractionDetail({
         </summary>
         <div style={{ borderTop: 'none' }}>
           {(editing.plan && draftPlan ? draftPlan : planGroups).map((g, gi) => (
-            <details key={g.dateTime} open style={{ borderBottom: '1px solid #e2e8f0' }}>
-              <summary style={{ padding: '7px 12px', fontSize: 12, fontWeight: 700, color: '#475569', cursor: 'pointer', listStyle: 'none', background: '#f8fafc', borderBottom: '1px solid #e2e8f0', userSelect: 'none' }}>
+            <details key={g.dateTime} open style={{ borderBottom: '1px solid var(--border)' }}>
+              <summary style={{ padding: '7px 12px', fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', cursor: 'pointer', listStyle: 'none', background: 'var(--bg-subtle)', borderBottom: '1px solid var(--border)', userSelect: 'none' }}>
                 {g.dateTime}
               </summary>
               <div style={{ padding: '10px 12px 12px' }}>
               {!g.planRowsFromDb && g.rows.length > 0 ? (
-                <p style={{ fontSize: 12, color: '#b45309', margin: '0 0 6px' }}>DB 행 없음 — plan_text 파싱 미리보기. 저장 시 DB에 반영됩니다.</p>
+                <p style={{ fontSize: 12, color: 'var(--warning)', margin: '0 0 6px' }}>DB 행 없음 — plan_text 파싱 미리보기. 저장 시 DB에 반영됩니다.</p>
               ) : null}
               <table className="adminDetailTable">
                 <thead>
@@ -1567,8 +1567,8 @@ export function AdminRunExtractionDetail({
         </summary>
         <div style={{ borderTop: 'none' }}>
           {(editing.lab && draftLab ? draftLab : result.labItemsByDate).map((g, gi) => (
-            <details key={g.dateTime} open style={{ borderBottom: '1px solid #e2e8f0' }}>
-              <summary style={{ padding: '7px 12px', fontSize: 12, fontWeight: 700, color: '#475569', cursor: 'pointer', listStyle: 'none', background: '#f8fafc', borderBottom: '1px solid #e2e8f0', userSelect: 'none' }}>
+            <details key={g.dateTime} open style={{ borderBottom: '1px solid var(--border)' }}>
+              <summary style={{ padding: '7px 12px', fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', cursor: 'pointer', listStyle: 'none', background: 'var(--bg-subtle)', borderBottom: '1px solid var(--border)', userSelect: 'none' }}>
                 {g.dateTime}
               </summary>
               <div style={{ padding: '8px 12px 12px' }}>
@@ -1862,8 +1862,8 @@ export function AdminRunExtractionDetail({
         </summary>
         <div style={{ borderTop: 'none' }}>
           {result.physicalExamByDate.map((g) => (
-            <details key={g.dateTime} open style={{ borderBottom: '1px solid #e2e8f0' }}>
-              <summary style={{ padding: '7px 12px', fontSize: 12, fontWeight: 700, color: '#475569', cursor: 'pointer', listStyle: 'none', background: '#f8fafc', borderBottom: '1px solid #e2e8f0', userSelect: 'none' }}>
+            <details key={g.dateTime} open style={{ borderBottom: '1px solid var(--border)' }}>
+              <summary style={{ padding: '7px 12px', fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', cursor: 'pointer', listStyle: 'none', background: 'var(--bg-subtle)', borderBottom: '1px solid var(--border)', userSelect: 'none' }}>
                 {g.dateTime}
               </summary>
               <div style={{ padding: '8px 12px 12px' }}>
@@ -1923,19 +1923,19 @@ export function AdminRunExtractionDetail({
           </div>
           {genSuccess ? (
             <div style={{ padding: '28px 16px', textAlign: 'center' }}>
-              <p style={{ fontSize: 14, color: '#15803d', fontWeight: 600, marginBottom: 12 }}>생성이 완료되었습니다.</p>
-              <a href="/admin/health-report" style={{ fontSize: 13, color: '#1d4ed8', textDecoration: 'underline' }}>
+              <p style={{ fontSize: 14, color: 'var(--success)', fontWeight: 600, marginBottom: 12 }}>생성이 완료되었습니다.</p>
+              <a href="/admin/health-report" style={{ fontSize: 13, color: 'var(--accent)', textDecoration: 'underline' }}>
                 건강검진 리포트 메뉴에서 확인하기 →
               </a>
             </div>
           ) : (
             <div style={{ padding: '16px 16px 20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
               {genExistingReport === true && (
-                <div style={{ background: '#fef9c3', border: '1px solid #fde68a', borderRadius: 6, padding: '10px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-                  <span style={{ fontSize: 13, color: '#78350f' }}>이 차트로 생성된 건강검진 리포트가 이미 있습니다.</span>
+                <div style={{ background: 'var(--warning-subtle)', border: '1px solid var(--warning-subtle)', borderRadius: 6, padding: '10px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+                  <span style={{ fontSize: 13, color: 'var(--warning)' }}>이 차트로 생성된 건강검진 리포트가 이미 있습니다.</span>
                   <a
                     href="/admin/health-report"
-                    style={{ fontSize: 12, fontWeight: 700, color: '#1d4ed8', textDecoration: 'underline', whiteSpace: 'nowrap', flexShrink: 0 }}
+                    style={{ fontSize: 12, fontWeight: 700, color: 'var(--accent)', textDecoration: 'underline', whiteSpace: 'nowrap', flexShrink: 0 }}
                   >
                     리포트 확인하기 →
                   </a>
@@ -1947,7 +1947,7 @@ export function AdminRunExtractionDetail({
                   type="date"
                   value={genCheckupDate}
                   onChange={(e) => setGenCheckupDate(e.target.value)}
-                  style={{ display: 'block', width: '100%', padding: '7px 10px', border: '1px solid #e2e8f0', borderRadius: 4, fontSize: 13, boxSizing: 'border-box' }}
+                  style={{ display: 'block', width: '100%', padding: '7px 10px', border: '1px solid var(--border)', borderRadius: 4, fontSize: 13, boxSizing: 'border-box' }}
                 />
               </label>
               <label style={{ fontSize: 13 }}>
@@ -1957,7 +1957,7 @@ export function AdminRunExtractionDetail({
                   value={genVeterinarian}
                   onChange={(e) => setGenVeterinarian(e.target.value)}
                   placeholder="예: 홍길동"
-                  style={{ display: 'block', width: '100%', padding: '7px 10px', border: '1px solid #e2e8f0', borderRadius: 4, fontSize: 13, boxSizing: 'border-box' }}
+                  style={{ display: 'block', width: '100%', padding: '7px 10px', border: '1px solid var(--border)', borderRadius: 4, fontSize: 13, boxSizing: 'border-box' }}
                 />
               </label>
               <label style={{ fontSize: 13 }}>
@@ -1967,7 +1967,7 @@ export function AdminRunExtractionDetail({
                   value={genProgram}
                   onChange={(e) => setGenProgram(e.target.value)}
                   placeholder="예: 종합건강검진 A"
-                  style={{ display: 'block', width: '100%', padding: '7px 10px', border: '1px solid #e2e8f0', borderRadius: 4, fontSize: 13, boxSizing: 'border-box' }}
+                  style={{ display: 'block', width: '100%', padding: '7px 10px', border: '1px solid var(--border)', borderRadius: 4, fontSize: 13, boxSizing: 'border-box' }}
                 />
               </label>
               <label style={{ fontSize: 13 }}>
@@ -1977,13 +1977,13 @@ export function AdminRunExtractionDetail({
                   onChange={(e) => setGenMustInclude(e.target.value.slice(0, HEALTH_CHECKUP_MUST_INCLUDE_MAX_CHARS))}
                   placeholder="LLM이 반드시 반영해야 하는 특이사항을 입력하세요"
                   rows={4}
-                  style={{ display: 'block', width: '100%', padding: '7px 10px', border: '1px solid #e2e8f0', borderRadius: 4, fontSize: 13, resize: 'vertical', fontFamily: 'inherit', boxSizing: 'border-box' }}
+                  style={{ display: 'block', width: '100%', padding: '7px 10px', border: '1px solid var(--border)', borderRadius: 4, fontSize: 13, resize: 'vertical', fontFamily: 'inherit', boxSizing: 'border-box' }}
                 />
-                <div style={{ fontSize: 11, color: '#94a3b8', textAlign: 'right', marginTop: 2 }}>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', textAlign: 'right', marginTop: 2 }}>
                   {genMustInclude.length} / {HEALTH_CHECKUP_MUST_INCLUDE_MAX_CHARS}
                 </div>
               </label>
-              {genError && <p style={{ margin: 0, fontSize: 13, color: '#b91c1c' }}>{genError}</p>}
+              {genError && <p style={{ margin: 0, fontSize: 13, color: 'var(--danger)' }}>{genError}</p>}
               <button
                 type="button"
                 className="adminLegacyPrimaryBtn"
@@ -2022,9 +2022,9 @@ export function AdminRunExtractionDetail({
 
           {imgModalStatus === 'done' ? (
             <div style={{ padding: '28px 16px', textAlign: 'center' }}>
-              <p style={{ fontSize: 14, color: '#15803d', fontWeight: 600, marginBottom: 8 }}>분석이 완료되었습니다.</p>
+              <p style={{ fontSize: 14, color: 'var(--success)', fontWeight: 600, marginBottom: 8 }}>분석이 완료되었습니다.</p>
               {imgModalError && (
-                <p style={{ fontSize: 12, color: '#92400e', background: '#fef3c7', border: '1px solid #fde68a', borderRadius: 6, padding: '6px 10px', marginBottom: 12 }}>
+                <p style={{ fontSize: 12, color: 'var(--warning)', background: 'var(--warning-subtle)', border: '1px solid var(--warning-subtle)', borderRadius: 6, padding: '6px 10px', marginBottom: 12 }}>
                   {imgModalError}
                 </p>
               )}
@@ -2032,7 +2032,7 @@ export function AdminRunExtractionDetail({
             </div>
           ) : (
             <div style={{ padding: '16px 16px 20px', display: 'flex', flexDirection: 'column', gap: 12 }}>
-              <p style={{ margin: 0, fontSize: 13, color: '#475569', lineHeight: 1.5 }}>
+              <p style={{ margin: 0, fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
                 추가로 분석할 이미지를 선택하세요. 기존 분석 이미지는 유지되고 새 이미지가 추가됩니다.
               </p>
 
@@ -2042,19 +2042,19 @@ export function AdminRunExtractionDetail({
                 onDrop={(e) => { e.preventDefault(); addImgModalFiles(Array.from(e.dataTransfer.files)); }}
                 onClick={() => imgFileInputRef.current?.click()}
                 style={{
-                  border: '1.5px dashed #cbd5e1',
+                  border: '1.5px dashed var(--border-strong)',
                   borderRadius: 8,
                   padding: '14px 16px',
                   cursor: 'pointer',
-                  background: '#f8fafc',
+                  background: 'var(--bg-subtle)',
                   textAlign: 'center',
                   userSelect: 'none',
                 }}
               >
-                <p style={{ margin: 0, fontSize: 13, color: '#64748b' }}>
+                <p style={{ margin: 0, fontSize: 13, color: 'var(--text-muted)' }}>
                   이미지 드래그 또는 클릭 · JPEG / PNG / WebP
                 </p>
-                <p style={{ margin: '4px 0 0', fontSize: 11, color: '#94a3b8' }}>최대 50장 · 장당 8MB · 자동 압축</p>
+                <p style={{ margin: '4px 0 0', fontSize: 11, color: 'var(--text-muted)' }}>최대 50장 · 장당 8MB · 자동 압축</p>
               </div>
               <input
                 ref={imgFileInputRef}
@@ -2071,14 +2071,14 @@ export function AdminRunExtractionDetail({
                   {imgModalFiles.map((f, i) => (
                     <div
                       key={i}
-                      style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 8px', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 6, fontSize: 11, color: '#1d4ed8' }}
+                      style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 8px', background: 'var(--accent-subtle)', border: '1px solid var(--accent-subtle)', borderRadius: 6, fontSize: 11, color: 'var(--accent)' }}
                     >
                       <span style={{ maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.name}</span>
-                      <span style={{ color: '#94a3b8', flexShrink: 0 }}>{(f.size / 1024 / 1024).toFixed(1)}MB</span>
+                      <span style={{ color: 'var(--text-muted)', flexShrink: 0 }}>{(f.size / 1024 / 1024).toFixed(1)}MB</span>
                       <button
                         type="button"
                         onClick={(e) => { e.stopPropagation(); setImgModalFiles((prev) => prev.filter((_, ii) => ii !== i)); }}
-                        style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#94a3b8', padding: 0, fontSize: 14, lineHeight: 1 }}
+                        style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 0, fontSize: 14, lineHeight: 1 }}
                         disabled={imgModalStatus === 'uploading'}
                       >×</button>
                     </div>
@@ -2087,7 +2087,7 @@ export function AdminRunExtractionDetail({
               )}
 
               {imgModalError && (
-                <p style={{ margin: 0, fontSize: 13, color: '#b91c1c' }}>{imgModalError}</p>
+                <p style={{ margin: 0, fontSize: 13, color: 'var(--danger)' }}>{imgModalError}</p>
               )}
 
               <button

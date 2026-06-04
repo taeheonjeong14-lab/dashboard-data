@@ -32,6 +32,7 @@ const EMPTY_FORM = {
   blog_outro: '',
   naver_blog_id: '',
   smartplace_stat_url: '',
+  smartplace_review_url: '',
   debug_port: '',
   blog_keywords: [] as string[],
   place_keywords: [] as string[],
@@ -46,7 +47,7 @@ const EMPTY_FORM = {
 const fieldLabelStyle: React.CSSProperties = {
   fontSize: 11,
   fontWeight: 600,
-  color: '#64748b',
+  color: 'var(--text-muted)',
   letterSpacing: '-0.02em',
   lineHeight: 1.3,
 };
@@ -86,7 +87,7 @@ function KeywordList({ value, onChange }: { value: string[]; onChange: (next: st
           <button
             type="button"
             onClick={() => onChange(value.filter((_, j) => j !== i))}
-            style={{ flexShrink: 0, padding: '2px 8px', fontSize: 11, color: '#ef4444', background: 'transparent', border: '1px solid #fca5a5', borderRadius: 4, cursor: 'pointer' }}
+            style={{ flexShrink: 0, padding: '2px 8px', fontSize: 11, color: 'var(--danger)', background: 'transparent', border: '1px solid var(--danger-subtle)', borderRadius: 4, cursor: 'pointer' }}
           >
             삭제
           </button>
@@ -95,7 +96,7 @@ function KeywordList({ value, onChange }: { value: string[]; onChange: (next: st
       <button
         type="button"
         onClick={() => onChange([...value, ''])}
-        style={{ alignSelf: 'flex-start', marginTop: 2, padding: '3px 10px', fontSize: 11, color: '#334155', background: 'transparent', border: '1px solid rgba(15,23,42,0.2)', borderRadius: 4, cursor: 'pointer' }}
+        style={{ alignSelf: 'flex-start', marginTop: 2, padding: '3px 10px', fontSize: 11, color: 'var(--text-secondary)', background: 'transparent', border: '1px solid rgba(15,23,42,0.2)', borderRadius: 4, cursor: 'pointer' }}
       >
         + 행 추가
       </button>
@@ -313,7 +314,7 @@ export default function AdminHospitalsManager() {
       </aside>
 
       <div className="adminLayoutMainPane">
-        <div className="adminLayoutMainColumnInset" style={{ background: '#f1f5f9' }}>
+        <div className="adminLayoutMainColumnInset" style={{ background: 'var(--bg-subtle)' }}>
         {loading || message ? (
           <div className="adminLegacyStatus" style={{ marginBottom: 10, fontSize: 12 }}>
             {loading ? '처리 중...' : message}
@@ -389,7 +390,7 @@ export default function AdminHospitalsManager() {
                 />
               </LabeledField>
               <LabeledField label="브랜드 색상 (#hex)">
-                <input placeholder="#1d4ed8" value={form.brandColor} onChange={(e) => setForm((f) => ({ ...f, brandColor: e.target.value }))} style={fieldStyle} />
+                <input placeholder="var(--accent)" value={form.brandColor} onChange={(e) => setForm((f) => ({ ...f, brandColor: e.target.value }))} style={fieldStyle} />
               </LabeledField>
             </section>
           </details>
@@ -399,7 +400,7 @@ export default function AdminHospitalsManager() {
               Robovet AI · 사전문진
             </summary>
             <section style={sectionStyle}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: '#334155', cursor: 'pointer' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--text-secondary)', cursor: 'pointer' }}>
                 <input
                   type="checkbox"
                   checked={form.intake_survey_enabled}
@@ -424,6 +425,9 @@ export default function AdminHospitalsManager() {
                   <input value={form.smartplace_stat_url} onChange={(e) => setForm((f) => ({ ...f, smartplace_stat_url: e.target.value }))} style={fieldStyle} />
                 </LabeledField>
               </div>
+              <LabeledField label="스마트플레이스 리뷰 URL (리뷰 수집용)">
+                <input value={form.smartplace_review_url} onChange={(e) => setForm((f) => ({ ...f, smartplace_review_url: e.target.value }))} style={fieldStyle} />
+              </LabeledField>
               <LabeledField label="네이버 블로그 ID">
                 <input value={form.naver_blog_id} onChange={(e) => setForm((f) => ({ ...f, naver_blog_id: e.target.value }))} style={fieldStyle} />
               </LabeledField>

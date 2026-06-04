@@ -415,6 +415,20 @@ async function main() {
       args: [path.join(ROOT_DIR, "scripts", "naver-searchad-main.py")],
       options: { env: baseEnv },
     },
+    {
+      key: "place_reviews",
+      name: "스마트플레이스 리뷰 수집",
+      command: "python",
+      args: [path.join(ROOT_DIR, "scripts", "naver-place-reviews-main.py")],
+      options: { env: baseEnv },
+    },
+    {
+      key: "place_reviews",
+      name: "리뷰 감성 분석(Gemini)",
+      command: process.execPath,
+      args: [path.join(ROOT_DIR, "scripts", "label-place-reviews.mjs"), resolved.hospitalId],
+      options: { env: baseEnv },
+    },
   ];
   const steps = STEPS_FILTER ? allSteps.filter((s) => STEPS_FILTER.includes(s.key)) : allSteps;
 

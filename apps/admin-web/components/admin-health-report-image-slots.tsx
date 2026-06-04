@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } fro
 import type { HealthSystemsReportBlock } from '@/lib/health-report-admin/health-systems-types';
 import { cloneBlocks, parseHealthSystemsBlocksFromUnknown } from '@/lib/health-report-admin/health-systems-blocks-parse';
 
-const divider = 'rgba(15, 23, 42, 0.1)';
+const divider = 'var(--border)';
 
 export type CaseImageCandidate = {
   id: string;
@@ -261,7 +261,7 @@ export function AdminHealthReportImageSlots({
 
     if (sections.length === 0) {
       return (
-        <p style={{ margin: 0, fontSize: 13, color: '#64748b' }}>
+        <p style={{ margin: 0, fontSize: 13, color: 'var(--text-muted)' }}>
           {label}: 이미지 슬롯 블록이 없습니다 (LLM 생성 후 표시됩니다).
         </p>
       );
@@ -276,9 +276,9 @@ export function AdminHealthReportImageSlots({
           return (
             <div
               key={`${label}-${blockIndex}`}
-              style={{ border: `1px solid ${divider}`, borderRadius: 8, padding: 12, background: '#fafafa' }}
+              style={{ border: `1px solid ${divider}`, borderRadius: 8, padding: 12, background: 'var(--bg-raised)' }}
             >
-              <div style={{ fontSize: 12, color: '#475569', marginBottom: 8 }}>
+              <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 8 }}>
                 {sectionTitle} · 이미지 ({n}장)
               </div>
               <div style={{ display: 'grid', gap: 10, gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))' }}>
@@ -302,12 +302,12 @@ export function AdminHealthReportImageSlots({
                         background: '#fff',
                       }}
                     >
-                      <div style={{ fontSize: 11, color: '#64748b', marginBottom: 4 }}>슬롯 {slotIndex + 1}</div>
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>슬롯 {slotIndex + 1}</div>
                       {preview ? (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img alt="" src={preview} style={{ width: '100%', maxHeight: 72, objectFit: 'cover', borderRadius: 4 }} />
                       ) : (
-                        <div style={{ fontSize: 11, color: '#94a3b8', padding: '8px 0' }}>이미지 없음 · 후보를 끌어다 놓기</div>
+                        <div style={{ fontSize: 11, color: 'var(--text-muted)', padding: '8px 0' }}>이미지 없음 · 후보를 끌어다 놓기</div>
                       )}
                       <select
                         style={{ width: '100%', marginTop: 6, fontSize: 11 }}
@@ -360,26 +360,26 @@ export function AdminHealthReportImageSlots({
           후보 새로고침
         </button>
       </div>
-      {loading ? <p style={{ fontSize: 13, color: '#64748b' }}>후보 이미지 불러오는 중…</p> : null}
-      {loadErr ? <p style={{ fontSize: 13, color: '#b91c1c' }}>{loadErr}</p> : null}
+      {loading ? <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>후보 이미지 불러오는 중…</p> : null}
+      {loadErr ? <p style={{ fontSize: 13, color: 'var(--danger)' }}>{loadErr}</p> : null}
       {!loading && !loadErr && signHint ? (
-        <p style={{ fontSize: 13, color: '#b45309', lineHeight: 1.5 }}>{signHint}</p>
+        <p style={{ fontSize: 13, color: 'var(--warning)', lineHeight: 1.5 }}>{signHint}</p>
       ) : null}
       {!loading && !loadErr && candidates.length === 0 && payloadOnlyPaths.length === 0 ? (
-        <p style={{ fontSize: 13, color: '#64748b', lineHeight: 1.55 }}>
+        <p style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.55 }}>
           이 run(<code style={{ fontSize: 11 }}>{runId}</code>)에 대해 <code>chart_pdf.report_case_images</code>·
           <code>public.report_case_images</code>에 행이 없고, 보고서 페이로드(4·5p 슬롯)에도 storage 경로가 없습니다. vet-report
           이미지 분석 업로드·다른 DB·<code>DATABASE_URL</code> 동일 여부를 확인해 주세요.
         </p>
       ) : null}
       {!loading && !loadErr && candidates.some((c) => c.examType === '페이로드') && (
-        <p style={{ margin: 0, fontSize: 12, color: '#64748b' }}>
+        <p style={{ margin: 0, fontSize: 12, color: 'var(--text-muted)' }}>
           일부 후보는 DB가 아니라 <strong>보고서 JSON 슬롯의 src</strong>에서만 가져왔습니다(생성 시 자동 배치 등). DB에 행을 쌓으려면
           이미지 분석 업로드 API를 쓰면 됩니다.
         </p>
       )}
       {unplacedCandidates.length > 0 ? (
-        <div style={{ border: `1px solid ${divider}`, borderRadius: 8, padding: 12, background: '#f8fafc' }}>
+        <div style={{ border: `1px solid ${divider}`, borderRadius: 8, padding: 12, background: 'var(--bg-subtle)' }}>
           <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 8 }}>후보 (드래그하여 슬롯에 놓기)</div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
             {unplacedCandidates.map((c) => (
@@ -400,23 +400,23 @@ export function AdminHealthReportImageSlots({
                   // eslint-disable-next-line @next/next/no-img-element
                   <img alt="" src={c.previewUrl} style={{ width: '100%', height: 64, objectFit: 'cover' }} />
                 ) : (
-                  <div style={{ height: 64, fontSize: 10, padding: 4, color: '#94a3b8' }}>URL 없음</div>
+                  <div style={{ height: 64, fontSize: 10, padding: 4, color: 'var(--text-muted)' }}>URL 없음</div>
                 )}
-                <div style={{ fontSize: 9, padding: 4, color: '#64748b', wordBreak: 'break-all' }}>{c.fileName ?? c.id}</div>
+                <div style={{ fontSize: 9, padding: 4, color: 'var(--text-muted)', wordBreak: 'break-all' }}>{c.fileName ?? c.id}</div>
               </div>
             ))}
           </div>
         </div>
       ) : null}
       {!hideSlots && (p4 === null ? (
-        <p style={{ margin: 0, fontSize: 13, color: '#b45309' }}>
+        <p style={{ margin: 0, fontSize: 13, color: 'var(--warning)' }}>
           systemsPage4Blocks 가 스키마와 맞지 않아 이미지 슬롯 편집을 건너뜁니다. 위 시트에서 원시 JSON을 수정하세요.
         </p>
       ) : (
         renderPage('systemsPage4Blocks (치과·피부 등)', '4', p4, onChangePage4)
       ))}
       {!hideSlots && (p5 === null ? (
-        <p style={{ margin: 0, fontSize: 13, color: '#b45309' }}>
+        <p style={{ margin: 0, fontSize: 13, color: 'var(--warning)' }}>
           systemsPage5Blocks 가 스키마와 맞지 않아 이미지 슬롯 편집을 건너뜁니다. 위 시트에서 원시 JSON을 수정하세요.
         </p>
       ) : (

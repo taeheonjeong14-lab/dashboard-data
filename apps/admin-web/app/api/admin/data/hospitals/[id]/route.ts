@@ -22,8 +22,9 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
     const supabase = createServiceRoleClient();
 
     const rowAttempts = [
-      'id,name,name_en,code,phone,address,addressDetail,logoUrl,brandColor,director_name_ko,seal_url,tagline_line1,tagline_line2,blog_intro,blog_outro,naver_blog_id,smartplace_stat_url,debug_port',
-      'id,name,name_en,code,phone,address,address_detail,logo_url,brand_color,director_name_ko,seal_url,tagline_line1,tagline_line2,blog_intro,blog_outro,naver_blog_id,smartplace_stat_url,debug_port',
+      'id,name,name_en,code,phone,address,addressDetail,logoUrl,brandColor,director_name_ko,seal_url,tagline_line1,tagline_line2,blog_intro,blog_outro,naver_blog_id,smartplace_stat_url,smartplace_review_url,debug_port',
+      'id,name,name_en,code,phone,address,address_detail,logo_url,brand_color,director_name_ko,seal_url,tagline_line1,tagline_line2,blog_intro,blog_outro,naver_blog_id,smartplace_stat_url,smartplace_review_url,debug_port',
+      // 폴백: review_url 컬럼이 아직 없을 수 있으므로 제외(마이그레이션 전 우아하게 degrade)
       'id,name,naver_blog_id,smartplace_stat_url,debug_port',
     ];
 
@@ -101,6 +102,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
       blog_outro: String(row.blog_outro || ''),
       naver_blog_id: String(row.naver_blog_id || ''),
       smartplace_stat_url: String(row.smartplace_stat_url || ''),
+      smartplace_review_url: String(row.smartplace_review_url || ''),
       debug_port: row.debug_port == null ? '' : String(row.debug_port),
       blog_keywords_text: buildKeywordText(bt.data || []),
       place_keywords_text: buildKeywordText(pt.data || []),

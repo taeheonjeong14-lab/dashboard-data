@@ -581,7 +581,7 @@ export default function AdminDataConsole({ mode = 'all' }: { mode?: AdminDataCon
                 readOnly
                 disabled
               />
-              <label style={{ fontSize: 12, color: '#334155' }}>
+              <label style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
                 로고 파일 업로드 (png/jpg/jpeg/webp/svg)
                 <input
                   type="file"
@@ -609,7 +609,7 @@ export default function AdminDataConsole({ mode = 'all' }: { mode?: AdminDataCon
                 readOnly
                 disabled
               />
-              <label style={{ fontSize: 12, color: '#334155' }}>
+              <label style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
                 도장 파일 업로드 (png/jpg/jpeg/webp/svg)
                 <input
                   type="file"

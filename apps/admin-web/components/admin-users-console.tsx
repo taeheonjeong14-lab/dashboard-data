@@ -246,7 +246,7 @@ export default function AdminUsersConsole() {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="이메일/이름/전화/병원 검색"
-            style={{ padding: '10px 12px', borderRadius: 10, border: '1px solid #cbd5e1', width: 320 }}
+            style={{ padding: '10px 12px', borderRadius: 10, border: '1px solid var(--border-strong)', width: 320 }}
             disabled={loading}
           />
         </div>

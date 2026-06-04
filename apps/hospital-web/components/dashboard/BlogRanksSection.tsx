@@ -12,6 +12,13 @@ function formatRank(value: number): string {
   return `${new Intl.NumberFormat("ko-KR").format(value)}위`;
 }
 
+/** "YYYY-MM-DD" → "YYYY년 MM월 DD일" */
+function formatCollectedDate(dateKey: string): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(dateKey);
+  if (!m) return dateKey;
+  return `${m[1]}년 ${m[2]}월 ${m[3]}일`;
+}
+
 type RankPart = {
   id: string;
   title: string;
@@ -75,6 +82,8 @@ export type BlogRanksSectionProps = {
   headingId?: string;
   /** HOME 요약에서는 단순 표, 블로그 페이지에서는 상세 표기 */
   variant?: "detailed" | "simple";
+  /** detailed 일 때 내부 순위 표를 1열로 쌓음(2분할 좌측처럼 폭이 좁을 때) */
+  singleColumn?: boolean;
 };
 
 type RankEntry = {
@@ -144,15 +153,19 @@ export default function BlogRanksSection({
   title = "주요 키워드 · 블로그 노출 순위",
   headingId = "blog-ranks-section",
   variant = "detailed",
+  singleColumn = false,
 }: BlogRanksSectionProps) {
   const [previewTitles, setPreviewTitles] = useState<Record<string, PreviewTitleData>>({});
   const [trendCache, setTrendCache] = useState<Record<string, BlogRankTrendPoint[]>>({});
   const [trendLoading, setTrendLoading] = useState<Record<string, boolean>>({});
   const [hoveredRank, setHoveredRank] = useState<HoveredRank | null>(null);
 
-  const rankColumnLabel = rows[0]?.latestDateKey
-    ? rows[0].latestDateKey.replace(/-/g, "/")
-    : "순위";
+  const latestCollectedText = rows[0]?.latestDateKey
+    ? formatCollectedDate(rows[0].latestDateKey)
+    : null;
+  const baselineCollectedText = rows[0]?.baselineDateKey
+    ? formatCollectedDate(rows[0].baselineDateKey)
+    : null;
 
   const trendByKeyword = useMemo(() => {
     const map = new Map<string, BlogRankSummaryRow>();
@@ -286,7 +299,9 @@ export default function BlogRanksSection({
         href={preview.finalUrl || entry.url}
         target="_blank"
         rel="noreferrer"
-        className="underline underline-offset-2 text-[var(--accent)] hover:opacity-80 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent)]"
+        // 색·밑줄은 인라인으로 — 전역 unlayered `a {}` 규칙이 Tailwind 유틸을 덮는 문제 회피
+        style={{ color: "var(--accent)", textDecoration: "underline", textUnderlineOffset: 2, fontWeight: 500 }}
+        className="hover:opacity-80 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent)]"
         title={previewTitle}
       >
         {truncateText(previewTitle, 22)}
@@ -368,12 +383,26 @@ export default function BlogRanksSection({
     <>
       <section
         aria-labelledby={headingId}
-        className={`${variant === "simple" ? "" : "bg-[var(--bg-raised)] "}p-4 sm:p-5`}
+        className={variant === "simple" ? "p-4 sm:p-5" : "rounded-2xl bg-[var(--bg)] p-5"}
       >
         {title && (
-          <h2 id={headingId} className="mb-2 text-base font-semibold text-[var(--text)]">
+          <h2 id={headingId} className="text-base font-semibold text-[var(--text)]">
             {title}
           </h2>
+        )}
+        {(latestCollectedText || baselineCollectedText) && (
+          <div className="mb-2 mt-0.5 space-y-0.5">
+            {latestCollectedText && (
+              <p className="text-xs text-[var(--text-muted)]">
+                최신 수집 날짜: {latestCollectedText}
+              </p>
+            )}
+            {baselineCollectedText && (
+              <p className="text-xs text-[var(--text-muted)]">
+                순위 비교 날짜: {baselineCollectedText}
+              </p>
+            )}
+          </div>
         )}
         {loading && (
           <p className="text-sm text-[var(--text-secondary)]">데이터를 불러오는 중...</p>
@@ -428,11 +457,18 @@ export default function BlogRanksSection({
                 </table>
               </div>
             ) : (
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                {PARTS.map((part) => {
+              <div className={singleColumn ? "flex flex-col" : "grid grid-cols-1 gap-4 md:grid-cols-2"}>
+                {PARTS.map((part, idx) => {
                   const entries = pickPartEntries(rows, part);
                   return (
-                    <div key={part.id}>
+                    <div
+                      key={part.id}
+                      className={
+                        singleColumn && idx > 0
+                          ? "mt-6 border-t border-[var(--border)] pt-6"
+                          : undefined
+                      }
+                    >
                       <h3 className="mb-1 text-sm font-semibold text-[var(--text)]">
                         {part.title}
                       </h3>
@@ -446,7 +482,7 @@ export default function BlogRanksSection({
                             <thead>
                               <tr className="border-b border-[var(--border)] text-[var(--text-secondary)]">
                                 <th className="py-1.5 pr-2 font-medium">검색어</th>
-                                <th className="py-1.5 px-2 font-medium">{rankColumnLabel}</th>
+                                <th className="py-1.5 px-2 font-medium">최신 순위</th>
                                 <th className="py-1.5 pl-2 font-medium">컨텐츠</th>
                               </tr>
                             </thead>

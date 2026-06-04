@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { HospitalStatsSubmissionItem } from '@/lib/hospital-stats-submissions';
 
-const divider = 'rgba(15, 23, 42, 0.1)';
+const divider = 'var(--border)';
 const AUTO_REFRESH_MS = 5 * 60 * 1000;
 
 const CHART_TYPE_LABELS: Record<string, string> = {
@@ -102,14 +102,14 @@ export function HospitalStatsSubmissionsPanel() {
           <span style={{ fontWeight: 700, fontSize: 13 }}>
             병원 제출 내역
             {!loading && items.length > 0 && (
-              <span style={{ marginLeft: 6, fontWeight: 400, fontSize: 12, color: '#64748b' }}>
+              <span style={{ marginLeft: 6, fontWeight: 400, fontSize: 12, color: 'var(--text-muted)' }}>
                 {filteredItems.length !== items.length
                   ? `${filteredItems.length} / ${items.length}건`
                   : `${items.length}건`}
               </span>
             )}
           </span>
-          {loading && <span style={{ fontSize: 11, color: '#94a3b8' }}>불러오는 중…</span>}
+          {loading && <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>불러오는 중…</span>}
         </div>
 
         {/* 필터 */}
@@ -127,7 +127,7 @@ export function HospitalStatsSubmissionsPanel() {
               border: `1px solid ${divider}`,
               borderRadius: 4,
               outline: 'none',
-              color: '#0f172a',
+              color: 'var(--text)',
               background: '#fff',
             }}
           />
@@ -141,7 +141,7 @@ export function HospitalStatsSubmissionsPanel() {
               border: `1px solid ${divider}`,
               borderRadius: 4,
               outline: 'none',
-              color: filterDate ? '#0f172a' : '#94a3b8',
+              color: filterDate ? 'var(--text)' : 'var(--text-muted)',
               background: '#fff',
               width: 120,
             }}
@@ -160,7 +160,7 @@ export function HospitalStatsSubmissionsPanel() {
                 padding: '3px 7px',
                 fontSize: 11,
                 cursor: 'pointer',
-                color: '#64748b',
+                color: 'var(--text-muted)',
                 flexShrink: 0,
               }}
             >
@@ -173,11 +173,11 @@ export function HospitalStatsSubmissionsPanel() {
       {/* 목록 */}
       <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
         {loading ? (
-          <p style={{ margin: '12px 14px', fontSize: 12, color: '#64748b' }}>불러오는 중…</p>
+          <p style={{ margin: '12px 14px', fontSize: 12, color: 'var(--text-muted)' }}>불러오는 중…</p>
         ) : error ? (
-          <p style={{ margin: '12px 14px', fontSize: 12, color: '#b91c1c' }}>{error}</p>
+          <p style={{ margin: '12px 14px', fontSize: 12, color: 'var(--danger)' }}>{error}</p>
         ) : filteredItems.length === 0 ? (
-          <p style={{ margin: '12px 14px', fontSize: 12, color: '#64748b' }}>
+          <p style={{ margin: '12px 14px', fontSize: 12, color: 'var(--text-muted)' }}>
             {items.length === 0 ? '제출된 데이터가 없습니다.' : '필터 결과가 없습니다.'}
           </p>
         ) : (
@@ -189,7 +189,7 @@ export function HospitalStatsSubmissionsPanel() {
               style={{
                 width: '100%',
                 textAlign: 'left',
-                background: selectedId === item.id ? '#f0f9ff' : 'transparent',
+                background: selectedId === item.id ? 'var(--accent-subtle)' : 'transparent',
                 border: 'none',
                 borderBottom: `1px solid ${divider}`,
                 padding: '9px 14px',
@@ -210,7 +210,7 @@ export function HospitalStatsSubmissionsPanel() {
                   style={{
                     fontSize: 12,
                     fontWeight: 700,
-                    color: '#0f172a',
+                    color: 'var(--text)',
                     flex: 1,
                     minWidth: 0,
                     overflow: 'hidden',
@@ -220,14 +220,14 @@ export function HospitalStatsSubmissionsPanel() {
                 >
                   {item.hospitalName?.trim() || item.hospitalId || '—'}
                 </span>
-                <span style={{ fontSize: 10.5, color: '#94a3b8', flexShrink: 0 }}>
+                <span style={{ fontSize: 10.5, color: 'var(--text-muted)', flexShrink: 0 }}>
                   {formatDateShort(item.createdAt)}
                 </span>
               </div>
               <div
                 style={{
                   fontSize: 11,
-                  color: '#64748b',
+                  color: 'var(--text-muted)',
                   display: 'flex',
                   alignItems: 'center',
                   gap: 5,
@@ -236,8 +236,8 @@ export function HospitalStatsSubmissionsPanel() {
               >
                 <span
                   style={{
-                    background: '#eff6ff',
-                    color: '#1d4ed8',
+                    background: 'var(--accent-subtle)',
+                    color: 'var(--accent)',
                     borderRadius: 3,
                     padding: '1px 5px',
                     fontSize: 10,
@@ -248,15 +248,15 @@ export function HospitalStatsSubmissionsPanel() {
                 </span>
                 <span>{item.rowCount.toLocaleString()}건</span>
                 {item.dateFrom && item.dateTo && (
-                  <span style={{ color: '#94a3b8' }}>
+                  <span style={{ color: 'var(--text-muted)' }}>
                     {item.dateFrom} ~ {item.dateTo}
                   </span>
                 )}
                 {item.status === 'error' && (
                   <span
                     style={{
-                      background: '#fef2f2',
-                      color: '#b91c1c',
+                      background: 'var(--danger-subtle)',
+                      color: 'var(--danger)',
                       borderRadius: 3,
                       padding: '1px 5px',
                       fontSize: 10,
@@ -278,34 +278,34 @@ export function HospitalStatsSubmissionsPanel() {
           style={{
             borderTop: `1px solid ${divider}`,
             padding: '12px 14px',
-            background: '#f8fafc',
+            background: 'var(--bg-subtle)',
             flexShrink: 0,
             fontSize: 12,
           }}
         >
-          <div style={{ fontWeight: 700, fontSize: 12, marginBottom: 6, color: '#0f172a' }}>
+          <div style={{ fontWeight: 700, fontSize: 12, marginBottom: 6, color: 'var(--text)' }}>
             {selected.hospitalName?.trim() || selected.hospitalId || '—'}
           </div>
-          <div style={{ color: '#475569', marginBottom: 2 }}>
+          <div style={{ color: 'var(--text-secondary)', marginBottom: 2 }}>
             차트: {CHART_TYPE_LABELS[selected.chartType] ?? selected.chartType}
           </div>
-          <div style={{ color: '#475569', marginBottom: 2 }}>파일: {selected.fileName}</div>
-          <div style={{ color: '#475569', marginBottom: 2 }}>
+          <div style={{ color: 'var(--text-secondary)', marginBottom: 2 }}>파일: {selected.fileName}</div>
+          <div style={{ color: 'var(--text-secondary)', marginBottom: 2 }}>
             처리: {selected.rowCount.toLocaleString()}건
           </div>
           {selected.dateFrom && selected.dateTo && (
-            <div style={{ color: '#64748b', marginBottom: 4 }}>
+            <div style={{ color: 'var(--text-muted)', marginBottom: 4 }}>
               기간: {selected.dateFrom} ~ {selected.dateTo}
             </div>
           )}
           {selected.errorMessage && (
             <div
               style={{
-                background: '#fef2f2',
+                background: 'var(--danger-subtle)',
                 border: '1px solid rgba(185,28,28,0.2)',
                 borderRadius: 4,
                 padding: '6px 8px',
-                color: '#991b1b',
+                color: 'var(--danger)',
                 marginTop: 6,
                 lineHeight: 1.5,
                 wordBreak: 'break-all',

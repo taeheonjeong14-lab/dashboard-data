@@ -42,6 +42,7 @@ type FormBody = {
     blog_outro?: string;
     naver_blog_id?: string;
     smartplace_stat_url?: string;
+    smartplace_review_url?: string;
     debug_port?: string;
     blog_keywords_text?: string;
     place_keywords_text?: string;
@@ -102,6 +103,7 @@ export async function POST(request: Request) {
       blog_outro: (hospitalForm.blog_outro || '').trim() || null,
       naver_blog_id: (hospitalForm.naver_blog_id || '').trim() || null,
       smartplace_stat_url: (hospitalForm.smartplace_stat_url || '').trim() || null,
+      smartplace_review_url: (hospitalForm.smartplace_review_url || '').trim() || null,
       debug_port: hospitalForm.debug_port ? Number(hospitalForm.debug_port) : null,
     };
 

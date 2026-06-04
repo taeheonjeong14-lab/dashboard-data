@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { HospitalWebRunItem } from '@/lib/hospital-web-runs';
 
-const divider = 'rgba(15, 23, 42, 0.1)';
+const divider = 'var(--border)';
 const AUTO_REFRESH_MS = 5 * 60 * 1000;
 
 function formatDateShort(iso: string): string {
@@ -91,14 +91,14 @@ export function HospitalWebRunsPanel() {
           <span style={{ fontWeight: 700, fontSize: 13 }}>
             병원 접수
             {!loading && items.length > 0 && (
-              <span style={{ marginLeft: 6, fontWeight: 400, fontSize: 12, color: '#64748b' }}>
+              <span style={{ marginLeft: 6, fontWeight: 400, fontSize: 12, color: 'var(--text-muted)' }}>
                 {filteredItems.length !== items.length
                   ? `${filteredItems.length} / ${items.length}건`
                   : `${items.length}건`}
               </span>
             )}
           </span>
-          {loading && <span style={{ fontSize: 11, color: '#94a3b8' }}>불러오는 중…</span>}
+          {loading && <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>불러오는 중…</span>}
         </div>
 
         {/* 필터 */}
@@ -116,7 +116,7 @@ export function HospitalWebRunsPanel() {
               border: `1px solid ${divider}`,
               borderRadius: 4,
               outline: 'none',
-              color: '#0f172a',
+              color: 'var(--text)',
               background: '#fff',
             }}
           />
@@ -130,7 +130,7 @@ export function HospitalWebRunsPanel() {
               border: `1px solid ${divider}`,
               borderRadius: 4,
               outline: 'none',
-              color: filterDate ? '#0f172a' : '#94a3b8',
+              color: filterDate ? 'var(--text)' : 'var(--text-muted)',
               background: '#fff',
               width: 120,
             }}
@@ -146,7 +146,7 @@ export function HospitalWebRunsPanel() {
                 padding: '3px 7px',
                 fontSize: 11,
                 cursor: 'pointer',
-                color: '#64748b',
+                color: 'var(--text-muted)',
                 flexShrink: 0,
               }}
             >
@@ -159,11 +159,11 @@ export function HospitalWebRunsPanel() {
       {/* 목록 */}
       <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
         {loading ? (
-          <p style={{ margin: '12px 14px', fontSize: 12, color: '#64748b' }}>불러오는 중…</p>
+          <p style={{ margin: '12px 14px', fontSize: 12, color: 'var(--text-muted)' }}>불러오는 중…</p>
         ) : error ? (
-          <p style={{ margin: '12px 14px', fontSize: 12, color: '#b91c1c' }}>{error}</p>
+          <p style={{ margin: '12px 14px', fontSize: 12, color: 'var(--danger)' }}>{error}</p>
         ) : filteredItems.length === 0 ? (
-          <p style={{ margin: '12px 14px', fontSize: 12, color: '#64748b' }}>
+          <p style={{ margin: '12px 14px', fontSize: 12, color: 'var(--text-muted)' }}>
             {items.length === 0 ? '접수된 차트가 없습니다.' : '필터 결과가 없습니다.'}
           </p>
         ) : (
@@ -175,7 +175,7 @@ export function HospitalWebRunsPanel() {
               style={{
                 width: '100%',
                 textAlign: 'left',
-                background: selectedId === item.id ? '#f0f9ff' : 'transparent',
+                background: selectedId === item.id ? 'var(--accent-subtle)' : 'transparent',
                 border: 'none',
                 borderBottom: `1px solid ${divider}`,
                 padding: '9px 14px',
@@ -196,7 +196,7 @@ export function HospitalWebRunsPanel() {
                   style={{
                     fontSize: 12,
                     fontWeight: 700,
-                    color: '#0f172a',
+                    color: 'var(--text)',
                     flex: 1,
                     minWidth: 0,
                     overflow: 'hidden',
@@ -206,14 +206,14 @@ export function HospitalWebRunsPanel() {
                 >
                   {item.hospitalName?.trim() || item.hospitalId || '—'}
                 </span>
-                <span style={{ fontSize: 10.5, color: '#94a3b8', flexShrink: 0 }}>
+                <span style={{ fontSize: 10.5, color: 'var(--text-muted)', flexShrink: 0 }}>
                   {formatDateShort(item.createdAt)}
                 </span>
               </div>
               <div
                 style={{
                   fontSize: 11,
-                  color: '#64748b',
+                  color: 'var(--text-muted)',
                   display: 'flex',
                   alignItems: 'center',
                   gap: 6,
@@ -228,8 +228,8 @@ export function HospitalWebRunsPanel() {
                 {item.imageCount > 0 && (
                   <span
                     style={{
-                      background: '#e0f2fe',
-                      color: '#0369a1',
+                      background: 'var(--accent-subtle)',
+                      color: 'var(--accent)',
                       borderRadius: 3,
                       padding: '1px 5px',
                       fontSize: 10,
@@ -242,8 +242,8 @@ export function HospitalWebRunsPanel() {
                 {item.emphasisText && (
                   <span
                     style={{
-                      background: '#fef9c3',
-                      color: '#854d0e',
+                      background: 'var(--warning-subtle)',
+                      color: 'var(--warning)',
                       borderRadius: 3,
                       padding: '1px 5px',
                       fontSize: 10,
@@ -265,31 +265,31 @@ export function HospitalWebRunsPanel() {
           style={{
             borderTop: `1px solid ${divider}`,
             padding: '12px 14px',
-            background: '#f8fafc',
+            background: 'var(--bg-subtle)',
             flexShrink: 0,
             fontSize: 12,
           }}
         >
-          <div style={{ fontWeight: 700, fontSize: 12, marginBottom: 6, color: '#0f172a' }}>
+          <div style={{ fontWeight: 700, fontSize: 12, marginBottom: 6, color: 'var(--text)' }}>
             {selected.hospitalName?.trim() || selected.hospitalId || '—'}
           </div>
           {selected.patientName && (
-            <div style={{ color: '#475569', marginBottom: 2 }}>환자: {selected.patientName}</div>
+            <div style={{ color: 'var(--text-secondary)', marginBottom: 2 }}>환자: {selected.patientName}</div>
           )}
           {selected.ownerName && (
-            <div style={{ color: '#475569', marginBottom: 2 }}>보호자: {selected.ownerName}</div>
+            <div style={{ color: 'var(--text-secondary)', marginBottom: 2 }}>보호자: {selected.ownerName}</div>
           )}
           {selected.friendlyId && (
-            <div style={{ color: '#94a3b8', marginBottom: 4 }}>기록번호: {selected.friendlyId}</div>
+            <div style={{ color: 'var(--text-muted)', marginBottom: 4 }}>기록번호: {selected.friendlyId}</div>
           )}
           {selected.emphasisText && (
             <div
               style={{
-                background: '#fef9c3',
-                border: '1px solid #fde68a',
+                background: 'var(--warning-subtle)',
+                border: '1px solid var(--warning-subtle)',
                 borderRadius: 4,
                 padding: '6px 8px',
-                color: '#78350f',
+                color: 'var(--warning)',
                 marginBottom: 6,
                 lineHeight: 1.5,
               }}
@@ -302,15 +302,15 @@ export function HospitalWebRunsPanel() {
               href={`/admin/chart-data`}
               style={{
                 fontSize: 11,
-                color: '#1d4ed8',
+                color: 'var(--accent)',
                 textDecoration: 'underline',
                 cursor: 'pointer',
               }}
             >
               차트 목록에서 보기 →
             </a>
-            <span style={{ color: '#cbd5e1' }}>|</span>
-            <span style={{ color: '#94a3b8', fontSize: 10.5, fontFamily: 'monospace' }}>
+            <span style={{ color: 'var(--border-strong)' }}>|</span>
+            <span style={{ color: 'var(--text-muted)', fontSize: 10.5, fontFamily: 'monospace' }}>
               {selected.id.slice(0, 8)}…
             </span>
           </div>

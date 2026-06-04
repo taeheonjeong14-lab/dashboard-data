@@ -6,12 +6,45 @@ import { CenteredSpinner } from "@/components/ui/loading-spinner";
 import {
   fetchPlacePeriodKpis,
   fetchSummaryPlaceRanks,
+  fetchPlaceReviewStats,
   type PlacePeriodDayRow,
   type PlaceRankSummaryRow,
+  type PlaceReviewStats,
 } from "@/lib/queries";
 import PlaceInflowSection from "@/components/dashboard/PlaceInflowSection";
+import PlaceReviewStatsSection from "@/components/dashboard/PlaceReviewStatsSection";
 
 type LoadState = "loading" | "error" | "done";
+
+/** "YYYY-MM-DD" → "YYYY년 MM월 DD일" */
+function formatCollectedDate(dateKey: string): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(dateKey);
+  if (!m) return dateKey;
+  return `${m[1]}년 ${m[2]}월 ${m[3]}일`;
+}
+
+/** 순위 변동 화살표 (블로그 탭과 동일: 상승=초록↑, 하락=빨강↓, 동일/비교불가=회색—) */
+function TrendArrow({ trend }: { trend: -1 | 0 | 1 }) {
+  if (trend > 0) {
+    return (
+      <span style={{ fontSize: 12, fontWeight: 600, color: "var(--success)" }} title="상승">
+        ↑
+      </span>
+    );
+  }
+  if (trend < 0) {
+    return (
+      <span style={{ fontSize: 12, fontWeight: 600, color: "var(--danger)" }} title="하락">
+        ↓
+      </span>
+    );
+  }
+  return (
+    <span style={{ fontSize: 12, fontWeight: 600, color: "var(--text-secondary)" }} title="변동 없음">
+      —
+    </span>
+  );
+}
 
 export default function PlaceDashboardPage() {
   const [loadState, setLoadState] = useState<LoadState>("loading");
@@ -19,6 +52,7 @@ export default function PlaceDashboardPage() {
   const [hospitalId, setHospitalId] = useState<string | null>(null);
   const [placeRows, setPlaceRows] = useState<PlacePeriodDayRow[]>([]);
   const [rankRows, setRankRows] = useState<PlaceRankSummaryRow[]>([]);
+  const [reviewStats, setReviewStats] = useState<PlaceReviewStats | null>(null);
 
   const { hospitalId: ctxHospitalId } = useHospital();
 
@@ -36,15 +70,17 @@ export default function PlaceDashboardPage() {
           return;
         }
 
-        const [placeData, ranksData] = await Promise.all([
+        const [placeData, ranksData, reviewData] = await Promise.all([
           fetchPlacePeriodKpis(hid),
           fetchSummaryPlaceRanks(hid),
+          fetchPlaceReviewStats(hid),
         ]);
 
         if (!cancelled) {
           setHospitalId(hid);
           setPlaceRows(placeData);
           setRankRows(ranksData);
+          setReviewStats(reviewData);
           setLoadState("done");
         }
       } catch (err) {
@@ -105,23 +141,43 @@ export default function PlaceDashboardPage() {
   }
 
   return (
-    <div>
-      <div style={{ marginBottom: 24 }}>
-        <PlaceInflowSection rows={placeRows} />
-      </div>
-
-      {/* 플레이스 키워드 순위 */}
-      <section style={{ paddingBottom: 24 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+      <div style={{ display: "flex", flexWrap: "wrap", alignItems: "flex-start", gap: 24 }}>
+      {/* 좌측: 플레이스 키워드 순위 (3) — 흰 배경 카드로 우측 그래프와 구분 */}
+      <section style={{ flex: "3 1 300px", minWidth: 0, background: "var(--bg)", borderRadius: "var(--radius-lg)", padding: 20 }}>
         <h2
           style={{
             fontSize: "16px",
             fontWeight: 600,
             color: "var(--text)",
-            marginBottom: "12px",
+            marginBottom: "4px",
           }}
         >
           플레이스 키워드 순위
         </h2>
+        {(() => {
+          const latestText = rankRows[0]?.latestDateKey
+            ? formatCollectedDate(rankRows[0].latestDateKey)
+            : null;
+          const baselineText = rankRows[0]?.baselineDateKey
+            ? formatCollectedDate(rankRows[0].baselineDateKey)
+            : null;
+          if (!latestText && !baselineText) return null;
+          return (
+            <div style={{ marginBottom: 12, display: "flex", flexDirection: "column", gap: 2 }}>
+              {latestText && (
+                <p style={{ margin: 0, fontSize: 12, color: "var(--text-muted)" }}>
+                  최신 수집 날짜: {latestText}
+                </p>
+              )}
+              {baselineText && (
+                <p style={{ margin: 0, fontSize: 12, color: "var(--text-muted)" }}>
+                  순위 비교 날짜: {baselineText}
+                </p>
+              )}
+            </div>
+          );
+        })()}
         {rankRows.length === 0 ? (
           <p
             style={{
@@ -188,7 +244,10 @@ export default function PlaceDashboardPage() {
                     <td style={{ padding: "8px 12px" }}>{row.keyword}</td>
                     <td style={{ padding: "8px 12px" }}>
                       {row.rank_value != null ? (
-                        `${new Intl.NumberFormat("ko-KR").format(row.rank_value)}위`
+                        <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                          {`${new Intl.NumberFormat("ko-KR").format(row.rank_value)}위`}
+                          <TrendArrow trend={row.rank_value_trend} />
+                        </span>
                       ) : (
                         <span style={{ color: "var(--text-muted)" }}>-</span>
                       )}
@@ -200,6 +259,15 @@ export default function PlaceDashboardPage() {
           </div>
         )}
       </section>
+
+      {/* 우측: 플레이스 유입수 그래프 (7) */}
+      <div style={{ flex: "7 1 360px", minWidth: 0 }}>
+        <PlaceInflowSection rows={placeRows} />
+      </div>
+      </div>
+
+      {/* 플레이스 리뷰 통계 (플레이스 키워드 순위 아래) */}
+      {reviewStats ? <PlaceReviewStatsSection stats={reviewStats} /> : null}
     </div>
   );
 }

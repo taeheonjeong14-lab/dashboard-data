@@ -28,7 +28,7 @@ import { AdminHealthReportImageSlots, type CaseImageCandidate } from '@/componen
 import { AdminRunExtractionDetail } from '@/components/admin-run-extraction-detail';
 import { HealthReportPreviewModal } from '@/components/health-report-preview-modal';
 
-const divider = 'rgba(15, 23, 42, 0.1)';
+const divider = 'var(--border)';
 const OVER_MAX_WARNING = ' (최대 글자수를 초과하였습니다. 현재 상태로 보고서를 다운로드할 경우 내용이 잘려 나옵니다.)';
 
 const labelGrid: CSSProperties = { fontSize: 13, display: 'grid', gap: 4 };
@@ -735,7 +735,7 @@ export function AdminHealthCheckupWorkspace({
 
 
   if (loading && items.length === 0 && !loadError) {
-    return <p style={{ fontSize: 14, color: '#64748b' }}>불러오는 중…</p>;
+    return <p style={{ fontSize: 14, color: 'var(--text-muted)' }}>불러오는 중…</p>;
   }
 
   const caseInfoParts = [
@@ -748,7 +748,7 @@ export function AdminHealthCheckupWorkspace({
     <>
       <div className="adminHealthWorkspace" style={{ paddingBottom: 32 }}>
       {caseInfoParts.length > 0 ? (
-        <div style={{ marginBottom: 10, fontSize: 16, fontWeight: 700, color: '#0f172a', letterSpacing: '-0.01em' }}>
+        <div style={{ marginBottom: 10, fontSize: 16, fontWeight: 700, color: 'var(--text)', letterSpacing: '-0.01em' }}>
           {caseInfoParts.join(' · ')}
         </div>
       ) : null}
@@ -781,12 +781,12 @@ export function AdminHealthCheckupWorkspace({
             </button>
           </>
         ) : null}
-        <code style={{ fontSize: 11, color: '#94a3b8' }}>{runId}</code>
+        <code style={{ fontSize: 11, color: 'var(--text-muted)' }}>{runId}</code>
       </div>
 
       {sharePanel ? (
-        <div style={{ marginBottom: 12, display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center', padding: '8px 12px', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 6 }}>
-          <span style={{ fontSize: 12, color: '#166534', fontWeight: 600, flexShrink: 0 }}>외부 검토 링크</span>
+        <div style={{ marginBottom: 12, display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center', padding: '8px 12px', background: 'var(--success-subtle)', border: '1px solid var(--success-subtle)', borderRadius: 6 }}>
+          <span style={{ fontSize: 12, color: 'var(--success)', fontWeight: 600, flexShrink: 0 }}>외부 검토 링크</span>
           <input readOnly value={sharePanel.shareUrl} style={{ flex: '1 1 200px', minWidth: 0, fontSize: 12 }} />
           <button
             type="button"
@@ -830,23 +830,23 @@ export function AdminHealthCheckupWorkspace({
       ) : null}
 
       {loadError ? (
-        <p style={{ color: '#b91c1c', fontSize: 14 }}>{loadError}</p>
+        <p style={{ color: 'var(--danger)', fontSize: 14 }}>{loadError}</p>
       ) : null}
       {saveError ? (
-        <p style={{ color: '#b91c1c', fontSize: 14 }}>{saveError}</p>
+        <p style={{ color: 'var(--danger)', fontSize: 14 }}>{saveError}</p>
       ) : null}
       {genError ? (
-        <p style={{ color: '#b91c1c', fontSize: 14 }}>{genError}</p>
+        <p style={{ color: 'var(--danger)', fontSize: 14 }}>{genError}</p>
       ) : null}
 
       {healthItem ? (
-        <p style={{ fontSize: 12, color: '#64748b', marginBottom: 16 }}>
+        <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 16 }}>
           마지막 저장 {new Date(healthItem.updatedAt).toLocaleString('ko-KR')}
         </p>
       ) : null}
 
       {!hasContent ? (
-        <section style={{ marginBottom: 20, padding: 16, border: `1px solid ${divider}`, background: '#f8fafc' }}>
+        <section style={{ marginBottom: 20, padding: 16, border: `1px solid ${divider}`, background: 'var(--bg-subtle)' }}>
           <h2 style={{ margin: '0 0 12px', fontSize: 16, fontWeight: 800 }}>생성 전 정보</h2>
           <div style={{ display: 'grid', gap: 10, maxWidth: 560 }}>
             <label style={{ fontSize: 13 }}>
@@ -883,7 +883,7 @@ export function AdminHealthCheckupWorkspace({
               />
             </label>
           </div>
-          <p style={{ margin: '12px 0 0', fontSize: 12, color: '#64748b' }}>
+          <p style={{ margin: '12px 0 0', fontSize: 12, color: 'var(--text-muted)' }}>
             LLM 생성은 서버에서 chart-api로 프록시됩니다. <code>CHART_API_BASE_URL</code>, <code>CHART_APP_API_KEY</code>, chart-api
             측 <code>GEMINI_API_KEY</code>가 필요합니다.
           </p>
@@ -1061,7 +1061,7 @@ export function AdminHealthCheckupWorkspace({
                 value={draft.overallSummary}
                 onChange={(e) => setDraft((d) => ({ ...d, overallSummary: e.target.value }))}
               />
-              <p style={{ margin: '6px 0 0', fontSize: 12, color: overallLen > HEALTH_CHECKUP_MAX_OVERALL_CHARS ? '#b91c1c' : '#b45309' }}>
+              <p style={{ margin: '6px 0 0', fontSize: 12, color: overallLen > HEALTH_CHECKUP_MAX_OVERALL_CHARS ? 'var(--danger)' : 'var(--warning)' }}>
                 {overallLen} / {HEALTH_CHECKUP_MAX_OVERALL_CHARS} (권장 최소 {HEALTH_CHECKUP_MIN_OVERALL_CHARS}자)
                 {overallLen > HEALTH_CHECKUP_MAX_OVERALL_CHARS ? OVER_MAX_WARNING : ''}
               </p>
@@ -1090,7 +1090,7 @@ export function AdminHealthCheckupWorkspace({
                 value={draft.followUpCare}
                 onChange={(e) => setDraft((d) => ({ ...d, followUpCare: e.target.value }))}
               />
-              <p style={{ margin: '6px 0 0', fontSize: 12, color: followLen > HEALTH_CHECKUP_MAX_FOLLOW_UP_CHARS ? '#b91c1c' : '#b45309' }}>
+              <p style={{ margin: '6px 0 0', fontSize: 12, color: followLen > HEALTH_CHECKUP_MAX_FOLLOW_UP_CHARS ? 'var(--danger)' : 'var(--warning)' }}>
                 {followLen} / {HEALTH_CHECKUP_MAX_FOLLOW_UP_CHARS} (권장 최소 {HEALTH_CHECKUP_MIN_FOLLOW_UP_CHARS}자)
                 {followLen > HEALTH_CHECKUP_MAX_FOLLOW_UP_CHARS ? OVER_MAX_WARNING : ''}
               </p>
@@ -1132,7 +1132,7 @@ export function AdminHealthCheckupWorkspace({
                       value={cardTitle}
                       onChange={(e) => setRecheckField(key, 'title', e.target.value)}
                     />
-                    <p style={{ margin: 0, fontSize: 11, color: cardTitle.length > HEALTH_CHECKUP_MAX_RECHECK_TITLE_CHARS ? '#b91c1c' : '#b45309', textAlign: 'right' }}>
+                    <p style={{ margin: 0, fontSize: 11, color: cardTitle.length > HEALTH_CHECKUP_MAX_RECHECK_TITLE_CHARS ? 'var(--danger)' : 'var(--warning)', textAlign: 'right' }}>
                       {cardTitle.length} / {HEALTH_CHECKUP_MAX_RECHECK_TITLE_CHARS}
                       {cardTitle.length > HEALTH_CHECKUP_MAX_RECHECK_TITLE_CHARS ? OVER_MAX_WARNING : ''}
                     </p>
@@ -1143,7 +1143,7 @@ export function AdminHealthCheckupWorkspace({
                       value={cardBody}
                       onChange={(e) => setRecheckField(key, 'body', e.target.value)}
                     />
-                    <p style={{ margin: 0, fontSize: 11, color: cardBody.length > HEALTH_CHECKUP_MAX_RECHECK_BODY_CHARS ? '#b91c1c' : '#b45309', textAlign: 'right' }}>
+                    <p style={{ margin: 0, fontSize: 11, color: cardBody.length > HEALTH_CHECKUP_MAX_RECHECK_BODY_CHARS ? 'var(--danger)' : 'var(--warning)', textAlign: 'right' }}>
                       {cardBody.length} / {HEALTH_CHECKUP_MAX_RECHECK_BODY_CHARS}
                       {cardBody.length > HEALTH_CHECKUP_MAX_RECHECK_BODY_CHARS ? OVER_MAX_WARNING : ''}
                     </p>
@@ -1197,7 +1197,7 @@ export function AdminHealthCheckupWorkspace({
                         : null;
                       return (
                       <label key={ri} style={{ fontSize: 12, display: 'grid', gap: 4 }}>
-                        <span style={{ color: '#64748b' }}>{row.label}</span>
+                        <span style={{ color: 'var(--text-muted)' }}>{row.label}</span>
                         {isDiagnosisRow && (
                           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 2 }}>
                             {DIAGNOSIS_QUICK_PHRASES.map((phrase) => (
@@ -1206,7 +1206,7 @@ export function AdminHealthCheckupWorkspace({
                                 type="button"
                                 onClick={() => setRowContent(phrase)}
                                 title="클릭하면 이 문구로 입력칸을 채웁니다"
-                                style={{ fontSize: 11, padding: '3px 8px', borderRadius: 5, border: '1px solid #cbd5e1', background: '#f1f5f9', color: '#334155', cursor: 'pointer', textAlign: 'left' }}
+                                style={{ fontSize: 11, padding: '3px 8px', borderRadius: 5, border: '1px solid var(--border-strong)', background: 'var(--bg-subtle)', color: 'var(--text-secondary)', cursor: 'pointer', textAlign: 'left' }}
                               >
                                 + {phrase}
                               </button>
@@ -1219,7 +1219,7 @@ export function AdminHealthCheckupWorkspace({
                               type="button"
                               onClick={() => setRowContent(implicationPhrase)}
                               title={implicationPhrase}
-                              style={{ fontSize: 11, padding: '3px 8px', borderRadius: 5, border: '1px solid #cbd5e1', background: '#f1f5f9', color: '#334155', cursor: 'pointer', textAlign: 'left' }}
+                              style={{ fontSize: 11, padding: '3px 8px', borderRadius: 5, border: '1px solid var(--border-strong)', background: 'var(--bg-subtle)', color: 'var(--text-secondary)', cursor: 'pointer', textAlign: 'left' }}
                             >
                               + 특이사항 없는 경우 문구
                             </button>
@@ -1231,7 +1231,7 @@ export function AdminHealthCheckupWorkspace({
                           value={row.content}
                           onChange={(e) => setRowContent(e.target.value)}
                         />
-                        <span style={{ fontSize: 11, color: row.content.length > rowMax ? '#b91c1c' : '#b45309' }}>
+                        <span style={{ fontSize: 11, color: row.content.length > rowMax ? 'var(--danger)' : 'var(--warning)' }}>
                           {row.content.length} / {rowMax}
                           {row.content.length > rowMax ? OVER_MAX_WARNING : ''}
                         </span>
@@ -1242,26 +1242,26 @@ export function AdminHealthCheckupWorkspace({
                       const opts = block.diseaseOptions ?? [];
                       const addKey = `${k}-${bi}`;
                       return (
-                        <div style={{ borderTop: '1px dashed #e2e8f0', paddingTop: 10, marginTop: 4, display: 'grid', gap: 8 }}>
-                          <div style={{ fontSize: 12, fontWeight: 700, color: '#475569' }}>
-                            질환 소개 박스 <span style={{ fontWeight: 400, color: '#94a3b8' }}>(토글 ON 시 본문 생성 · 페이지당 1개만 ON)</span>
+                        <div style={{ borderTop: '1px dashed var(--border)', paddingTop: 10, marginTop: 4, display: 'grid', gap: 8 }}>
+                          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)' }}>
+                            질환 소개 박스 <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>(토글 ON 시 본문 생성 · 페이지당 1개만 ON)</span>
                           </div>
                           {opts.length === 0 && (
-                            <p style={{ fontSize: 11, color: '#94a3b8', margin: 0 }}>후보 질환이 없습니다. 아래에서 직접 추가할 수 있어요.</p>
+                            <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: 0 }}>후보 질환이 없습니다. 아래에서 직접 추가할 수 있어요.</p>
                           )}
                           {opts.map((opt, oi) => {
                             const generating = diseaseGenKey === `${k}-${bi}-${oi}`;
                             return (
-                              <div key={oi} style={{ border: '1px solid #e2e8f0', borderRadius: 6, padding: 8, display: 'grid', gap: 6 }}>
+                              <div key={oi} style={{ border: '1px solid var(--border)', borderRadius: 6, padding: 8, display: 'grid', gap: 6 }}>
                                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-                                  <span style={{ fontSize: 13, fontWeight: 600, color: '#334155' }}>{opt.name}{iranSuffix(opt.name)}?</span>
+                                  <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)' }}>{opt.name}{iranSuffix(opt.name)}?</span>
                                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                    {generating && <span style={{ fontSize: 11, color: '#2563eb' }}>생성 중…</span>}
+                                    {generating && <span style={{ fontSize: 11, color: 'var(--accent)' }}>생성 중…</span>}
                                     <button
                                       type="button"
                                       disabled={generating}
                                       onClick={() => void toggleDiseaseOption(k, bi, oi, opt.name, opt.body.trim().length > 0, !opt.enabled)}
-                                      style={{ fontSize: 11, fontWeight: 700, padding: '3px 12px', borderRadius: 999, border: '1px solid', borderColor: opt.enabled ? '#16a34a' : '#cbd5e1', background: opt.enabled ? '#16a34a' : '#f1f5f9', color: opt.enabled ? '#fff' : '#475569', cursor: 'pointer' }}
+                                      style={{ fontSize: 11, fontWeight: 700, padding: '3px 12px', borderRadius: 999, border: '1px solid', borderColor: opt.enabled ? 'var(--success)' : 'var(--border-strong)', background: opt.enabled ? 'var(--success)' : 'var(--bg-subtle)', color: opt.enabled ? '#fff' : 'var(--text-secondary)', cursor: 'pointer' }}
                                     >
                                       {opt.enabled ? 'ON' : 'OFF'}
                                     </button>
@@ -1269,7 +1269,7 @@ export function AdminHealthCheckupWorkspace({
                                       type="button"
                                       onClick={() => removeDiseaseOption(k, bi, oi)}
                                       title="후보 삭제"
-                                      style={{ fontSize: 11, padding: '3px 8px', borderRadius: 5, border: '1px solid #fecaca', background: '#fef2f2', color: '#b91c1c', cursor: 'pointer' }}
+                                      style={{ fontSize: 11, padding: '3px 8px', borderRadius: 5, border: '1px solid var(--danger-subtle)', background: 'var(--danger-subtle)', color: 'var(--danger)', cursor: 'pointer' }}
                                     >
                                       삭제
                                     </button>
@@ -1278,7 +1278,7 @@ export function AdminHealthCheckupWorkspace({
                                 {opt.enabled && (
                                   <div>
                                     <textarea rows={3} style={{ width: '100%', padding: 8, fontSize: 13 }} maxLength={200} value={opt.body} onChange={(e) => patchDiseaseOption(k, bi, oi, { body: e.target.value })} />
-                                    <span style={{ fontSize: 11, color: opt.body.length > 250 ? '#b91c1c' : '#94a3b8' }}>
+                                    <span style={{ fontSize: 11, color: opt.body.length > 250 ? 'var(--danger)' : 'var(--text-muted)' }}>
                                       {opt.body.length} / 200{opt.body.length > 200 ? OVER_MAX_WARNING : ''}
                                     </span>
                                   </div>
@@ -1322,7 +1322,7 @@ export function AdminHealthCheckupWorkspace({
                       const slots = (imgBlock as { images: HealthSystemsImageSlot[] }).images;
                       return (
                         <div>
-                          <div style={{ fontSize: 12, fontWeight: 700, color: '#475569', marginTop: 4, marginBottom: 8 }}>
+                          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', marginTop: 4, marginBottom: 8 }}>
                             이미지 ({slots.length}장)
                           </div>
                           <div style={{ display: 'grid', gap: 8, gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))' }}>
@@ -1341,9 +1341,9 @@ export function AdminHealthCheckupWorkspace({
                                       // eslint-disable-next-line @next/next/no-img-element
                                       <img alt="" src={previewUrl} style={{ width: '100%', maxHeight: 80, objectFit: 'cover', display: 'block', transform: `rotate(${rotDeg}deg)`, transition: 'transform 0.25s' }} />
                                     ) : src ? (
-                                      <div style={{ fontSize: 10, color: '#94a3b8', padding: '6px 0', wordBreak: 'break-all' }}>{src.split('/').pop()}</div>
+                                      <div style={{ fontSize: 10, color: 'var(--text-muted)', padding: '6px 0', wordBreak: 'break-all' }}>{src.split('/').pop()}</div>
                                     ) : (
-                                      <div style={{ height: 80, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px dashed #cbd5e1', borderRadius: 4, color: '#94a3b8', fontSize: 20, lineHeight: 1 }}>
+                                      <div style={{ height: 80, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px dashed var(--border-strong)', borderRadius: 4, color: 'var(--text-muted)', fontSize: 20, lineHeight: 1 }}>
                                         +
                                       </div>
                                     )}
@@ -1358,7 +1358,7 @@ export function AdminHealthCheckupWorkspace({
                                   {src ? (
                                     <button
                                       type="button"
-                                      style={{ display: 'block', width: '100%', marginTop: 6, padding: '4px 0', fontSize: 11, background: '#fff', color: '#ef4444', border: '1px dashed #ef4444', borderRadius: 4, cursor: 'pointer' }}
+                                      style={{ display: 'block', width: '100%', marginTop: 6, padding: '4px 0', fontSize: 11, background: '#fff', color: 'var(--danger)', border: '1px dashed var(--danger)', borderRadius: 4, cursor: 'pointer' }}
                                       onClick={(e) => { e.stopPropagation(); updateImageSlot(k, bi + 1, si, { src: undefined, caption: '', rotationDeg: 0 }); }}
                                     >
                                       이미지 삭제
@@ -1404,7 +1404,7 @@ export function AdminHealthCheckupWorkspace({
                   }))
                 }
               />
-              <p style={{ margin: '6px 0 0', fontSize: 12, color: (draft.labInterpretation ?? '').length > HEALTH_CHECKUP_LAB_INTERP_MAX_CHARS ? '#b91c1c' : '#b45309' }}>
+              <p style={{ margin: '6px 0 0', fontSize: 12, color: (draft.labInterpretation ?? '').length > HEALTH_CHECKUP_LAB_INTERP_MAX_CHARS ? 'var(--danger)' : 'var(--warning)' }}>
                 {(draft.labInterpretation ?? '').length} / {HEALTH_CHECKUP_LAB_INTERP_MAX_CHARS}
                 {(draft.labInterpretation ?? '').length > HEALTH_CHECKUP_LAB_INTERP_MAX_CHARS ? OVER_MAX_WARNING : ''}
               </p>
@@ -1472,7 +1472,7 @@ export function AdminHealthCheckupWorkspace({
               onClick={() => setImagePickerSlot(null)}
             >
               <div
-                style={{ background: '#fff', borderRadius: 12, padding: 20, width: 'min(92vw, 860px)', maxHeight: '88vh', overflowY: 'auto', display: 'grid', gap: 16, position: 'relative', outline: isDragOver ? '3px dashed #3b82f6' : 'none' }}
+                style={{ background: '#fff', borderRadius: 12, padding: 20, width: 'min(92vw, 860px)', maxHeight: '88vh', overflowY: 'auto', display: 'grid', gap: 16, position: 'relative', outline: isDragOver ? '3px dashed var(--accent)' : 'none' }}
                 onClick={(e) => e.stopPropagation()}
                 onDragEnter={(e) => { e.preventDefault(); if (e.dataTransfer.types.includes('Files')) setModalDragCount((n) => n + 1); }}
                 onDragLeave={(e) => { if (e.dataTransfer.types.includes('Files')) setModalDragCount((n) => Math.max(0, n - 1)); }}
@@ -1482,13 +1482,13 @@ export function AdminHealthCheckupWorkspace({
                 {/* 드래그 오버레이 */}
                 {isDragOver && (
                   <div style={{ position: 'absolute', inset: 0, background: 'rgba(59,130,246,0.12)', borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10, pointerEvents: 'none' }}>
-                    <span style={{ fontSize: 18, fontWeight: 700, color: '#3b82f6' }}>이미지를 여기에 놓으세요</span>
+                    <span style={{ fontSize: 18, fontWeight: 700, color: 'var(--accent)' }}>이미지를 여기에 놓으세요</span>
                   </div>
                 )}
                 {/* 업로드 중 오버레이 */}
                 {modalUploading && (
                   <div style={{ position: 'absolute', inset: 0, background: 'rgba(255,255,255,0.75)', borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10 }}>
-                    <span style={{ fontSize: 14, color: '#475569' }}>업로드 중...</span>
+                    <span style={{ fontSize: 14, color: 'var(--text-secondary)' }}>업로드 중...</span>
                   </div>
                 )}
                 {/* 헤더 */}
@@ -1498,9 +1498,9 @@ export function AdminHealthCheckupWorkspace({
                 </div>
 
                 {/* 상단 패널: 좌 - 미리보기 / 우 - 캡션·회전·삭제 */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, paddingBottom: 16, borderBottom: '1px solid #e2e8f0' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, paddingBottom: 16, borderBottom: '1px solid var(--border)' }}>
                   <div
-                    style={{ background: previewDropOver ? '#eff6ff' : '#f8fafc', borderRadius: 8, minHeight: 180, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', border: previewDropOver ? '2px dashed #3b82f6' : '2px dashed transparent', transition: 'background 0.15s, border-color 0.15s' }}
+                    style={{ background: previewDropOver ? 'var(--accent-subtle)' : 'var(--bg-subtle)', borderRadius: 8, minHeight: 180, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', border: previewDropOver ? '2px dashed var(--accent)' : '2px dashed transparent', transition: 'background 0.15s, border-color 0.15s' }}
                     onDragOver={(e) => e.preventDefault()}
                     onDragEnter={(e) => { e.preventDefault(); setPreviewDropOver(true); }}
                     onDragLeave={() => setPreviewDropOver(false)}
@@ -1520,7 +1520,7 @@ export function AdminHealthCheckupWorkspace({
                         style={{ maxWidth: '100%', maxHeight: 220, objectFit: 'contain', transform: `rotate(${currentRotation}deg)`, transition: 'transform 0.25s' }}
                       />
                     ) : (
-                      <div style={{ textAlign: 'center', color: previewDropOver ? '#3b82f6' : '#94a3b8', padding: 16 }}>
+                      <div style={{ textAlign: 'center', color: previewDropOver ? 'var(--accent)' : 'var(--text-muted)', padding: 16 }}>
                         <div style={{ fontSize: 32, lineHeight: 1, marginBottom: 8 }}>+</div>
                         <div style={{ fontSize: 13, lineHeight: 1.6 }}>
                           {previewDropOver ? '여기에 놓기' : <><span>원하시는 사진을</span><br /><span>드래그앤 드랍 해주세요</span></>}
@@ -1530,16 +1530,16 @@ export function AdminHealthCheckupWorkspace({
                   </div>
                   <div style={{ display: 'grid', gap: 10, alignContent: 'start' }}>
                     <label style={{ fontSize: 12, display: 'grid', gap: 4 }}>
-                      <span style={{ color: '#475569', fontWeight: 600 }}>캡션</span>
+                      <span style={{ color: 'var(--text-secondary)', fontWeight: 600 }}>캡션</span>
                       <textarea
                         rows={4}
                         placeholder="이미지 캡션 입력"
                         value={currentCaption}
                         maxLength={10}
                         onChange={(e) => updateImageSlot(pk, pbi, psi, { caption: e.target.value })}
-                        style={{ width: '100%', padding: 8, fontSize: 13, borderRadius: 6, border: '1px solid #e2e8f0', resize: 'vertical', boxSizing: 'border-box' }}
+                        style={{ width: '100%', padding: 8, fontSize: 13, borderRadius: 6, border: '1px solid var(--border)', resize: 'vertical', boxSizing: 'border-box' }}
                       />
-                      <span style={{ fontSize: 11, color: currentCaption.length >= 10 ? '#ef4444' : '#94a3b8', textAlign: 'right' }}>
+                      <span style={{ fontSize: 11, color: currentCaption.length >= 10 ? 'var(--danger)' : 'var(--text-muted)', textAlign: 'right' }}>
                         {currentCaption.length} / 10
                       </span>
                     </label>
@@ -1554,7 +1554,7 @@ export function AdminHealthCheckupWorkspace({
                     {currentSrc && (
                       <button
                         type="button"
-                        style={{ padding: '5px 0', fontSize: 12, background: '#fff', color: '#ef4444', border: '1px dashed #ef4444', borderRadius: 4, cursor: 'pointer' }}
+                        style={{ padding: '5px 0', fontSize: 12, background: '#fff', color: 'var(--danger)', border: '1px dashed var(--danger)', borderRadius: 4, cursor: 'pointer' }}
                         onClick={() => updateImageSlot(pk, pbi, psi, { src: undefined, caption: '', rotationDeg: 0 })}
                       >
                         이미지 삭제
@@ -1565,12 +1565,12 @@ export function AdminHealthCheckupWorkspace({
 
                 {/* 카테고리별 후보 그리드 */}
                 {imageCandidates.length === 0 ? (
-                  <p style={{ fontSize: 13, color: '#64748b', margin: 0 }}>
+                  <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: 0 }}>
                     후보 이미지가 없습니다. 이미지 추가 분석 탭에서 사진을 먼저 업로드해 주세요.
                   </p>
                 ) : grouped.map(({ category, items }) => (
                   <div key={category}>
-                    <div style={{ fontSize: 12, fontWeight: 700, color: '#475569', marginBottom: 8 }}>{category}</div>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 8 }}>{category}</div>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
                       {items.map((c) => {
                         const isSelected = !!c.storagePath && c.storagePath === currentSrc;
@@ -1583,12 +1583,12 @@ export function AdminHealthCheckupWorkspace({
                             onClick={() => { if (c.storagePath) updateImageSlot(pk, pbi, psi, { src: c.storagePath }); }}
                             style={{
                               width: 110, cursor: 'grab', borderRadius: 8, overflow: 'hidden', position: 'relative',
-                              border: isSelected ? '3px solid #22c55e' : isPlaced ? '3px solid #f97316' : '1px solid #e2e8f0',
+                              border: isSelected ? '3px solid var(--success)' : isPlaced ? '3px solid var(--warning)' : '1px solid var(--border)',
                               boxSizing: 'border-box',
                             }}
                           >
                             {isPlaced && !isSelected && (
-                              <div style={{ position: 'absolute', top: 4, right: 4, background: '#f97316', color: '#fff', fontSize: 9, fontWeight: 700, padding: '2px 5px', borderRadius: 4, lineHeight: 1.4, zIndex: 1 }}>
+                              <div style={{ position: 'absolute', top: 4, right: 4, background: 'var(--warning)', color: '#fff', fontSize: 9, fontWeight: 700, padding: '2px 5px', borderRadius: 4, lineHeight: 1.4, zIndex: 1 }}>
                                 배치 완료
                               </div>
                             )}
@@ -1596,9 +1596,9 @@ export function AdminHealthCheckupWorkspace({
                               // eslint-disable-next-line @next/next/no-img-element
                               <img alt="" src={c.previewUrl} draggable={false} style={{ width: '100%', height: 84, objectFit: 'cover', display: 'block', pointerEvents: 'none' }} />
                             ) : (
-                              <div style={{ height: 84, background: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, color: '#94a3b8' }}>미리보기 없음</div>
+                              <div style={{ height: 84, background: 'var(--bg-subtle)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, color: 'var(--text-muted)' }}>미리보기 없음</div>
                             )}
-                            <div style={{ padding: '4px 6px', fontSize: 9, color: '#64748b', wordBreak: 'break-all', lineHeight: 1.3 }}>
+                            <div style={{ padding: '4px 6px', fontSize: 9, color: 'var(--text-muted)', wordBreak: 'break-all', lineHeight: 1.3 }}>
                               {c.examDate ? c.examDate + ' ' : ''}{(c.fileName ?? '').split('/').pop()}
                             </div>
                           </div>

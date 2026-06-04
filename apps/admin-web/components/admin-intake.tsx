@@ -1,7 +1,10 @@
 'use client';
 
-import { useCallback, useEffect, useState, type CSSProperties } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { parseChartAdminHospitalsResponse, type ChartHospitalOption } from '@/lib/chart-extraction/chart-admin-hospitals';
+import {
+  PageHeader, Section, Field, FieldGrid, Badge, Empty, Notice, thStyle, tdStyle,
+} from '@/components/ui/admin-ui';
 
 // 코드 → 라벨 (hospital-web lib/intake/form-spec.ts 와 동일 값; 앱 경계라 복제)
 const SPECIES: Record<string, string> = { dog: '강아지', cat: '고양이', other: '그 외' };
@@ -61,6 +64,10 @@ function petSymptoms(p: Pet): string {
   const list = (p.symptoms ?? []).map((s) => (s === 'other' ? (p.symptomDetail || '기타') : (SYMPTOM[s] ?? s)));
   return list.length ? list.join(', ') : '—';
 }
+function petNames(s: Submission): string {
+  const names = (s.pets ?? []).map((p) => p.name?.trim()).filter(Boolean);
+  return names.length ? names.join(' / ') : '—';
+}
 function referralText(r: Referral): string {
   if (!r || !r.channel) return '—';
   const base = REFERRAL_CHANNEL[r.channel] ?? r.channel;
@@ -78,7 +85,8 @@ export default function AdminIntake() {
   const [items, setItems] = useState<Submission[]>([]);
   const [listLoading, setListLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [selected, setSelected] = useState<Submission | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [query, setQuery] = useState('');
 
   useEffect(() => {
     fetch('/api/admin/data/hospitals', { credentials: 'include' })
@@ -113,198 +121,203 @@ export default function AdminIntake() {
     load(hospitalId);
   }, [hospitalId, load]);
 
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return items;
+    return items.filter((s) => {
+      const hay = [s.owner_name ?? '', s.owner_phone ?? '', petNames(s), s.owner_address ?? ''].join(' ').toLowerCase();
+      return hay.includes(q);
+    });
+  }, [items, query]);
+
+  // 목록이 바뀌면 첫 항목 선택 유지
+  useEffect(() => {
+    if (filtered.length === 0) {
+      setSelectedId(null);
+      return;
+    }
+    setSelectedId((cur) => (cur && filtered.some((s) => s.id === cur) ? cur : filtered[0]!.id));
+  }, [filtered]);
+
+  const selected = filtered.find((s) => s.id === selectedId) ?? null;
+
+  const hospitalSelect = (
+    <select
+      value={hospitalId ?? ''}
+      onChange={(e) => setHospitalId(e.target.value || null)}
+      style={{
+        padding: '8px 10px', fontSize: 13, color: 'var(--text)', background: 'var(--bg)',
+        border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', outline: 'none', cursor: 'pointer',
+      }}
+    >
+      {hospitals.length === 0 ? <option value="">불러오는 중…</option> : null}
+      {hospitals.map((h) => (
+        <option key={h.id} value={h.id}>{h.name_ko}</option>
+      ))}
+    </select>
+  );
+
   return (
     <div>
-      <div style={{ marginBottom: 20 }}>
-        <h1 style={{ margin: 0, fontSize: 20, fontWeight: 700 }}>초진 접수</h1>
-        <p style={{ margin: '6px 0 0', fontSize: 13, color: 'var(--text-secondary)' }}>
-          병원별로 보호자가 작성한 초진 접수증을 확인합니다.
-        </p>
-      </div>
+      <PageHeader
+        title="초진 접수"
+        description="병원별로 보호자가 작성한 초진 접수증을 확인합니다."
+        actions={hospitalSelect}
+      />
 
-      <div style={{ display: 'flex', gap: 20, alignItems: 'flex-start' }}>
-        <HospitalList hospitals={hospitals} selected={hospitalId} onSelect={setHospitalId} />
+      {error ? <Notice danger>{error}</Notice> : null}
 
-        <section style={cardStyle}>
-          {error ? <div style={noticeStyle}>{error}</div> : null}
+      <div style={{ display: 'flex', alignItems: 'stretch' }}>
+        {/* ── 좌측: 접수 목록 ── */}
+        <div style={{ flex: 1, minWidth: 0, paddingRight: 24 }}>
+          <div style={{ padding: '0 0 10px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>
+              접수 목록
+              {items.length > 0 && (
+                <span style={{ fontWeight: 400, color: 'var(--text-muted)', marginLeft: 6 }}>
+                  {filtered.length === items.length ? `${items.length}건` : `${filtered.length} / ${items.length}건`}
+                </span>
+              )}
+            </span>
+          </div>
+
           {listLoading ? (
             <Empty text="불러오는 중…" />
           ) : !hospitalId ? (
-            <Empty text="왼쪽에서 병원을 선택하세요." />
+            <Empty text="병원을 선택하세요." />
           ) : items.length === 0 ? (
-            <Empty text="이 병원의 초진 접수가 없습니다." />
+            <Empty title="아직 접수된 초진 접수증이 없습니다" text="보호자가 접수증을 작성하면 여기에 표시됩니다." />
           ) : (
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-              <thead>
-                <tr>
-                  {['접수일시', '보호자', '연락처', '반려동물', '상태'].map((h) => (
-                    <th key={h} style={thStyle}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {items.map((s) => (
-                  <tr key={s.id} onClick={() => setSelected(s)} style={{ cursor: 'pointer', borderBottom: '1px solid var(--border)' }}>
-                    <td style={tdStyle}>{fmtDateTime(s.created_at)}</td>
-                    <td style={{ ...tdStyle, color: 'var(--text)' }}>{s.owner_name || '—'}</td>
-                    <td style={tdStyle}>{s.owner_phone || '—'}</td>
-                    <td style={tdStyle}>{(s.pets?.length ?? s.pet_count ?? 0)}마리</td>
-                    <td style={tdStyle}>
-                      <StatusBadge label={STATUS_LABEL[s.status] ?? s.status} tone={s.status === 'submitted' ? 'accent' : 'muted'} />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </section>
-      </div>
-
-      {selected ? (
-        <Modal title="초진 접수 상세" onClose={() => setSelected(null)}>
-          <div style={{ display: 'grid', gap: 18 }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 16px' }}>
-              <Field label="보호자" value={selected.owner_name} />
-              <Field label="연락처" value={selected.owner_phone} />
-              <Field label="주소" value={selected.owner_address} wide />
-              <Field label="접수일시" value={fmtDateTime(selected.created_at)} />
-              <Field label="알게 된 경로" value={referralText(selected.referral)} />
-            </div>
-
-            <Block title={`반려동물 (${selected.pets?.length ?? 0})`}>
-              {(!selected.pets || selected.pets.length === 0) ? (
-                <p style={{ margin: 0, fontSize: 13, color: 'var(--text-muted)' }}>등록된 반려동물이 없습니다.</p>
-              ) : (
-                <div style={{ display: 'grid', gap: 10 }}>
-                  {selected.pets.map((p, i) => (
-                    <div key={i} style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '12px 14px' }}>
-                      <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', marginBottom: 8 }}>
-                        {p.name || `반려동물 ${i + 1}`}
-                        <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--text-muted)', marginLeft: 8 }}>
-                          {SPECIES[p.species ?? ''] ?? p.species ?? ''} · {petBreed(p)}
-                        </span>
-                      </div>
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px 16px' }}>
-                        <Field label="성별" value={SEX[p.sex ?? ''] ?? p.sex ?? null} />
-                        <Field label="나이/생일" value={petAge(p)} />
-                        <Field label="동물등록" value={REGISTRATION[p.registration ?? ''] ?? p.registration ?? null} />
-                        <Field label="펫보험" value={INSURANCE[p.insurance ?? ''] ?? p.insurance ?? null} />
-                        <Field label="증상/내원사유" value={petSymptoms(p)} wide />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </Block>
-
-            <Block title="동의">
-              <div style={{ fontSize: 13, color: 'var(--text-secondary)', display: 'grid', gap: 4 }}>
-                <div>필수(진료 목적): <strong style={{ color: selected.consent_required ? 'var(--success)' : 'var(--danger)' }}>{selected.consent_required ? '동의' : '미동의'}</strong></div>
-                <div>선택(마케팅): <strong style={{ color: selected.consent_marketing ? 'var(--success)' : 'var(--text-muted)' }}>{selected.consent_marketing ? '동의' : '미동의'}</strong></div>
+            <>
+              <div style={{ marginBottom: 12 }}>
+                <input
+                  type="search"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="보호자·연락처·환자 검색"
+                  style={{
+                    width: '100%', padding: '8px 10px', fontSize: 13, color: 'var(--text)', background: 'var(--bg)',
+                    border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', outline: 'none',
+                  }}
+                />
               </div>
-            </Block>
-          </div>
-        </Modal>
-      ) : null}
-    </div>
-  );
-}
 
-// ── 공유 소품 ───────────────────────────────────────────
-function HospitalList({
-  hospitals, selected, onSelect,
-}: {
-  hospitals: ChartHospitalOption[];
-  selected: string | null;
-  onSelect: (id: string) => void;
-}) {
-  return (
-    <aside style={{ width: 220, flexShrink: 0, ...cardStyle, padding: 8 }}>
-      <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', padding: '6px 10px', letterSpacing: '0.02em' }}>병원</div>
-      {hospitals.length === 0 ? (
-        <div style={{ padding: '10px', fontSize: 13, color: 'var(--text-muted)' }}>불러오는 중…</div>
-      ) : (
-        hospitals.map((h) => {
-          const active = h.id === selected;
-          return (
-            <button
-              key={h.id}
-              type="button"
-              onClick={() => onSelect(h.id)}
-              style={{
-                display: 'block', width: '100%', textAlign: 'left', padding: '9px 10px',
-                border: 'none', borderRadius: 'var(--radius)',
-                background: active ? 'var(--accent-subtle)' : 'transparent',
-                color: active ? 'var(--accent)' : 'var(--text-secondary)',
-                fontWeight: active ? 600 : 500, fontSize: 13, cursor: 'pointer',
-              }}
-            >
-              {h.name_ko}
-            </button>
-          );
-        })
-      )}
-    </aside>
-  );
-}
-
-function Modal({ title, children, onClose }: { title: string; children: React.ReactNode; onClose: () => void }) {
-  return (
-    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: 16 }}>
-      <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', maxWidth: 560, maxHeight: '88vh', overflowY: 'auto', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: 24, boxShadow: '0 8px 32px rgba(0,0,0,0.18)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-          <h2 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>{title}</h2>
-          <button type="button" onClick={onClose} style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 20, color: 'var(--text-muted)', lineHeight: 1 }}>×</button>
+              {filtered.length === 0 ? (
+                <Empty text="검색 결과가 없습니다." />
+              ) : (
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                  <thead>
+                    <tr style={{ background: 'var(--bg-subtle)' }}>
+                      {['접수일시', '보호자', '연락처', '반려동물', '상태'].map((h) => (
+                        <th key={h} style={thStyle}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filtered.map((s) => (
+                      <tr
+                        key={s.id}
+                        onClick={() => setSelectedId(s.id)}
+                        style={{
+                          cursor: 'pointer',
+                          borderBottom: '1px solid var(--border)',
+                          background: selectedId === s.id ? 'var(--accent-subtle)' : 'transparent',
+                        }}
+                      >
+                        <td style={tdStyle}>{fmtDateTime(s.created_at)}</td>
+                        <td style={{ ...tdStyle, color: 'var(--text)' }}>{s.owner_name || '—'}</td>
+                        <td style={tdStyle}>{s.owner_phone || '—'}</td>
+                        <td style={tdStyle}>{(s.pets?.length ?? s.pet_count ?? 0)}마리</td>
+                        <td style={tdStyle}>
+                          <Badge tone={s.status === 'submitted' ? 'accent' : 'muted'}>
+                            {STATUS_LABEL[s.status] ?? s.status}
+                          </Badge>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </>
+          )}
         </div>
-        {children}
+
+        {/* ── 우측: 접수 상세 ── */}
+        <div style={{ flex: 1, minWidth: 0, borderLeft: '1px solid var(--border-strong)', paddingLeft: 24 }}>
+          <div style={{ padding: '0 0 12px' }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>접수 상세</div>
+            {selected && (
+              <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>{fmtDateTime(selected.created_at)} 접수</div>
+            )}
+          </div>
+          {selected ? <Detail s={selected} /> : (
+            <div style={{ fontSize: 13, color: 'var(--text-muted)', padding: '8px 0' }}>왼쪽에서 항목을 선택하세요.</div>
+          )}
+        </div>
       </div>
     </div>
   );
 }
 
-function Field({ label, value, wide }: { label: string; value: string | null; wide?: boolean }) {
-  return (
-    <div style={wide ? { gridColumn: '1 / -1' } : undefined}>
-      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 2 }}>{label}</div>
-      <div style={{ fontSize: 13, color: 'var(--text)' }}>{value || '—'}</div>
-    </div>
-  );
-}
-
-function Block({ title, children }: { title: string; children: React.ReactNode }) {
+function Detail({ s }: { s: Submission }) {
+  const petCount = s.pets?.length ?? 0;
   return (
     <div>
-      <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 8 }}>{title}</div>
-      {children}
+      <Section title="보호자 정보" first>
+        <FieldGrid>
+          <Field label="보호자" value={s.owner_name} />
+          <Field label="연락처" value={s.owner_phone} />
+          <Field label="주소" value={s.owner_address} wide />
+        </FieldGrid>
+      </Section>
+
+      <Section title={`반려동물 (${petCount})`}>
+        {petCount === 0 ? (
+          <p style={{ margin: 0, fontSize: 13, color: 'var(--text-muted)' }}>등록된 반려동물이 없습니다.</p>
+        ) : (
+          <div style={{ display: 'grid', gap: 16 }}>
+            {s.pets.map((p, i) => (
+              <div key={i}>
+                <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', marginBottom: 8 }}>
+                  {p.name || `반려동물 ${i + 1}`}
+                  <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--text-muted)', marginLeft: 8 }}>
+                    {SPECIES[p.species ?? ''] ?? p.species ?? ''} · {petBreed(p)}
+                  </span>
+                </div>
+                <FieldGrid>
+                  <Field label="성별" value={SEX[p.sex ?? ''] ?? p.sex ?? null} />
+                  <Field label="나이/생일" value={petAge(p)} />
+                  <Field label="동물등록" value={REGISTRATION[p.registration ?? ''] ?? p.registration ?? null} />
+                  <Field label="펫보험" value={INSURANCE[p.insurance ?? ''] ?? p.insurance ?? null} />
+                  <Field label="증상/내원사유" value={petSymptoms(p)} wide />
+                </FieldGrid>
+              </div>
+            ))}
+          </div>
+        )}
+      </Section>
+
+      <Section title="유입 경로 및 동의">
+        <FieldGrid>
+          <Field label="알게 된 경로" value={referralText(s.referral)} wide />
+          <Field
+            label="진료 목적(필수)"
+            value={
+              <span style={{ color: s.consent_required ? 'var(--success)' : 'var(--danger)', fontWeight: 600 }}>
+                {s.consent_required ? '동의' : '미동의'}
+              </span>
+            }
+          />
+          <Field
+            label="마케팅(선택)"
+            value={
+              <span style={{ color: s.consent_marketing ? 'var(--success)' : 'var(--text-muted)', fontWeight: 600 }}>
+                {s.consent_marketing ? '동의' : '미동의'}
+              </span>
+            }
+          />
+        </FieldGrid>
+      </Section>
     </div>
   );
 }
-
-function StatusBadge({ label, tone }: { label: string; tone: 'accent' | 'muted' }) {
-  const colors = tone === 'accent'
-    ? { bg: 'var(--accent-subtle)', fg: 'var(--accent)' }
-    : { bg: 'var(--bg-subtle)', fg: 'var(--text-muted)' };
-  return (
-    <span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: 999, fontSize: 11, fontWeight: 600, background: colors.bg, color: colors.fg }}>
-      {label}
-    </span>
-  );
-}
-
-function Empty({ text }: { text: string }) {
-  return <div style={{ padding: '40px 16px', textAlign: 'center', fontSize: 13, color: 'var(--text-muted)' }}>{text}</div>;
-}
-
-const cardStyle: CSSProperties = {
-  flex: 1, minWidth: 0, background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: 16,
-};
-const noticeStyle: CSSProperties = {
-  padding: '10px 12px', marginBottom: 12, fontSize: 13, color: 'var(--danger)', background: 'var(--danger-subtle)', borderRadius: 'var(--radius)',
-};
-const thStyle: CSSProperties = {
-  padding: '9px 12px', textAlign: 'left', fontWeight: 600, color: 'var(--text-muted)', fontSize: 11,
-  borderBottom: '1px solid var(--border)', whiteSpace: 'nowrap', letterSpacing: '0.04em', textTransform: 'uppercase',
-};
-const tdStyle: CSSProperties = {
-  padding: '11px 12px', color: 'var(--text-secondary)', whiteSpace: 'nowrap',
-};

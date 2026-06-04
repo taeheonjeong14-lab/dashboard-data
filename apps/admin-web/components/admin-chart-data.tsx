@@ -12,7 +12,7 @@ import {
   type HistoryItem,
 } from '@/lib/chart-history-normalize';
 
-const divider = 'rgba(15, 23, 42, 0.1)';
+const divider = 'var(--border)';
 
 function formatRunRailDateShort(iso: string): string {
   if (!iso) return '—';
@@ -222,7 +222,7 @@ export default function AdminChartData() {
             disabled={historyLoading}
           />
           {!historyLoading && history.length > 0 && (
-            <span style={{ fontSize: 11.5, color: '#94a3b8', flexShrink: 0 }}>
+            <span style={{ fontSize: 11.5, color: 'var(--text-muted)', flexShrink: 0 }}>
               {search.trim() || filterHospital || filterMonth
                 ? `${filteredHistory.length} / ${history.length}`
                 : history.length}건
@@ -259,11 +259,11 @@ export default function AdminChartData() {
         )}
         <div style={{ maxHeight: 'min(66vh, calc(100vh - 260px))', overflow: 'auto' }}>
           {historyLoading ? (
-            <p style={{ margin: '10px 10px', fontSize: 12, color: '#64748b' }}>불러오는 중…</p>
+            <p style={{ margin: '10px 10px', fontSize: 12, color: 'var(--text-muted)' }}>불러오는 중…</p>
           ) : listError ? (
-            <p style={{ margin: '10px 10px', fontSize: 12, color: '#b91c1c' }}>{listError}</p>
+            <p style={{ margin: '10px 10px', fontSize: 12, color: 'var(--danger)' }}>{listError}</p>
           ) : filteredHistory.length === 0 ? (
-            <p style={{ margin: '10px 10px', fontSize: 12, color: '#64748b' }}>
+            <p style={{ margin: '10px 10px', fontSize: 12, color: 'var(--text-muted)' }}>
               {history.length === 0 ? '이력 없음' : '검색 결과 없음'}
             </p>
           ) : (
@@ -279,7 +279,7 @@ export default function AdminChartData() {
                   <span style={{ fontWeight: 700, color: 'inherit', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {hospitalGroupKey(item.hospitalName) || '—'}
                   </span>
-                  <span style={{ fontSize: 11, color: '#94a3b8', flexShrink: 0 }}>
+                  <span style={{ fontSize: 11, color: 'var(--text-muted)', flexShrink: 0 }}>
                     {formatRunRailDateShort(item.createdAt)}
                   </span>
                 </div>
@@ -293,8 +293,8 @@ export default function AdminChartData() {
                         display: 'inline-block',
                         padding: '1px 6px',
                         borderRadius: 4,
-                        background: '#dbeafe',
-                        color: '#1d4ed8',
+                        background: 'var(--accent-subtle)',
+                        color: 'var(--accent)',
                         fontSize: 10,
                         fontWeight: 700,
                         verticalAlign: 'middle',
@@ -310,8 +310,8 @@ export default function AdminChartData() {
                         display: 'inline-block',
                         padding: '1px 6px',
                         borderRadius: 4,
-                        background: '#dcfce7',
-                        color: '#15803d',
+                        background: 'var(--success-subtle)',
+                        color: 'var(--success)',
                         fontSize: 10,
                         fontWeight: 700,
                         verticalAlign: 'middle',
@@ -341,30 +341,30 @@ export default function AdminChartData() {
       <div className="adminLayoutMainPane">
         <div className="adminLayoutMainColumnInset">
           {listError && !historyLoading ? (
-            <p style={{ margin: '0 0 12px', fontSize: 14, color: '#b91c1c' }}>{listError}</p>
+            <p style={{ margin: '0 0 12px', fontSize: 14, color: 'var(--danger)' }}>{listError}</p>
           ) : null}
           {deleteError ? (
-            <p style={{ margin: '0 0 12px', fontSize: 14, color: '#b91c1c' }}>{deleteError}</p>
+            <p style={{ margin: '0 0 12px', fontSize: 14, color: 'var(--danger)' }}>{deleteError}</p>
           ) : null}
 
           {historyLoading ? (
-            <p style={{ fontSize: 14, color: '#64748b' }}>이력 불러오는 중…</p>
+            <p style={{ fontSize: 14, color: 'var(--text-muted)' }}>이력 불러오는 중…</p>
           ) : history.length === 0 ? (
             <div
               style={{
                 padding: 18,
                 border: `1px solid ${divider}`,
-                background: '#f8fafc',
+                background: 'var(--bg-subtle)',
                 fontSize: 14,
-                color: '#475569',
+                color: 'var(--text-secondary)',
                 lineHeight: 1.55,
               }}
             >
               {listError ? (
-                <p style={{ margin: '0 0 10px', color: '#b91c1c', fontWeight: 600 }}>{listError}</p>
+                <p style={{ margin: '0 0 10px', color: 'var(--danger)', fontWeight: 600 }}>{listError}</p>
               ) : null}
               {serverMeta ? (
-                <p style={{ margin: '0 0 10px', fontSize: 13, color: '#64748b' }}>
+                <p style={{ margin: '0 0 10px', fontSize: 13, color: 'var(--text-muted)' }}>
                   서버가 조회한 DB 기준: <code style={{ fontSize: 12 }}>chart_pdf.parse_runs</code> 전체{' '}
                   <strong>{serverMeta.totalParseRuns}</strong>건 · 이번 응답 목록 최대 <strong>{serverMeta.limit}</strong>
                   건
@@ -377,7 +377,7 @@ export default function AdminChartData() {
                 onClick={() => setUploadModalOpen(true)}
                 style={{
                   fontWeight: 700,
-                  color: '#0f172a',
+                  color: 'var(--text)',
                   background: 'none',
                   border: 'none',
                   padding: 0,
@@ -391,7 +391,7 @@ export default function AdminChartData() {
               에서 PDF를 올려 보세요.
             </div>
           ) : filteredHistory.length === 0 ? (
-            <p style={{ fontSize: 14, color: '#64748b' }}>검색 조건에 맞는 이력이 없습니다. 왼쪽 검색어를 바꿔 보세요.</p>
+            <p style={{ fontSize: 14, color: 'var(--text-muted)' }}>검색 조건에 맞는 이력이 없습니다. 왼쪽 검색어를 바꿔 보세요.</p>
           ) : selected ? (
             <div style={{ maxHeight: 'calc(100vh - 140px)', overflowY: 'auto', minHeight: 0 }}>
               <AdminRunExtractionDetail
@@ -402,7 +402,7 @@ export default function AdminChartData() {
               />
             </div>
           ) : (
-            <p style={{ fontSize: 14, color: '#64748b' }}>왼쪽에서 항목을 선택해 주세요.</p>
+            <p style={{ fontSize: 14, color: 'var(--text-muted)' }}>왼쪽에서 항목을 선택해 주세요.</p>
           )}
         </div>
       </div>

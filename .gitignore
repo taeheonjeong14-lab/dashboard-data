@@ -25,3 +25,6 @@ __pycache__/
 
 # 개인정보 포함 마이그레이션 원본 (커밋 금지)
 data-migration/
+
+# 플레이스 리뷰 스크래퍼 디버그 산출물(리뷰 내용 포함 — 커밋 금지)
+scripts/_review_debug.*
