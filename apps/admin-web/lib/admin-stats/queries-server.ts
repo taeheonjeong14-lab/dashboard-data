@@ -430,6 +430,54 @@ export async function fetchBlogPeriodKpis(
   });
 }
 
+/** 블로그 순위 raw 일별 행 (요약 없이 키워드×날짜×4섹션 그대로). admin 분석 뷰용. */
+export type BlogRankDailyRow = {
+  dateKey: string;
+  keyword: string;
+  blog_rank_tab: number | null;
+  blog_rank_general: number | null;
+  blog_rank_integrated: number | null;
+  blog_rank_pet_popular: number | null;
+  blog_rank_tab_url: string | null;
+  blog_rank_general_url: string | null;
+  blog_rank_integrated_url: string | null;
+  blog_rank_pet_popular_url: string | null;
+};
+
+/** analytics_blog_keyword_ranks_daily_view 를 요약 없이 raw 일별 행으로 반환(분석/피벗용). */
+export async function fetchBlogRanksDaily(hospitalId: string): Promise<BlogRankDailyRow[]> {
+  const supabase = getSupabaseClient();
+  const rows = await fetchAllPages((from, to) =>
+    supabase
+      .schema("analytics")
+      .from("analytics_blog_keyword_ranks_daily_view")
+      .select("*")
+      .eq("hospital_id", hospitalId)
+      .order("metric_date", { ascending: true })
+      .range(from, to),
+  );
+  return rows
+    .map((row) => {
+      const date = parseDateValue(row);
+      if (!date) return null;
+      return {
+        dateKey: toSeoulDateKey(date),
+        keyword: asStringOrNull(row.keyword) ?? "-",
+        blog_rank_tab: asNumberOrNull(row.blog_rank_tab),
+        blog_rank_general: asNumberOrNull(row.blog_rank_general),
+        blog_rank_integrated: asNumberOrNull(row.blog_rank_integrated),
+        blog_rank_pet_popular: asNumberOrNull(row.blog_rank_pet_popular),
+        blog_rank_tab_url: asStringOrNull(row.blog_rank_tab_url),
+        blog_rank_general_url: asStringOrNull(row.blog_rank_general_url),
+        blog_rank_integrated_url: asStringOrNull(row.blog_rank_integrated_url),
+        blog_rank_pet_popular_url:
+          asStringOrNull(row.blog_rank_popular_url) ??
+          asStringOrNull(row.blog_rank_pet_popular_url),
+      } as BlogRankDailyRow;
+    })
+    .filter((r): r is BlogRankDailyRow => r !== null);
+}
+
 export async function fetchSummaryBlogRanks(hospitalId: string): Promise<BlogRankSummaryRow[]> {
   const supabase = getSupabaseClient();
   const rows = await fetchAllPages((from, to) =>

@@ -3,9 +3,11 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import BlogMetricSection from '@/components/admin-stats/blog/BlogMetricSection';
-import BlogRanksSection from '@/components/admin-stats/blog/BlogRanksSection';
+import BlogTrendTables from '@/components/admin-stats/blog/BlogTrendTables';
 import { adminStatsGetJson } from '@/lib/admin-stats/client-api';
-import type { BlogPeriodDayRow, BlogRankSummaryRow } from '@/lib/admin-stats/queries-server';
+import type { BlogPeriodDayRow, BlogRankDailyRow } from '@/lib/admin-stats/queries-server';
+
+type MetricKey = 'views' | 'uniqueVisitors';
 
 export default function AdminPerformanceBlogPage() {
   const params = useParams();
@@ -14,25 +16,26 @@ export default function AdminPerformanceBlogPage() {
   const [ready, setReady] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [rows, setRows] = useState<BlogPeriodDayRow[]>([]);
-  const [blogRanks, setBlogRanks] = useState<BlogRankSummaryRow[]>([]);
+  const [period, setPeriod] = useState<BlogPeriodDayRow[]>([]);
+  const [daily, setDaily] = useState<BlogRankDailyRow[]>([]);
+  const [metric, setMetric] = useState<MetricKey>('views');
 
   useEffect(() => {
     if (!hospitalId) return;
     let active = true;
     setReady(false);
     setLoading(true);
-    setRows([]);
-    setBlogRanks([]);
     setError(null);
+    setPeriod([]);
+    setDaily([]);
     Promise.all([
       adminStatsGetJson<{ rows: BlogPeriodDayRow[] }>('blog-period', hospitalId),
-      adminStatsGetJson<{ rows: BlogRankSummaryRow[] }>('blog-ranks', hospitalId),
+      adminStatsGetJson<{ rows: BlogRankDailyRow[] }>('blog-ranks-daily', hospitalId),
     ])
-      .then(([period, ranks]) => {
+      .then(([p, d]) => {
         if (!active) return;
-        setRows(period.rows ?? []);
-        setBlogRanks(ranks.rows ?? []);
+        setPeriod(p.rows ?? []);
+        setDaily(d.rows ?? []);
         setError(null);
       })
       .catch((e: unknown) => {
@@ -57,36 +60,38 @@ export default function AdminPerformanceBlogPage() {
     );
   }
 
+  const metricMeta: Record<MetricKey, { title: string; suffix: string }> = {
+    views: { title: '블로그 조회수', suffix: '회' },
+    uniqueVisitors: { title: '블로그 순방문자수', suffix: '명' },
+  };
+
   return (
     <main className="min-h-screen w-full max-w-none px-4 pb-4 pt-0 sm:px-5 sm:pb-5 sm:pt-0 lg:px-6">
       {loading && <p className="text-sm text-slate-500">불러오는 중…</p>}
 
-      <div className="grid grid-cols-1 lg:grid-cols-3">
-        <div className="lg:col-span-1">
-          <BlogRanksSection
-            rows={blogRanks}
-            hospitalId={hospitalId}
-            loading={loading}
-            headingId="blog-ranks"
-          />
-        </div>
-        <div className="flex flex-col divide-y divide-slate-200 lg:col-span-2 lg:border-l lg:border-slate-200">
-          <BlogMetricSection
-            title="블로그 조회수"
-            description="기간 내 일/월/연 단위 블로그 조회수 추이입니다."
-            rows={rows}
-            metric="views"
-            valueSuffix="회"
-          />
-          <BlogMetricSection
-            title="블로그 순방문자수"
-            description="기간 내 일/월/연 단위 블로그 순방문자수 추이입니다."
-            rows={rows}
-            metric="uniqueVisitors"
-            valueSuffix="명"
-            footnote="월·연 값은 일일 고유 방문자의 합으로 계산됩니다."
-          />
-        </div>
+      {/* 상단: 풀폭 그래프 1개 + 조회수/순방문자 토글 */}
+      <div className="mb-2 flex overflow-hidden rounded border border-slate-300 text-xs" style={{ width: 'fit-content' }}>
+        {(['views', 'uniqueVisitors'] as const).map((m) => (
+          <button
+            key={m}
+            type="button"
+            onClick={() => setMetric(m)}
+            className={`px-3 py-1.5 ${metric === m ? 'bg-slate-800 text-white' : 'bg-white text-slate-600'}`}
+          >
+            {metricMeta[m].title}
+          </button>
+        ))}
+      </div>
+      <BlogMetricSection
+        title={metricMeta[metric].title}
+        rows={period}
+        metric={metric}
+        valueSuffix={metricMeta[metric].suffix}
+      />
+
+      {/* 하단: 추이 표 3개 */}
+      <div className="mt-6 border-t border-slate-200 pt-5">
+        <BlogTrendTables period={period} daily={daily} />
       </div>
 
       {error && (
