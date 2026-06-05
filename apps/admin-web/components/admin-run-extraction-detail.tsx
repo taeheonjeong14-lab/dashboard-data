@@ -186,7 +186,11 @@ type CaseImage = {
   briefComment: string;
   findingSpots: FindingSpot[];
   relatedAssessmentCondition: string | null;
+  examDate: string | null;
+  bodyPart: string | null;
 };
+
+type GroupSummary = { examDate: string | null; bullets: { text: string; fileNames: string[] }[] };
 
 function FindingOverlay({ spots, imageRef }: { spots: FindingSpot[]; imageRef: React.RefObject<HTMLImageElement | null> }) {
   const [dims, setDims] = useState<{ w: number; h: number } | null>(null);
@@ -218,17 +222,16 @@ function FindingOverlay({ spots, imageRef }: { spots: FindingSpot[]; imageRef: R
   );
 }
 
-function CaseImageCard({ img }: { img: CaseImage }) {
+function CaseImageCard({ img, highlight = false }: { img: CaseImage; highlight?: boolean }) {
   const [open, setOpen] = useState(false);
-  const imgRef = useRef<HTMLImageElement>(null);
   const examLabel = img.examType ? EXAM_TYPE_LABEL_KO[img.examType] : null;
-  const subLabel = img.radiologySub ? RADIOLOGY_SUB_LABEL_KO[img.radiologySub] : null;
+  const bodyPart = img.bodyPart?.trim() || null;
 
   return (
     <>
       <div
         style={{
-          border: `1px solid ${img.isClearFinding ? 'var(--danger-subtle)' : img.hasNotableFinding ? 'var(--warning-subtle)' : 'var(--border)'}`,
+          border: highlight ? '2px solid #84cc16' : '1px solid var(--border)',
           borderRadius: 8,
           overflow: 'hidden',
           background: '#fff',
@@ -243,7 +246,6 @@ function CaseImageCard({ img }: { img: CaseImage }) {
         >
           {img.signedUrl ? (
             <img
-              ref={imgRef}
               src={img.signedUrl}
               alt={img.fileName}
               style={{ width: '100%', height: 160, objectFit: 'contain', display: 'block' }}
@@ -253,40 +255,22 @@ function CaseImageCard({ img }: { img: CaseImage }) {
               이미지 없음
             </div>
           )}
-          {img.hasNotableFinding && img.findingSpots.length > 0 && img.signedUrl && (
-            <FindingOverlay spots={img.findingSpots} imageRef={imgRef} />
-          )}
-          {img.hasNotableFinding && (
-            <div
-              style={{
-                position: 'absolute',
-                top: 6,
-                right: 6,
-                background: img.isClearFinding ? 'var(--danger)' : 'var(--warning)',
-                color: '#fff',
-                fontSize: 10,
-                fontWeight: 700,
-                padding: '2px 6px',
-                borderRadius: 4,
-              }}
-            >
-              {img.isClearFinding ? '이상 명확' : '이상 의심'}
-            </div>
-          )}
         </div>
 
-        {/* Info */}
+        {/* Info: 검사 종류 + 부위 */}
         <div style={{ padding: '8px 10px', flex: 1, display: 'flex', flexDirection: 'column', gap: 4 }}>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
             {examLabel && (
               <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 6px', borderRadius: 4, background: 'var(--accent-subtle)', color: 'var(--accent)' }}>
-                {examLabel}{subLabel ? ` · ${subLabel}` : ''}
+                {examLabel}
+              </span>
+            )}
+            {bodyPart && (
+              <span style={{ fontSize: 11, fontWeight: 600, padding: '2px 6px', borderRadius: 4, background: 'var(--bg-subtle)', color: 'var(--text-secondary)' }}>
+                {bodyPart}
               </span>
             )}
           </div>
-          {img.briefComment && (
-            <p style={{ margin: 0, fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.5 }}>{img.briefComment}</p>
-          )}
           <p style={{ margin: 0, fontSize: 11, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {img.fileName}
           </p>
@@ -367,8 +351,33 @@ function groupImagesBySection(images: CaseImage[]): Array<{ key: string; images:
   return IMAGE_SECTION_ORDER.filter((key) => map.has(key)).map((key) => ({ key, images: map.get(key)! }));
 }
 
+function formatExamDateLabel(date: string | null): string {
+  if (!date) return '날짜 미지정';
+  const d = new Date(date.length >= 10 ? date.slice(0, 10) : date);
+  if (Number.isNaN(d.getTime())) return date;
+  return d.toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' });
+}
+
+/** 날짜별 그룹(오름차순, 날짜 미지정은 맨 뒤). */
+function groupImagesByDate(images: CaseImage[]): Array<{ date: string | null; images: CaseImage[] }> {
+  const map = new Map<string, CaseImage[]>();
+  for (const img of images) {
+    const key = img.examDate ?? '';
+    const group = map.get(key) ?? [];
+    group.push(img);
+    map.set(key, group);
+  }
+  const keys = Array.from(map.keys()).sort((a, b) => {
+    if (a === '') return 1;
+    if (b === '') return -1;
+    return a < b ? -1 : a > b ? 1 : 0;
+  });
+  return keys.map((key) => ({ date: key === '' ? null : key, images: map.get(key)! }));
+}
+
 function CaseImagesSection({ runId }: { runId: string }) {
   const [images, setImages] = useState<CaseImage[]>([]);
+  const [summaries, setSummaries] = useState<GroupSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [autoRetrying, setAutoRetrying] = useState(false);
@@ -389,10 +398,11 @@ function CaseImagesSection({ runId }: { runId: string }) {
       const res = await fetch(`/api/admin/runs/${encodeURIComponent(runId)}/case-images`, {
         credentials: 'include',
       });
-      const data = (await res.json()) as { images?: CaseImage[]; error?: string };
+      const data = (await res.json()) as { images?: CaseImage[]; summaries?: GroupSummary[]; error?: string };
       if (!res.ok) throw new Error(data.error ?? '이미지 조회 실패');
       let imgs = data.images ?? [];
       setImages(imgs);
+      setSummaries(data.summaries ?? []);
       // 병원(hospital-ui) 제출 이미지 자동 분류·import (멱등). case images 가 비어있으면 run 당 1회 시도.
       // 트리거를 차트 상세에 둔다 — admin 검토 워크플로가 차트 목록 → 차트 상세이기 때문.
       // (분류 결과는 from-hospital 라우트가 parse_run_case_images 에 적재 → 재조회로 표시)
@@ -409,10 +419,11 @@ function CaseImagesSection({ runId }: { runId: string }) {
             const res2 = await fetch(`/api/admin/runs/${encodeURIComponent(runId)}/case-images`, {
               credentials: 'include',
             });
-            const data2 = (await res2.json().catch(() => ({}))) as { images?: CaseImage[] };
+            const data2 = (await res2.json().catch(() => ({}))) as { images?: CaseImage[]; summaries?: GroupSummary[] };
             if (res2.ok && Array.isArray(data2.images)) {
               imgs = data2.images;
               setImages(imgs);
+              setSummaries(data2.summaries ?? []);
             }
           }
         } catch {
@@ -481,44 +492,70 @@ function CaseImagesSection({ runId }: { runId: string }) {
         ) : error ? (
           <p style={{ margin: 0, fontSize: 13, color: 'var(--danger)' }}>{error}</p>
         ) : images.length === 0 ? (
-          <p style={{ margin: 0, fontSize: 13, color: 'var(--text-muted)' }}>
-            이미지가 없습니다. 차트 데이터 수집 시 이미지를 첨부하면 여기에 분석 결과가 표시됩니다.
-            {autoRetrying && (
-              <span style={{ display: 'block', marginTop: 4, color: 'var(--text-muted)' }}>
-                분석 중일 수 있습니다 — 20초 후 자동 새로고침…
+          autoRetrying ? (
+            <p style={{ margin: 0, fontSize: 13, color: 'var(--accent)', fontWeight: 600 }}>
+              ⏳ 병원에서 제출한 이미지를 분석하고 있습니다… 잠시만 기다려 주세요.
+              <span style={{ display: 'block', marginTop: 4, fontWeight: 400, color: 'var(--text-muted)' }}>
+                사진이 많으면 1~2분 정도 걸릴 수 있어요. 끝나면 자동으로 표시됩니다.
               </span>
-            )}
-          </p>
+            </p>
+          ) : (
+            <p style={{ margin: 0, fontSize: 13, color: 'var(--text-muted)' }}>
+              이미지가 없습니다. 차트 데이터 수집 시 이미지를 첨부하면 여기에 분석 결과가 표시됩니다.
+            </p>
+          )
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-            {groupImagesBySection(images).map(({ key, images: sectionImages }) => (
-              <details key={key} open>
-                <summary
-                  style={{
-                    cursor: 'pointer',
-                    listStyle: 'none',
-                    padding: '5px 0',
-                    fontSize: 12,
-                    fontWeight: 700,
-                    color: 'var(--text-secondary)',
-                    userSelect: 'none',
-                    borderBottom: '1px solid var(--border)',
-                    marginBottom: 8,
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 6,
-                  }}
-                >
-                  <span>{imageSectionTitle(key)}</span>
-                  <span style={{ fontWeight: 400, color: 'var(--text-muted)', fontSize: 11 }}>{sectionImages.length}장</span>
-                </summary>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 12 }}>
-                  {sectionImages.map((img) => (
-                    <CaseImageCard key={img.id} img={img} />
-                  ))}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+            {groupImagesByDate(images).map(({ date, images: dateImages }) => {
+              const summary = summaries.find((s) => (s.examDate ?? null) === (date ?? null));
+              const bullets = summary?.bullets ?? [];
+              const supporting = new Set<string>();
+              for (const b of bullets) for (const fn of b.fileNames) supporting.add(fn);
+              return (
+                <div key={date ?? 'no-date'}>
+                  <div
+                    style={{
+                      fontSize: 12.5,
+                      fontWeight: 800,
+                      color: 'var(--text)',
+                      padding: '4px 0 6px',
+                      marginBottom: 10,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      borderBottom: '2px solid var(--border-strong)',
+                    }}
+                  >
+                    <span>📅 {formatExamDateLabel(date)}</span>
+                    <span style={{ fontWeight: 400, color: 'var(--text-muted)', fontSize: 11 }}>{dateImages.length}장</span>
+                  </div>
+
+                  {bullets.length > 0 && (
+                    <div style={{ marginBottom: 12, padding: '10px 12px', background: 'var(--bg-subtle)', border: '1px solid var(--border)', borderRadius: 8 }}>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 6 }}>주요 시사점</div>
+                      <ul style={{ margin: 0, paddingLeft: 18, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                        {bullets.map((b, bi) => (
+                          <li key={bi} style={{ fontSize: 12.5, color: 'var(--text)', lineHeight: 1.5 }}>
+                            {b.text}
+                            {b.fileNames.length > 0 && (
+                              <span style={{ display: 'block', fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
+                                관련 이미지: {b.fileNames.join(', ')}
+                              </span>
+                            )}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 12 }}>
+                    {dateImages.map((img) => (
+                      <CaseImageCard key={img.id} img={img} highlight={supporting.has(img.fileName)} />
+                    ))}
+                  </div>
                 </div>
-              </details>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

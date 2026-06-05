@@ -67,6 +67,16 @@ const EMPTY_OVERVIEW: Overview = {
   emphasis: '',
 };
 
+// 날짜별 이미지 그룹 — 사용자가 "날짜 선택 → 그날 이미지" 를 여러 날짜로 나눠 올린다.
+type ImageGroup = { id: string; date: string; files: File[]; previews: string[] };
+
+function todayDateStr(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+function newImageGroup(): ImageGroup {
+  return { id: crypto.randomUUID(), date: todayDateStr(), files: [], previews: [] };
+}
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -94,10 +104,9 @@ export function CaseTab() {
   const [pdfFile, setPdfFile] = useState<File | null>(null);
   const [pdfError, setPdfError] = useState<string | null>(null);
   const [overview, setOverview] = useState<Overview>(EMPTY_OVERVIEW);
-  const [imageFiles, setImageFiles] = useState<File[]>([]);
-  const [imagePreviews, setImagePreviews] = useState<string[]>([]);
+  const [imageGroups, setImageGroups] = useState<ImageGroup[]>(() => [newImageGroup()]);
   const [isDragging, setIsDragging] = useState(false);
-  const [isImageDragging, setIsImageDragging] = useState(false);
+  const [dragGroupId, setDragGroupId] = useState<string | null>(null);
 
   // Upload/processing
   const [stage, setStage] = useState<Stage>('idle');
@@ -106,13 +115,13 @@ export function CaseTab() {
 
   const { hospitalId } = useHospital();
   const pdfInputRef = useRef<HTMLInputElement>(null);
-  const imageInputRef = useRef<HTMLInputElement>(null);
+  const imageGroupsRef = useRef(imageGroups);
+  imageGroupsRef.current = imageGroups;
 
   useEffect(() => {
     return () => {
-      imagePreviews.forEach((u) => URL.revokeObjectURL(u));
+      imageGroupsRef.current.forEach((g) => g.previews.forEach((u) => URL.revokeObjectURL(u)));
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // ----- List -----
@@ -160,34 +169,53 @@ export function CaseTab() {
     [handlePdfFile],
   );
 
-  // ----- Images -----
-  const addImageFiles = useCallback((files: File[]) => {
+  // ----- Images (날짜별 그룹) -----
+  const addImagesToGroup = useCallback((groupId: string, files: File[]) => {
     const images = files.filter((f) => f.type.startsWith('image/'));
     if (!images.length) return;
     const previews = images.map((f) => URL.createObjectURL(f));
-    setImageFiles((prev) => [...prev, ...images]);
-    setImagePreviews((prev) => [...prev, ...previews]);
+    setImageGroups((prev) =>
+      prev.map((g) =>
+        g.id === groupId
+          ? { ...g, files: [...g.files, ...images], previews: [...g.previews, ...previews] }
+          : g,
+      ),
+    );
   }, []);
 
-  const onImageChange = (e: ChangeEvent<HTMLInputElement>) => {
-    addImageFiles(Array.from(e.target.files ?? []));
+  const onGroupImageChange = (groupId: string, e: ChangeEvent<HTMLInputElement>) => {
+    addImagesToGroup(groupId, Array.from(e.target.files ?? []));
     e.target.value = '';
   };
 
-  const onImageDrop = useCallback(
-    (e: DragEvent<HTMLDivElement>) => {
-      e.preventDefault();
-      setIsImageDragging(false);
-      addImageFiles(Array.from(e.dataTransfer.files ?? []));
-    },
-    [addImageFiles],
-  );
-
-  const removeImage = (idx: number) => {
-    URL.revokeObjectURL(imagePreviews[idx]);
-    setImageFiles((prev) => prev.filter((_, i) => i !== idx));
-    setImagePreviews((prev) => prev.filter((_, i) => i !== idx));
+  const removeImageFromGroup = (groupId: string, idx: number) => {
+    setImageGroups((prev) =>
+      prev.map((g) => {
+        if (g.id !== groupId) return g;
+        URL.revokeObjectURL(g.previews[idx]);
+        return {
+          ...g,
+          files: g.files.filter((_, i) => i !== idx),
+          previews: g.previews.filter((_, i) => i !== idx),
+        };
+      }),
+    );
   };
+
+  const setGroupDate = (groupId: string, date: string) =>
+    setImageGroups((prev) => prev.map((g) => (g.id === groupId ? { ...g, date } : g)));
+
+  const addGroup = () => setImageGroups((prev) => [...prev, newImageGroup()]);
+
+  const removeGroup = (groupId: string) =>
+    setImageGroups((prev) => {
+      if (prev.length <= 1) return prev;
+      const g = prev.find((x) => x.id === groupId);
+      g?.previews.forEach((u) => URL.revokeObjectURL(u));
+      return prev.filter((x) => x.id !== groupId);
+    });
+
+  const totalImageCount = imageGroups.reduce((s, g) => s + g.files.length, 0);
 
   // ----- PDF upload via signed URL -----
   function uploadPdf(signedUrl: string, file: File): Promise<void> {
@@ -206,11 +234,14 @@ export function CaseTab() {
     });
   }
 
-  // 건강검진 리포트와 동일한 서명 URL 직접 업로드(case-image 버킷).
-  async function uploadImages(runId: string): Promise<string[]> {
-    if (imageFiles.length === 0) return [];
+  // 건강검진 리포트와 동일한 서명 URL 직접 업로드(case-image 버킷). 날짜 그룹별로 묶어 반환.
+  async function uploadImageGroups(runId: string): Promise<{ date: string; paths: string[] }[]> {
+    const flat: { groupIdx: number; file: File }[] = [];
+    imageGroups.forEach((g, gi) => g.files.forEach((file) => flat.push({ groupIdx: gi, file })));
+    if (flat.length === 0) return [];
+
     const supabase = createClient();
-    const exts = imageFiles.map((f) => (f.name.split('.').pop() || 'jpg').toLowerCase());
+    const exts = flat.map(({ file }) => (file.name.split('.').pop() || 'jpg').toLowerCase());
     const signRes = await fetch('/api/health-report/case-images/sign', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -220,19 +251,27 @@ export function CaseTab() {
     if (!signRes.ok) throw new Error(signData.error ?? '이미지 업로드 URL 생성에 실패했습니다.');
     const uploads = signData.uploads ?? [];
 
-    const paths: string[] = [];
+    const pathByFlat: (string | null)[] = new Array(flat.length).fill(null);
     await Promise.all(
       uploads.map(async ({ path, token }, idx) => {
-        const file = imageFiles[idx];
+        const file = flat[idx]?.file;
         if (!file) return;
         const { error } = await supabase.storage
           .from(CASE_IMAGE_BUCKET)
           .uploadToSignedUrl(path, token, file, { contentType: file.type });
         if (error) throw new Error(`이미지 업로드에 실패했습니다: ${error.message}`);
-        paths.push(path);
+        pathByFlat[idx] = path;
       }),
     );
-    return paths;
+
+    return imageGroups
+      .map((g, gi) => ({
+        date: g.date,
+        paths: flat
+          .map((f, idx) => (f.groupIdx === gi ? pathByFlat[idx] : null))
+          .filter((p): p is string => !!p),
+      }))
+      .filter((g) => g.paths.length > 0);
   }
 
   // ----- Submit -----
@@ -287,11 +326,11 @@ export function CaseTab() {
       // 4) 이미지 업로드 + 케이스 개요 저장(blog_case)
       setStage('saving');
       setProgressMessage('케이스 정보 저장 중…');
-      const imagePaths = await uploadImages(runId);
+      const imageGroupsPayload = await uploadImageGroups(runId);
       const saveRes = await fetch('/api/blog/case/save', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ runId, overview, imagePaths }),
+        body: JSON.stringify({ runId, overview, imageGroups: imageGroupsPayload }),
       });
       if (!saveRes.ok) {
         const err = (await saveRes.json().catch(() => ({}))) as { error?: string };
@@ -302,9 +341,8 @@ export function CaseTab() {
       setStage('done');
       setPdfFile(null);
       setOverview(EMPTY_OVERVIEW);
-      setImageFiles([]);
-      imagePreviews.forEach((u) => URL.revokeObjectURL(u));
-      setImagePreviews([]);
+      imageGroups.forEach((g) => g.previews.forEach((u) => URL.revokeObjectURL(u)));
+      setImageGroups([newImageGroup()]);
       setProgressMessage('');
       await loadList();
     } catch (e) {
@@ -481,53 +519,105 @@ export function CaseTab() {
             </div>
           </div>
 
-          {/* 사진 자료 */}
-          <FormField label="사진 자료" hint="선택">
-            <div
-              onDrop={onImageDrop}
-              onDragOver={(e) => {
-                e.preventDefault();
-                if (!isProcessing) setIsImageDragging(true);
-              }}
-              onDragLeave={() => setIsImageDragging(false)}
-              onClick={() => !isProcessing && imageInputRef.current?.click()}
-              style={{
-                border: `2px dashed ${isImageDragging ? 'var(--accent)' : 'var(--border-strong)'}`,
-                borderRadius: 'var(--radius)',
-                padding: '18px 12px',
-                textAlign: 'center',
-                cursor: isProcessing ? 'not-allowed' : 'pointer',
-                background: isImageDragging ? 'var(--accent-subtle)' : 'var(--bg-subtle)',
-                transition: 'border-color 0.15s',
-              }}
-            >
-              <input ref={imageInputRef} type="file" accept=".jpg,.jpeg,.png,.webp,image/*" multiple style={{ display: 'none' }} onChange={onImageChange} />
-              <div style={{ fontSize: 20, marginBottom: 5 }}>🖼️</div>
-              <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 2 }}>끌어다 놓거나 클릭하여 선택</div>
-              <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>여러 장 가능 · jpg / png / webp</div>
+          {/* 사진 자료 (날짜별 그룹) */}
+          <div>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 5, marginBottom: 6 }}>
+              <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)' }}>사진 자료</label>
+              <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                선택 · 날짜별로 나눠 올릴 수 있어요{totalImageCount > 0 ? ` · 총 ${totalImageCount}장` : ''}
+              </span>
             </div>
-            {imagePreviews.length > 0 && (
-              <div style={{ marginTop: 8, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                {imagePreviews.map((src, idx) => (
-                  <div key={idx} style={{ position: 'relative', width: 60, height: 60 }}>
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={src} alt={imageFiles[idx]?.name ?? `img-${idx}`} style={{ width: 60, height: 60, objectFit: 'cover', borderRadius: 'var(--radius)', border: '1px solid var(--border)' }} />
-                    {!isProcessing && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          removeImage(idx);
-                        }}
-                        style={{ position: 'absolute', top: -5, right: -5, width: 18, height: 18, borderRadius: '50%', background: 'var(--danger)', color: '#fff', border: 'none', fontSize: 10, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}
-                      >
-                        ×
-                      </button>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {imageGroups.map((group) => {
+                const inputId = `case-img-${group.id}`;
+                const dragActive = dragGroupId === group.id;
+                return (
+                  <div key={group.id} style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: 10, background: 'var(--bg)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                      <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)' }}>날짜</span>
+                      <input
+                        type="date"
+                        value={group.date}
+                        max={todayDateStr()}
+                        disabled={isProcessing}
+                        onChange={(e) => setGroupDate(group.id, e.target.value)}
+                        style={{ ...inputStyle, flex: 1, padding: '6px 8px' }}
+                      />
+                      {imageGroups.length > 1 && !isProcessing && (
+                        <button
+                          type="button"
+                          onClick={() => removeGroup(group.id)}
+                          style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: 12, cursor: 'pointer', padding: '2px 4px', whiteSpace: 'nowrap' }}
+                        >
+                          날짜 삭제
+                        </button>
+                      )}
+                    </div>
+
+                    <div
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        setDragGroupId(null);
+                        if (!isProcessing) addImagesToGroup(group.id, Array.from(e.dataTransfer.files ?? []));
+                      }}
+                      onDragOver={(e) => {
+                        e.preventDefault();
+                        if (!isProcessing) setDragGroupId(group.id);
+                      }}
+                      onDragLeave={() => setDragGroupId((id) => (id === group.id ? null : id))}
+                      onClick={() => !isProcessing && document.getElementById(inputId)?.click()}
+                      style={{
+                        border: `2px dashed ${dragActive ? 'var(--accent)' : 'var(--border-strong)'}`,
+                        borderRadius: 'var(--radius)',
+                        padding: '14px 12px',
+                        textAlign: 'center',
+                        cursor: isProcessing ? 'not-allowed' : 'pointer',
+                        background: dragActive ? 'var(--accent-subtle)' : 'var(--bg-subtle)',
+                        transition: 'border-color 0.15s',
+                      }}
+                    >
+                      <input id={inputId} type="file" accept=".jpg,.jpeg,.png,.webp,image/*" multiple style={{ display: 'none' }} onChange={(e) => onGroupImageChange(group.id, e)} />
+                      <div style={{ fontSize: 16, marginBottom: 3 }}>🖼️</div>
+                      <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>이 날짜 이미지 끌어다 놓거나 클릭</div>
+                    </div>
+
+                    {group.previews.length > 0 && (
+                      <div style={{ marginTop: 8, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                        {group.previews.map((src, idx) => (
+                          <div key={idx} style={{ position: 'relative', width: 54, height: 54 }}>
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img src={src} alt={group.files[idx]?.name ?? `img-${idx}`} style={{ width: 54, height: 54, objectFit: 'cover', borderRadius: 'var(--radius)', border: '1px solid var(--border)' }} />
+                            {!isProcessing && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  removeImageFromGroup(group.id, idx);
+                                }}
+                                style={{ position: 'absolute', top: -5, right: -5, width: 18, height: 18, borderRadius: '50%', background: 'var(--danger)', color: '#fff', border: 'none', fontSize: 10, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}
+                              >
+                                ×
+                              </button>
+                            )}
+                          </div>
+                        ))}
+                      </div>
                     )}
                   </div>
-                ))}
-              </div>
+                );
+              })}
+            </div>
+
+            {!isProcessing && (
+              <button
+                type="button"
+                onClick={addGroup}
+                style={{ marginTop: 10, width: '100%', padding: 8, background: 'var(--bg-subtle)', border: '1px dashed var(--border-strong)', borderRadius: 'var(--radius)', fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', cursor: 'pointer' }}
+              >
+                + 날짜 추가하기
+              </button>
             )}
-          </FormField>
+          </div>
 
           {/* Submit */}
           <button

@@ -20,7 +20,8 @@ type Overview = {
   emphasis?: string;
 };
 
-type Body = { runId?: string; overview?: Overview; imagePaths?: string[] };
+type ImageGroupInput = { date?: string; paths?: string[] };
+type Body = { runId?: string; overview?: Overview; imagePaths?: string[]; imageGroups?: ImageGroupInput[] };
 
 function str(v: unknown): string {
   return typeof v === 'string' ? v.trim() : '';
@@ -53,9 +54,22 @@ export async function POST(request: NextRequest) {
     aftercare_plan: str(o.aftercarePlan),
     emphasis: str(o.emphasis),
   };
-  const imagePaths = Array.isArray(body.imagePaths)
-    ? body.imagePaths.filter((p): p is string => typeof p === 'string' && p.length > 0)
-    : [];
+  // 날짜별 그룹(신규) — [{ date, paths }]. 평탄 image_paths 는 그룹에서 펼쳐 호환 유지.
+  const imageGroups = (Array.isArray(body.imageGroups) ? body.imageGroups : [])
+    .map((g) => ({
+      date: typeof g?.date === 'string' ? g.date.trim() : '',
+      paths: Array.isArray(g?.paths)
+        ? g.paths.filter((p): p is string => typeof p === 'string' && p.length > 0)
+        : [],
+    }))
+    .filter((g) => g.paths.length > 0);
+  const flatFromGroups = imageGroups.flatMap((g) => g.paths);
+  const imagePaths =
+    flatFromGroups.length > 0
+      ? flatFromGroups
+      : Array.isArray(body.imagePaths)
+        ? body.imagePaths.filter((p): p is string => typeof p === 'string' && p.length > 0)
+        : [];
 
   try {
     const srvc = createServiceRoleClient();
@@ -66,7 +80,7 @@ export async function POST(request: NextRequest) {
         {
           parse_run_id: runId,
           content_type: 'blog_case',
-          payload: { source: 'hospital_web', overview, image_paths: imagePaths },
+          payload: { source: 'hospital_web', overview, image_paths: imagePaths, image_groups: imageGroups },
           updated_at: new Date().toISOString(),
         },
         { onConflict: 'parse_run_id,content_type' },

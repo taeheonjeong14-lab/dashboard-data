@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAdminApi } from '@/lib/assert-admin-api';
 import { getAdminWebPgPool } from '@/lib/db';
 import { createServiceRoleClient } from '@/lib/supabase/service-role';
-import { analyzeCaseImages, type ImageInputPart } from '@/lib/chart-case-images/analyze';
+import { analyzeImageGroup, type ImageInputPart } from '@/lib/chart-case-images/analyze';
 import { prepareImageForAnalysis } from '@/lib/chart-case-images/encode';
 import type { ExamType, RadiologySub, FindingSpot } from '@/lib/chart-case-images/types';
 
@@ -48,9 +48,27 @@ async function ensureTable(pool: ReturnType<typeof getAdminWebPgPool>) {
   await pool.query(
     `ALTER TABLE chart_pdf.parse_run_case_images ADD COLUMN IF NOT EXISTS content_hash text`,
   );
+  await pool.query(
+    `ALTER TABLE chart_pdf.parse_run_case_images ADD COLUMN IF NOT EXISTS exam_date date`,
+  );
+  await pool.query(
+    `ALTER TABLE chart_pdf.parse_run_case_images ADD COLUMN IF NOT EXISTS body_part text`,
+  );
   await pool.query(`
     GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE chart_pdf.parse_run_case_images TO service_role;
     GRANT SELECT ON TABLE chart_pdf.parse_run_case_images TO authenticated;
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS chart_pdf.parse_run_case_image_summaries (
+      parse_run_id uuid NOT NULL,
+      exam_date date,
+      bullets jsonb NOT NULL DEFAULT '[]'::jsonb,
+      created_at timestamptz DEFAULT now()
+    )
+  `);
+  await pool.query(`
+    GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE chart_pdf.parse_run_case_image_summaries TO service_role;
+    GRANT SELECT ON TABLE chart_pdf.parse_run_case_image_summaries TO authenticated;
   `);
 }
 
@@ -74,6 +92,7 @@ export async function GET(
   const pool = getAdminWebPgPool();
 
   try {
+    await ensureTable(pool); // exam_date 등 누락 컬럼 self-heal 후 SELECT
     const { rows } = await pool.query<{
       id: string;
       idx: number;
@@ -86,11 +105,13 @@ export async function GET(
       brief_comment: string | null;
       finding_spots: FindingSpot[] | null;
       related_assessment_condition: string | null;
+      exam_date: string | null;
+      body_part: string | null;
       created_at: string;
     }>(
       `SELECT id, idx, file_name, storage_path, exam_type, radiology_sub,
               has_notable_finding, is_clear_finding, brief_comment, finding_spots,
-              related_assessment_condition, created_at
+              related_assessment_condition, exam_date, body_part, created_at
        FROM chart_pdf.parse_run_case_images
        WHERE parse_run_id = $1::uuid
        ORDER BY idx ASC`,
@@ -98,7 +119,7 @@ export async function GET(
     );
 
     if (rows.length === 0) {
-      return NextResponse.json({ images: [] });
+      return NextResponse.json({ images: [], summaries: [] });
     }
 
     const supabase = createServiceRoleClient();
@@ -119,12 +140,30 @@ export async function GET(
           briefComment: row.brief_comment ?? '',
           findingSpots: row.finding_spots ?? [],
           relatedAssessmentCondition: row.related_assessment_condition,
+          examDate: row.exam_date,
+          bodyPart: row.body_part,
           createdAt: row.created_at,
         };
       }),
     );
 
-    return NextResponse.json({ images });
+    const { rows: summaryRows } = await pool.query<{ exam_date: string | null; bullets: unknown }>(
+      `SELECT exam_date, bullets FROM chart_pdf.parse_run_case_image_summaries WHERE parse_run_id = $1::uuid`,
+      [runId],
+    );
+    const summaries = summaryRows.map((s) => ({
+      examDate: s.exam_date,
+      bullets: Array.isArray(s.bullets)
+        ? (s.bullets as { text?: unknown; fileNames?: unknown }[]).map((b) => ({
+            text: typeof b?.text === 'string' ? b.text : '',
+            fileNames: Array.isArray(b?.fileNames)
+              ? (b.fileNames as unknown[]).filter((n): n is string => typeof n === 'string')
+              : [],
+          }))
+        : [],
+    }));
+
+    return NextResponse.json({ images, summaries });
   } catch (e) {
     // Table may not exist yet
     if ((e as { code?: string }).code === '42P01') {
@@ -258,10 +297,10 @@ export async function POST(
       );
     }
 
-    // Analyze with OpenAI
+    // Analyze with OpenAI (그룹 단위: 이미지 라벨 + 시사점)
     let analysis;
     try {
-      analysis = await analyzeCaseImages({ examDate, images: imageParts });
+      analysis = await analyzeImageGroup({ examDate, images: imageParts });
     } catch (e) {
       console.error('[case-images] analysis error:', e);
       return NextResponse.json(
@@ -293,12 +332,7 @@ export async function POST(
           storagePath,
           contentHash: img.hash,
           examType: result?.examType ?? 'other',
-          radiologySub: result?.radiologySub ?? null,
-          hasNotableFinding: result?.hasNotableFinding ?? false,
-          isClearFinding: result?.isClearFinding ?? false,
-          briefComment: result?.briefComment ?? '',
-          findingSpots: result?.findingSpots ?? null,
-          relatedAssessmentCondition: result?.relatedAssessmentCondition ?? null,
+          bodyPart: result?.bodyPart ?? '',
         };
       }),
     );
@@ -307,24 +341,32 @@ export async function POST(
     for (const img of savedImages) {
       await pool.query(
         `INSERT INTO chart_pdf.parse_run_case_images
-          (parse_run_id, idx, file_name, storage_path, exam_type, radiology_sub,
-           has_notable_finding, is_clear_finding, brief_comment, finding_spots,
-           related_assessment_condition, content_hash)
-         VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+          (parse_run_id, idx, file_name, storage_path, exam_type, body_part, content_hash, exam_date)
+         VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8)`,
         [
           runId,
           img.idx,
           img.fileName,
           img.storagePath,
           img.examType,
-          img.radiologySub,
-          img.hasNotableFinding,
-          img.isClearFinding,
-          img.briefComment,
-          img.findingSpots ? JSON.stringify(img.findingSpots) : null,
-          img.relatedAssessmentCondition,
+          img.bodyPart,
           img.contentHash,
+          examDate || null,
         ],
+      );
+    }
+
+    // 그룹 시사점 저장(이 examDate). append 시 같은 날짜 기존 시사점 교체.
+    await pool.query(
+      `DELETE FROM chart_pdf.parse_run_case_image_summaries
+       WHERE parse_run_id = $1::uuid AND exam_date IS NOT DISTINCT FROM $2`,
+      [runId, examDate || null],
+    );
+    if (analysis.bullets.length > 0) {
+      await pool.query(
+        `INSERT INTO chart_pdf.parse_run_case_image_summaries (parse_run_id, exam_date, bullets)
+         VALUES ($1::uuid, $2, $3::jsonb)`,
+        [runId, examDate || null, JSON.stringify(analysis.bullets)],
       );
     }
 

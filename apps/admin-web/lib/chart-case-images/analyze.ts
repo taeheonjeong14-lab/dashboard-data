@@ -215,3 +215,185 @@ export async function analyzeCaseImages(params: {
     params.images.map((img, index) => ({ index, fileName: img.fileName })),
   );
 }
+
+// ── 날짜 그룹 단위 분석: 이미지 라벨(검사+부위) + 그룹 시사점(불렛+뒷받침 파일명) ──
+export type GroupImageLabel = {
+  index: number;
+  fileName: string;
+  examType: ExamType;
+  bodyPart: string;
+};
+export type GroupBullet = { text: string; fileNames: string[] };
+export type ImageGroupAnalysis = { images: GroupImageLabel[]; bullets: GroupBullet[] };
+
+export async function analyzeImageGroup(params: {
+  examDate: string;
+  images: ImageInputPart[];
+}): Promise<ImageGroupAnalysis> {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) throw new Error('OPENAI_API_KEY is not configured.');
+  if (params.images.length === 0) return { images: [], bullets: [] };
+
+  const model = process.env.OPENAI_VISION_MODEL?.trim() || 'gpt-4o';
+  const client = new OpenAI({ apiKey });
+  const manifest = params.images.map((img, i) => `${i}: ${img.fileName}`).join('\n');
+  const validNames = new Set(params.images.map((i) => i.fileName));
+
+  const prompt = [
+    '역할: 수의 임상 이미지를 보조 분류·요약한다. 출력은 스키마에 맞는 JSON만.',
+    '확정 진단 금지. 관찰·가능성으로만 표현하고 최종 판단은 수의사가 한다.',
+    '검사일(지정됨, 추론·변경 금지): ' + (params.examDate || '(미지정)'),
+    '',
+    '[이미지 라벨] 각 이미지에 대해 딱 두 가지만 적는다(자세한 해석 금지):',
+    '- examType: radiology / ultrasound / microscopy / endoscopy / slit_lamp / other 중 하나.',
+    '- bodyPart: 검사 부위를 한국어로 짧게 (예: 흉부, 복부, 좌측 무릎, 구강, 우안). 불명확하면 "".',
+    '',
+    '[그룹 시사점] 이 검사일의 이미지들을 종합해 "주요 시사점"을 한국어 불렛으로 정리한다.',
+    '- 각 불렛(text)은 한 문장, 관찰 위주.',
+    '- 각 불렛마다 그 시사점을 뒷받침하는 이미지 파일명을 fileNames 배열에 명시(아래 목록의 파일명 그대로). 한 불렛에 이미지 여러 개 가능, 한 이미지가 여러 불렛을 뒷받침해도 됨. 없으면 빈 배열.',
+    '',
+    '이미지 목록 (index: 파일명):',
+    manifest,
+  ].join('\n');
+
+  type MessageContentPart =
+    | { type: 'text'; text: string }
+    | { type: 'image_url'; image_url: { url: string } };
+  const content: MessageContentPart[] = [{ type: 'text', text: prompt }];
+  for (const img of params.images) {
+    content.push({
+      type: 'image_url',
+      image_url: { url: `data:${img.mimeType};base64,${img.buffer.toString('base64')}` },
+    });
+  }
+
+  const response = await client.chat.completions.create({
+    model,
+    messages: [{ role: 'user', content }],
+    response_format: {
+      type: 'json_schema',
+      json_schema: {
+        name: 'image_group_analysis',
+        strict: true,
+        schema: {
+          type: 'object',
+          properties: {
+            images: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  index: { type: 'integer' },
+                  fileName: { type: 'string' },
+                  examType: { type: 'string', enum: [...EXAM_TYPES] },
+                  bodyPart: { type: 'string' },
+                },
+                required: ['index', 'fileName', 'examType', 'bodyPart'],
+                additionalProperties: false,
+              },
+            },
+            bullets: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  text: { type: 'string' },
+                  fileNames: { type: 'array', items: { type: 'string' } },
+                },
+                required: ['text', 'fileNames'],
+                additionalProperties: false,
+              },
+            },
+          },
+          required: ['images', 'bullets'],
+          additionalProperties: false,
+        },
+      },
+    },
+  });
+
+  const output = response.choices[0]?.message.content;
+  if (!output) {
+    const finishReason = response.choices[0]?.finish_reason ?? 'unknown';
+    if (finishReason === 'content_filter') {
+      throw new Error('이미지 메타데이터로 인해 분석이 차단되었습니다. 스크린샷 후 다시 업로드해 주세요.');
+    }
+    throw new Error(`이미지 분석에 실패했습니다. (finishReason: ${finishReason})`);
+  }
+  let parsed: { images?: unknown; bullets?: unknown };
+  try {
+    parsed = JSON.parse(output);
+  } catch {
+    throw new Error('모델이 올바른 JSON 형식을 반환하지 않았습니다.');
+  }
+
+  // 라벨: index 로 매핑해 입력 순서대로 정렬
+  const byIndex = new Map<number, { examType: ExamType; bodyPart: string }>();
+  for (const row of Array.isArray(parsed.images) ? parsed.images : []) {
+    const o = row as Record<string, unknown>;
+    const idx = typeof o.index === 'number' ? o.index : Number(o.index);
+    if (!Number.isInteger(idx) || idx < 0) continue;
+    const examType = EXAM_TYPES.includes(o.examType as ExamType) ? (o.examType as ExamType) : 'other';
+    const bodyPart = typeof o.bodyPart === 'string' ? o.bodyPart.trim() : '';
+    byIndex.set(idx, { examType, bodyPart });
+  }
+  const images: GroupImageLabel[] = params.images.map((img, index) => {
+    const found = byIndex.get(index);
+    return {
+      index,
+      fileName: img.fileName,
+      examType: found?.examType ?? 'other',
+      bodyPart: found?.bodyPart ?? '',
+    };
+  });
+
+  // 불렛: 텍스트 + 유효 파일명만
+  const bullets: GroupBullet[] = [];
+  for (const row of Array.isArray(parsed.bullets) ? parsed.bullets : []) {
+    const o = row as Record<string, unknown>;
+    const text = typeof o.text === 'string' ? o.text.trim() : '';
+    if (!text) continue;
+    const fileNames = Array.isArray(o.fileNames)
+      ? (o.fileNames as unknown[]).filter((n): n is string => typeof n === 'string' && validNames.has(n))
+      : [];
+    bullets.push({ text, fileNames });
+  }
+
+  return { images, bullets };
+}
+
+/**
+ * 이미지가 많을 때 한 번의 비전 호출에 전부 보내면 요청 크기·함수 타임아웃에 걸린다.
+ * batchSize 장씩 나눠 concurrency 개씩 병렬 호출한 뒤 순서를 보존해 합친다.
+ * (장수가 batchSize 이하면 단일 호출과 동일.)
+ */
+export async function analyzeCaseImagesInBatches(params: {
+  examDate: string;
+  images: ImageInputPart[];
+  batchSize?: number;
+  concurrency?: number;
+}): Promise<CaseImageAnalysis> {
+  const batchSize = Math.max(1, params.batchSize ?? 8);
+  const concurrency = Math.max(1, params.concurrency ?? 4);
+  const imgs = params.images;
+  if (imgs.length <= batchSize) {
+    return analyzeCaseImages({ examDate: params.examDate, images: imgs });
+  }
+
+  const chunks: ImageInputPart[][] = [];
+  for (let i = 0; i < imgs.length; i += batchSize) {
+    chunks.push(imgs.slice(i, i + batchSize));
+  }
+
+  const merged: CaseImageItem[] = [];
+  for (let i = 0; i < chunks.length; i += concurrency) {
+    const group = chunks.slice(i, i + concurrency);
+    const results = await Promise.all(
+      group.map((chunk) => analyzeCaseImages({ examDate: params.examDate, images: chunk })),
+    );
+    for (const r of results) merged.push(...r.images);
+  }
+
+  // 배치별 index(0..chunkLen-1)를 전역 0..n-1 로 재부여(순서 보존).
+  return { images: merged.map((img, index) => ({ ...img, index })) };
+}

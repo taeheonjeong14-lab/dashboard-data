@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAdminApi } from '@/lib/assert-admin-api';
 import { getAdminWebPgPool } from '@/lib/db';
 import { createServiceRoleClient } from '@/lib/supabase/service-role';
-import { analyzeCaseImages, type ImageInputPart } from '@/lib/chart-case-images/analyze';
+import { analyzeImageGroup, type ImageInputPart } from '@/lib/chart-case-images/analyze';
 import { prepareImageForAnalysis } from '@/lib/chart-case-images/encode';
 import { ensureCaseImagesTable } from '@/lib/chart-case-images/ensure-table';
 
@@ -50,13 +50,17 @@ export async function POST(
       .eq('parse_run_id', runId)
       .in('content_type', ['blog_case', 'hospital_notes']);
     let imagePaths: string[] = [];
+    let rawGroups: { date?: unknown; paths?: unknown }[] = [];
     for (const row of notesRows ?? []) {
-      const pl = (row as { payload?: { image_paths?: unknown } }).payload;
+      const pl = (row as { payload?: { image_paths?: unknown; image_groups?: unknown } }).payload;
       const paths = Array.isArray(pl?.image_paths)
         ? (pl!.image_paths as unknown[]).filter((p): p is string => typeof p === 'string' && p.length > 0)
         : [];
       if (paths.length > 0) {
         imagePaths = paths;
+        rawGroups = Array.isArray(pl?.image_groups)
+          ? (pl!.image_groups as { date?: unknown; paths?: unknown }[])
+          : [];
         break;
       }
     }
@@ -64,57 +68,83 @@ export async function POST(
       return NextResponse.json({ ok: true, count: 0, reason: 'no_hospital_images' });
     }
 
-    // 버킷에서 다운로드 → 버퍼 + 해시
-    const downloaded: { rawBuffer: Buffer; fileName: string; hash: string }[] = [];
-    for (const path of imagePaths) {
-      const { data: blob, error } = await supabase.storage.from(HOSPITAL_BUCKET).download(path);
-      if (error || !blob) continue;
-      const rawBuffer = Buffer.from(await blob.arrayBuffer());
-      const hash = createHash('sha256').update(rawBuffer).digest('hex');
-      downloaded.push({ rawBuffer, fileName: path.split('/').pop() || 'image', hash });
+    // 날짜 그룹 구성: image_groups 있으면 그걸로, 없으면 전체를 날짜 없는 단일 그룹으로.
+    type Group = { date: string | null; paths: string[] };
+    let groups: Group[] = rawGroups
+      .map((g) => ({
+        date: typeof g?.date === 'string' && g.date.trim() ? g.date.trim() : null,
+        paths: Array.isArray(g?.paths)
+          ? (g.paths as unknown[]).filter((p): p is string => typeof p === 'string' && p.length > 0)
+          : [],
+      }))
+      .filter((g) => g.paths.length > 0);
+    if (groups.length === 0) {
+      groups = [{ date: null, paths: imagePaths }];
     }
-    if (downloaded.length === 0) {
+
+    // 그룹별로 다운로드 → 압축 → (그 날짜로) 분석 → 업로드 + insert. idx 는 전역 연속.
+    let globalIdx = 0;
+    let savedCount = 0;
+    for (const group of groups) {
+      const downloaded: { rawBuffer: Buffer; fileName: string; hash: string }[] = [];
+      for (const path of group.paths) {
+        const { data: blob, error } = await supabase.storage.from(HOSPITAL_BUCKET).download(path);
+        if (error || !blob) continue;
+        const rawBuffer = Buffer.from(await blob.arrayBuffer());
+        const hash = createHash('sha256').update(rawBuffer).digest('hex');
+        downloaded.push({ rawBuffer, fileName: path.split('/').pop() || 'image', hash });
+      }
+      if (downloaded.length === 0) continue;
+
+      const imageParts: (ImageInputPart & { hash: string })[] = await Promise.all(
+        downloaded.map(async ({ rawBuffer, fileName, hash }) => {
+          const c = await prepareImageForAnalysis(rawBuffer);
+          return { buffer: c.buffer, fileName, mimeType: c.mimeType, hash };
+        }),
+      );
+      const analysis = await analyzeImageGroup({ examDate: group.date ?? '', images: imageParts });
+
+      for (let i = 0; i < imageParts.length; i++) {
+        const img = imageParts[i];
+        const ext = img.mimeType === 'image/png' ? 'png' : img.mimeType === 'image/webp' ? 'webp' : 'jpg';
+        const safe = (img.fileName.replace(/\.[^.]+$/, '') || 'image').replace(/[^a-zA-Z0-9._-]/g, '_');
+        const storagePath = `${runId}/${globalIdx}_${safe}.${ext}`;
+        const { error: upErr } = await supabase.storage
+          .from(CASE_IMAGES_BUCKET)
+          .upload(storagePath, img.buffer, { contentType: img.mimeType, upsert: true });
+        if (upErr) {
+          globalIdx++;
+          continue;
+        }
+
+        const r = analysis.images[i];
+        await pool.query(
+          `INSERT INTO chart_pdf.parse_run_case_images
+            (parse_run_id, idx, file_name, storage_path, exam_type, body_part, content_hash, exam_date)
+           VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8)`,
+          [
+            runId, globalIdx, img.fileName, storagePath,
+            r?.examType ?? 'other', r?.bodyPart ?? '', img.hash, group.date,
+          ],
+        );
+        globalIdx++;
+        savedCount++;
+      }
+
+      // 그룹 시사점(불렛 + 뒷받침 파일명) 저장
+      if (analysis.bullets.length > 0) {
+        await pool.query(
+          `INSERT INTO chart_pdf.parse_run_case_image_summaries (parse_run_id, exam_date, bullets)
+           VALUES ($1::uuid, $2, $3::jsonb)`,
+          [runId, group.date, JSON.stringify(analysis.bullets)],
+        );
+      }
+    }
+
+    if (savedCount === 0) {
       return NextResponse.json({ ok: true, count: 0, reason: 'download_failed' });
     }
-
-    // 압축 → 분석
-    const imageParts: (ImageInputPart & { hash: string })[] = await Promise.all(
-      downloaded.map(async ({ rawBuffer, fileName, hash }) => {
-        const c = await prepareImageForAnalysis(rawBuffer);
-        return { buffer: c.buffer, fileName, mimeType: c.mimeType, hash };
-      }),
-    );
-    const analysis = await analyzeCaseImages({ examDate: '', images: imageParts });
-
-    // 분류 결과 저장 버킷 업로드 + DB insert
-    for (let i = 0; i < imageParts.length; i++) {
-      const img = imageParts[i];
-      const ext = img.mimeType === 'image/png' ? 'png' : img.mimeType === 'image/webp' ? 'webp' : 'jpg';
-      const safe = (img.fileName.replace(/\.[^.]+$/, '') || 'image').replace(/[^a-zA-Z0-9._-]/g, '_');
-      const storagePath = `${runId}/${i}_${safe}.${ext}`;
-      const { error: upErr } = await supabase.storage
-        .from(CASE_IMAGES_BUCKET)
-        .upload(storagePath, img.buffer, { contentType: img.mimeType, upsert: true });
-      if (upErr) continue;
-
-      const r = analysis.images[i];
-      await pool.query(
-        `INSERT INTO chart_pdf.parse_run_case_images
-          (parse_run_id, idx, file_name, storage_path, exam_type, radiology_sub,
-           has_notable_finding, is_clear_finding, brief_comment, finding_spots,
-           related_assessment_condition, content_hash)
-         VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
-        [
-          runId, i, img.fileName, storagePath,
-          r?.examType ?? 'other', r?.radiologySub ?? null,
-          r?.hasNotableFinding ?? false, r?.isClearFinding ?? false,
-          r?.briefComment ?? '', r?.findingSpots ? JSON.stringify(r.findingSpots) : null,
-          r?.relatedAssessmentCondition ?? null, img.hash,
-        ],
-      );
-    }
-
-    return NextResponse.json({ ok: true, count: imageParts.length });
+    return NextResponse.json({ ok: true, count: savedCount });
   } catch (e) {
     console.error('POST case-images/from-hospital:', e);
     return NextResponse.json({ ok: false, error: e instanceof Error ? e.message : String(e) }, { status: 500 });
