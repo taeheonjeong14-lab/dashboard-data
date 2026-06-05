@@ -231,7 +231,8 @@ function CaseImageCard({ img, highlight = false }: { img: CaseImage; highlight?:
     <>
       <div
         style={{
-          border: highlight ? '2px solid #84cc16' : '1px solid var(--border)',
+          border: highlight ? '2px solid #a3ff00' : '1px solid var(--border)',
+          boxShadow: highlight ? '0 0 7px rgba(163, 255, 0, 0.7)' : undefined,
           borderRadius: 8,
           overflow: 'hidden',
           background: '#fff',
@@ -383,61 +384,74 @@ function CaseImagesSection({ runId }: { runId: string }) {
   const [autoRetrying, setAutoRetrying] = useState(false);
   const didAutoRetry = useRef(false);
   const autoRetryTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const loadIdRef = useRef(0);
 
   useEffect(() => {
     didAutoRetry.current = false;
     return () => {
+      loadIdRef.current++; // run 변경/언마운트 시 진행 중 폴링 취소
       if (autoRetryTimer.current) clearTimeout(autoRetryTimer.current);
     };
   }, [runId]);
 
-  const load = useCallback(async (opts?: { isAutoRetry?: boolean }) => {
-    if (!opts?.isAutoRetry) setLoading(true);
+  const load = useCallback(async () => {
+    const myLoadId = ++loadIdRef.current;
+    const stale = () => loadIdRef.current !== myLoadId;
+    setLoading(true);
     setError(null);
-    try {
+
+    const fetchOnce = async (): Promise<{ images: CaseImage[]; summaries: GroupSummary[] }> => {
       const res = await fetch(`/api/admin/runs/${encodeURIComponent(runId)}/case-images`, {
         credentials: 'include',
       });
-      const data = (await res.json()) as { images?: CaseImage[]; summaries?: GroupSummary[]; error?: string };
+      const data = (await res.json().catch(() => ({}))) as {
+        images?: CaseImage[];
+        summaries?: GroupSummary[];
+        error?: string;
+      };
       if (!res.ok) throw new Error(data.error ?? '이미지 조회 실패');
-      let imgs = data.images ?? [];
-      setImages(imgs);
-      setSummaries(data.summaries ?? []);
-      // 병원(hospital-ui) 제출 이미지 자동 분류·import (멱등). case images 가 비어있으면 run 당 1회 시도.
-      // 트리거를 차트 상세에 둔다 — admin 검토 워크플로가 차트 목록 → 차트 상세이기 때문.
-      // (분류 결과는 from-hospital 라우트가 parse_run_case_images 에 적재 → 재조회로 표시)
-      if (imgs.length === 0 && !didAutoRetry.current) {
+      return { images: data.images ?? [], summaries: data.summaries ?? [] };
+    };
+
+    try {
+      const first = await fetchOnce();
+      if (stale()) return;
+      setImages(first.images);
+      setSummaries(first.summaries);
+      setLoading(false); // 초기 조회 끝 — 이후 임포트 진행은 autoRetrying(분석 중)으로 표시
+
+      // 병원 제출 이미지가 아직 없으면 자동 import·분석 트리거 후, 이미지가 뜰 때까지 폴링.
+      // (분석이 길어 요청이 끊겨도 폴링이 회복 → "분석 중" 유지하다 끝나면 자동 표시)
+      if (first.images.length === 0 && !didAutoRetry.current) {
         didAutoRetry.current = true;
         setAutoRetrying(true);
-        try {
-          const imp = await fetch(
-            `/api/admin/runs/${encodeURIComponent(runId)}/case-images/from-hospital`,
-            { method: 'POST', credentials: 'include' },
-          );
-          const impData = (await imp.json().catch(() => ({}))) as { count?: number };
-          if (imp.ok && (impData.count ?? 0) > 0) {
-            const res2 = await fetch(`/api/admin/runs/${encodeURIComponent(runId)}/case-images`, {
-              credentials: 'include',
-            });
-            const data2 = (await res2.json().catch(() => ({}))) as { images?: CaseImage[]; summaries?: GroupSummary[] };
-            if (res2.ok && Array.isArray(data2.images)) {
-              imgs = data2.images;
-              setImages(imgs);
-              setSummaries(data2.summaries ?? []);
+        void fetch(`/api/admin/runs/${encodeURIComponent(runId)}/case-images/from-hospital`, {
+          method: 'POST',
+          credentials: 'include',
+        }).catch(() => {});
+        const deadline = Date.now() + 3 * 60 * 1000;
+        while (Date.now() < deadline) {
+          await new Promise((r) => setTimeout(r, 4000));
+          if (stale()) return;
+          try {
+            const r = await fetchOnce();
+            if (stale()) return;
+            if (r.images.length > 0) {
+              setImages(r.images);
+              setSummaries(r.summaries);
+              break;
             }
+          } catch {
+            /* 일시 오류는 무시하고 계속 폴링 */
           }
-        } catch {
-          /* 자동 import 실패는 조용히 무시 — 수동 '이미지 추가 분석'으로 대체 가능 */
         }
-        setAutoRetrying(false);
-      } else {
-        setAutoRetrying(false);
+        if (!stale()) setAutoRetrying(false);
       }
     } catch (e) {
+      if (stale()) return;
       setError(e instanceof Error ? e.message : '이미지 조회 실패');
-      setAutoRetrying(false);
-    } finally {
       setLoading(false);
+      setAutoRetrying(false);
     }
   }, [runId]);
 
@@ -532,7 +546,7 @@ function CaseImagesSection({ runId }: { runId: string }) {
 
                   {bullets.length > 0 && (
                     <div style={{ marginBottom: 12, padding: '10px 12px', background: 'var(--bg-subtle)', border: '1px solid var(--border)', borderRadius: 8 }}>
-                      <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 6 }}>주요 시사점</div>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 6 }}>의심 질환</div>
                       <ul style={{ margin: 0, paddingLeft: 18, display: 'flex', flexDirection: 'column', gap: 6 }}>
                         {bullets.map((b, bi) => (
                           <li key={bi} style={{ fontSize: 12.5, color: 'var(--text)', lineHeight: 1.5 }}>
