@@ -11,8 +11,6 @@ import {
   loadReportCaseImageRowsFromSupabase,
   listStoragePathsForRunFromSupabase,
 } from '@/lib/health-report-admin/report-case-images-db';
-import { getChartApiProxyConfig } from '@/lib/chart-api-proxy-env';
-
 export const dynamic = 'force-dynamic';
 
 /** 서명 미리보기 TTL (초) — chart-api image-case 와 동일 */
@@ -55,26 +53,6 @@ function formatExamDate(d: Date | string): string {
   } catch {
     return '';
   }
-}
-
-/** chart-api `POST /api/image-case` — LLM·sharp 의존으로 프록시만 지원 */
-async function proxyPostToChartApi(form: FormData): Promise<Response> {
-  const cfg = getChartApiProxyConfig();
-  if (!cfg) {
-    return NextResponse.json(
-      {
-        error:
-          '이미지 업로드·자동 분석은 chart-api에서 처리합니다. CHART_API_BASE_URL 과 CHART_APP_API_KEY 를 설정하거나 chart-api에 직접 업로드해 주세요. 목록·배치 편집은 Supabase만으로 동작합니다.',
-      },
-      { status: 503 },
-    );
-  }
-  const url = `${cfg.outboundBase}/api/image-case`;
-  return fetch(url, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${cfg.key}` },
-    body: form,
-  });
 }
 
 /** GET — chart_pdf 우선, 비어 있으면 vet-report 레거시 `public.report_case_images` */
@@ -137,35 +115,6 @@ export async function GET(request: NextRequest) {
   } catch (e) {
     console.error('GET /api/admin/health-report/image-case:', e);
     return NextResponse.json({ error: apiErrorMessage(e) }, { status: 500 });
-  }
-}
-
-export async function POST(request: NextRequest) {
-  const gate = await requireAdminApi();
-  if (!gate.ok) return gate.response;
-
-  try {
-    const form = await request.formData();
-    const runId = String(form.get('runId') ?? '').trim();
-    if (!isParseRunUuid(runId)) {
-      return NextResponse.json({ error: 'runId required' }, { status: 400 });
-    }
-
-    const res = await proxyPostToChartApi(form);
-    const text = await res.text();
-    let json: unknown;
-    try {
-      json = JSON.parse(text) as unknown;
-    } catch {
-      return NextResponse.json(
-        { error: `chart-api 응답이 JSON이 아닙니다 (${res.status})`, raw: text.slice(0, 400) },
-        { status: 502 },
-      );
-    }
-    return NextResponse.json(json, { status: res.status });
-  } catch (e) {
-    console.error('POST /api/admin/health-report/image-case:', e);
-    return NextResponse.json({ error: e instanceof Error ? e.message : 'chart-api 호출 실패' }, { status: 502 });
   }
 }
 

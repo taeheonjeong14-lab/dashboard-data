@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { chartAppAuthMiddleware } from '@/lib/chart-app/auth';
-import { ChartApiError } from '@/lib/chart-app/extraction-patch';
-import { uploadCaseImages } from '@/lib/chart-app/image-case-upload';
 import { getCaseImageBucket } from '@/lib/chart-app/storage-config';
 import { getChartAppSupabaseService } from '@/lib/chart-app/supabase-service';
 import { isParseRunUuid } from '@/lib/chart-app/uuid';
@@ -100,42 +98,6 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(
       { error: e instanceof Error ? e.message : 'Unknown error' },
       { status: 500 },
-    );
-  }
-}
-
-// POST /api/image-case — multipart
-export async function POST(request: NextRequest) {
-  const authErr = chartAppAuthMiddleware(request);
-  if (authErr) return authErr;
-
-  try {
-    const form = await request.formData();
-    const runId = String(form.get('runId') ?? '').trim();
-    const examDate = String(form.get('examDate') ?? '').trim();
-    if (!isParseRunUuid(runId)) {
-      return NextResponse.json({ error: 'runId required' }, { status: 400 });
-    }
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(examDate)) {
-      return NextResponse.json({ error: 'examDate must be YYYY-MM-DD' }, { status: 400 });
-    }
-
-    const raw = form.getAll('images');
-    const files = raw.filter((x): x is File => typeof x === 'object' && x !== null && 'arrayBuffer' in x);
-    if (files.length === 0) {
-      return NextResponse.json({ error: 'images files required' }, { status: 400 });
-    }
-
-    const out = await uploadCaseImages({ runId, examDate, files });
-    return NextResponse.json(out);
-  } catch (e) {
-    if (e instanceof ChartApiError) {
-      return NextResponse.json({ error: e.message }, { status: e.statusCode });
-    }
-    console.error('POST /api/image-case:', e);
-    return NextResponse.json(
-      { error: e instanceof Error ? e.message : 'Unknown error' },
-      { status: 400 },
     );
   }
 }
