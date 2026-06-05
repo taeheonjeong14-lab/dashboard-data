@@ -41,18 +41,25 @@ export async function POST(
       return NextResponse.json({ ok: true, skipped: true, reason: 'already_has_case_images' });
     }
 
-    // hospital_notes 의 image_paths 조회
+    // 병원 제출 이미지 경로 조회: 진료케이스(blog_case) 또는 건강검진(hospital_notes)의 payload.image_paths.
+    // (진료케이스는 blog_case, 건강검진은 hospital_notes 로 저장되므로 둘 다 확인.)
     const { data: notesRows } = await supabase
       .schema('health_report')
       .from('generated_run_content')
-      .select('payload')
+      .select('content_type, payload')
       .eq('parse_run_id', runId)
-      .eq('content_type', 'hospital_notes')
-      .limit(1);
-    const payload = (notesRows?.[0] as { payload?: { image_paths?: unknown } } | undefined)?.payload;
-    const imagePaths = Array.isArray(payload?.image_paths)
-      ? (payload!.image_paths as unknown[]).filter((p): p is string => typeof p === 'string' && p.length > 0)
-      : [];
+      .in('content_type', ['blog_case', 'hospital_notes']);
+    let imagePaths: string[] = [];
+    for (const row of notesRows ?? []) {
+      const pl = (row as { payload?: { image_paths?: unknown } }).payload;
+      const paths = Array.isArray(pl?.image_paths)
+        ? (pl!.image_paths as unknown[]).filter((p): p is string => typeof p === 'string' && p.length > 0)
+        : [];
+      if (paths.length > 0) {
+        imagePaths = paths;
+        break;
+      }
+    }
     if (imagePaths.length === 0) {
       return NextResponse.json({ ok: true, count: 0, reason: 'no_hospital_images' });
     }
