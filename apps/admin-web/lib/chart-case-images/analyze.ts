@@ -223,7 +223,7 @@ export type GroupImageLabel = {
   examType: ExamType;
   bodyPart: string;
 };
-export type GroupBullet = { text: string; fileNames: string[] };
+export type GroupBullet = { text: string; confidence: number; fileNames: string[] };
 export type ImageGroupAnalysis = { images: GroupImageLabel[]; bullets: GroupBullet[] };
 
 export async function analyzeImageGroup(params: {
@@ -251,6 +251,7 @@ export async function analyzeImageGroup(params: {
     '',
     '[의심 질환] 이 검사일의 이미지들로부터 "의심되는 질환"만 뽑아 bullets 에 담는다.',
     '- 각 불렛(text) = 의심 질환 하나 + 근거. 형식 예: "OOO 의심 — 이미지에서 △△, □□ 소견이 관찰되기 때문." 어떤 질환이 왜(이미지의 어떤 소견 때문에) 의심되는지를 한 문장으로.',
+    '- 각 질환에 confidence(0~100 정수)를 매긴다 = 이미지 근거로 그 질환을 의심하는 확신도. 확실할수록 높게, 애매하면 낮게 정직하게 매긴다.',
     '- 이미지를 통해 의심해볼 수 있는 질환만 쓴다. "~을 확인할 수 있다", "~ 평가가 가능하다", "추가 검사가 필요하다" 같은 포괄적·일반적 서술은 절대 쓰지 않는다.',
     '- 각 불렛마다 그 질환을 뒷받침하는 이미지 파일명을 fileNames 배열에 명시(아래 목록의 파일명 그대로). 한 질환에 이미지 여러 장 가능.',
     '- 의심되는 질환이 없으면 bullets 는 빈 배열로 둔다.',
@@ -301,9 +302,10 @@ export async function analyzeImageGroup(params: {
                 type: 'object',
                 properties: {
                   text: { type: 'string' },
+                  confidence: { type: 'integer' },
                   fileNames: { type: 'array', items: { type: 'string' } },
                 },
-                required: ['text', 'fileNames'],
+                required: ['text', 'confidence', 'fileNames'],
                 additionalProperties: false,
               },
             },
@@ -350,16 +352,19 @@ export async function analyzeImageGroup(params: {
     };
   });
 
-  // 불렛: 텍스트 + 유효 파일명만
+  // 불렛: confidence 임계값 이상만 + 텍스트 + 유효 파일명
+  const minConfidence = Number(process.env.CASE_DISEASE_MIN_CONFIDENCE) || 70;
   const bullets: GroupBullet[] = [];
   for (const row of Array.isArray(parsed.bullets) ? parsed.bullets : []) {
     const o = row as Record<string, unknown>;
     const text = typeof o.text === 'string' ? o.text.trim() : '';
     if (!text) continue;
+    const confidence = Math.round(Number(o.confidence));
+    if (!Number.isFinite(confidence) || confidence < minConfidence) continue; // 확신도 미만 제외
     const fileNames = Array.isArray(o.fileNames)
       ? (o.fileNames as unknown[]).filter((n): n is string => typeof n === 'string' && validNames.has(n))
       : [];
-    bullets.push({ text, fileNames });
+    bullets.push({ text, confidence, fileNames });
   }
 
   return { images, bullets };

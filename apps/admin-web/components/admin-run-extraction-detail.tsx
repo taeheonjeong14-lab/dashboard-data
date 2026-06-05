@@ -190,7 +190,10 @@ type CaseImage = {
   bodyPart: string | null;
 };
 
-type GroupSummary = { examDate: string | null; bullets: { text: string; fileNames: string[] }[] };
+type GroupSummary = {
+  examDate: string | null;
+  bullets: { text: string; confidence?: number | null; fileNames: string[] }[];
+};
 
 function FindingOverlay({ spots, imageRef }: { spots: FindingSpot[]; imageRef: React.RefObject<HTMLImageElement | null> }) {
   const [dims, setDims] = useState<{ w: number; h: number } | null>(null);
@@ -222,17 +225,18 @@ function FindingOverlay({ spots, imageRef }: { spots: FindingSpot[]; imageRef: R
   );
 }
 
-function CaseImageCard({ img, highlight = false }: { img: CaseImage; highlight?: boolean }) {
+function CaseImageCard({ img, numbers = [] }: { img: CaseImage; numbers?: number[] }) {
   const [open, setOpen] = useState(false);
   const examLabel = img.examType ? EXAM_TYPE_LABEL_KO[img.examType] : null;
   const bodyPart = img.bodyPart?.trim() || null;
+  const highlighted = numbers.length > 0;
 
   return (
     <>
       <div
         style={{
-          border: highlight ? '2px solid #a3ff00' : '1px solid var(--border)',
-          boxShadow: highlight ? '0 0 7px rgba(163, 255, 0, 0.7)' : undefined,
+          border: highlighted ? '2px solid #a3ff00' : '1px solid var(--border)',
+          boxShadow: highlighted ? '0 0 7px rgba(163, 255, 0, 0.7)' : undefined,
           borderRadius: 8,
           overflow: 'hidden',
           background: '#fff',
@@ -254,6 +258,30 @@ function CaseImageCard({ img, highlight = false }: { img: CaseImage; highlight?:
           ) : (
             <div style={{ height: 120, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)', fontSize: 12 }}>
               이미지 없음
+            </div>
+          )}
+          {highlighted && (
+            <div style={{ position: 'absolute', top: 6, left: 6, display: 'flex', gap: 3 }}>
+              {numbers.map((n) => (
+                <span
+                  key={n}
+                  style={{
+                    width: 20,
+                    height: 20,
+                    borderRadius: '50%',
+                    background: '#a3ff00',
+                    color: '#1a2e05',
+                    fontSize: 12,
+                    fontWeight: 800,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.4)',
+                  }}
+                >
+                  {n}
+                </span>
+              ))}
             </div>
           )}
         </div>
@@ -522,9 +550,18 @@ function CaseImagesSection({ runId }: { runId: string }) {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
             {groupImagesByDate(images).map(({ date, images: dateImages }) => {
               const summary = summaries.find((s) => (s.examDate ?? null) === (date ?? null));
-              const bullets = summary?.bullets ?? [];
-              const supporting = new Set<string>();
-              for (const b of bullets) for (const fn of b.fileNames) supporting.add(fn);
+              // confidence 높은 순 정렬 후 1·2·3 넘버링, 파일명→번호 매핑(이미지 배지용)
+              const bullets = [...(summary?.bullets ?? [])].sort(
+                (a, b) => (b.confidence ?? 0) - (a.confidence ?? 0),
+              );
+              const numberByFile = new Map<string, number[]>();
+              bullets.forEach((b, bi) => {
+                for (const fn of b.fileNames) {
+                  const arr = numberByFile.get(fn) ?? [];
+                  arr.push(bi + 1);
+                  numberByFile.set(fn, arr);
+                }
+              });
               return (
                 <div key={date ?? 'no-date'}>
                   <div
@@ -547,24 +584,47 @@ function CaseImagesSection({ runId }: { runId: string }) {
                   {bullets.length > 0 && (
                     <div style={{ marginBottom: 12, padding: '10px 12px', background: 'var(--bg-subtle)', border: '1px solid var(--border)', borderRadius: 8 }}>
                       <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 6 }}>의심 질환</div>
-                      <ul style={{ margin: 0, paddingLeft: 18, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                         {bullets.map((b, bi) => (
-                          <li key={bi} style={{ fontSize: 12.5, color: 'var(--text)', lineHeight: 1.5 }}>
-                            {b.text}
-                            {b.fileNames.length > 0 && (
-                              <span style={{ display: 'block', fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
-                                관련 이미지: {b.fileNames.join(', ')}
-                              </span>
-                            )}
-                          </li>
+                          <div key={bi} style={{ display: 'flex', gap: 8, fontSize: 12.5, color: 'var(--text)', lineHeight: 1.5 }}>
+                            <span
+                              style={{
+                                flexShrink: 0,
+                                width: 18,
+                                height: 18,
+                                borderRadius: '50%',
+                                background: 'var(--accent)',
+                                color: '#fff',
+                                fontSize: 11,
+                                fontWeight: 800,
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                marginTop: 1,
+                              }}
+                            >
+                              {bi + 1}
+                            </span>
+                            <div>
+                              <span>{b.text}</span>
+                              {typeof b.confidence === 'number' && (
+                                <span style={{ marginLeft: 4, fontSize: 11, fontWeight: 700, color: 'var(--accent)' }}>({b.confidence}%)</span>
+                              )}
+                              {b.fileNames.length > 0 && (
+                                <span style={{ display: 'block', fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
+                                  관련 이미지: {b.fileNames.join(', ')}
+                                </span>
+                              )}
+                            </div>
+                          </div>
                         ))}
-                      </ul>
+                      </div>
                     </div>
                   )}
 
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 12 }}>
                     {dateImages.map((img) => (
-                      <CaseImageCard key={img.id} img={img} highlight={supporting.has(img.fileName)} />
+                      <CaseImageCard key={img.id} img={img} numbers={numberByFile.get(img.fileName) ?? []} />
                     ))}
                   </div>
                 </div>
