@@ -563,6 +563,11 @@ export default function AdminDataUpload() {
         return [...keptActive, ...newOnes];
       });
       void loadHistory();
+      // 수집 요청 성공 시 화면을 한 번 새로고침(서버에 잡 저장 완료 → 새로고침 후 히스토리 폴링이 진행 중 잡을 다시 표시).
+      if (typeof window !== 'undefined') {
+        window.location.reload();
+        return;
+      }
     } catch (e) {
       setCollectError(e instanceof Error ? e.message : '알 수 없는 오류');
     } finally {
@@ -641,12 +646,10 @@ export default function AdminDataUpload() {
     transition: 'border-color 0.15s, background 0.15s',
   };
 
-  return (
-    <div className="adminLayoutMainPane">
-      <div className="adminLayoutMainColumnInset">
-          {section === 'collect' ? (
-            <>
-<div className="adminLegacyBlockBleed">
+  return section === 'collect' ? (
+    <div className="adminLayout2WithMain" style={{ gridTemplateColumns: '360px minmax(0, 1fr)' }}>
+      <aside className="adminLayoutSecondaryRail" style={{ width: 360, maxWidth: 360, overflowY: 'auto' }}>
+        <div style={{ padding: '14px 14px 24px' }}>
                 <div style={{ display: 'grid', gap: 16 }}>
                   {/* 3단계 트리 체크박스 */}
                   {hospitalsLoading ? (
@@ -852,6 +855,9 @@ export default function AdminDataUpload() {
 
                 </div>
               </div>
+            </aside>
+            <div className="adminLayoutMainPane">
+              <div className="adminLayoutMainColumnInset">
 
               {collectError && (
                 <div
@@ -1151,9 +1157,12 @@ export default function AdminDataUpload() {
                   </div>
                 )}
               </div>
-            </>
-          ) : section === 'pdf' ? (
-            <>
+              </div>
+            </div>
+          </div>
+        ) : section === 'pdf' ? (
+          <div className="adminLayoutMainPane">
+            <div className="adminLayoutMainColumnInset">
               <div className="adminLegacyBlockBleed">
                 <form onSubmit={(e) => void onSubmit(e)}>
                   <div style={{ display: 'grid', gap: 10 }}>
@@ -1338,9 +1347,11 @@ export default function AdminDataUpload() {
                   <p style={{ margin: 0, fontSize: 13, color: 'var(--danger)' }}>이미지 분석 오류: {imageAnalysisError}</p>
                 </div>
               )}
-            </>
-          ) : (
-            <>
+            </div>
+          </div>
+        ) : (
+          <div className="adminLayoutMainPane">
+            <div className="adminLayoutMainColumnInset">
               <header style={{ marginBottom: 20 }}>
                 <h1
                   style={{
@@ -1361,9 +1372,7 @@ export default function AdminDataUpload() {
               <div className="adminMainSingleGutter" style={{ paddingTop: 0, maxWidth: 1280 }}>
                 <AdminDataConsole mode="performance" />
               </div>
-            </>
-          )}
-        </div>
-      </div>
-  );
+            </div>
+          </div>
+        );
 }

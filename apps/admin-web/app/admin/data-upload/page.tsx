@@ -43,5 +43,5 @@ export default async function AdminDataUploadPage({
     ? splitLayout(<HospitalWebRunsPanel />)
     : showStatsPanel
       ? splitLayout(<HospitalStatsSubmissionsPanel />)
-      : <div style={{ overflowY: 'auto', height: 'calc(100vh - 60px)' }}>{upload}</div>;
+      : upload;
 }

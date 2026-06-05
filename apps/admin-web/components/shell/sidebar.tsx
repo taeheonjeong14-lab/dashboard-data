@@ -46,7 +46,7 @@ const NAV_GROUPS: NavGroup[] = [
       },
       {
         href: '/admin/data-upload?section=collect',
-        label: '마케팅데이터 수집',
+        label: '데이터 수집',
         icon: RefreshCw,
         matchPrefix: '/admin/data-upload',
         section: 'collect',

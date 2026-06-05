@@ -511,6 +511,25 @@ def get_place_rank_with_pagination(page, keyword: str, store_name: str, integrat
         return None, None
 
 
+def _place_first_card_text(page, container_sel: str) -> str:
+    """플레이스 목록 첫 카드의 상호명(없으면 앞부분 텍스트). AJAX 페이지 전환 감지용 시그니처."""
+    try:
+        ul = page.query_selector(container_sel)
+        if not ul:
+            return ""
+        cards = ul.query_selector_all(CARD_PLACE)
+        if not cards:
+            cards = ul.query_selector_all("li[data-nmb_vcl-doc-id], li[data-nmb_vcle-doc-id]")
+        if not cards:
+            return ""
+        el = cards[0].query_selector("span.jVsoy")
+        if el:
+            return (el.inner_text() or "").strip()
+        return (cards[0].inner_text() or "").strip()[:50]
+    except Exception:
+        return ""
+
+
 def get_place_ranks_with_pagination(page, keyword: str, targets: list[str]) -> dict[str, int | None]:
     """통합검색 플레이스 섹션에서 '여러 상호명'의 순위를 한 번의 탐색(페이지네이션)으로 찾는다.
     우리 병원 + 경쟁사를 한 검색에서 같이 찾기 위함. 반환: {원본 target 문자열: rank or None}. 광고 제외."""
@@ -531,7 +550,12 @@ def get_place_ranks_with_pagination(page, keyword: str, targets: list[str]) -> d
             return result
 
         total_rank_offset = 0
-        max_pages = 4  # 경쟁사가 낮은 순위일 수 있어 우리 것만 찾을 때보다 한 페이지 더 본다
+        # 우리 가게가 깊은 순위(여러 페이지 뒤)일 수 있어 넉넉히 넘긴다. (원래 단일타깃은 무제한이었음)
+        # 우리 가게를 찾은 뒤에는 경쟁사용으로 몇 페이지만 더 보고 멈춰 런타임을 제한한다.
+        max_pages = int(os.getenv("PLACE_MAX_PAGES", "12") or "12")
+        store_orig = targets[0] if targets else None  # 우리 병원(첫 타깃)
+        extra_pages_after_store = 2
+        pages_after_store = 0
         for _ in range(max_pages):
             ul = page.query_selector(container_sel)
             if not ul:
@@ -555,19 +579,34 @@ def get_place_ranks_with_pagination(page, keyword: str, targets: list[str]) -> d
             total_rank_offset = rank
             if all(result.get(o) is not None for o in norm_map.values()):
                 break
+            # 우리 가게를 이미 찾았으면 경쟁사 위해 몇 페이지만 더 보고 중단(런타임 절약)
+            if store_orig is not None and result.get(store_orig) is not None:
+                pages_after_store += 1
+                if pages_after_store > extra_pages_after_store:
+                    break
             next_btn = page.query_selector('div.cmm_pgs.x5Efp a.cmm_pg_next:not([aria-disabled="true"])')
             if not next_btn:
                 break
+            prev_sig = _place_first_card_text(page, container_sel)
             next_btn.click()
-            page.wait_for_load_state("domcontentloaded", timeout=10000)
-            page.wait_for_timeout(300)
-            container_sel = None
-            for sel in SELECTOR_PLACE_CONTAINER:
-                if page.query_selector(sel):
-                    container_sel = sel
+            # AJAX 페이지 전환: 고정 대기(과거 300ms) 대신 '첫 카드가 바뀔 때까지' 폴링.
+            # 느린 환경/Chrome 경합에서도 다음 페이지를 확실히 읽어 깊은 순위 누락을 막는다.
+            changed = False
+            for _ in range(24):  # 최대 ~6초
+                page.wait_for_timeout(250)
+                new_sel = None
+                for sel in SELECTOR_PLACE_CONTAINER:
+                    if page.query_selector(sel):
+                        new_sel = sel
+                        break
+                if not new_sel:
+                    continue
+                if _place_first_card_text(page, new_sel) != prev_sig:
+                    container_sel = new_sel
+                    changed = True
                     break
-            if not container_sel:
-                break
+            if not changed:
+                break  # 페이지 내용이 안 바뀜(전환 실패) → 더 진행 무의미
         return result
     except Exception:
         return result
