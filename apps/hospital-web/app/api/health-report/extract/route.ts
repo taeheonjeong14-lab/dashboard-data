@@ -76,19 +76,40 @@ export async function POST(request: NextRequest) {
   params.set('hospitalId', hospitalId);
   if (body.emphasisText) params.set('emphasisText', body.emphasisText);
 
-  const upstream = await fetch(`${CHART_API_URL}/api/text-bucketing`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/x-www-form-urlencoded',
-      Authorization: `Bearer ${CHART_API_KEY}`,
-    },
-    body: params.toString(),
-  });
+  let upstream: Response;
+  try {
+    upstream = await fetch(`${CHART_API_URL}/api/text-bucketing`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        Authorization: `Bearer ${CHART_API_KEY}`,
+      },
+      body: params.toString(),
+    });
+  } catch (e) {
+    // 네트워크 오류·게이트웨이 타임아웃 등 — chart-api 응답 자체를 못 받음
+    return NextResponse.json(
+      { error: `차트 분석 서버에 연결하지 못했습니다: ${e instanceof Error ? e.message : 'unknown'}` },
+      { status: 502 },
+    );
+  }
 
-  const data: unknown = await upstream.json();
+  // chart-api 가 비-JSON(함수 크래시/빈 응답)을 줄 수 있으므로 text로 받고 안전 파싱한다.
+  const rawText = await upstream.text().catch(() => '');
+  let data: unknown = null;
+  try {
+    data = rawText ? JSON.parse(rawText) : null;
+  } catch {
+    data = null;
+  }
 
   if (!upstream.ok) {
-    return NextResponse.json(data, { status: upstream.status });
+    const surfaced =
+      (data as { error?: string } | null)?.error ??
+      (upstream.status === 504 || upstream.status === 408
+        ? '차트 분석 시간이 초과되었습니다. 페이지가 많으면 해당 진료분만 잘라서 올려주세요.'
+        : `차트 분석 서버 오류 (${upstream.status})${rawText ? `: ${rawText.slice(0, 200)}` : ' — 응답 본문 없음'}`);
+    return NextResponse.json({ error: surfaced }, { status: upstream.status });
   }
 
   // 추출 성공 시에만 50토큰 차감(원자적, 음수 불가). 실패는 무료.

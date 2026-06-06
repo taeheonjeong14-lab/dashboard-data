@@ -25,6 +25,7 @@ import type { HealthSystemsReportBlock, HealthSystemsImageSlot } from '@/lib/hea
 import { parseHealthSystemsBlocksFromUnknown } from '@/lib/health-report-admin/health-systems-blocks-parse';
 import { iranSuffix } from '@dashboard/health-report';
 import { AdminHealthReportImageSlots, type CaseImageCandidate } from '@/components/admin-health-report-image-slots';
+import { CaseImagesSection } from '@/components/admin-run-extraction-detail';
 import { AdminRunExtractionDetail } from '@/components/admin-run-extraction-detail';
 import { HealthReportPreviewModal } from '@/components/health-report-preview-modal';
 
@@ -234,7 +235,6 @@ export function AdminHealthCheckupWorkspace({
     return paths;
   }, [draft]);
 
-  const hospitalImgTriggeredRef = useRef<Set<string>>(new Set());
 
   const loadContent = useCallback(async () => {
     setLoading(true);
@@ -253,15 +253,7 @@ export function AdminHealthCheckupWorkspace({
       if (typeof emphasis === 'string' && emphasis.trim()) {
         setMustInclude((prev) => (prev.trim() ? prev : emphasis));
       }
-      // 병원 제출 이미지 분류 트리거(멱등). run 당 1회만, 백그라운드.
-      const imgPaths = (notes?.payload as { image_paths?: unknown } | null)?.image_paths;
-      if (Array.isArray(imgPaths) && imgPaths.length > 0 && !hospitalImgTriggeredRef.current.has(runId)) {
-        hospitalImgTriggeredRef.current.add(runId);
-        void fetch(`/api/admin/runs/${encodeURIComponent(runId)}/case-images/from-hospital`, {
-          method: 'POST',
-          credentials: 'include',
-        }).catch(() => {});
-      }
+      // 병원 제출 이미지 분류·import + 표시는 아래 CaseImagesSection 이 담당(폴링 포함). 여기서 중복 트리거하지 않는다.
       const hc = list.find((i) => i.contentType === 'health_checkup');
       if (hc) {
         setDraft(mergeHealthPayloadFromStorage(hc.payload));
@@ -1423,6 +1415,8 @@ export function AdminHealthCheckupWorkspace({
               onCandidatesLoaded={(c) => setImageCandidates(c)}
             />
           </div>
+
+          <CaseImagesSection runId={runId} />
 
         {imagePickerSlot !== null && (() => {
           const { k: pk, blockIndex: pbi, slotIndex: psi } = imagePickerSlot;

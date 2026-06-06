@@ -404,7 +404,7 @@ function groupImagesByDate(images: CaseImage[]): Array<{ date: string | null; im
   return keys.map((key) => ({ date: key === '' ? null : key, images: map.get(key)! }));
 }
 
-function CaseImagesSection({ runId }: { runId: string }) {
+export function CaseImagesSection({ runId }: { runId: string }) {
   const [images, setImages] = useState<CaseImage[]>([]);
   const [summaries, setSummaries] = useState<GroupSummary[]>([]);
   const [loading, setLoading] = useState(true);
@@ -556,9 +556,10 @@ function CaseImagesSection({ runId }: { runId: string }) {
               );
               const numberByFile = new Map<string, number[]>();
               bullets.forEach((b, bi) => {
-                for (const fn of b.fileNames) {
+                const n = bi + 1;
+                for (const fn of new Set(b.fileNames)) {
                   const arr = numberByFile.get(fn) ?? [];
-                  arr.push(bi + 1);
+                  if (!arr.includes(n)) arr.push(n);
                   numberByFile.set(fn, arr);
                 }
               });

@@ -36,6 +36,7 @@ import { createHash } from "node:crypto";
 import { assignFriendlyIdToParseRun } from "@/lib/friendly-id";
 import { normalizeBasicInfoSpeciesBreed } from "@/lib/basic-info-normalization";
 import { PDF_UPLOAD_BUCKET } from "@/lib/supabase-storage-buckets";
+import { getPdfPageCount } from "@/lib/pdf-slice-pages";
 import { hospitalsDbUsesCamelCase } from "@/lib/hospital-db";
 import { dbChartPdf, dbCore, getSupabaseCoreSchema } from "@/lib/supabase-db-schema";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
@@ -2618,6 +2619,24 @@ export async function POST(request: NextRequest) {
       sourceFileName = storageFileName || sourceFileName;
       sourceFileType = storageFileType || sourceFileType;
     }
+
+    // 페이지 수 가드 — 너무 많은 페이지는 파싱이 시간(타임아웃)을 초과하므로 파싱 전에 거부.
+    const MAX_PAGES = Number(process.env.TEXT_BUCKETING_MAX_PAGES) || 40;
+    try {
+      const pageCount = await getPdfPageCount(binary);
+      console.log("[text-bucketing] PDF 페이지 수: %d (제한 %d)", pageCount, MAX_PAGES);
+      if (pageCount > MAX_PAGES) {
+        return Response.json(
+          {
+            error: `PDF가 너무 깁니다 (${pageCount}페이지). 한 번에 ${MAX_PAGES}페이지까지만 분석할 수 있어요. 해당 진료분 페이지만 잘라서 올려주세요.`,
+          },
+          { status: 413 },
+        );
+      }
+    } catch (e) {
+      console.log("[text-bucketing] 페이지 수 확인 실패(무시):", (e as Error)?.message);
+    }
+
     if (!hasLlmApiKey()) {
       return Response.json({ error: "현재 LLM provider API key가 설정되지 않았습니다." }, { status: 400 });
     }
