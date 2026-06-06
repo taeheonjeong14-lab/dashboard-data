@@ -20,10 +20,10 @@ const overlayStyle: CSSProperties = {
 const cardStyle: CSSProperties = {
   background: 'var(--bg-subtle)',
   borderRadius: 12,
-  width: 'min(760px, 100%)',
-  maxHeight: '90vh',
+  width: 'min(1400px, 96vw)',
+  maxHeight: '94vh',
   overflowY: 'auto',
-  padding: 20,
+  padding: 24,
   boxShadow: '0 10px 40px rgba(0,0,0,0.18)',
 };
 const btnPrimary: CSSProperties = {
@@ -59,6 +59,8 @@ const inputStyle: CSSProperties = {
   outline: 'none',
   boxSizing: 'border-box',
   resize: 'vertical',
+  wordBreak: 'break-word',
+  whiteSpace: 'pre-wrap',
 };
 
 function asPart(raw: unknown, idx: number): Part {
@@ -113,7 +115,11 @@ export function CaseBlogButton({ runId }: { runId: string }) {
   const [parts, setParts] = useState<Part[]>([]);
   const [storylineLoading, setStorylineLoading] = useState(false);
   const [blogLoading, setBlogLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [savedMsg, setSavedMsg] = useState('');
   const [error, setError] = useState<string | null>(null);
+  // 현재 메모리 상태가 어느 run 을 반영하는지 — 같은 run 은 다시 불러오거나 재생성하지 않는다.
+  const [loadedRunId, setLoadedRunId] = useState<string | null>(null);
 
   async function generateStoryline() {
     setStorylineLoading(true);
@@ -134,6 +140,8 @@ export function CaseBlogButton({ runId }: { runId: string }) {
       const rawParts = Array.isArray(data.generated?.parts) ? data.generated!.parts! : [];
       setCaseOverview(co.filter((x) => x && typeof x.label === 'string'));
       setParts(rawParts.map(asPart));
+      setLoadedRunId(runId);
+      setSavedMsg('');
     } catch (e) {
       setError(e instanceof Error ? e.message : '스토리라인 생성 실패');
     } finally {
@@ -141,13 +149,67 @@ export function CaseBlogButton({ runId }: { runId: string }) {
     }
   }
 
+  // DB에 저장된 스토리라인이 있으면 불러오고(재생성 X), 없으면 AI로 새로 생성.
+  async function loadStoryline() {
+    setStorylineLoading(true);
+    setError(null);
+    setSavedMsg('');
+    try {
+      const res = await fetch(`/api/admin/health-report/content?runId=${encodeURIComponent(runId)}`, {
+        credentials: 'include',
+      });
+      const data = (await res.json()) as { items?: { contentType?: string; payload?: unknown }[] };
+      if (res.ok) {
+        const item = (data.items ?? []).find((i) => i.contentType === 'blog_storyline');
+        const payload = (item?.payload ?? null) as { caseOverview?: OverviewItem[]; parts?: unknown[] } | null;
+        if (payload && Array.isArray(payload.parts) && payload.parts.length > 0) {
+          setCaseOverview(Array.isArray(payload.caseOverview) ? payload.caseOverview.filter((x) => x && typeof x.label === 'string') : []);
+          setParts(payload.parts.map(asPart));
+          setLoadedRunId(runId);
+          setStorylineLoading(false);
+          return;
+        }
+      }
+    } catch {
+      // 조회 실패 시에는 생성으로 폴백.
+    }
+    await generateStoryline();
+  }
+
+  async function saveStoryline() {
+    if (parts.length === 0) return;
+    setSaving(true);
+    setError(null);
+    setSavedMsg('');
+    try {
+      const res = await fetch('/api/admin/health-report/content', {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ runId, contentType: 'blog_storyline', payload: { caseOverview, parts } }),
+      });
+      const data = (await res.json()) as { error?: string };
+      if (!res.ok) throw new Error(data.error ?? '스토리라인 저장 실패');
+      setLoadedRunId(runId);
+      setSavedMsg('저장됨');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '스토리라인 저장 실패');
+    } finally {
+      setSaving(false);
+    }
+  }
+
   function openModal() {
     setOpen(true);
     setStep('storyline');
-    setCaseOverview([]);
-    setParts([]);
     setError(null);
-    void generateStoryline();
+    setSavedMsg('');
+    // 이 run 의 상태가 이미 메모리에 있으면 그대로(편집 내용 포함), 없으면 DB 로드 → 없으면 생성.
+    if (loadedRunId !== runId) {
+      setCaseOverview([]);
+      setParts([]);
+      void loadStoryline();
+    }
   }
 
   function closeModal() {
@@ -156,6 +218,7 @@ export function CaseBlogButton({ runId }: { runId: string }) {
 
   function updatePart(idx: number, patch: Partial<Part>) {
     setParts((prev) => prev.map((p, i) => (i === idx ? { ...p, ...patch } : p)));
+    if (savedMsg) setSavedMsg('');
   }
 
   async function generateBlog() {
@@ -183,7 +246,7 @@ export function CaseBlogButton({ runId }: { runId: string }) {
     }
   }
 
-  const busy = storylineLoading || blogLoading;
+  const busy = storylineLoading || blogLoading || saving;
   const missingOverview = caseOverview.filter((o) => !o.value).length;
 
   return (
@@ -213,84 +276,95 @@ export function CaseBlogButton({ runId }: { runId: string }) {
 
             {step === 'storyline' ? (
               <>
-                {/* 케이스 개요 (담당자 작성 — 그대로 표시) */}
-                <div style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: 10, padding: '12px 14px', marginBottom: 12 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginBottom: caseOverview.length ? 8 : 0 }}>
-                    <span style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text)' }}>케이스 개요 (담당자 작성)</span>
-                    {missingOverview > 0 ? (
-                      <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--danger)' }}>
-                        ⚠ 미작성 {missingOverview}개 항목 — 비워두면 스토리라인 반영이 약해집니다
-                      </span>
-                    ) : null}
-                  </div>
-                  {caseOverview.length ? (
-                    <div style={{ display: 'grid', gap: 6 }}>
-                      {caseOverview.map((o) => {
-                        const empty = !o.value;
-                        return (
-                          <div key={o.label} style={{ display: 'grid', gridTemplateColumns: '110px 1fr', gap: 8, fontSize: 12.5 }}>
-                            <span style={{ color: empty ? 'var(--danger)' : 'var(--text-muted)', fontWeight: 600 }}>{o.label}</span>
-                            <span style={{ color: empty ? 'var(--danger)' : 'var(--text)', whiteSpace: 'pre-wrap', fontStyle: empty ? 'italic' : 'normal' }}>
-                              {empty ? '미작성' : o.value}
-                            </span>
-                          </div>
-                        );
-                      })}
+                <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
+                  {/* LEFT — 케이스 개요 (담당자 작성, 그대로 표시) */}
+                  <div style={{ flex: '1 1 0', minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginBottom: 8 }}>
+                      <span style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text)' }}>케이스 개요 (담당자 작성)</span>
+                      {missingOverview > 0 ? (
+                        <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--danger)' }}>
+                          ⚠ 미작성 {missingOverview}개 항목
+                        </span>
+                      ) : null}
                     </div>
-                  ) : (
-                    <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                      {storylineLoading ? '불러오는 중…' : '케이스 개요 정보를 불러오지 못했습니다.'}
-                    </div>
-                  )}
-                </div>
-
-                {/* 스토리라인 파트 */}
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 8 }}>
-                  <span style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text)' }}>스토리라인 (검토·수정 가능)</span>
-                  <button type="button" style={btnSecondary} onClick={() => void generateStoryline()} disabled={busy}>
-                    {storylineLoading ? '생성 중…' : '다시 생성'}
-                  </button>
-                </div>
-
-                {storylineLoading && parts.length === 0 ? (
-                  <div style={{ padding: '32px 8px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>
-                    AI가 스토리라인을 작성하는 중…
-                  </div>
-                ) : (
-                  <div style={{ display: 'grid', gap: 12 }}>
-                    {parts.map((p, idx) => (
-                      <div key={p.key} style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: 10, padding: '12px 14px' }}>
-                        <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent)', marginBottom: 10 }}>
-                          {idx + 1}. {p.title}
-                        </div>
+                    <div style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: 10, padding: '12px 14px', maxHeight: '74vh', overflowY: 'auto' }}>
+                      {caseOverview.length ? (
                         <div style={{ display: 'grid', gap: 10 }}>
-                          <div style={{ display: 'grid', gap: 3 }}>
-                            <span style={fieldLabel}>한 줄 요약</span>
-                            <input value={p.summary} onChange={(e) => updatePart(idx, { summary: e.target.value })} style={inputStyle} />
-                          </div>
-                          <div style={{ display: 'grid', gap: 3 }}>
-                            <span style={fieldLabel}>언급할 팩트 (한 줄에 하나)</span>
-                            <textarea
-                              value={p.facts.join('\n')}
-                              onChange={(e) => updatePart(idx, { facts: e.target.value.split('\n') })}
-                              rows={Math.max(2, p.facts.length)}
-                              style={inputStyle}
-                            />
-                          </div>
-                          <div style={{ display: 'grid', gap: 3 }}>
-                            <span style={fieldLabel}>강조할 내용 (한 줄에 하나)</span>
-                            <textarea
-                              value={p.emphasis.join('\n')}
-                              onChange={(e) => updatePart(idx, { emphasis: e.target.value.split('\n') })}
-                              rows={Math.max(2, p.emphasis.length)}
-                              style={inputStyle}
-                            />
-                          </div>
+                          {caseOverview.map((o) => {
+                            const empty = !o.value;
+                            return (
+                              <div key={o.label} style={{ display: 'grid', gap: 3 }}>
+                                <span style={{ fontSize: 11, fontWeight: 700, color: empty ? 'var(--danger)' : 'var(--text-muted)' }}>{o.label}</span>
+                                <span style={{ fontSize: 12.5, color: empty ? 'var(--danger)' : 'var(--text)', whiteSpace: 'pre-wrap', fontStyle: empty ? 'italic' : 'normal' }}>
+                                  {empty ? '미작성' : o.value}
+                                </span>
+                              </div>
+                            );
+                          })}
                         </div>
-                      </div>
-                    ))}
+                      ) : (
+                        <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                          {storylineLoading ? '불러오는 중…' : '케이스 개요 정보를 불러오지 못했습니다.'}
+                        </div>
+                      )}
+                    </div>
                   </div>
-                )}
+
+                  {/* RIGHT — AI 스토리라인 */}
+                  <div style={{ flex: '1.3 1 0', minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 8 }}>
+                      <span style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text)' }}>AI 스토리라인 (검토·수정 가능)</span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        {savedMsg ? <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--success)' }}>{savedMsg}</span> : null}
+                        <button type="button" style={btnSecondary} onClick={() => void saveStoryline()} disabled={busy || parts.length === 0}>
+                          {saving ? '저장 중…' : '스토리라인 저장'}
+                        </button>
+                        <button type="button" style={btnSecondary} onClick={() => void generateStoryline()} disabled={busy}>
+                          {storylineLoading ? '생성 중…' : '다시 생성'}
+                        </button>
+                      </div>
+                    </div>
+                    {storylineLoading && parts.length === 0 ? (
+                      <div style={{ padding: '40px 8px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>
+                        AI가 스토리라인을 작성하는 중…
+                      </div>
+                    ) : (
+                      <div style={{ display: 'grid', gap: 12, maxHeight: '74vh', overflowY: 'auto', paddingRight: 4 }}>
+                        {parts.map((p, idx) => (
+                          <div key={p.key} style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: 10, padding: '12px 14px' }}>
+                            <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent)', marginBottom: 10 }}>
+                              {idx + 1}. {p.title}
+                            </div>
+                            <div style={{ display: 'grid', gap: 10 }}>
+                              <div style={{ display: 'grid', gap: 3 }}>
+                                <span style={fieldLabel}>한 줄 요약</span>
+                                <textarea value={p.summary} onChange={(e) => updatePart(idx, { summary: e.target.value })} rows={2} style={inputStyle} />
+                              </div>
+                              <div style={{ display: 'grid', gap: 3 }}>
+                                <span style={fieldLabel}>언급할 팩트 (한 줄에 하나)</span>
+                                <textarea
+                                  value={p.facts.join('\n')}
+                                  onChange={(e) => updatePart(idx, { facts: e.target.value.split('\n') })}
+                                  rows={Math.max(2, p.facts.length)}
+                                  style={inputStyle}
+                                />
+                              </div>
+                              <div style={{ display: 'grid', gap: 3 }}>
+                                <span style={fieldLabel}>강조할 내용 (한 줄에 하나)</span>
+                                <textarea
+                                  value={p.emphasis.join('\n')}
+                                  onChange={(e) => updatePart(idx, { emphasis: e.target.value.split('\n') })}
+                                  rows={Math.max(2, p.emphasis.length)}
+                                  style={inputStyle}
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
 
                 <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
                   <button type="button" style={btnSecondary} onClick={closeModal} disabled={blogLoading}>

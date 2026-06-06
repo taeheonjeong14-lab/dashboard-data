@@ -73,9 +73,10 @@ export async function PATCH(request: NextRequest) {
 
   const runId = String(body.runId ?? '').trim();
   const contentType = String(body.contentType ?? '').trim();
+  const ALLOWED_CONTENT_TYPES = new Set(['health_checkup', 'blog_storyline']);
   if (!isParseRunUuid(runId)) return NextResponse.json({ error: 'runId invalid' }, { status: 400 });
-  if (contentType !== 'health_checkup') {
-    return NextResponse.json({ error: 'only health_checkup supported in admin-web' }, { status: 400 });
+  if (!ALLOWED_CONTENT_TYPES.has(contentType)) {
+    return NextResponse.json({ error: `unsupported contentType: ${contentType}` }, { status: 400 });
   }
   if (body.payload == null || typeof body.payload !== 'object' || Array.isArray(body.payload)) {
     return NextResponse.json({ error: 'payload must be a JSON object' }, { status: 400 });
