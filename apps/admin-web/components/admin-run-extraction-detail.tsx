@@ -11,6 +11,7 @@ import { labItemCategory } from '@dashboard/lab-normalize';
 import { speciesProfileFromBasicSpecies } from '@/lib/chart-extraction/lab-species-profile';
 import { isParseRunUuid } from '@/lib/chart-extraction/uuid';
 import { BucketDebugPanel } from '@/components/bucket-debug-panel';
+import { CaseBlogButton } from '@/components/admin-case-blog-modal';
 
 type ExtractionSection = 'basicInfo' | 'vaccination' | 'chartBody' | 'plan' | 'lab';
 
@@ -1076,6 +1077,7 @@ export function AdminRunExtractionDetail({
           >
             건강검진 리포트 생성
           </button>
+          <CaseBlogButton runId={runId} />
           <Link href="/admin/chart-data" className="adminLegacySecondaryBtn">
             기록 목록
           </Link>
@@ -1162,6 +1164,7 @@ export function AdminRunExtractionDetail({
             >
               건강검진 리포트 생성
             </button>
+            <CaseBlogButton runId={runId} />
             {onDelete && (
               <button type="button" className="adminLegacyDangerBtn" onClick={onDelete} disabled={deleting}>
                 {deleting ? '삭제 중…' : '데이터 삭제'}

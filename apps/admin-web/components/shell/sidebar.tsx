@@ -13,6 +13,7 @@ import {
   RefreshCw,
   ClipboardList,
   ClipboardCheck,
+  Newspaper,
   type LucideProps,
 } from 'lucide-react';
 
@@ -58,6 +59,7 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { href: '/admin/chart-data', label: '차트 목록', icon: FileText, matchPrefix: '/admin/chart-data' },
       { href: '/admin/health-report', label: '건강검진 리포트', icon: HeartPulse, matchPrefix: '/admin/health-report' },
+      { href: '/admin/case-blog', label: '진료케이스', icon: Newspaper, matchPrefix: '/admin/case-blog' },
     ],
   },
   {
