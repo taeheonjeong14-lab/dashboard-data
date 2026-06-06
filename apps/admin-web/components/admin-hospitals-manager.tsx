@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { formatSupabaseError } from '@/lib/format-supabase-error';
 
 type HospitalListRow = { id: string; name?: string; address?: string; addressDetail?: string; address_detail?: string };
@@ -69,6 +69,84 @@ const fieldLabelStyle: React.CSSProperties = {
   lineHeight: 1.3,
 };
 
+// 필드별 "어디에 쓰이는지" 한 줄 설명
+const fieldHintStyle: React.CSSProperties = {
+  fontSize: 10.5,
+  color: 'var(--text-muted)',
+  lineHeight: 1.35,
+  opacity: 0.8,
+};
+
+const sectionStyle: React.CSSProperties = {
+  display: 'grid',
+  gap: 12,
+  paddingTop: 4,
+};
+const twoColStyle: React.CSSProperties = { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 };
+
+// 메인 폼 섹션 — 기능(사용처) 단위. 탭으로 구분해 선택한 탭만 표시.
+const FORM_SECTIONS = [
+  { key: 'identity', title: '병원 기본 정보' },
+  { key: 'branding', title: '병원 BI/CI' },
+  { key: 'keyword', title: '키워드' },
+  { key: 'competitor', title: '경쟁병원' },
+  { key: 'intake', title: '서비스 구성' },
+  { key: 'blog', title: '블로그 컨텐츠' },
+  { key: 'crawler', title: '데이터 수집' },
+  { key: 'database', title: '데이터베이스 관리' },
+] as const;
+type SectionKey = (typeof FORM_SECTIONS)[number]['key'];
+
+// 경영 대시보드와 동일한 언더라인 탭 스타일
+const tabBarStyle: React.CSSProperties = {
+  display: 'flex',
+  gap: 4,
+  borderBottom: '1px solid var(--border)',
+  overflowX: 'auto',
+  marginBottom: 12,
+};
+function tabButtonStyle(active: boolean): React.CSSProperties {
+  return {
+    padding: '9px 12px',
+    fontSize: 13,
+    fontWeight: active ? 600 : 500,
+    color: active ? 'var(--accent)' : 'var(--text-muted)',
+    background: 'none',
+    border: 'none',
+    // border 단축속성보다 뒤에 둬야 비활성 탭이 투명(밑줄 없음)으로 유지된다.
+    borderBottom: `2px solid ${active ? 'var(--accent)' : 'transparent'}`,
+    marginBottom: -1,
+    cursor: 'pointer',
+    whiteSpace: 'nowrap',
+    transition: 'color 0.15s',
+  };
+}
+
+// 선택된 탭만 내용 표시
+function TabPanel({ active, children }: { active: boolean; children: ReactNode }) {
+  if (!active) return null;
+  return <section style={sectionStyle}>{children}</section>;
+}
+
+// 데이터 수집 탭 — 크롤러로 수집하는 데이터 종류별 흰 박스 섹션
+function DataCard({ title, desc, children }: { title?: string; desc?: string; children: ReactNode }) {
+  const hasHeader = !!(title || desc);
+  return (
+    <div
+      style={{
+        background: '#ffffff',
+        border: '1px solid var(--border)',
+        borderRadius: 10,
+        padding: '14px 16px',
+      }}
+    >
+      {title ? <div style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text)' }}>{title}</div> : null}
+      {desc ? <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{desc}</div> : null}
+      <div style={{ display: 'grid', gap: 12, marginTop: hasHeader ? 12 : 0 }}>{children}</div>
+    </div>
+  );
+}
+
 const fieldStyle: React.CSSProperties = {
   width: '100%',
   padding: '5px 0',
@@ -81,11 +159,78 @@ const fieldStyle: React.CSSProperties = {
   outline: 'none',
 };
 
-function LabeledField({ label, children }: { label: string; children: ReactNode }) {
+function LabeledField({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 3, minWidth: 0 }}>
       <span style={fieldLabelStyle}>{label}</span>
+      {hint ? <span style={fieldHintStyle}>{hint}</span> : null}
       {children}
+    </div>
+  );
+}
+
+// 큼직한 드래그 앤 드롭 이미지 업로드 박스 (로고·도장 등). 업로드된 이미지가 있으면 미리보기.
+function AssetDropzone({
+  url,
+  disabled,
+  onFile,
+}: {
+  url?: string;
+  disabled?: boolean;
+  onFile: (file: File | undefined) => void;
+}) {
+  const [dragging, setDragging] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+  return (
+    <div
+      onClick={() => !disabled && inputRef.current?.click()}
+      onDragOver={(e) => {
+        e.preventDefault();
+        if (!disabled) setDragging(true);
+      }}
+      onDragLeave={() => setDragging(false)}
+      onDrop={(e) => {
+        e.preventDefault();
+        setDragging(false);
+        if (!disabled) onFile(e.dataTransfer.files?.[0]);
+      }}
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 8,
+        minHeight: 140,
+        padding: '16px 12px',
+        textAlign: 'center',
+        border: `2px dashed ${dragging ? 'var(--accent)' : 'rgba(15,23,42,0.2)'}`,
+        borderRadius: 8,
+        background: dragging ? 'var(--accent-subtle, rgba(99,102,241,0.06))' : 'transparent',
+        cursor: disabled ? 'not-allowed' : 'pointer',
+        transition: 'border-color 0.15s, background 0.15s',
+        boxSizing: 'border-box',
+      }}
+    >
+      <input
+        ref={inputRef}
+        type="file"
+        accept=".png,.jpg,.jpeg,.webp,.svg"
+        style={{ display: 'none' }}
+        onChange={(e) => onFile(e.target.files?.[0])}
+      />
+      {url ? (
+        <>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={url} alt="" style={{ maxHeight: 88, maxWidth: '100%', objectFit: 'contain' }} />
+          <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>클릭하거나 끌어다 놓아 변경</span>
+        </>
+      ) : (
+        <>
+          <span style={{ fontSize: 22, lineHeight: 1 }}>🖼️</span>
+          <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>이미지를 끌어다 놓거나 클릭하여 선택</span>
+          <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>PNG·JPG·WEBP·SVG</span>
+        </>
+      )}
     </div>
   );
 }
@@ -128,6 +273,8 @@ export default function AdminHospitalsManager() {
   const [selectedId, setSelectedId] = useState('');
   const [query, setQuery] = useState('');
   const [form, setForm] = useState(EMPTY_FORM);
+  // 선택된 탭만 표시. 저장은 어느 탭에서나 전체 폼 저장.
+  const [activeTab, setActiveTab] = useState<SectionKey>('identity');
 
   const filteredHospitals = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -253,25 +400,6 @@ export default function AdminHospitalsManager() {
     }
   }
 
-  const sectionStyle: React.CSSProperties = {
-    display: 'grid',
-    gap: 10,
-    padding: '12px 12px 14px',
-    background: '#ffffff',
-    borderTop: '1px solid rgba(148, 163, 184, 0.35)',
-    boxSizing: 'border-box',
-  };
-  const summaryStyle: React.CSSProperties = {
-    cursor: 'pointer',
-    listStyle: 'none',
-    padding: '10px 12px',
-    fontSize: 12,
-    fontWeight: 700,
-    color: '#1e1b4b',
-    userSelect: 'none',
-  };
-  const twoColStyle: React.CSSProperties = { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 };
-
   return (
     <div className="adminLayout2WithMain">
       <aside className="adminLayoutSecondaryRail" aria-label="병원 목록">
@@ -332,126 +460,193 @@ export default function AdminHospitalsManager() {
       </aside>
 
       <div className="adminLayoutMainPane">
-        <div className="adminLayoutMainColumnInset" style={{ background: 'var(--bg-subtle)' }}>
+        <div className="adminLayoutMainColumnInset">
+        {/* 페이지 헤더 — 선택한 병원 이름·주소 (병원에 따라 동적 변경) */}
+        <div style={{ paddingTop: 16, marginBottom: 16 }}>
+          <h1 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: 'var(--text)' }}>
+            {form.name.trim() || (selectedId ? '(이름 없음)' : '신규 병원')}
+          </h1>
+          <p style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--text-secondary)' }}>
+            {[form.address, form.addressDetail].map((s) => s.trim()).filter(Boolean).join(' ') || '주소 미입력'}
+          </p>
+        </div>
         {loading || message ? (
           <div className="adminLegacyStatus" style={{ marginBottom: 10, fontSize: 12 }}>
             {loading ? '처리 중...' : message}
           </div>
         ) : null}
+        {/* 탭바 — 선택한 탭의 필드만 표시 (경영 대시보드와 동일한 언더라인 스타일) */}
+        <div style={tabBarStyle} className="adminUnderlineTabs" role="tablist">
+          {FORM_SECTIONS.map((s) => {
+            const active = activeTab === s.key;
+            return (
+              <button
+                key={s.key}
+                type="button"
+                role="tab"
+                aria-selected={active}
+                onClick={() => setActiveTab(s.key)}
+                style={tabButtonStyle(active)}
+              >
+                {s.title}
+              </button>
+            );
+          })}
+        </div>
+
         <form onSubmit={saveHospital} className="adminLegacyModalForm" style={{ gap: 6, fontSize: 12 }}>
-          <details open className="adminMainAccordion adminHospitalFormAccordion">
-            <summary className="adminAccordionSummary" style={summaryStyle}>
-              병원 기본 정보
-            </summary>
-            <section style={sectionStyle}>
+          {/* 🏥 병원 기본 정보 */}
+          <TabPanel active={activeTab === 'identity'}>
+            <DataCard>
               <div style={twoColStyle}>
-                <LabeledField label="병원 이름 (한국어) · 필수">
+                <LabeledField label="병원 이름 (한국어) · 필수" hint="전역 표시·차트 매칭의 기준이 되는 정식 병원명">
                   <input required value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} style={fieldStyle} />
                 </LabeledField>
-                <LabeledField label="병원 이름 (영어)">
+                <LabeledField label="병원 이름 (영어)" hint="영문 문서·도메인 표기에 사용">
                   <input value={form.name_en} onChange={(e) => setForm((f) => ({ ...f, name_en: e.target.value }))} style={fieldStyle} />
                 </LabeledField>
               </div>
               <div style={twoColStyle}>
-                <LabeledField label="병원 코드">
-                  <input value={form.code} onChange={(e) => setForm((f) => ({ ...f, code: e.target.value }))} style={fieldStyle} />
+                <LabeledField label="대표원장 이름" hint="리포트 서명란 등에 표기되는 대표원장 이름">
+                  <input value={form.director_name_ko} onChange={(e) => setForm((f) => ({ ...f, director_name_ko: e.target.value }))} style={fieldStyle} />
                 </LabeledField>
-                <LabeledField label="전화번호">
+                <LabeledField label="전화번호" hint="리포트·문서에 표기되는 대표 전화">
                   <input value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} style={fieldStyle} />
                 </LabeledField>
               </div>
-              <LabeledField label="병원 주소">
-                <input value={form.address} onChange={(e) => setForm((f) => ({ ...f, address: e.target.value }))} style={fieldStyle} />
-              </LabeledField>
-              <LabeledField label="병원 상세주소">
-                <input value={form.addressDetail} onChange={(e) => setForm((f) => ({ ...f, addressDetail: e.target.value }))} style={fieldStyle} />
+              <div style={twoColStyle}>
+                <LabeledField label="병원 주소" hint="리포트 표지·문서에 표기되는 주소">
+                  <input value={form.address} onChange={(e) => setForm((f) => ({ ...f, address: e.target.value }))} style={fieldStyle} />
+                </LabeledField>
+                <LabeledField label="상세주소" hint="동·호수 등 상세주소">
+                  <input value={form.addressDetail} onChange={(e) => setForm((f) => ({ ...f, addressDetail: e.target.value }))} style={fieldStyle} />
+                </LabeledField>
+              </div>
+            </DataCard>
+          </TabPanel>
+
+          {/* 🎨 병원 BI/CI — 리포트·블로그 표지 등에 쓰이는 브랜드 자산 */}
+          <TabPanel active={activeTab === 'branding'}>
+            <DataCard>
+              <div style={twoColStyle}>
+                <LabeledField label="슬로건 첫 줄" hint="리포트 표지 슬로건 문구">
+                  <input value={form.tagline_line1} onChange={(e) => setForm((f) => ({ ...f, tagline_line1: e.target.value }))} style={fieldStyle} />
+                </LabeledField>
+                <LabeledField label="슬로건 둘째 줄" hint="리포트 표지 슬로건 둘째 줄">
+                  <input value={form.tagline_line2} onChange={(e) => setForm((f) => ({ ...f, tagline_line2: e.target.value }))} style={fieldStyle} />
+                </LabeledField>
+              </div>
+              <LabeledField label="브랜드 색상 (#hex)" hint="리포트·블로그 표지 강조색">
+                <input placeholder="var(--accent)" value={form.brandColor} onChange={(e) => setForm((f) => ({ ...f, brandColor: e.target.value }))} style={fieldStyle} />
               </LabeledField>
               <div style={twoColStyle}>
-                <LabeledField label="대표원장 이름">
-                  <input value={form.director_name_ko} onChange={(e) => setForm((f) => ({ ...f, director_name_ko: e.target.value }))} style={fieldStyle} />
+                <LabeledField label="병원 로고 이미지" hint="리포트·문서 표지 상단 로고">
+                  <AssetDropzone
+                    url={form.logoUrl}
+                    disabled={loading}
+                    onFile={(file) => void uploadHospitalAsset('logo', file)}
+                  />
                 </LabeledField>
-                <LabeledField label="대표원장 도장 이미지">
-                  <input
-                    type="file"
-                    accept=".png,.jpg,.jpeg,.webp,.svg"
-                    style={{ fontSize: 11, maxWidth: '100%' }}
-                    onChange={(e) => void uploadHospitalAsset('seal', e.target.files?.[0])}
+                <LabeledField label="대표원장 도장 이미지" hint="리포트 마지막 장 대표원장 서명 도장">
+                  <AssetDropzone
+                    url={form.seal_url}
+                    disabled={loading}
+                    onFile={(file) => void uploadHospitalAsset('seal', file)}
                   />
                 </LabeledField>
               </div>
-              <LabeledField label="슬로건 첫 줄">
-                <input value={form.tagline_line1} onChange={(e) => setForm((f) => ({ ...f, tagline_line1: e.target.value }))} style={fieldStyle} />
-              </LabeledField>
-              <LabeledField label="슬로건 둘째 줄">
-                <input value={form.tagline_line2} onChange={(e) => setForm((f) => ({ ...f, tagline_line2: e.target.value }))} style={fieldStyle} />
-              </LabeledField>
-              <LabeledField label="블로그 인트로">
-                <textarea rows={3} value={form.blog_intro} onChange={(e) => setForm((f) => ({ ...f, blog_intro: e.target.value }))} style={fieldStyle} />
-              </LabeledField>
-              <LabeledField label="블로그 아웃트로">
-                <textarea rows={3} value={form.blog_outro} onChange={(e) => setForm((f) => ({ ...f, blog_outro: e.target.value }))} style={fieldStyle} />
-              </LabeledField>
-            </section>
-          </details>
+            </DataCard>
+          </TabPanel>
 
-          <details open className="adminMainAccordion adminHospitalFormAccordion">
-            <summary className="adminAccordionSummary" style={summaryStyle}>
-              병원 BI
-            </summary>
-            <section style={sectionStyle}>
-              <LabeledField label="병원 로고 이미지">
-                <input
-                  type="file"
-                  accept=".png,.jpg,.jpeg,.webp,.svg"
-                  style={{ fontSize: 11, maxWidth: '100%' }}
-                  onChange={(e) => void uploadHospitalAsset('logo', e.target.files?.[0])}
-                />
-              </LabeledField>
-              <LabeledField label="브랜드 색상 (#hex)">
-                <input placeholder="var(--accent)" value={form.brandColor} onChange={(e) => setForm((f) => ({ ...f, brandColor: e.target.value }))} style={fieldStyle} />
-              </LabeledField>
-            </section>
-          </details>
+          {/* 키워드 — 블로그·플레이스 검색 순위 모니터링 키워드 모음 (흰 박스 2열) */}
+          <TabPanel active={activeTab === 'keyword'}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, alignItems: 'start' }}>
+              <DataCard title="플레이스 키워드" desc="플레이스 검색 순위 모니터링 대상 키워드">
+                <KeywordList value={form.place_keywords} onChange={(v) => setForm((f) => ({ ...f, place_keywords: v }))} />
+              </DataCard>
+              <DataCard title="블로그 키워드" desc="블로그 검색 순위 모니터링 대상 키워드">
+                <KeywordList value={form.blog_keywords} onChange={(v) => setForm((f) => ({ ...f, blog_keywords: v }))} />
+              </DataCard>
+            </div>
+          </TabPanel>
 
-          <details open className="adminMainAccordion adminHospitalFormAccordion">
-            <summary className="adminAccordionSummary" style={summaryStyle}>
-              Robovet AI · 사전문진
-            </summary>
-            <section style={sectionStyle}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--text-secondary)', cursor: 'pointer' }}>
-                <input
-                  type="checkbox"
-                  checked={form.intake_survey_enabled}
-                  onChange={(e) => setForm((f) => ({ ...f, intake_survey_enabled: e.target.checked }))}
-                  style={{ width: 16, height: 16, flexShrink: 0 }}
-                />
-                초진 접수 ↔ 사전문진 연동 사용 (연락처로 매칭해 겹치는 질문 자동 스킵·프리필)
-              </label>
-            </section>
-          </details>
+          {/* ✍️ 블로그 컨텐츠 — 인트로·아웃트로 흰 박스 2열 */}
+          <TabPanel active={activeTab === 'blog'}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, alignItems: 'start' }}>
+              <DataCard title="블로그 인트로" desc="블로그 글 생성 시 도입부 프롬프트로 사용">
+                <textarea rows={4} value={form.blog_intro} onChange={(e) => setForm((f) => ({ ...f, blog_intro: e.target.value }))} style={fieldStyle} />
+              </DataCard>
+              <DataCard title="블로그 아웃트로" desc="블로그 글 생성 시 마무리 프롬프트로 사용">
+                <textarea rows={4} value={form.blog_outro} onChange={(e) => setForm((f) => ({ ...f, blog_outro: e.target.value }))} style={fieldStyle} />
+              </DataCard>
+            </div>
+          </TabPanel>
 
-          <details open className="adminMainAccordion adminHospitalFormAccordion">
-            <summary className="adminAccordionSummary" style={summaryStyle}>
-              데이터수집 정보
-            </summary>
-            <section style={sectionStyle}>
-              <div style={twoColStyle}>
-                <LabeledField label="디버그 포트">
-                  <input value={form.debug_port} onChange={(e) => setForm((f) => ({ ...f, debug_port: e.target.value }))} style={fieldStyle} />
-                </LabeledField>
-                <LabeledField label="스마트플레이스 통계 URL">
-                  <input value={form.smartplace_stat_url} onChange={(e) => setForm((f) => ({ ...f, smartplace_stat_url: e.target.value }))} style={fieldStyle} />
-                </LabeledField>
+          {/* 📊 데이터 수집(크롤러) — 좌: 블로그·플레이스 / 우: 네이버 검색광고 */}
+          <TabPanel active={activeTab === 'crawler'}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, alignItems: 'start' }}>
+              {/* 좌측 칼럼 */}
+              <div style={{ display: 'grid', gap: 12 }}>
+                <DataCard title="디버그 포트" desc="수집 크롤러(크롬) 공용 디버그 포트.">
+                  <LabeledField label="디버그 포트" hint="모든 수집에 공용으로 쓰이는 크롬 디버그 포트">
+                    <input value={form.debug_port} onChange={(e) => setForm((f) => ({ ...f, debug_port: e.target.value }))} style={fieldStyle} />
+                  </LabeledField>
+                </DataCard>
+
+                <DataCard title="블로그 일별 지표" desc="네이버 블로그에서 일별 방문·발행 등 지표를 수집합니다.">
+                  <LabeledField label="네이버 블로그 ID" hint="지표를 수집할 병원 네이버 블로그 ID">
+                    <input value={form.naver_blog_id} onChange={(e) => setForm((f) => ({ ...f, naver_blog_id: e.target.value }))} style={fieldStyle} />
+                  </LabeledField>
+                </DataCard>
+
+                <DataCard title="스마트플레이스 유입" desc="스마트플레이스 통계에서 유입·조회 지표를 수집합니다.">
+                  <LabeledField label="스마트플레이스 통계 URL" hint="플레이스 통계 수집 대상 URL">
+                    <input value={form.smartplace_stat_url} onChange={(e) => setForm((f) => ({ ...f, smartplace_stat_url: e.target.value }))} style={fieldStyle} />
+                  </LabeledField>
+                </DataCard>
+
+                <DataCard title="스마트플레이스 리뷰 추이" desc="스마트플레이스 리뷰 수·내용 추이를 수집합니다.">
+                  <LabeledField label="스마트플레이스 리뷰 URL" hint="리뷰 수집 대상 URL">
+                    <input value={form.smartplace_review_url} onChange={(e) => setForm((f) => ({ ...f, smartplace_review_url: e.target.value }))} style={fieldStyle} />
+                  </LabeledField>
+                </DataCard>
               </div>
-              <LabeledField label="스마트플레이스 리뷰 URL (리뷰 수집용)">
-                <input value={form.smartplace_review_url} onChange={(e) => setForm((f) => ({ ...f, smartplace_review_url: e.target.value }))} style={fieldStyle} />
-              </LabeledField>
-              <LabeledField label="경쟁병원 (최대 3 · 상호명 + 네이버 블로그 ID)">
-                <div style={{ display: 'grid', gap: 6 }}>
-                  {form.competitors.map((c, i) => (
-                    <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+
+              {/* 우측 칼럼 */}
+              <div style={{ display: 'grid', gap: 12 }}>
+                <DataCard title="네이버 검색광고" desc="네이버 검색광고 API로 광고 성과 지표를 수집합니다.">
+                  <LabeledField label="SearchAd customer_id" hint="네이버 검색광고 API customer_id">
+                    <input value={form.searchad_customer_id} onChange={(e) => setForm((f) => ({ ...f, searchad_customer_id: e.target.value }))} style={fieldStyle} />
+                  </LabeledField>
+                  <LabeledField label="SearchAd api_license" hint="네이버 검색광고 API 라이선스 키">
+                    <input value={form.searchad_api_license} onChange={(e) => setForm((f) => ({ ...f, searchad_api_license: e.target.value }))} style={fieldStyle} />
+                  </LabeledField>
+                  <LabeledField label="SearchAd secret_key_encrypted" hint="네이버 검색광고 시크릿 (암호화 저장)">
+                    <input value={form.searchad_secret_key_encrypted} onChange={(e) => setForm((f) => ({ ...f, searchad_secret_key_encrypted: e.target.value }))} style={fieldStyle} />
+                  </LabeledField>
+                </DataCard>
+
+                <DataCard title="구글 광고" desc="구글 광고 API로 광고 성과 지표를 수집합니다.">
+                  <LabeledField label="GoogleAds customer_id" hint="구글 광고 customer_id">
+                    <input value={form.googleads_customer_id} onChange={(e) => setForm((f) => ({ ...f, googleads_customer_id: e.target.value }))} style={fieldStyle} />
+                  </LabeledField>
+                  <LabeledField label="GoogleAds refresh_token_encrypted" hint="구글 광고 refresh token (암호화 저장)">
+                    <input value={form.googleads_refresh_token_encrypted} onChange={(e) => setForm((f) => ({ ...f, googleads_refresh_token_encrypted: e.target.value }))} style={fieldStyle} />
+                  </LabeledField>
+                </DataCard>
+              </div>
+            </div>
+          </TabPanel>
+
+          {/* ⚔️ 경쟁병원 분석 — 경쟁병원별 흰 박스 (최대 3) */}
+          <TabPanel active={activeTab === 'competitor'}>
+            <div style={{ display: 'grid', gap: 12 }}>
+              {form.competitors.map((c, i) => (
+                <DataCard key={i} title={`경쟁병원 ${i + 1}`} desc="경쟁병원 분석 메뉴의 비교 대상으로 사용">
+                  <div style={twoColStyle}>
+                    <LabeledField label="상호명" hint="플레이스 표기 그대로 입력">
                       <input
-                        placeholder={`경쟁병원 ${i + 1} 상호명(플레이스 표기 그대로)`}
+                        placeholder="상호명(플레이스 표기 그대로)"
                         value={c.name}
                         onChange={(e) =>
                           setForm((f) => ({
@@ -461,6 +656,8 @@ export default function AdminHospitalsManager() {
                         }
                         style={fieldStyle}
                       />
+                    </LabeledField>
+                    <LabeledField label="네이버 블로그 ID" hint="경쟁병원 네이버 블로그 ID">
                       <input
                         placeholder="네이버 블로그 ID"
                         value={c.naver_blog_id}
@@ -472,44 +669,33 @@ export default function AdminHospitalsManager() {
                         }
                         style={fieldStyle}
                       />
-                    </div>
-                  ))}
-                </div>
-              </LabeledField>
-              <LabeledField label="네이버 블로그 ID">
-                <input value={form.naver_blog_id} onChange={(e) => setForm((f) => ({ ...f, naver_blog_id: e.target.value }))} style={fieldStyle} />
-              </LabeledField>
-              <LabeledField label="SearchAd customer_id">
-                <input value={form.searchad_customer_id} onChange={(e) => setForm((f) => ({ ...f, searchad_customer_id: e.target.value }))} style={fieldStyle} />
-              </LabeledField>
-              <LabeledField label="SearchAd api_license">
-                <input value={form.searchad_api_license} onChange={(e) => setForm((f) => ({ ...f, searchad_api_license: e.target.value }))} style={fieldStyle} />
-              </LabeledField>
-              <LabeledField label="SearchAd secret_key_encrypted">
-                <input value={form.searchad_secret_key_encrypted} onChange={(e) => setForm((f) => ({ ...f, searchad_secret_key_encrypted: e.target.value }))} style={fieldStyle} />
-              </LabeledField>
-              <LabeledField label="GoogleAds customer_id">
-                <input value={form.googleads_customer_id} onChange={(e) => setForm((f) => ({ ...f, googleads_customer_id: e.target.value }))} style={fieldStyle} />
-              </LabeledField>
-              <LabeledField label="GoogleAds refresh_token_encrypted">
-                <input value={form.googleads_refresh_token_encrypted} onChange={(e) => setForm((f) => ({ ...f, googleads_refresh_token_encrypted: e.target.value }))} style={fieldStyle} />
-              </LabeledField>
-            </section>
-          </details>
+                    </LabeledField>
+                  </div>
+                </DataCard>
+              ))}
+            </div>
+          </TabPanel>
 
-          <details open className="adminMainAccordion adminHospitalFormAccordion">
-            <summary className="adminAccordionSummary" style={summaryStyle}>
-              키워드 모니터링
-            </summary>
-            <section style={sectionStyle}>
-              <LabeledField label="블로그 키워드">
-                <KeywordList value={form.blog_keywords} onChange={(v) => setForm((f) => ({ ...f, blog_keywords: v }))} />
-              </LabeledField>
-              <LabeledField label="플레이스 키워드">
-                <KeywordList value={form.place_keywords} onChange={(v) => setForm((f) => ({ ...f, place_keywords: v }))} />
-              </LabeledField>
-            </section>
-          </details>
+          {/* 🤖 사전문진·초진 접수 */}
+          <TabPanel active={activeTab === 'intake'}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--text-secondary)', cursor: 'pointer' }}>
+              <input
+                type="checkbox"
+                checked={form.intake_survey_enabled}
+                onChange={(e) => setForm((f) => ({ ...f, intake_survey_enabled: e.target.checked }))}
+                style={{ width: 16, height: 16, flexShrink: 0 }}
+              />
+              초진 접수 ↔ 사전문진 연동 사용 (연락처로 매칭해 겹치는 질문 자동 스킵·프리필)
+            </label>
+          </TabPanel>
+
+          {/* 🗄️ 데이터베이스 관리 — 시스템 내부에서 병원을 식별/관리하기 위한 값 */}
+          <TabPanel active={activeTab === 'database'}>
+            <LabeledField label="병원 코드" hint="시스템 내부에서 병원을 식별·관리하기 위한 코드">
+              <input value={form.code} onChange={(e) => setForm((f) => ({ ...f, code: e.target.value }))} style={fieldStyle} />
+            </LabeledField>
+          </TabPanel>
+
           <div className="adminLegacyModalActions">
             <button type="submit" className="adminLegacyPrimaryBtn" disabled={loading}>
               저장

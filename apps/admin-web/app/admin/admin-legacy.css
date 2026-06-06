@@ -107,6 +107,16 @@
   box-sizing: border-box;
 }
 
+/* 언더라인 탭바 — 좁은 화면에선 가로 스크롤 가능하되 스크롤바는 숨김 */
+.adminUnderlineTabs {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE/Edge */
+}
+.adminUnderlineTabs::-webkit-scrollbar {
+  height: 0;
+  display: none;
+}
+
 /* ── 2차 Rail 아이템 ──────────────────────────── */
 .adminRailFilterBar {
   padding: 6px 10px 8px;
