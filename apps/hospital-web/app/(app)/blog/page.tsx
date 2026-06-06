@@ -4,12 +4,11 @@ import { useState, type CSSProperties } from 'react';
 import { StickyHeader } from '@/components/ui/sticky-header';
 import { CaseTab } from '@/components/blog/CaseTab';
 
-type TabKey = 'case' | 'health-tips' | 'schedule';
+type TabKey = 'case' | 'health-tips';
 
 const TABS: { key: TabKey; label: string }[] = [
   { key: 'case', label: '진료케이스' },
   { key: 'health-tips', label: '반려동물 건강상식' },
-  { key: 'schedule', label: '월간 진료일정' },
 ];
 
 export default function BlogContentPage() {
@@ -21,7 +20,7 @@ export default function BlogContentPage() {
         <div style={{ marginBottom: 16 }}>
           <h1 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: 'var(--text)' }}>블로그 컨텐츠</h1>
           <p style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--text-secondary)' }}>
-            진료케이스·건강상식·월간 진료일정 블로그 콘텐츠 자료를 등록합니다.
+            진료케이스·건강상식 블로그 콘텐츠 자료를 등록합니다.
           </p>
         </div>
 
@@ -61,7 +60,6 @@ export default function BlogContentPage() {
 
       {tab === 'case' && <CaseTab />}
       {tab === 'health-tips' && <Placeholder label="반려동물 건강상식" />}
-      {tab === 'schedule' && <Placeholder label="월간 진료일정" />}
     </div>
   );
 }

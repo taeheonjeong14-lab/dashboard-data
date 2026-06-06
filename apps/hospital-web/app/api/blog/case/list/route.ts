@@ -30,14 +30,26 @@ export async function GET() {
     const { data: runs, error: runErr } = await srvc
       .schema('chart_pdf')
       .from('parse_runs')
-      .select('id, friendly_id, created_at')
+      .select('id, friendly_id, created_at, result_basic_info(owner_name, patient_name)')
       .eq('hospital_id', hospitalId)
       .order('created_at', { ascending: false });
     if (runErr) throw new Error(runErr.message);
 
-    const runRows = (runs ?? []) as { id: string; friendly_id: string | null; created_at: string }[];
+    type RunRow = {
+      id: string;
+      friendly_id: string | null;
+      created_at: string;
+      result_basic_info: { owner_name?: string | null; patient_name?: string | null }[] | { owner_name?: string | null; patient_name?: string | null } | null;
+    };
+    const runRows = (runs ?? []) as RunRow[];
     if (runRows.length === 0) return NextResponse.json({ items: [] });
     const runById = new Map(runRows.map((r) => [r.id, r]));
+
+    const nonEmpty = (v: unknown): string => (typeof v === 'string' && v.trim() ? v.trim() : '');
+    const basicOf = (r: RunRow | undefined) => {
+      const b = r?.result_basic_info;
+      return Array.isArray(b) ? b[0] : b;
+    };
 
     const { data: content, error: cErr } = await srvc
       .schema('health_report')
@@ -60,11 +72,14 @@ export async function GET() {
     const items = ((content ?? []) as ContentRow[])
       .map((c) => {
         const run = runById.get(c.parse_run_id);
+        const basic = basicOf(run);
         const overview = c.payload?.overview ?? {};
         const imagePaths = Array.isArray(c.payload?.image_paths) ? c.payload!.image_paths : [];
         return {
           runId: c.parse_run_id,
           friendlyId: run?.friendly_id ?? null,
+          patientName: nonEmpty(basic?.patient_name),
+          ownerName: nonEmpty(basic?.owner_name),
           finalDiagnosis: overview.final_diagnosis ?? '',
           imageCount: imagePaths.length,
           createdAt: c.created_at,

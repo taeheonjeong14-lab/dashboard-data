@@ -2,29 +2,35 @@
 
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
-import { BarChart2, FileHeart, Stethoscope, ClipboardList, ClipboardCheck, Newspaper, Swords } from 'lucide-react';
+import { BarChart2, FileHeart, Stethoscope, ClipboardList, ClipboardCheck, Newspaper, Swords, CalendarDays } from 'lucide-react';
 
 const navGroups = [
   {
-    title: '고객응대',
+    title: 'AI진료 보조',
     items: [
       { href: '/pre-consultation', label: '사전문진', icon: ClipboardCheck, matchPrefix: '/pre-consultation' },
+      { href: '/ai-assist', label: 'Robovet AI', icon: Stethoscope, matchPrefix: '/ai-assist', badge: '준비중' },
+    ],
+  },
+  {
+    title: '병원경영',
+    items: [
+      { href: '/dashboard', label: '경영 대시보드', icon: BarChart2, matchPrefix: '/dashboard' },
+      { href: '/competitor-analysis', label: '경쟁병원 분석', icon: Swords, matchPrefix: '/competitor-analysis' },
+    ],
+  },
+  {
+    title: '경영운영',
+    items: [
       { href: '/reception', label: '초진 접수', icon: ClipboardList, matchPrefix: '/reception' },
+      { href: '/health-report', label: '건강검진 리포트', icon: FileHeart, matchPrefix: '/health-report' },
     ],
   },
   {
     title: '마케팅',
     items: [
-      { href: '/dashboard', label: '경영 대시보드', icon: BarChart2, matchPrefix: '/dashboard' },
-      { href: '/competitor-analysis', label: '경쟁병원 분석', icon: Swords, matchPrefix: '/competitor-analysis' },
-      { href: '/health-report', label: '건강검진 리포트', icon: FileHeart, matchPrefix: '/health-report' },
       { href: '/blog', label: '블로그 컨텐츠', icon: Newspaper, matchPrefix: '/blog' },
-    ],
-  },
-  {
-    title: 'Robovet AI',
-    items: [
-      { href: '/ai-assist', label: 'AI 진료 보조', icon: Stethoscope, matchPrefix: '/ai-assist' },
+      { href: '/schedule', label: '디자인 요청', icon: CalendarDays, matchPrefix: '/schedule', badge: '준비중' },
     ],
   },
 ];
@@ -60,6 +66,7 @@ export function Sidebar() {
                   <span style={{ color: isActive ? 'var(--accent)' : 'var(--text-secondary)' }}>
                     {item.label}
                   </span>
+                  {'badge' in item && item.badge && <span style={styles.badge}>{item.badge}</span>}
                 </Link>
               );
             })}

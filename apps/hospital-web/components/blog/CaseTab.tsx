@@ -22,6 +22,8 @@ type Stage =
 type CaseItem = {
   runId: string;
   friendlyId: string | null;
+  patientName: string;
+  ownerName: string;
   finalDiagnosis: string;
   imageCount: number;
   createdAt: string;
@@ -55,6 +57,16 @@ const LONG_FIELDS: { key: keyof Overview; label: string; placeholder: string }[]
   { key: 'treatmentProcess', label: '치료 과정', placeholder: '치료 경과와 과정' },
   { key: 'aftercarePlan', label: '사후 관리 계획', placeholder: '퇴원 후 관리·재진 계획' },
   { key: 'emphasis', label: '강조 희망 사항', placeholder: '블로그에서 강조하고 싶은 점' },
+];
+
+// 강조 희망 사항을 제외한 개요 항목은 필수.
+const REQUIRED_OVERVIEW_KEYS: (keyof Overview)[] = [
+  'finalDiagnosis',
+  'visitBackground',
+  'patientNotes',
+  'diagnosisMethod',
+  'treatmentProcess',
+  'aftercarePlan',
 ];
 
 const EMPTY_OVERVIEW: Overview = {
@@ -284,6 +296,13 @@ export function CaseTab() {
       return;
     }
 
+    const missing = REQUIRED_OVERVIEW_KEYS.filter((k) => !overview[k].trim());
+    if (missing.length > 0) {
+      setErrorMessage('케이스 개요 필수 항목을 모두 입력해 주세요. (강조 희망 사항 제외)');
+      setStage('error');
+      return;
+    }
+
     setStage('getting-url');
     setProgressMessage('업로드 URL 생성 중…');
     setErrorMessage('');
@@ -353,13 +372,14 @@ export function CaseTab() {
 
   const isProcessing =
     stage === 'getting-url' || stage === 'uploading-pdf' || stage === 'extracting' || stage === 'saving';
-  const canSubmit = !!pdfFile && !isProcessing;
+  const overviewComplete = REQUIRED_OVERVIEW_KEYS.every((k) => overview[k].trim());
+  const canSubmit = !!pdfFile && overviewComplete && !isProcessing;
 
   const setField = (key: keyof Overview, value: string) => setOverview((prev) => ({ ...prev, [key]: value }));
 
   // ----- Render -----
   return (
-    <div style={{ display: 'flex', gap: 0, alignItems: 'stretch', maxWidth: 1100, paddingTop: 18 }}>
+    <div style={{ display: 'flex', gap: 0, alignItems: 'stretch', width: '100%', paddingTop: 18 }}>
       {/* LEFT — 제출한 케이스 목록 */}
       <div style={{ flex: 1, minWidth: 0, paddingRight: 24 }}>
         <div style={{ padding: '0 0 10px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -386,7 +406,7 @@ export function CaseTab() {
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
               <tr style={{ background: 'var(--bg-subtle)' }}>
-                {['등록일', '최종진단명', '사진'].map((h) => (
+                {['등록일', '환자 이름', '보호자 이름', '최종진단명', '사진'].map((h) => (
                   <th
                     key={h}
                     style={{ padding: '9px 14px', textAlign: 'left', fontWeight: 600, color: 'var(--text-muted)', fontSize: 11, borderBottom: '1px solid var(--border)', whiteSpace: 'nowrap', textTransform: 'uppercase', letterSpacing: '0.04em' }}
@@ -403,6 +423,8 @@ export function CaseTab() {
                     {formatDate(item.createdAt)}
                     {item.friendlyId && <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 1 }}>#{item.friendlyId}</div>}
                   </td>
+                  <td style={{ padding: '11px 14px', color: 'var(--text)', whiteSpace: 'nowrap' }}>{item.patientName || '—'}</td>
+                  <td style={{ padding: '11px 14px', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>{item.ownerName || '—'}</td>
                   <td style={{ padding: '11px 14px', color: 'var(--text)' }}>{item.finalDiagnosis || '—'}</td>
                   <td style={{ padding: '11px 14px', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
                     {item.imageCount > 0 ? `${item.imageCount}장` : '—'}
@@ -415,7 +437,7 @@ export function CaseTab() {
       </div>
 
       {/* RIGHT — 새 케이스 등록 폼 */}
-      <div style={{ width: 360, flexShrink: 0, borderLeft: '1px solid var(--border-strong)', paddingLeft: 24 }}>
+      <div style={{ flex: 1, minWidth: 0, borderLeft: '1px solid var(--border-strong)', paddingLeft: 24 }}>
         <div style={{ padding: '0 0 10px' }}>
           <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>진료케이스 등록</div>
           <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>차트 PDF·케이스 개요·사진을 등록해 주세요</div>
@@ -493,7 +515,7 @@ export function CaseTab() {
             <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 10 }}>차트에 나와있지 않은 내용을 한 줄씩 채워 주세요.</div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              <FormField label="최종진단명">
+              <FormField label="최종진단명" required>
                 <input
                   type="text"
                   value={overview.finalDiagnosis}
@@ -505,7 +527,7 @@ export function CaseTab() {
               </FormField>
 
               {LONG_FIELDS.map(({ key, label, placeholder }) => (
-                <FormField key={key} label={label}>
+                <FormField key={key} label={label} required={REQUIRED_OVERVIEW_KEYS.includes(key)}>
                   <textarea
                     value={overview[key]}
                     onChange={(e) => setField(key, e.target.value)}
