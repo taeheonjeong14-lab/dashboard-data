@@ -7,6 +7,14 @@ export type GeminiTextOptions = {
   maxOutputTokens?: number;
   /** 기본 0.3. 사실 기반(저창의) 출력이 필요하면 낮춤(예: 건강검진 0.18) */
   temperature?: number;
+  /**
+   * Gemini 2.5 계열 thinking 토큰 예산.
+   * 명시하면 그 값을 그대로 쓰고(0=끔, 양수=고정, -1=동적), 생략하면 기존 기본값
+   * (2.5-flash 는 0으로 끔)을 따른다. 2.5-flash 허용 범위 0~24576.
+   */
+  thinkingBudget?: number;
+  /** systemInstruction(역할/규칙) 을 user content 와 분리해 전달 */
+  systemInstruction?: string;
 };
 
 export async function geminiGenerateText(prompt: string, opts?: GeminiTextOptions): Promise<string> {
@@ -23,21 +31,28 @@ export async function geminiGenerateText(prompt: string, opts?: GeminiTextOption
   const maxOut = opts?.maxOutputTokens ?? 8192;
   const temperature = opts?.temperature ?? 0.3;
 
-  // Gemini 2.5-flash 계열은 thinking 토큰이 maxOutputTokens 를 함께 소모해, 짧은 답변도
-  // 본문이 중간에 잘린다(finishReason=MAX_TOKENS). 사실 기반 단답 생성에는 thinking 이
-  // 불필요하므로 끈다. (pro 는 thinkingBudget:0 을 거부할 수 있어 flash 계열만 적용)
+  // thinking 토큰은 maxOutputTokens 를 함께 소모해 본문이 잘릴 수 있다(finishReason=MAX_TOKENS).
+  // 옵션으로 thinkingBudget 을 명시하면 그 값을 그대로 쓰고(단계별 제어용),
+  // 생략하면 기존 기본값(2.5-flash 계열은 0으로 끔)을 따른다.
   const generationConfig: Record<string, unknown> = { temperature, maxOutputTokens: maxOut };
-  if (/2\.5-flash/i.test(model)) {
+  if (opts?.thinkingBudget !== undefined) {
+    generationConfig.thinkingConfig = { thinkingBudget: opts.thinkingBudget };
+  } else if (/2\.5-flash/i.test(model)) {
     generationConfig.thinkingConfig = { thinkingBudget: 0 };
+  }
+
+  const requestBody: Record<string, unknown> = {
+    contents: [{ parts: [{ text: prompt }] }],
+    generationConfig,
+  };
+  if (opts?.systemInstruction?.trim()) {
+    requestBody.systemInstruction = { parts: [{ text: opts.systemInstruction }] };
   }
 
   const res = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      contents: [{ parts: [{ text: prompt }] }],
-      generationConfig,
-    }),
+    body: JSON.stringify(requestBody),
   });
 
   if (!res.ok) {
