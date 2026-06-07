@@ -1,1 +1,6 @@
 .vercel
+
+# Vercel env pulls (시크릿 평문 — 절대 커밋 금지)
+.vercel.env*.tmp
+.vercel.env.prod.tmp
+.vercel.env.tmp

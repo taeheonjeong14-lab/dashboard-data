@@ -11,6 +11,9 @@ data/*.json
 .env.local
 .env.storage-migrate
 dashboard/.env.local
+# Vercel env pulls (시크릿 평문 — 절대 커밋 금지)
+.vercel.env*.tmp
+**/.vercel.env*.tmp
 *.log
 scripts/sql/decode-supabase-batch.config.json
 scripts/sql/tmp/
