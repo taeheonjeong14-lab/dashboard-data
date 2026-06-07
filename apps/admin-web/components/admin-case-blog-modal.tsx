@@ -6,7 +6,7 @@ import Link from 'next/link';
 // ── 타입 ──────────────────────────────────────────────────────────────────
 type StepNum = 1 | 2 | 3;
 type OverviewItem = { label: string; value: string };
-type Phase = { id: string; name: string; period: string; type: string; what: string; why: string; toNext: string };
+type Phase = { id: string; name: string; period: string; type: string; what: string[]; why: string[]; toNext: string[] };
 type CausalFlow = { axis: string; anesthesia: boolean; phases: Phase[] };
 type Section = { id: string; label: string; points: string[]; facts: string[] };
 type OverviewCheck = { item: string; reflectedIn: string };
@@ -62,7 +62,7 @@ function asCausal(raw: unknown): CausalFlow {
         id: str(x.id) || `phase_${uid()}`,
         name: str(x.name), period: str(x.period),
         type: t === 'surgical' || t === 'medical' || t === 'diagnostic' ? t : 'medical',
-        what: str(x.what), why: str(x.why), toNext: str(x.toNext),
+        what: toLines(x.what), why: toLines(x.why), toNext: toLines(x.toNext),
       };
     }),
   };
@@ -246,7 +246,7 @@ export function CaseBlogButton({ runId }: { runId: string }) {
     }); dirty();
   }
   function addPhase() {
-    setCausal((c) => (c ? { ...c, phases: [...c.phases, { id: `phase_${uid()}`, name: '', period: '', type: 'medical', what: '', why: '', toNext: '' }] } : c)); dirty();
+    setCausal((c) => (c ? { ...c, phases: [...c.phases, { id: `phase_${uid()}`, name: '', period: '', type: 'medical', what: [], why: [], toNext: [] }] } : c)); dirty();
   }
   function removePhase(i: number) {
     setCausal((c) => (c ? { ...c, phases: c.phases.filter((_, j) => j !== i) } : c)); dirty();
@@ -453,9 +453,9 @@ function CausalEditor({ causal, busy, setField, updatePhase, movePhase, addPhase
                 </select>
               </div>
             </div>
-            <LabeledTextarea label="무슨 일 (what)" value={p.what} onChange={(v) => updatePhase(i, { what: v })} rows={2} />
-            <LabeledTextarea label="왜 (why · 임상 원리)" value={p.why} onChange={(v) => updatePhase(i, { why: v })} rows={2} />
-            <LabeledTextarea label="다음 단계로 넘어간 계기 (마지막은 비움)" value={p.toNext} onChange={(v) => updatePhase(i, { toNext: v })} rows={2} />
+            <LabeledTextarea label="무엇을 했나? (한 줄에 하나)" value={p.what.join('\n')} onChange={(v) => updatePhase(i, { what: v.split('\n') })} rows={4} />
+            <LabeledTextarea label="왜 했나? (임상 원리 · 한 줄에 하나)" value={p.why.join('\n')} onChange={(v) => updatePhase(i, { why: v.split('\n') })} rows={4} />
+            <LabeledTextarea label="다음 단계로 넘어간 계기 (한 줄에 하나 · 마지막은 비움)" value={p.toNext.join('\n')} onChange={(v) => updatePhase(i, { toNext: v.split('\n') })} rows={4} />
           </div>
         </div>
       ))}
