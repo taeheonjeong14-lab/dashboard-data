@@ -453,9 +453,9 @@ function CausalEditor({ causal, busy, setField, updatePhase, movePhase, addPhase
                 </select>
               </div>
             </div>
-            <LabeledTextarea label="무엇을 했나? (한 줄에 하나)" value={p.what.join('\n')} onChange={(v) => updatePhase(i, { what: v.split('\n') })} rows={4} />
-            <LabeledTextarea label="왜 했나? (임상 원리 · 한 줄에 하나)" value={p.why.join('\n')} onChange={(v) => updatePhase(i, { why: v.split('\n') })} rows={4} />
-            <LabeledTextarea label="다음 단계로 넘어간 계기 (한 줄에 하나 · 마지막은 비움)" value={p.toNext.join('\n')} onChange={(v) => updatePhase(i, { toNext: v.split('\n') })} rows={4} />
+            <LabeledTextarea label="무엇을 했나? (한 줄에 한 항목, 간단명료하게)" value={p.what.join('\n')} onChange={(v) => updatePhase(i, { what: v.split('\n') })} rows={4} />
+            <LabeledTextarea label="왜 했나? (임상 원리 · 한 줄에 한 항목)" value={p.why.join('\n')} onChange={(v) => updatePhase(i, { why: v.split('\n') })} rows={4} />
+            <LabeledTextarea label="결과 및 다음 단계 (검사 결과·경과 + 그에 따른 다음 단계 · 한 줄에 한 항목)" value={p.toNext.join('\n')} onChange={(v) => updatePhase(i, { toNext: v.split('\n') })} rows={4} />
           </div>
         </div>
       ))}
