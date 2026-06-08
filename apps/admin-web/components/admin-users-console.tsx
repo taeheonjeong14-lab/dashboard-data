@@ -108,6 +108,24 @@ function StatusBadge({ user }: { user: ApiUser }) {
   );
 }
 
+/** 숫자만 입력해도 한국 전화번호 형태(010-1234-5678 등)로 포맷한다. */
+function formatPhone(input: string): string {
+  const d = input.replace(/\D/g, '').slice(0, 11);
+  if (d.length === 0) return '';
+  // 서울 지역번호(02)
+  if (d.startsWith('02')) {
+    if (d.length <= 2) return d;
+    if (d.length <= 5) return `${d.slice(0, 2)}-${d.slice(2)}`;
+    if (d.length <= 9) return `${d.slice(0, 2)}-${d.slice(2, d.length - 4)}-${d.slice(d.length - 4)}`;
+    return `${d.slice(0, 2)}-${d.slice(2, 6)}-${d.slice(6, 10)}`;
+  }
+  // 휴대폰/기타(010, 070, 0XX 지역번호)
+  if (d.length <= 3) return d;
+  if (d.length <= 7) return `${d.slice(0, 3)}-${d.slice(3)}`;
+  if (d.length <= 10) return `${d.slice(0, 3)}-${d.slice(3, d.length - 4)}-${d.slice(d.length - 4)}`;
+  return `${d.slice(0, 3)}-${d.slice(3, 7)}-${d.slice(7, 11)}`;
+}
+
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
@@ -265,11 +283,35 @@ export default function AdminUsersConsole() {
     }
   }
 
+  async function sendPasswordReset(email: string | null | undefined) {
+    if (!email) {
+      setMessage('이메일이 없는 사용자입니다.');
+      return;
+    }
+    if (!confirm(`${email} 주소로 비밀번호 재설정 메일을 보낼까요?`)) return;
+    setLoading(true);
+    setMessage('');
+    try {
+      const res = await fetch('/api/admin/users/reset-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+      const data = (await res.json()) as { success?: boolean; error?: string };
+      if (!res.ok || !data.success) throw new Error(data.error || '메일 발송 실패');
+      setMessage(`비밀번호 재설정 메일을 보냈습니다: ${email}`);
+    } catch (e) {
+      setMessage(`메일 발송 실패: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setLoading(false);
+    }
+  }
+
   function selectUser(user: ApiUser) {
     setSelectedId(user.id);
     setEditForm({
       name: user.name ?? '',
-      phone: user.phone ?? '',
+      phone: formatPhone(user.phone ?? ''),
       active: user.active,
       hospitalId: user.hospitalId ?? '',
       customHospitalName: user.customHospitalName ?? '',
@@ -397,6 +439,9 @@ export default function AdminUsersConsole() {
                     <button type="button" style={btnSecondary} onClick={() => void grantTokens(selectedUser.id)} disabled={loading}>
                       토큰 지급
                     </button>
+                    <button type="button" style={btnSecondary} onClick={() => void sendPasswordReset(selectedUser.email)} disabled={loading}>
+                      비밀번호 재설정 메일
+                    </button>
                     <button type="button" style={btnDanger} onClick={() => void softDelete(selectedUser.id)} disabled={loading}>
                       삭제
                     </button>
@@ -411,7 +456,7 @@ export default function AdminUsersConsole() {
                     <input value={editForm.name} onChange={(e) => setEditForm((f) => ({ ...f, name: e.target.value }))} style={fieldStyle} />
                   </LabeledField>
                   <LabeledField label="전화번호">
-                    <input value={editForm.phone} onChange={(e) => setEditForm((f) => ({ ...f, phone: e.target.value }))} style={fieldStyle} />
+                    <input value={editForm.phone} onChange={(e) => setEditForm((f) => ({ ...f, phone: formatPhone(e.target.value) }))} inputMode="numeric" placeholder="01012345678" style={fieldStyle} />
                   </LabeledField>
                 </div>
                 <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--text-secondary)', cursor: 'pointer' }}>

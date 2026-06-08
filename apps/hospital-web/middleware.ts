@@ -35,6 +35,8 @@ export async function middleware(request: NextRequest) {
     isAuthPage ||
     pathname.startsWith('/auth') ||
     pathname.startsWith('/verify-email') ||
+    // 비밀번호 재설정(복구 토큰은 URL 해시라 서버가 못 보므로 반드시 공개로 둔다)
+    pathname.startsWith('/reset-password') ||
     // 보호자용 초진 접수증(공개 폼) + 제출 API — 로그인 없이 접근
     pathname.startsWith('/intake') ||
     pathname.startsWith('/api/intake') ||
