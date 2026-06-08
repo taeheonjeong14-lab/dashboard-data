@@ -8,7 +8,8 @@ type StepNum = 1 | 2 | 3;
 type OverviewItem = { label: string; value: string };
 type Phase = { id: string; name: string; period: string; type: string; what: string[]; why: string[]; toNext: string[] };
 type CausalFlow = { axis: string; anesthesia: boolean; phases: Phase[] };
-type Section = { id: string; label: string; points: string[]; facts: string[] };
+type Section = { id: string; label: string; points: string[]; facts: string[]; imageFileNames: string[] };
+type CaseImg = { fileName: string; signedUrl: string | null };
 type OverviewCheck = { item: string; reflectedIn: string };
 type Outline = { title_candidates: string[]; sections: Section[]; overviewCheck: OverviewCheck[] };
 type BlogPost = { title: string; bodyMarkdown: string; tags: string[]; charCount: number };
@@ -75,7 +76,7 @@ function asOutline(raw: unknown): Outline {
     title_candidates: toLines(o.title_candidates),
     sections: sections.map((s) => {
       const x = (s ?? {}) as Record<string, unknown>;
-      return { id: str(x.id) || `sec_${uid()}`, label: str(x.label), points: toLines(x.points), facts: toLines(x.facts) };
+      return { id: str(x.id) || `sec_${uid()}`, label: str(x.label), points: toLines(x.points), facts: toLines(x.facts), imageFileNames: toLines(x.imageFileNames) };
     }),
     overviewCheck: checks.map((c) => {
       const x = (c ?? {}) as Record<string, unknown>;
@@ -92,6 +93,51 @@ function asBlog(raw: unknown): BlogPost {
 }
 const PHASE_TYPE_LABEL: Record<string, string> = { surgical: '수술/처치', medical: '내과 치료', diagnostic: '검사' };
 
+// 변경된 부분을 사람이 읽을 수 있는 목록으로 — 재생성 확인창에 표시.
+const arrEq = (a: string[], b: string[]): boolean => a.join('') === b.join('');
+function diffCausal(prev: CausalFlow, next: CausalFlow): string[] {
+  const changes: string[] = [];
+  if (prev.axis !== next.axis) changes.push('흐름의 축');
+  if (prev.anesthesia !== next.anesthesia) changes.push('마취 동반 여부');
+  const n = Math.max(prev.phases.length, next.phases.length);
+  for (let i = 0; i < n; i++) {
+    const a = prev.phases[i]; const b = next.phases[i];
+    if (a && !b) { changes.push(`단계 ${i + 1} 삭제`); continue; }
+    if (!a && b) { changes.push(`단계 ${i + 1} 추가${b.name ? ` (${b.name})` : ''}`); continue; }
+    if (!a || !b) continue;
+    const sub: string[] = [];
+    if (a.name !== b.name) sub.push('단계명');
+    if (a.period !== b.period) sub.push('경과 시점');
+    if (a.type !== b.type) sub.push('성격');
+    if (!arrEq(a.what, b.what)) sub.push('무엇을 했나');
+    if (!arrEq(a.why, b.why)) sub.push('왜 했나');
+    if (!arrEq(a.toNext, b.toNext)) sub.push('결과 및 다음 단계');
+    if (sub.length) changes.push(`단계 ${i + 1}${b.name ? `(${b.name})` : ''}: ${sub.join(', ')}`);
+  }
+  return changes;
+}
+function diffOutline(prev: Outline, next: Outline): string[] {
+  const changes: string[] = [];
+  if (!arrEq(prev.title_candidates, next.title_candidates)) changes.push('제목 후보');
+  const n = Math.max(prev.sections.length, next.sections.length);
+  for (let i = 0; i < n; i++) {
+    const a = prev.sections[i]; const b = next.sections[i];
+    if (a && !b) { changes.push(`섹션 ${i + 1} 삭제`); continue; }
+    if (!a && b) { changes.push(`섹션 ${i + 1} 추가${b.label ? ` (${b.label})` : ''}`); continue; }
+    if (!a || !b) continue;
+    const sub: string[] = [];
+    if (a.label !== b.label) sub.push('섹션명');
+    if (!arrEq(a.points, b.points)) sub.push('요점');
+    if (!arrEq(a.facts, b.facts)) sub.push('팩트');
+    if (sub.length) changes.push(`섹션 ${i + 1}${b.label ? `(${b.label})` : ''}: ${sub.join(', ')}`);
+  }
+  return changes;
+}
+function confirmRegen(title: string, changes: string[], question: string): boolean {
+  const list = changes.length ? `\n\n변경된 부분:\n${changes.map((c) => `• ${c}`).join('\n')}` : '';
+  return window.confirm(`${title}${list}\n\n${question}\n(취소하면 기존 내용을 그대로 보여줍니다.)`);
+}
+
 // ── 작은 컴포넌트 ───────────────────────────────────────────────────────────
 function LabeledTextarea({ label, value, onChange, rows = 2 }: { label: string; value: string; onChange: (v: string) => void; rows?: number }) {
   return (
@@ -107,13 +153,24 @@ function LabeledTextarea({ label, value, onChange, rows = 2 }: { label: string; 
  * 1) 인과 흐름(causalFlow) → 2) 섹션 아웃라인(outline) → 3) 블로그 글(blogPost).
  * 각 단계는 검수·수정 → 저장(DB) → 다음 단계 입력으로 전달.
  */
-export function CaseBlogButton({ runId }: { runId: string }) {
+export function CaseBlogButton({
+  runId,
+  label = '진료케이스 작성',
+  triggerStyle,
+  onClose,
+}: {
+  runId: string;
+  label?: string;
+  triggerStyle?: CSSProperties;
+  onClose?: () => void;
+}) {
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState<StepNum>(1);
   const [caseOverview, setCaseOverview] = useState<OverviewItem[]>([]);
   const [causal, setCausal] = useState<CausalFlow | null>(null);
   const [outline, setOutline] = useState<Outline | null>(null);
   const [blog, setBlog] = useState<BlogPost | null>(null);
+  const [caseImages, setCaseImages] = useState<CaseImg[]>([]); // 파일명→signedUrl (섹션 썸네일용)
   const [loadedRunId, setLoadedRunId] = useState<string | null>(null);
   // 하위 단계가 "어떤 입력으로" 생성됐는지 서명(JSON). 입력이 바뀌면 재생성 확인을 띄운다.
   const [outlineBasis, setOutlineBasis] = useState(''); // outline 을 만든 causal 의 서명
@@ -225,14 +282,18 @@ export function CaseBlogButton({ runId }: { runId: string }) {
     if (!causal) return;
     if (!outline) { void genOutline(); return; } // 처음이면 생성
     if (JSON.stringify(causal) === outlineBasis) { setStep(2); setSavedMsg(''); return; } // 안 바뀜 → 이동만
-    if (window.confirm('인과 흐름이 바뀌었습니다. 아웃라인을 다시 생성할까요?\n(취소하면 기존 아웃라인을 그대로 보여줍니다.)')) void genOutline();
+    let changes: string[] = [];
+    try { if (outlineBasis) changes = diffCausal(JSON.parse(outlineBasis) as CausalFlow, causal); } catch { /* noop */ }
+    if (confirmRegen('인과 흐름이 변경되었습니다.', changes, '아웃라인을 다시 생성할까요?')) void genOutline();
     else { setStep(2); setSavedMsg(''); }
   }
   function nextFromOutline() {
     if (!outline) return;
     if (!blog) { void genBlog(); return; }
     if (JSON.stringify(outline) === blogBasis) { setStep(3); setSavedMsg(''); return; }
-    if (window.confirm('아웃라인이 바뀌었습니다. 블로그 글을 다시 생성할까요?\n(취소하면 기존 글을 그대로 보여줍니다.)')) void genBlog();
+    let changes: string[] = [];
+    try { if (blogBasis) changes = diffOutline(JSON.parse(blogBasis) as Outline, outline); } catch { /* noop */ }
+    if (confirmRegen('아웃라인이 변경되었습니다.', changes, '블로그 글을 다시 생성할까요?')) void genBlog();
     else { setStep(3); setSavedMsg(''); }
   }
 
@@ -247,14 +308,32 @@ export function CaseBlogButton({ runId }: { runId: string }) {
     finally { setSaving(false); }
   }
 
+  // 이미 분석·저장된 케이스 이미지(파일명→signedUrl). 섹션 썸네일용. signedUrl 만료 대비 열 때마다 새로 가져온다.
+  async function loadCaseImages() {
+    try {
+      const res = await fetch(`/api/admin/runs/${encodeURIComponent(runId)}/case-images`, { credentials: 'include' });
+      const data = (await res.json()) as { images?: { fileName?: string; signedUrl?: string | null }[] };
+      if (res.ok && Array.isArray(data.images)) {
+        setCaseImages(
+          data.images
+            .map((im) => ({ fileName: String(im.fileName ?? ''), signedUrl: im.signedUrl ?? null }))
+            .filter((x) => x.fileName),
+        );
+      }
+    } catch {
+      /* 이미지가 없거나 조회 실패 시 무시 */
+    }
+  }
+
   function openModal() {
     setOpen(true); setError(null); setSavedMsg('');
+    void loadCaseImages();
     if (loadedRunId !== runId) {
       setStep(1); setCausal(null); setOutline(null); setBlog(null); setCaseOverview([]);
       void loadAll();
     }
   }
-  const closeModal = () => setOpen(false);
+  const closeModal = () => { setOpen(false); onClose?.(); };
   const dirty = () => { if (savedMsg) setSavedMsg(''); };
 
   // ── 편집 헬퍼 ──
@@ -288,7 +367,7 @@ export function CaseBlogButton({ runId }: { runId: string }) {
     }); dirty();
   }
   function addSection() {
-    setOutline((o) => (o ? { ...o, sections: [...o.sections, { id: `sec_${uid()}`, label: '', points: [], facts: [] }] } : o)); dirty();
+    setOutline((o) => (o ? { ...o, sections: [...o.sections, { id: `sec_${uid()}`, label: '', points: [], facts: [], imageFileNames: [] }] } : o)); dirty();
   }
   function removeSection(i: number) {
     setOutline((o) => (o ? { ...o, sections: o.sections.filter((_, j) => j !== i) } : o)); dirty();
@@ -298,10 +377,15 @@ export function CaseBlogButton({ runId }: { runId: string }) {
   }
 
   const missingOverview = caseOverview.filter((o) => !o.value).length;
+  const imageUrlByName = new Map(caseImages.map((c) => [c.fileName, c.signedUrl] as const));
 
   return (
     <>
-      <button type="button" className="adminLegacySecondaryBtn" onClick={openModal}>진료케이스 작성</button>
+      {triggerStyle ? (
+        <button type="button" style={triggerStyle} onClick={openModal}>{label}</button>
+      ) : (
+        <button type="button" className="adminLegacySecondaryBtn" onClick={openModal}>{label}</button>
+      )}
       {open ? (
         <div style={overlayStyle} role="presentation" onClick={closeModal}>
           <div style={cardStyle} role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
@@ -402,7 +486,7 @@ export function CaseBlogButton({ runId }: { runId: string }) {
                     />
                   ) : step === 2 ? (
                     genLoading === 2 && !outline ? <Loading text="AI가 아웃라인을 배치하는 중…" /> : (
-                      <OutlineEditor outline={outline} updateSection={updateSection} moveSection={moveSection} addSection={addSection} removeSection={removeSection} setOutline={(o) => { setOutline(o); dirty(); }} />
+                      <OutlineEditor outline={outline} updateSection={updateSection} moveSection={moveSection} addSection={addSection} removeSection={removeSection} setOutline={(o) => { setOutline(o); dirty(); }} imageUrl={(fn) => imageUrlByName.get(fn) ?? null} />
                     )
                   ) : (
                     genLoading === 3 && !blog ? <Loading text="AI가 블로그 글을 작성하는 중…" /> : (
@@ -508,11 +592,12 @@ function CausalEditor({ causal, busy, setField, updatePhase, movePhase, addPhase
 }
 
 // ── 2단계 에디터 ──
-function OutlineEditor({ outline, updateSection, moveSection, addSection, removeSection, setOutline }: {
+function OutlineEditor({ outline, updateSection, moveSection, addSection, removeSection, setOutline, imageUrl }: {
   outline: Outline | null;
   updateSection: (i: number, patch: Partial<Section>) => void;
   moveSection: (i: number, dir: -1 | 1) => void; addSection: () => void; removeSection: (i: number) => void;
   setOutline: (o: Outline) => void;
+  imageUrl: (fileName: string) => string | null;
 }) {
   if (!outline) return <div style={{ fontSize: 13, color: 'var(--text-muted)', padding: 12 }}>아웃라인이 없습니다. “다시 생성”을 눌러 주세요.</div>;
   return (
@@ -537,6 +622,34 @@ function OutlineEditor({ outline, updateSection, moveSection, addSection, remove
           <div style={{ display: 'grid', gap: 10 }}>
             <LabeledTextarea label="요점 points (한 줄에 하나 · 서술 방향)" value={s.points.join('\n')} onChange={(v) => updateSection(i, { points: v.split('\n') })} rows={3} />
             <LabeledTextarea label="팩트 facts (한 줄에 하나 · 반드시 들어갈 데이터)" value={s.facts.join('\n')} onChange={(v) => updateSection(i, { facts: v.split('\n') })} rows={3} />
+            {s.imageFileNames.length > 0 ? (
+              <div style={{ display: 'grid', gap: 4 }}>
+                <span style={fieldLabel}>관련 이미지 (팩트를 보여주는 분석 이미지)</span>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                  {s.imageFileNames.map((fn) => {
+                    const url = imageUrl(fn);
+                    return (
+                      <div key={fn} style={{ position: 'relative', width: 96 }}>
+                        {url ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={url} alt={fn} title={fn} style={{ width: 96, height: 70, objectFit: 'cover', borderRadius: 6, border: '1px solid var(--border)', display: 'block' }} />
+                        ) : (
+                          <div style={{ width: 96, height: 70, borderRadius: 6, border: '1px dashed var(--border-strong)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, color: 'var(--text-muted)', textAlign: 'center', padding: 4, wordBreak: 'break-all' }}>{fn}</div>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => updateSection(i, { imageFileNames: s.imageFileNames.filter((x) => x !== fn) })}
+                          aria-label="이미지 제거"
+                          style={{ position: 'absolute', top: -6, right: -6, width: 18, height: 18, borderRadius: '50%', background: 'var(--danger)', color: '#fff', border: 'none', fontSize: 11, lineHeight: 1, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                        >
+                          ×
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : null}
           </div>
         </div>
       ))}

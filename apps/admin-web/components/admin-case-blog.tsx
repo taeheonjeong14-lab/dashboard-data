@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState, type CSSProperties } from 'react';
+import { CaseBlogButton } from './admin-case-blog-modal';
 
 type CaseBlogItem = {
   runId: string;
@@ -26,12 +27,28 @@ const btnSecondary: CSSProperties = {
   border: '1px solid var(--border-strong)',
   cursor: 'pointer',
 };
+const editBtnStyle: CSSProperties = {
+  flexShrink: 0,
+  padding: '3px 9px',
+  fontSize: 11.5,
+  fontWeight: 600,
+  borderRadius: 6,
+  background: '#fff',
+  color: 'var(--text-secondary)',
+  border: '1px solid var(--border-strong)',
+  cursor: 'pointer',
+};
 
 function formatDate(iso: string): string {
   if (!iso) return '—';
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return '—';
   return d.toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' });
+}
+
+// 진료케이스 ID — 차트 고유 ID(friendly_id)와 구분되게 끝에 C 를 붙인다. (병원코드-날짜-순번C)
+function caseId(friendlyId: string | null): string {
+  return friendlyId ? `${friendlyId}C` : '';
 }
 
 export default function AdminCaseBlog() {
@@ -65,7 +82,7 @@ export default function AdminCaseBlog() {
     const q = query.trim().toLowerCase();
     if (!q) return items;
     return items.filter((it) =>
-      [it.title, it.hospitalName, it.patientName, it.ownerName, it.finalDiagnosis, it.friendlyId ?? '', it.tags.join(' ')]
+      [it.title, it.hospitalName, it.patientName, it.ownerName, it.finalDiagnosis, it.friendlyId ?? '', caseId(it.friendlyId), it.tags.join(' ')]
         .join(' ')
         .toLowerCase()
         .includes(q),
@@ -116,32 +133,43 @@ export default function AdminCaseBlog() {
             {filtered.map((it, i) => {
               const active = selectedId === it.runId;
               return (
-                <button
+                <div
                   key={it.runId}
-                  type="button"
-                  onClick={() => setSelectedId(it.runId)}
-                  disabled={loading}
                   style={{
-                    display: 'block',
-                    width: '100%',
-                    textAlign: 'left',
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: 8,
                     padding: '10px 12px',
-                    border: 0,
                     borderBottom: i < filtered.length - 1 ? '1px solid var(--border)' : 0,
                     background: active ? 'var(--accent-subtle)' : 'transparent',
-                    cursor: loading ? 'not-allowed' : 'pointer',
                   }}
                 >
-                  <span style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 }}>
-                    <span style={{ fontWeight: 600, fontSize: 13, color: active ? 'var(--accent)' : 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {it.hospitalName || '—'}
+                  <div
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => setSelectedId(it.runId)}
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setSelectedId(it.runId); }}
+                    style={{ flex: 1, minWidth: 0, cursor: loading ? 'not-allowed' : 'pointer' }}
+                  >
+                    <span style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 }}>
+                      <span style={{ display: 'flex', alignItems: 'baseline', gap: 6, minWidth: 0 }}>
+                        <span style={{ fontWeight: 600, fontSize: 13, color: active ? 'var(--accent)' : 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {it.hospitalName || '—'}
+                        </span>
+                        {it.friendlyId ? (
+                          <span style={{ flexShrink: 0, fontSize: 10.5, color: 'var(--text-muted)', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace' }}>
+                            {caseId(it.friendlyId)}
+                          </span>
+                        ) : null}
+                      </span>
+                      <span style={{ fontSize: 11, color: 'var(--text-muted)', flexShrink: 0 }}>{formatDate(it.createdAt)}</span>
                     </span>
-                    <span style={{ fontSize: 11, color: 'var(--text-muted)', flexShrink: 0 }}>{formatDate(it.createdAt)}</span>
-                  </span>
-                  <span style={{ display: 'block', marginTop: 3, fontSize: 11.5, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {[it.patientName, it.finalDiagnosis].filter(Boolean).join(' · ') || '—'}
-                  </span>
-                </button>
+                    <span style={{ display: 'block', marginTop: 3, fontSize: 11.5, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {[it.patientName, it.finalDiagnosis].filter(Boolean).join(' · ') || '—'}
+                    </span>
+                  </div>
+                  <CaseBlogButton runId={it.runId} label="수정" triggerStyle={editBtnStyle} onClose={() => void load()} />
+                </div>
               );
             })}
             {filtered.length === 0 ? (
@@ -156,6 +184,11 @@ export default function AdminCaseBlog() {
         <div style={{ flex: 1, minWidth: 0, borderLeft: '1px solid var(--border-strong)', paddingLeft: 24 }}>
           {selected ? (
             <article>
+              {selected.friendlyId ? (
+                <div style={{ fontSize: 11.5, color: 'var(--text-muted)', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', marginBottom: 4 }}>
+                  진료케이스 ID · {caseId(selected.friendlyId)}
+                </div>
+              ) : null}
               <h2 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: 'var(--text)', lineHeight: 1.35 }}>{selected.title}</h2>
               <div style={{ marginTop: 6, fontSize: 12, color: 'var(--text-muted)' }}>
                 {[selected.hospitalName, selected.patientName ? `${selected.patientName}${selected.ownerName ? ` (${selected.ownerName})` : ''}` : '', selected.finalDiagnosis, `작성 ${formatDate(selected.createdAt)}`]
