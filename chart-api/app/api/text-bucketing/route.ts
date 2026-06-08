@@ -50,8 +50,8 @@ import {
 } from "@/lib/text-bucketing/compose-efriends-chart-paste";
 
 export const runtime = "nodejs";
-// OCR + LLM(순서있는 줄 추출) + 버켓팅 + AI 평가 — 다중 PDF 머지 시 길어질 수 있어 상한을 명시.
-export const maxDuration = 300;
+// OCR + LLM(순서있는 줄 추출) + 버켓팅 — 다중 PDF 머지 시 길어질 수 있어 상한 명시(Pro 최대 800).
+export const maxDuration = 800;
 
 const MAX_FILE_SIZE_BYTES = 30 * 1024 * 1024;
 const EXTRACT_UPLOAD_BUCKET = PDF_UPLOAD_BUCKET;
@@ -2678,22 +2678,21 @@ export async function POST(request: NextRequest) {
       return Response.json({ error: "현재 LLM provider API key가 설정되지 않았습니다." }, { status: 400 });
     }
 
-    const llmLines = await extractOrderedLinesFromPdf({
-      pdfBuffer: binary,
-      filename: sourceFileName || "report.pdf",
-    });
-    console.log(`[text-bucketing DEBUG] llmLines count=${llmLines.length}, first3=${JSON.stringify(llmLines.slice(0, 3))}, last3=${JSON.stringify(llmLines.slice(-3))}`);
     const ocrConfigured = Boolean(process.env.GOOGLE_CLOUD_CLIENT_EMAIL && process.env.GOOGLE_CLOUD_PRIVATE_KEY &&
       (sourceFileType !== 'application/pdf' || process.env.GOOGLE_CLOUD_OCR_INPUT_BUCKET));
     console.log(`[text-bucketing DEBUG] ocrConfigured=${ocrConfigured} fileType=${sourceFileType}`);
-    let ocr: import('@/lib/google-vision').VisionOcrResult = { text: '', confidence: null, rows: [] };
-    if (ocrConfigured) {
-      try {
-        ocr = await runGoogleVisionOcr(binary, sourceFileType);
-      } catch (ocrErr) {
-        console.error('[text-bucketing] OCR 실패 (건너뜀):', ocrErr instanceof Error ? ocrErr.message : String(ocrErr));
-      }
-    }
+    const emptyOcr: import('@/lib/google-vision').VisionOcrResult = { text: '', confidence: null, rows: [] };
+    // LLM 줄 추출과 OCR은 서로 독립(둘 다 binary만 사용)이라 병렬 실행 — 순차 대비 wall-clock 대폭 단축.
+    const [llmLines, ocr] = await Promise.all([
+      extractOrderedLinesFromPdf({ pdfBuffer: binary, filename: sourceFileName || "report.pdf" }),
+      ocrConfigured
+        ? runGoogleVisionOcr(binary, sourceFileType).catch((ocrErr) => {
+            console.error('[text-bucketing] OCR 실패 (건너뜀):', ocrErr instanceof Error ? ocrErr.message : String(ocrErr));
+            return emptyOcr;
+          })
+        : Promise.resolve(emptyOcr),
+    ]);
+    console.log(`[text-bucketing DEBUG] llmLines count=${llmLines.length}, first3=${JSON.stringify(llmLines.slice(0, 3))}, last3=${JSON.stringify(llmLines.slice(-3))}`);
 
     const pasteLines =
       chartType === "efriends" ? orderedLinesFromPastedChartText(chartPasteText, "efriends") : [];
