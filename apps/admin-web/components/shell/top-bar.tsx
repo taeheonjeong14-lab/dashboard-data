@@ -49,7 +49,7 @@ export function TopBar({ userName, userEmail }: TopBarProps) {
           <img
             src="/logo.png"
             alt="Vet Solution"
-            style={{ height: 30, width: 'auto', display: 'block' }}
+            style={{ height: 36, width: 'auto', display: 'block' }}
             onError={() => setLogoOk(false)}
           />
         ) : (
