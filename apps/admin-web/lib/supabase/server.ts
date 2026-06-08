@@ -4,6 +4,8 @@ import { cookies } from 'next/headers';
 export async function createClient() {
   const cookieStore = await cookies();
 
+  // 주의: NEXT_PUBLIC_* 는 빌드 타임에 코드에 인라인된다. Vercel에서 이 값들이
+  // "빌드 시점"에 Production 스코프로 존재해야 한다(런타임에만 있으면 undefined로 박힘).
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   if (!url || !anon) {
