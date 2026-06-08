@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { setGlobalDispatcher, Agent } from 'undici';
 import { createClient } from '@/lib/supabase/server';
 import { createServiceRoleClient } from '@/lib/supabase/service-role';
+
+// Node fetch(undici)의 기본 headers/body 타임아웃은 각 300초라, chart-api 추출이 길어지면
+// maxDuration(800)와 무관하게 fetch가 300초에서 "fetch failed"로 끊긴다. 800초로 올려 맞춘다.
+setGlobalDispatcher(new Agent({ headersTimeout: 800_000, bodyTimeout: 800_000, connectTimeout: 20_000 }));
 
 const CHART_API_URL = process.env.CHART_API_URL ?? 'https://chart-api-five.vercel.app';
 const CHART_API_KEY = process.env.CHART_API_KEY ?? '';
