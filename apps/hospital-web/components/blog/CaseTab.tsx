@@ -357,9 +357,21 @@ export function CaseTab() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ storagePaths, storageBucket: bucket, chartType, hospitalId }),
       });
-      const extractData = (await extractRes.json()) as { error?: string; runId?: string };
-      if (!extractRes.ok) throw new Error(extractData.error ?? '요청 처리에 실패했습니다.');
-      if (!extractData.runId) throw new Error('runId를 받지 못했습니다.');
+      // 타임아웃/크래시 시 Vercel이 비-JSON 에러 페이지를 주므로 text로 받아 안전 파싱한다.
+      const extractRaw = await extractRes.text();
+      let extractData: { error?: string; runId?: string } = {};
+      try { extractData = extractRaw ? JSON.parse(extractRaw) : {}; } catch { /* 비-JSON(타임아웃 등) */ }
+      if (!extractRes.ok || !extractData.runId) {
+        const timedOut =
+          extractRes.status === 504 ||
+          extractRes.status === 408 ||
+          /FUNCTION_INVOCATION_TIMEOUT|timeout|timed out/i.test(extractRaw);
+        throw new Error(
+          timedOut
+            ? '파일 용량 초과 - PDF파일이 너무 용량이 크거나 이미지 파일이 너무 많습니다.'
+            : (extractData.error ?? '요청 처리에 실패했습니다.'),
+        );
+      }
       const runId = extractData.runId;
 
       // 4) 이미지 업로드 + 케이스 개요 저장(blog_case)

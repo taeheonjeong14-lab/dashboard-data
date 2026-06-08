@@ -50,6 +50,8 @@ import {
 } from "@/lib/text-bucketing/compose-efriends-chart-paste";
 
 export const runtime = "nodejs";
+// OCR + LLM(순서있는 줄 추출) + 버켓팅 + AI 평가 — 다중 PDF 머지 시 길어질 수 있어 상한을 명시.
+export const maxDuration = 300;
 
 const MAX_FILE_SIZE_BYTES = 30 * 1024 * 1024;
 const EXTRACT_UPLOAD_BUCKET = PDF_UPLOAD_BUCKET;

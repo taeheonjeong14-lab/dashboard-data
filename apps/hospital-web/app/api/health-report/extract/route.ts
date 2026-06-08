@@ -8,7 +8,8 @@ const CHART_API_KEY = process.env.CHART_API_KEY ?? '';
 // 건강검진 리포트 1건 = 50토큰
 const REPORT_TOKEN_COST = 50;
 
-export const maxDuration = 120;
+// chart-api 추출(OCR+LLM+버켓팅)을 기다리는 프록시. 다중 PDF 머지 등으로 길어질 수 있어 300초.
+export const maxDuration = 300;
 
 type ExtractBody = {
   storagePath?: string;
