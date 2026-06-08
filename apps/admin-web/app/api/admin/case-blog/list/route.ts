@@ -23,7 +23,7 @@ export async function GET() {
 
     type ContentRow = {
       parse_run_id: string;
-      payload: { title?: string; excerpt?: string; bodyMarkdown?: string; tags?: string[] } | null;
+      payload: { title?: string; bodyMarkdown?: string; tags?: string[] } | null;
       created_at: string;
       updated_at: string;
     };
@@ -37,6 +37,20 @@ export async function GET() {
       .select('id, friendly_id, hospital_id, result_basic_info(hospital_name, owner_name, patient_name)')
       .in('id', runIds);
     if (rErr) throw new Error(rErr.message);
+
+    // 최종 진단명 — blog_case(케이스 개요) overview.final_diagnosis
+    const { data: caseRows } = await srvc
+      .schema('health_report')
+      .from('generated_run_content')
+      .select('parse_run_id, payload')
+      .eq('content_type', 'blog_case')
+      .in('parse_run_id', runIds);
+    const finalDxByRun = new Map<string, string>();
+    for (const cr of caseRows ?? []) {
+      const r = cr as { parse_run_id?: string; payload?: { overview?: { final_diagnosis?: string } } };
+      const dx = r.payload?.overview?.final_diagnosis;
+      if (r.parse_run_id && typeof dx === 'string' && dx.trim()) finalDxByRun.set(r.parse_run_id, dx.trim());
+    }
 
     type BasicInfo = { hospital_name?: string | null; owner_name?: string | null; patient_name?: string | null };
     type RunRow = {
@@ -62,8 +76,8 @@ export async function GET() {
         hospitalName: nonEmpty(basic?.hospital_name),
         patientName: nonEmpty(basic?.patient_name),
         ownerName: nonEmpty(basic?.owner_name),
+        finalDiagnosis: finalDxByRun.get(c.parse_run_id) ?? '',
         title: nonEmpty(payload.title) || '(제목 없음)',
-        excerpt: nonEmpty(payload.excerpt),
         bodyMarkdown: typeof payload.bodyMarkdown === 'string' ? payload.bodyMarkdown : '',
         tags: Array.isArray(payload.tags) ? payload.tags.filter((t): t is string => typeof t === 'string') : [],
         createdAt: c.created_at,

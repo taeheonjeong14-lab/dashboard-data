@@ -193,7 +193,15 @@ const SYS_BLOGPOST = `당신은 동물병원을 운영하는 수의사이자 병
   예: "저희 OO동물병원에서 치료받았던 OO이의 사례를 소개합니다."
 - 톤: 정보를 전달하고 설명하는 느낌. 친근하되 전문성 유지.
   이야기를 풀어놓기보다 질환과 진료 과정을 차분히 설명하는 무게로.
-- <좋은예시>가 있으면 그 톤을 최우선으로 따른다.
+- <좋은예시>는 "톤앤매너(문체·어조·문장 호흡·설명 방식)만" 벤치마킹한다.
+  · 예시의 사실·문장·표현을 그대로 가져오지 말 것(내용 복붙 금지).
+  · 글의 내용·사실은 오직 OUTLINE·CASE_OVERVIEW·병원정보에서만 가져온다.
+
+# 서술 관점 — 중요
+- 진료 행위는 "병원(의료진) 관점의 능동태"로 쓴다. 환자가 당하는 수동 관점 금지.
+  · O: "OO를 확인하기 위해 △△검사를 진행했습니다", "□□ 소견이 보여 ~ 처치를 했습니다"
+  · X: "환자가 검진을 받았습니다", "OO가 검사를 받았습니다" (환자 관점 수동 서술)
+- 검사·처치는 "무엇을 확인/치료하려고 했는지(목적)"를 함께 써서 능동적으로 서술한다.
 
 # 글쓰기 규칙
 - OUTLINE의 points는 서술 방향이다. 자연스러운 문장으로 풀어쓴다.
@@ -237,11 +245,20 @@ const SYS_BLOGPOST = `당신은 동물병원을 운영하는 수의사이자 병
 # 출력 형식 — JSON only
 {
   "title": "최종 제목",
-  "excerpt": "요약 (미리보기용 1~2문장)",
   "bodyMarkdown": "## 섹션명: 소제목\\n\\n본문...\\n\\n[사진: 설명]\\n\\n...",
   "tags": ["키워드1", "키워드2"],
   "charCount": 글자수
 }`;
+
+// 기본 좋은 예시 — 톤앤매너(문체·어조·서술 방식) 벤치마킹 전용. 요청에 goodExample 이 오면 그걸 우선.
+const GOOD_EXAMPLE_DEFAULT = `실제 내원 당시 등쪽 피부에는 피부종괴가 터진 모습이 확인되었는데요.
+벌어진 종괴 표면에서 진물이 계속 흘러 나오고 있었습니다.
+우선 상처 부위를 세척하고 상처 처치를 진행했습니다.
+또한 감염을 막기 위해 항생제 처치를 함께 진행했습니다.
+진찰 과정에서는 추가적으로 작은 피부종괴도 함께 확인되었습니다.
+문제 종괴는 크기가 이미 커져 있었고 피부가 당겨지면서 파열까지 이어진 상태였습니다.
+단순 소독으로는 호전 가능성이 낮다고 판단되어 수술적 제거를 계획했습니다.
+수술 전 전신 상태와 마취 가능 여부를 확인하기 위해 검사를 진행하였는데요.`;
 
 type GenerateDebugInfo = {
   enabled: boolean;
@@ -578,7 +595,8 @@ export async function POST(request: NextRequest) {
           return NextResponse.json({ error: 'outline is required for blog_post' }, { status: 400 });
         }
         const { caseOverview, caseOverviewText } = await loadCaseOverviewForRun();
-        const goodExample = typeof body.goodExample === 'string' ? body.goodExample.trim().slice(0, 20_000) : '';
+        const goodExampleInput = typeof body.goodExample === 'string' ? body.goodExample.trim() : '';
+        const goodExample = (goodExampleInput || GOOD_EXAMPLE_DEFAULT).slice(0, 20_000);
         const hospitalName = (source.basicInfo?.hospitalName ?? '').trim();
         const patientName = (source.basicInfo?.patientName ?? '').trim();
         const userContent = [
@@ -602,7 +620,7 @@ export async function POST(request: NextRequest) {
         });
         const { parsed: generated, debug: parserDebug } = await parseJsonWithRepair(
           raw,
-          'object with keys: title (string), excerpt (string), bodyMarkdown (string), tags (string[]), charCount (number)',
+          'object with keys: title (string), bodyMarkdown (string), tags (string[]), charCount (number)',
         );
         const saved = await upsertGeneratedRunContent(pool, runId, BLOG_POST, generated);
         const debug: GenerateDebugInfo | undefined = debugEnabled

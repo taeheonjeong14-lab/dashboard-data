@@ -11,7 +11,7 @@ type CausalFlow = { axis: string; anesthesia: boolean; phases: Phase[] };
 type Section = { id: string; label: string; points: string[]; facts: string[] };
 type OverviewCheck = { item: string; reflectedIn: string };
 type Outline = { title_candidates: string[]; sections: Section[]; overviewCheck: OverviewCheck[] };
-type BlogPost = { title: string; excerpt: string; bodyMarkdown: string; tags: string[]; charCount: number };
+type BlogPost = { title: string; bodyMarkdown: string; tags: string[]; charCount: number };
 
 // ── 스타일 ────────────────────────────────────────────────────────────────
 const overlayStyle: CSSProperties = {
@@ -19,7 +19,7 @@ const overlayStyle: CSSProperties = {
   display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: 16,
 };
 const cardStyle: CSSProperties = {
-  background: 'var(--bg-subtle)', borderRadius: 12, width: 'min(1400px, 96vw)',
+  background: 'var(--bg-subtle)', borderRadius: 12, width: 'min(1680px, 96vw)',
   maxHeight: '94vh', display: 'flex', flexDirection: 'column', padding: 0,
   boxShadow: '0 10px 40px rgba(0,0,0,0.18)',
 };
@@ -86,7 +86,7 @@ function asOutline(raw: unknown): Outline {
 function asBlog(raw: unknown): BlogPost {
   const o = (raw ?? {}) as Record<string, unknown>;
   return {
-    title: str(o.title), excerpt: str(o.excerpt), bodyMarkdown: str(o.bodyMarkdown),
+    title: str(o.title), bodyMarkdown: str(o.bodyMarkdown),
     tags: toLines(o.tags), charCount: typeof o.charCount === 'number' ? o.charCount : 0,
   };
 }
@@ -114,8 +114,10 @@ export function CaseBlogButton({ runId }: { runId: string }) {
   const [causal, setCausal] = useState<CausalFlow | null>(null);
   const [outline, setOutline] = useState<Outline | null>(null);
   const [blog, setBlog] = useState<BlogPost | null>(null);
-  const [goodExample, setGoodExample] = useState('');
   const [loadedRunId, setLoadedRunId] = useState<string | null>(null);
+  // 하위 단계가 "어떤 입력으로" 생성됐는지 서명(JSON). 입력이 바뀌면 재생성 확인을 띄운다.
+  const [outlineBasis, setOutlineBasis] = useState(''); // outline 을 만든 causal 의 서명
+  const [blogBasis, setBlogBasis] = useState(''); // blog 를 만든 outline 의 서명
 
   const [genLoading, setGenLoading] = useState<null | 1 | 2 | 3>(null);
   const [saving, setSaving] = useState(false);
@@ -170,9 +172,15 @@ export function CaseBlogButton({ runId }: { runId: string }) {
       if (ov.length) setCaseOverview(ov);
 
       const hasCausal = cP && cP.causalFlow;
-      if (hasCausal) setCausal(asCausal(cP!.causalFlow));
-      if (oP && oP.outline) setOutline(asOutline(oP.outline));
-      if (bP && (bP.bodyMarkdown || bP.title)) setBlog(asBlog(bP));
+      const normCausal = hasCausal ? asCausal(cP!.causalFlow) : null;
+      const normOutline = oP && oP.outline ? asOutline(oP.outline) : null;
+      const normBlog = bP && (bP.bodyMarkdown || bP.title) ? asBlog(bP) : null;
+      if (normCausal) setCausal(normCausal);
+      if (normOutline) setOutline(normOutline);
+      if (normBlog) setBlog(normBlog);
+      // 저장된 단계는 서로 일관됐다고 보고 서명을 맞춰둔다(불필요한 재생성 확인 방지).
+      if (normCausal && normOutline) setOutlineBasis(JSON.stringify(normCausal));
+      if (normOutline && normBlog) setBlogBasis(JSON.stringify(normOutline));
       setLoadedRunId(runId);
 
       if (bP && (bP.bodyMarkdown || bP.title)) setStep(3);
@@ -193,6 +201,7 @@ export function CaseBlogButton({ runId }: { runId: string }) {
       await callSave('blog_causal', { causalFlow: causal, caseOverview }); // 검수본 저장 후 다음 단계 입력
       const g = await callGenerate({ contentType: 'blog_outline', causalFlow: causal });
       setOutline(asOutline(g.outline));
+      setOutlineBasis(JSON.stringify(causal));
       setStep(2);
     } catch (e) { setError(e instanceof Error ? e.message : '아웃라인 생성 실패'); }
     finally { setGenLoading(null); }
@@ -203,11 +212,28 @@ export function CaseBlogButton({ runId }: { runId: string }) {
     setGenLoading(3); setError(null); setSavedMsg('');
     try {
       await callSave('blog_outline', { outline, caseOverview });
-      const g = await callGenerate({ contentType: 'blog_post', outline, goodExample: goodExample.trim() || undefined });
+      const g = await callGenerate({ contentType: 'blog_post', outline });
       setBlog(asBlog(g));
+      setBlogBasis(JSON.stringify(outline));
       setStep(3);
     } catch (e) { setError(e instanceof Error ? e.message : '블로그 글 작성 실패'); }
     finally { setGenLoading(null); }
+  }
+
+  // 다음 단계로: 이미 생성된 게 있으면 유지(이동만), 이전 단계가 바뀐 경우에만 재생성 확인.
+  function nextFromCausal() {
+    if (!causal) return;
+    if (!outline) { void genOutline(); return; } // 처음이면 생성
+    if (JSON.stringify(causal) === outlineBasis) { setStep(2); setSavedMsg(''); return; } // 안 바뀜 → 이동만
+    if (window.confirm('인과 흐름이 바뀌었습니다. 아웃라인을 다시 생성할까요?\n(취소하면 기존 아웃라인을 그대로 보여줍니다.)')) void genOutline();
+    else { setStep(2); setSavedMsg(''); }
+  }
+  function nextFromOutline() {
+    if (!outline) return;
+    if (!blog) { void genBlog(); return; }
+    if (JSON.stringify(outline) === blogBasis) { setStep(3); setSavedMsg(''); return; }
+    if (window.confirm('아웃라인이 바뀌었습니다. 블로그 글을 다시 생성할까요?\n(취소하면 기존 글을 그대로 보여줍니다.)')) void genBlog();
+    else { setStep(3); setSavedMsg(''); }
   }
 
   async function saveCurrent() {
@@ -311,32 +337,49 @@ export function CaseBlogButton({ runId }: { runId: string }) {
             {/* 본문: 좌 개요 / 우 단계 편집 */}
             <div style={{ flex: 1, minHeight: 0, display: 'flex', gap: 16, padding: '14px 20px', overflow: 'hidden' }}>
               {/* 좌 — 케이스 개요 */}
-              <div style={{ flex: '0 0 300px', minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+              <div style={{ flex: '3.5 1 0', minWidth: 0, display: 'flex', flexDirection: 'column' }}>
                 <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginBottom: 8 }}>
                   <span style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text)' }}>케이스 개요 (담당자 작성)</span>
                   {missingOverview > 0 ? <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--danger)' }}>⚠ 미작성 {missingOverview}</span> : null}
                 </div>
-                <div style={{ ...cardBox, flex: 1, overflowY: 'auto' }}>
-                  {caseOverview.length ? (
-                    <div style={{ display: 'grid', gap: 10 }}>
-                      {caseOverview.map((o) => {
-                        const empty = !o.value;
-                        return (
-                          <div key={o.label} style={{ display: 'grid', gap: 2 }}>
-                            <span style={{ fontSize: 11, fontWeight: 700, color: empty ? 'var(--danger)' : 'var(--text-muted)' }}>{o.label}</span>
-                            <span style={{ fontSize: 12.5, color: empty ? 'var(--danger)' : 'var(--text)', whiteSpace: 'pre-wrap', fontStyle: empty ? 'italic' : 'normal' }}>{empty ? '미작성' : o.value}</span>
+                <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', display: 'grid', gap: 12, alignContent: 'start' }}>
+                  <div style={cardBox}>
+                    {caseOverview.length ? (
+                      <div style={{ display: 'grid', gap: 10 }}>
+                        {caseOverview.map((o) => {
+                          const empty = !o.value;
+                          return (
+                            <div key={o.label} style={{ display: 'grid', gap: 2 }}>
+                              <span style={{ fontSize: 11, fontWeight: 700, color: empty ? 'var(--danger)' : 'var(--text-muted)' }}>{o.label}</span>
+                              <span style={{ fontSize: 12.5, color: empty ? 'var(--danger)' : 'var(--text)', whiteSpace: 'pre-wrap', fontStyle: empty ? 'italic' : 'normal' }}>{empty ? '미작성' : o.value}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{genLoading === 1 ? '불러오는 중…' : '케이스 개요 없음'}</div>
+                    )}
+                  </div>
+
+                  {/* 개요 누락 점검 — 2단계 아웃라인 기준, 케이스 개요 아래에 표시 */}
+                  {step === 2 && outline && outline.overviewCheck.length ? (
+                    <div style={cardBox}>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)', marginBottom: 8 }}>개요 누락 점검</div>
+                      <div style={{ display: 'grid', gap: 5 }}>
+                        {outline.overviewCheck.map((c, i) => (
+                          <div key={i} style={{ fontSize: 12, color: 'var(--text-secondary)', display: 'flex', gap: 6 }}>
+                            <span style={{ color: c.reflectedIn ? 'var(--success)' : 'var(--danger)', fontWeight: 700 }}>{c.reflectedIn ? '✓' : '✕'}</span>
+                            <span>{c.item}{c.reflectedIn ? ` → ${c.reflectedIn}` : ' (미반영)'}</span>
                           </div>
-                        );
-                      })}
+                        ))}
+                      </div>
                     </div>
-                  ) : (
-                    <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{genLoading === 1 ? '불러오는 중…' : '케이스 개요 없음'}</div>
-                  )}
+                  ) : null}
                 </div>
               </div>
 
               {/* 우 — 단계 편집 */}
-              <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+              <div style={{ flex: '6.5 1 0', minWidth: 0, display: 'flex', flexDirection: 'column' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 8 }}>
                   <span style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text)' }}>
                     {step === 1 ? '1단계 — 인과 흐름 (검수·수정)' : step === 2 ? '2단계 — 섹션 아웃라인 (검수·수정)' : '3단계 — 블로그 글 (검수·수정)'}
@@ -363,7 +406,7 @@ export function CaseBlogButton({ runId }: { runId: string }) {
                     )
                   ) : (
                     genLoading === 3 && !blog ? <Loading text="AI가 블로그 글을 작성하는 중…" /> : (
-                      <BlogEditor blog={blog} goodExample={goodExample} setGoodExample={(v) => { setGoodExample(v); }} setField={setBlogField} />
+                      <BlogEditor blog={blog} setField={setBlogField} />
                     )
                   )}
                 </div>
@@ -382,9 +425,9 @@ export function CaseBlogButton({ runId }: { runId: string }) {
                   {saving ? '저장 중…' : '저장'}
                 </button>
                 {step === 1 ? (
-                  <button type="button" style={btnPrimary} onClick={() => void genOutline()} disabled={busy || !causal}>{genLoading === 2 ? '생성 중…' : '다음: 아웃라인 생성 →'}</button>
+                  <button type="button" style={btnPrimary} onClick={() => nextFromCausal()} disabled={busy || !causal}>{genLoading === 2 ? '생성 중…' : '다음: 아웃라인 →'}</button>
                 ) : step === 2 ? (
-                  <button type="button" style={btnPrimary} onClick={() => void genBlog()} disabled={busy || !outline}>{genLoading === 3 ? '생성 중…' : '다음: 글 작성 →'}</button>
+                  <button type="button" style={btnPrimary} onClick={() => nextFromOutline()} disabled={busy || !outline}>{genLoading === 3 ? '생성 중…' : '다음: 글 작성 →'}</button>
                 ) : (
                   <Link href="/admin/case-blog" style={{ ...btnPrimary, textDecoration: 'none', display: 'inline-flex', alignItems: 'center' }}>진료케이스 보러가기</Link>
                 )}
@@ -475,7 +518,15 @@ function OutlineEditor({ outline, updateSection, moveSection, addSection, remove
   return (
     <div style={{ display: 'grid', gap: 12 }}>
       <div style={cardBox}>
-        <LabeledTextarea label="제목 후보 (한 줄에 하나)" value={outline.title_candidates.join('\n')} onChange={(v) => setOutline({ ...outline, title_candidates: v.split('\n') })} rows={2} />
+        <div style={{ display: 'grid', gap: 3 }}>
+          <span style={fieldLabel}>제목 후보 (한 줄에 하나)</span>
+          <textarea
+            value={outline.title_candidates.join('\n')}
+            onChange={(e) => setOutline({ ...outline, title_candidates: e.target.value.split('\n') })}
+            rows={2}
+            style={{ ...inputStyle, minHeight: 72 }}
+          />
+        </div>
       </div>
       {outline.sections.map((s, i) => (
         <div key={s.id} style={cardBox}>
@@ -490,45 +541,25 @@ function OutlineEditor({ outline, updateSection, moveSection, addSection, remove
         </div>
       ))}
       <button type="button" style={{ ...btnSecondary, width: '100%' }} onClick={addSection}>+ 섹션 추가</button>
-      {outline.overviewCheck.length ? (
-        <div style={cardBox}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)', marginBottom: 8 }}>개요 누락 점검</div>
-          <div style={{ display: 'grid', gap: 5 }}>
-            {outline.overviewCheck.map((c, i) => (
-              <div key={i} style={{ fontSize: 12, color: 'var(--text-secondary)', display: 'flex', gap: 6 }}>
-                <span style={{ color: c.reflectedIn ? 'var(--success)' : 'var(--danger)', fontWeight: 700 }}>{c.reflectedIn ? '✓' : '✕'}</span>
-                <span>{c.item}{c.reflectedIn ? ` → ${c.reflectedIn}` : ' (미반영)'}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      ) : null}
     </div>
   );
 }
 
 // ── 3단계 에디터 ──
-function BlogEditor({ blog, goodExample, setGoodExample, setField }: {
-  blog: BlogPost | null; goodExample: string; setGoodExample: (v: string) => void;
+function BlogEditor({ blog, setField }: {
+  blog: BlogPost | null;
   setField: <K extends keyof BlogPost>(k: K, v: BlogPost[K]) => void;
 }) {
   const liveCount = blog ? blog.bodyMarkdown.length : 0;
   const inRange = liveCount >= 2000 && liveCount <= 3000;
   return (
     <div style={{ display: 'grid', gap: 12 }}>
-      <div style={cardBox}>
-        <LabeledTextarea label="좋은 예시 본문 (선택 · 톤 참고용으로 붙여넣기 후 “다시 생성”)" value={goodExample} onChange={setGoodExample} rows={3} />
-      </div>
       {blog ? (
         <>
           <div style={cardBox}>
-            <div style={{ display: 'grid', gap: 10 }}>
-              <div style={{ display: 'grid', gap: 3 }}>
-                <span style={fieldLabel}>제목</span>
-                <input value={blog.title} onChange={(e) => setField('title', e.target.value)} style={{ ...inputStyle, fontWeight: 700 }} />
-              </div>
-              <LabeledTextarea label="요약 (excerpt)" value={blog.excerpt} onChange={(v) => setField('excerpt', v)} rows={2} />
-              <LabeledTextarea label="태그 (한 줄에 하나)" value={blog.tags.join('\n')} onChange={(v) => setField('tags', v.split('\n').map((t) => t.trim()).filter(Boolean))} rows={2} />
+            <div style={{ display: 'grid', gap: 3 }}>
+              <span style={fieldLabel}>제목</span>
+              <input value={blog.title} onChange={(e) => setField('title', e.target.value)} style={{ ...inputStyle, fontWeight: 700 }} />
             </div>
           </div>
           <div style={cardBox}>
@@ -537,6 +568,9 @@ function BlogEditor({ blog, goodExample, setGoodExample, setField }: {
               <span style={{ fontSize: 11, fontWeight: 700, color: inRange ? 'var(--success)' : 'var(--danger)' }}>{liveCount.toLocaleString()}자 (목표 2,000~3,000)</span>
             </div>
             <textarea value={blog.bodyMarkdown} onChange={(e) => setField('bodyMarkdown', e.target.value)} rows={20} style={inputStyle} />
+          </div>
+          <div style={cardBox}>
+            <LabeledTextarea label="태그 (한 줄에 하나)" value={blog.tags.join('\n')} onChange={(v) => setField('tags', v.split('\n').map((t) => t.trim()).filter(Boolean))} rows={2} />
           </div>
         </>
       ) : (

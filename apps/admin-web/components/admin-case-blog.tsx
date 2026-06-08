@@ -8,8 +8,8 @@ type CaseBlogItem = {
   hospitalName: string;
   patientName: string;
   ownerName: string;
+  finalDiagnosis: string;
   title: string;
-  excerpt: string;
   bodyMarkdown: string;
   tags: string[];
   createdAt: string;
@@ -65,7 +65,7 @@ export default function AdminCaseBlog() {
     const q = query.trim().toLowerCase();
     if (!q) return items;
     return items.filter((it) =>
-      [it.title, it.hospitalName, it.patientName, it.ownerName, it.friendlyId ?? '', it.tags.join(' ')]
+      [it.title, it.hospitalName, it.patientName, it.ownerName, it.finalDiagnosis, it.friendlyId ?? '', it.tags.join(' ')]
         .join(' ')
         .toLowerCase()
         .includes(q),
@@ -134,12 +134,12 @@ export default function AdminCaseBlog() {
                 >
                   <span style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 }}>
                     <span style={{ fontWeight: 600, fontSize: 13, color: active ? 'var(--accent)' : 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {it.title}
+                      {it.hospitalName || '—'}
                     </span>
                     <span style={{ fontSize: 11, color: 'var(--text-muted)', flexShrink: 0 }}>{formatDate(it.createdAt)}</span>
                   </span>
-                  <span style={{ display: 'block', marginTop: 3, fontSize: 11.5, color: 'var(--text-muted)' }}>
-                    {[it.hospitalName, it.patientName].filter(Boolean).join(' · ') || '—'}
+                  <span style={{ display: 'block', marginTop: 3, fontSize: 11.5, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {[it.patientName, it.finalDiagnosis].filter(Boolean).join(' · ') || '—'}
                   </span>
                 </button>
               );
@@ -158,7 +158,7 @@ export default function AdminCaseBlog() {
             <article>
               <h2 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: 'var(--text)', lineHeight: 1.35 }}>{selected.title}</h2>
               <div style={{ marginTop: 6, fontSize: 12, color: 'var(--text-muted)' }}>
-                {[selected.hospitalName, selected.patientName ? `${selected.patientName}${selected.ownerName ? ` (${selected.ownerName})` : ''}` : '', `작성 ${formatDate(selected.createdAt)}`]
+                {[selected.hospitalName, selected.patientName ? `${selected.patientName}${selected.ownerName ? ` (${selected.ownerName})` : ''}` : '', selected.finalDiagnosis, `작성 ${formatDate(selected.createdAt)}`]
                   .filter(Boolean)
                   .join(' · ')}
               </div>
@@ -170,11 +170,6 @@ export default function AdminCaseBlog() {
                     </span>
                   ))}
                 </div>
-              ) : null}
-              {selected.excerpt ? (
-                <p style={{ marginTop: 14, padding: '12px 14px', background: 'var(--bg-subtle)', borderRadius: 8, fontSize: 13.5, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
-                  {selected.excerpt}
-                </p>
               ) : null}
               <div
                 style={{
