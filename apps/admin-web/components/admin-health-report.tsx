@@ -13,6 +13,12 @@ import {
 
 const divider = 'var(--border)';
 
+// 건강검진 리포트 ID — 차트 고유 ID(friendly_id)와 구분되게 끝에 R 을 붙인다. (병원코드-날짜-순번R)
+function reportId(friendlyId: string | null | undefined): string {
+  const t = friendlyId?.trim();
+  return t ? `${t}R` : '';
+}
+
 function formatRailDateShort(iso: string): string {
   if (!iso) return '—';
   try {
@@ -211,6 +217,7 @@ export default function AdminHealthReport() {
         r.id,
         r.parseRunId,
         r.friendlyId ?? '',
+        reportId(r.friendlyId),
         r.patientName ?? '',
         r.hospitalName ?? '',
         r.updatedAt,
@@ -329,7 +336,7 @@ export default function AdminHealthReport() {
                 </div>
                 <span className="adminRailSub">
                   {r.patientName?.trim() ? `${r.patientName.trim()} · ` : ''}
-                  {r.friendlyId?.trim() ?? r.parseRunId.slice(0, 8)}
+                  {reportId(r.friendlyId) || r.parseRunId.slice(0, 8)}
                 </span>
               </button>
             ))
@@ -353,18 +360,25 @@ export default function AdminHealthReport() {
           {selectedId ? (
             <div style={{ borderTop: `1px solid ${divider}`, paddingTop: 12 }}>
               {runs.some((r) => r.parseRunId === selectedId) && (
-                <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                  {deleteError && <span style={{ fontSize: 12, color: 'var(--danger)' }}>{deleteError}</span>}
-                  <button
-                    type="button"
-                    className="adminLegacySmallBtn"
-                    style={{ color: 'var(--danger)', borderColor: 'var(--danger-subtle)' }}
-                    disabled={deleting}
-                    onClick={() => void deleteReport(selectedId)}
-                    title="이 건강검진 리포트만 삭제 (차트 추출 데이터는 유지)"
-                  >
-                    {deleting ? '삭제 중…' : '리포트 삭제'}
-                  </button>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                  <span style={{ fontSize: 11.5, color: 'var(--text-muted)', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace' }}>
+                    {reportId(runs.find((r) => r.parseRunId === selectedId)?.friendlyId)
+                      ? `리포트 ID · ${reportId(runs.find((r) => r.parseRunId === selectedId)?.friendlyId)}`
+                      : ''}
+                  </span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    {deleteError && <span style={{ fontSize: 12, color: 'var(--danger)' }}>{deleteError}</span>}
+                    <button
+                      type="button"
+                      className="adminLegacySmallBtn"
+                      style={{ color: 'var(--danger)', borderColor: 'var(--danger-subtle)' }}
+                      disabled={deleting}
+                      onClick={() => void deleteReport(selectedId)}
+                      title="이 건강검진 리포트만 삭제 (차트 추출 데이터는 유지)"
+                    >
+                      {deleting ? '삭제 중…' : '리포트 삭제'}
+                    </button>
+                  </div>
                 </div>
               )}
               <AdminHealthCheckupWorkspace

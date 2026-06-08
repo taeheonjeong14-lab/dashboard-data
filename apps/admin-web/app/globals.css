@@ -23,8 +23,8 @@
   --radius-lg: 16px;
   --admin-content-pad: 28px;
   --sidebar-width: 200px;
-  /* admin 은 로고를 hospital-web 보다 크게 노출하기 위해 top-bar 도 더 높게(60px). */
-  --topbar-height: 60px;
+  /* hospital-web 과 동일한 top-bar 높이. */
+  --topbar-height: 44px;
 
   /* admin 전용 보조 토큰(레거시 사용 위치 보존) */
   --admin-divider: rgba(15, 23, 42, 0.08);
