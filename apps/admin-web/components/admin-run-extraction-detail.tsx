@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { Copy, Pencil, Check, X, Trash2, ImagePlus } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent } from 'react';
 import type { ExamType, FindingSpot, RadiologySub } from '@/lib/chart-case-images/types';
 import { EXAM_TYPE_LABEL_KO, RADIOLOGY_SUB_LABEL_KO } from '@/lib/chart-case-images/types';
@@ -115,6 +116,21 @@ function deepClone<T>(v: T): T {
   return JSON.parse(JSON.stringify(v)) as T;
 }
 
+const iconBtnStyle: CSSProperties = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  width: 26,
+  height: 26,
+  padding: 0,
+  borderRadius: 6,
+  background: 'transparent',
+  border: '1px solid var(--border-strong)',
+  color: 'var(--text-secondary)',
+  cursor: 'pointer',
+  flexShrink: 0,
+};
+
 function SectionEditControls({
   editing,
   saving,
@@ -134,18 +150,18 @@ function SectionEditControls({
 }) {
   if (!editing) {
     return (
-      <button type="button" onClick={onEdit} disabled={editDisabled} className="adminLegacySecondaryBtn">
-        수정
+      <button type="button" onClick={onEdit} disabled={editDisabled} title="수정" aria-label="수정" style={{ ...iconBtnStyle, opacity: editDisabled ? 0.45 : 1 }}>
+        <Pencil size={14} />
       </button>
     );
   }
   return (
-    <span style={{ display: 'inline-flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
-      <button type="button" onClick={onSave} disabled={saving || !canSave} className="adminLegacySecondaryBtn">
-        {saving ? '저장 중…' : '저장'}
+    <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
+      <button type="button" onClick={onSave} disabled={saving || !canSave} title="저장" aria-label="저장" style={{ ...iconBtnStyle, color: 'var(--accent)', borderColor: 'var(--accent)', opacity: saving || !canSave ? 0.5 : 1 }}>
+        {saving ? '…' : <Check size={14} />}
       </button>
-      <button type="button" onClick={onCancel} disabled={saving} className="adminLegacySecondaryBtn">
-        취소
+      <button type="button" onClick={onCancel} disabled={saving} title="취소" aria-label="취소" style={{ ...iconBtnStyle, color: 'var(--danger)' }}>
+        <X size={14} />
       </button>
     </span>
   );
@@ -166,11 +182,17 @@ function CopyTextButton({ text, disabled, label = '복사' }: { text: string; di
       setTimeout(() => setState('idle'), 2000);
     }
   }
-  const suffix = state === 'done' ? ' ✓' : state === 'err' ? ' !' : '';
+  const off = disabled || !text;
   return (
-    <button type="button" onClick={(ev) => void onCopy(ev)} disabled={disabled || !text} className="adminLegacySmallBtn">
-      {label}
-      {suffix}
+    <button
+      type="button"
+      onClick={(ev) => void onCopy(ev)}
+      disabled={off}
+      title={label}
+      aria-label={label}
+      style={{ ...iconBtnStyle, color: state === 'done' ? 'var(--success)' : state === 'err' ? 'var(--danger)' : 'var(--text-secondary)', opacity: off ? 0.45 : 1 }}
+    >
+      {state === 'done' ? <Check size={14} /> : state === 'err' ? <X size={14} /> : <Copy size={14} />}
     </button>
   );
 }
@@ -226,7 +248,7 @@ function FindingOverlay({ spots, imageRef }: { spots: FindingSpot[]; imageRef: R
   );
 }
 
-function CaseImageCard({ img, numbers = [], confidence }: { img: CaseImage; numbers?: number[]; confidence?: number }) {
+function CaseImageCard({ img, numbers = [], confidence, editMode = false, onDelete }: { img: CaseImage; numbers?: number[]; confidence?: number; editMode?: boolean; onDelete?: () => void }) {
   const [open, setOpen] = useState(false);
   const examLabel = img.examType ? EXAM_TYPE_LABEL_KO[img.examType] : null;
   const bodyPart = img.bodyPart?.trim() || null;
@@ -303,6 +325,33 @@ function CaseImageCard({ img, numbers = [], confidence }: { img: CaseImage; numb
             >
               {confidence}%
             </div>
+          )}
+          {editMode && onDelete && (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onDelete(); }}
+              title="이미지 삭제"
+              aria-label="이미지 삭제"
+              style={{
+                position: 'absolute',
+                bottom: 6,
+                right: 6,
+                width: 30,
+                height: 30,
+                borderRadius: '50%',
+                background: 'var(--danger)',
+                color: '#fff',
+                border: 'none',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                boxShadow: '0 1px 4px rgba(0,0,0,0.4)',
+                zIndex: 2,
+              }}
+            >
+              <Trash2 size={15} />
+            </button>
           )}
         </div>
 
@@ -424,11 +473,12 @@ function groupImagesByDate(images: CaseImage[]): Array<{ date: string | null; im
   return keys.map((key) => ({ date: key === '' ? null : key, images: map.get(key)! }));
 }
 
-export function CaseImagesSection({ runId }: { runId: string }) {
+export function CaseImagesSection({ runId, onAddAnalysis }: { runId: string; onAddAnalysis?: () => void }) {
   const [images, setImages] = useState<CaseImage[]>([]);
   const [summaries, setSummaries] = useState<GroupSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [editMode, setEditMode] = useState(false);
   const [autoRetrying, setAutoRetrying] = useState(false);
   const didAutoRetry = useRef(false);
   const autoRetryTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -505,48 +555,62 @@ export function CaseImagesSection({ runId }: { runId: string }) {
 
   useEffect(() => { void load(); }, [load]);
 
-  const sectionStyle = {
-    border: '1px solid var(--border)',
-    background: '#fff',
-    borderRadius: 6,
-    overflow: 'hidden',
-  } satisfies React.CSSProperties;
+  const deleteImage = useCallback(async (id: string) => {
+    if (!confirm('이 이미지를 삭제할까요? 되돌릴 수 없습니다.')) return;
+    try {
+      const res = await fetch(
+        `/api/admin/runs/${encodeURIComponent(runId)}/case-images?imageId=${encodeURIComponent(id)}`,
+        { method: 'DELETE', credentials: 'include' },
+      );
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) throw new Error(data.error ?? '삭제 실패');
+      setImages((prev) => prev.filter((im) => im.id !== id));
+    } catch (e) {
+      alert(e instanceof Error ? e.message : '삭제 실패');
+    }
+  }, [runId]);
 
+  const sectionStyle = {} satisfies React.CSSProperties;
+
+  // 제목 없는 섹션의 컨트롤(복사·편집) 바 — 박스/배경 없이 우측 정렬된 얇은 줄.
   const summaryStyle: CSSProperties = {
-    cursor: 'pointer',
     listStyle: 'none',
-    padding: '9px 14px',
-    fontSize: 12.5,
-    fontWeight: 700,
-    color: 'var(--text-secondary)',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: 8,
-    flexWrap: 'wrap' as const,
-    userSelect: 'none' as const,
-    background: 'var(--bg-subtle)',
+    marginBottom: 12,
+    paddingBottom: 8,
     borderBottom: '1px solid var(--border)',
-    letterSpacing: '0.01em',
+    userSelect: 'none' as const,
   };
 
   return (
     <details open style={{ ...sectionStyle, gridColumn: '1 / -1' }}>
-      <summary style={summaryStyle}>
-        <span>이미지 분석</span>
-        <button
-          type="button"
-          className="adminLegacySmallBtn"
-          onClick={(e) => {
-            e.preventDefault();
-            if (autoRetryTimer.current) { clearTimeout(autoRetryTimer.current); autoRetryTimer.current = null; }
-            didAutoRetry.current = true;
-            setAutoRetrying(false);
-            void load();
-          }}
-        >
-          새로고침
-        </button>
+      <summary style={summaryStyle} onClick={(e) => e.preventDefault()}>
+        <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>이미지 분석</span>
+        <span style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+          {onAddAnalysis && (
+            <button
+              type="button"
+              onClick={(e) => { e.preventDefault(); onAddAnalysis(); }}
+              title="이미지 추가 분석"
+              aria-label="이미지 추가 분석"
+              style={iconBtnStyle}
+            >
+              <ImagePlus size={14} />
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={(e) => { e.preventDefault(); setEditMode((v) => !v); }}
+            title={editMode ? '완료' : '수정(삭제)'}
+            aria-label={editMode ? '완료' : '수정'}
+            style={{ ...iconBtnStyle, color: editMode ? 'var(--accent)' : 'var(--text-secondary)', borderColor: editMode ? 'var(--accent)' : 'var(--border-strong)' }}
+          >
+            {editMode ? <Check size={14} /> : <Pencil size={14} />}
+          </button>
+        </span>
       </summary>
       <div style={{ padding: '12px 14px' }}>
         {loading ? (
@@ -567,7 +631,7 @@ export function CaseImagesSection({ runId }: { runId: string }) {
             </p>
           )
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
             {groupImagesByDate(images).map(({ date, images: dateImages }) => {
               const summary = summaries.find((s) => (s.examDate ?? null) === (date ?? null));
               // confidence 높은 순 정렬 후 1·2·3 넘버링, 파일명→번호 매핑(이미지 배지용)
@@ -590,23 +654,30 @@ export function CaseImagesSection({ runId }: { runId: string }) {
                 }
               });
               return (
-                <div key={date ?? 'no-date'}>
-                  <div
+                <details key={date ?? 'no-date'} open style={{ borderBottom: '1px solid var(--border)', padding: '12px 0' }}>
+                  <summary
+                    className="chartDateRow"
                     style={{
-                      fontSize: 12.5,
+                      padding: '7px 10px',
+                      marginBottom: 12,
+                      fontSize: 11,
                       fontWeight: 800,
-                      color: 'var(--text)',
-                      padding: '4px 0 6px',
-                      marginBottom: 10,
+                      color: 'var(--accent)',
+                      letterSpacing: '0.05em',
+                      cursor: 'pointer',
+                      listStyle: 'none',
+                      userSelect: 'none',
                       display: 'flex',
                       alignItems: 'center',
-                      gap: 8,
-                      borderBottom: '2px solid var(--border-strong)',
+                      gap: 6,
+                      background: 'var(--bg-subtle)',
+                      borderRadius: 6,
                     }}
                   >
-                    <span>📅 {formatExamDateLabel(date)}</span>
-                    <span style={{ fontWeight: 400, color: 'var(--text-muted)', fontSize: 11 }}>{dateImages.length}장</span>
-                  </div>
+                    <span className="chartDateChev" aria-hidden="true">▶</span>
+                    {formatExamDateLabel(date)}
+                    <span style={{ fontWeight: 400, color: 'var(--text-muted)', fontSize: 11, letterSpacing: 0 }}>{dateImages.length}장</span>
+                  </summary>
 
                   {bullets.length > 0 && (
                     <div style={{ marginBottom: 12, padding: '10px 12px', background: 'var(--bg-subtle)', border: '1px solid var(--border)', borderRadius: 8 }}>
@@ -656,10 +727,10 @@ export function CaseImagesSection({ runId }: { runId: string }) {
 
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 12 }}>
                     {dateImages.map((img) => (
-                      <CaseImageCard key={img.id} img={img} numbers={numberByFile.get(img.fileName) ?? []} confidence={confidenceByFile.get(img.fileName)} />
+                      <CaseImageCard key={img.id} img={img} numbers={numberByFile.get(img.fileName) ?? []} confidence={confidenceByFile.get(img.fileName)} editMode={editMode} onDelete={() => deleteImage(img.id)} />
                     ))}
                   </div>
-                </div>
+                </details>
               );
             })}
           </div>
@@ -668,6 +739,19 @@ export function CaseImagesSection({ runId }: { runId: string }) {
     </details>
   );
 }
+
+type ChartTabKey = 'basic' | 'vaccination' | 'chart' | 'plan' | 'lab' | 'vitals' | 'exam' | 'images' | 'debug';
+const CHART_TABS: { key: ChartTabKey; label: string }[] = [
+  { key: 'basic', label: '기본정보' },
+  { key: 'vaccination', label: '접종·기생충' },
+  { key: 'chart', label: '차트본문' },
+  { key: 'plan', label: '플랜' },
+  { key: 'lab', label: '검사결과' },
+  { key: 'vitals', label: '바이탈' },
+  { key: 'exam', label: '신체검사' },
+  { key: 'images', label: '이미지분석' },
+  { key: 'debug', label: '디버그' },
+];
 
 export function AdminRunExtractionDetail({
   runId,
@@ -717,6 +801,7 @@ export function AdminRunExtractionDetail({
   const [imgModalStatus, setImgModalStatus] = useState<'idle' | 'uploading' | 'done' | 'error'>('idle');
   const [imgModalError, setImgModalError] = useState<string | null>(null);
   const [caseImagesRefreshKey, setCaseImagesRefreshKey] = useState(0);
+  const [activeTab, setActiveTab] = useState<ChartTabKey>('basic');
   const imgModalRef = useRef<HTMLDialogElement>(null);
   const imgFileInputRef = useRef<HTMLInputElement>(null);
 
@@ -1047,29 +1132,19 @@ export function AdminRunExtractionDetail({
     );
   }
 
-  const sectionStyle = {
-    border: '1px solid var(--border)',
-    background: '#fff',
-    borderRadius: 6,
-    overflow: 'hidden',
-  } satisfies React.CSSProperties;
+  const sectionStyle = {} satisfies React.CSSProperties;
 
+  // 제목 없는 섹션의 컨트롤(복사·편집) 바 — 박스/배경 없이 우측 정렬된 얇은 줄.
   const summaryStyle: CSSProperties = {
-    cursor: 'pointer',
     listStyle: 'none',
-    padding: '9px 14px',
-    fontSize: 12.5,
-    fontWeight: 700,
-    color: 'var(--text-secondary)',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: 8,
-    flexWrap: 'wrap' as const,
-    userSelect: 'none' as const,
-    background: 'var(--bg-subtle)',
+    marginBottom: 12,
+    paddingBottom: 8,
     borderBottom: '1px solid var(--border)',
-    letterSpacing: '0.01em',
+    userSelect: 'none' as const,
   };
 
   return (
@@ -1096,13 +1171,6 @@ export function AdminRunExtractionDetail({
             type="button"
             className="adminLegacySecondaryBtn"
             style={{ marginLeft: 'auto' }}
-            onClick={() => setImgModalOpen(true)}
-          >
-            이미지 추가 분석
-          </button>
-          <button
-            type="button"
-            className="adminLegacySecondaryBtn"
             onClick={() => { setGenSuccess(false); setGenError(null); setGenModalOpen(true); }}
           >
             건강검진 리포트 생성
@@ -1183,13 +1251,6 @@ export function AdminRunExtractionDetail({
             <button
               type="button"
               className="adminLegacySecondaryBtn"
-              onClick={() => setImgModalOpen(true)}
-            >
-              이미지 추가 분석
-            </button>
-            <button
-              type="button"
-              className="adminLegacySecondaryBtn"
               onClick={() => { setGenSuccess(false); setGenError(null); setGenModalOpen(true); }}
             >
               건강검진 리포트 생성
@@ -1210,13 +1271,49 @@ export function AdminRunExtractionDetail({
         </div>
       ) : null}
 
-      {/* 섹션 그리드: 기본 정보 + Vitals 나란히, 나머지 전체 너비 */}
+      {/* 탭바 (경영 대시보드와 동일한 언더라인 스타일) */}
+      <div
+        className="adminUnderlineTabs"
+        role="tablist"
+        style={{ display: 'flex', gap: 4, borderBottom: '1px solid var(--border)', overflowX: 'auto', marginBottom: 12 }}
+      >
+        {CHART_TABS.map((t) => {
+          const active = activeTab === t.key;
+          return (
+            <button
+              key={t.key}
+              type="button"
+              role="tab"
+              aria-selected={active}
+              onClick={() => setActiveTab(t.key)}
+              style={{
+                padding: '8px 12px',
+                fontSize: 13,
+                fontWeight: active ? 600 : 500,
+                color: active ? 'var(--accent)' : 'var(--text-muted)',
+                background: 'none',
+                border: 'none',
+                borderBottom: `2px solid ${active ? 'var(--accent)' : 'transparent'}`,
+                marginBottom: -1,
+                cursor: 'pointer',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {t.label}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* 콘텐츠 패널 (흰 배경) — 박스 대신 패널 하나로 */}
+      <div style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: 10, padding: '14px 16px' }}>
+      {/* 섹션 그리드: 선택한 탭의 섹션만 표시 */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, alignItems: 'start' }}>
 
       {/* 기본 정보 — 전체 너비 */}
-      <details open style={{ ...sectionStyle, gridColumn: '1 / -1' }}>
-        <summary style={summaryStyle}>
-          <span>기본 정보</span>
+      <details open style={{ ...sectionStyle, gridColumn: '1 / -1', display: activeTab === 'basic' ? undefined : 'none' }}>
+        <summary style={summaryStyle} onClick={(e) => e.preventDefault()}>
+          <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>기본정보</span>
           <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
             <CopyTextButton
               disabled={!result.basicInfo}
@@ -1331,9 +1428,9 @@ export function AdminRunExtractionDetail({
       </details>
 
       {/* 예방접종 — 전체 너비 */}
-      <details open style={{ ...sectionStyle, gridColumn: '1 / -1' }}>
-        <summary style={summaryStyle}>
-          <span>Vaccination · 외부기생충</span>
+      <details open style={{ ...sectionStyle, gridColumn: '1 / -1', display: activeTab === 'vaccination' ? undefined : 'none' }}>
+        <summary style={summaryStyle} onClick={(e) => e.preventDefault()}>
+          <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>접종·기생충</span>
           <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
             <CopyTextButton
               text={result.vaccinationRecords
@@ -1451,9 +1548,9 @@ export function AdminRunExtractionDetail({
       </details>
 
       {/* 차트 본문 — 전체 너비 */}
-      <details open style={{ ...sectionStyle, gridColumn: '1 / -1' }}>
-        <summary style={summaryStyle}>
-          <span>차트 본문 (날짜별)</span>
+      <details open style={{ ...sectionStyle, gridColumn: '1 / -1', display: activeTab === 'chart' ? undefined : 'none' }}>
+        <summary style={summaryStyle} onClick={(e) => e.preventDefault()}>
+          <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>차트본문</span>
           <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
             <CopyTextButton
               text={result.chartBodyByDate.map((c) => `${c.dateTime}\n${c.bodyText}`).join('\n\n')}
@@ -1482,11 +1579,11 @@ export function AdminRunExtractionDetail({
         </summary>
         <div style={{ borderTop: 'none' }}>
           {(editing.chartBody && draftChart ? draftChart : result.chartBodyByDate).map((c) => (
-            <details key={c.id} open style={{ borderBottom: '1px solid var(--border)' }}>
-              <summary style={{ padding: '7px 12px', fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', cursor: 'pointer', listStyle: 'none', background: 'var(--bg-subtle)', borderBottom: '1px solid var(--border)', userSelect: 'none' }}>
+            <details key={c.id} open style={{ borderBottom: '1px solid var(--border)', padding: '12px 0' }}>
+              <summary className="chartDateRow" style={{ padding: '7px 10px', fontSize: 11, fontWeight: 800, color: 'var(--accent)', letterSpacing: '0.05em', cursor: 'pointer', listStyle: 'none', userSelect: 'none', display: 'flex', alignItems: 'center', gap: 6, background: 'var(--bg-subtle)', borderRadius: 6 }}><span className="chartDateChev" aria-hidden="true">▶</span>
                 {c.dateTime}
               </summary>
-              <div style={{ padding: '10px 12px' }}>
+              <div style={{ marginTop: 6 }}>
                 {editing.chartBody && draftChart ? (
                   <textarea
                     value={draftChart.find((x) => x.id === c.id)?.bodyText ?? ''}
@@ -1495,10 +1592,10 @@ export function AdminRunExtractionDetail({
                       setDraftChart((rows) => rows?.map((r) => (r.id === c.id ? { ...r, bodyText: v } : r)) ?? null);
                     }}
                     rows={12}
-                    style={{ width: '100%', fontFamily: 'inherit', fontSize: 13, padding: 8, border: `1px solid ${divider}` }}
+                    style={{ width: '100%', fontFamily: 'inherit', fontSize: 13, padding: 8, border: `1px solid ${divider}`, borderRadius: 6 }}
                   />
                 ) : (
-                  <pre style={{ margin: 0, whiteSpace: 'pre-wrap', fontSize: 13, padding: 10, background: 'var(--bg-subtle)', border: `1px solid ${divider}` }}>
+                  <pre style={{ margin: 0, whiteSpace: 'pre-wrap', fontSize: 13, lineHeight: 1.6, color: 'var(--text)', border: '1px solid var(--border)', borderRadius: 6, padding: '10px 12px' }}>
                     {c.bodyText || '—'}
                   </pre>
                 )}
@@ -1509,9 +1606,9 @@ export function AdminRunExtractionDetail({
       </details>
 
       {/* 처방·플랜 — 전체 너비 */}
-      <details open style={{ ...sectionStyle, gridColumn: '1 / -1' }}>
-        <summary style={summaryStyle}>
-          <span>처방·플랜 (날짜별)</span>
+      <details open style={{ ...sectionStyle, gridColumn: '1 / -1', display: activeTab === 'plan' ? undefined : 'none' }}>
+        <summary style={summaryStyle} onClick={(e) => e.preventDefault()}>
+          <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>플랜</span>
           <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
             <CopyTextButton
               text={planGroups
@@ -1547,11 +1644,11 @@ export function AdminRunExtractionDetail({
         </summary>
         <div style={{ borderTop: 'none' }}>
           {(editing.plan && draftPlan ? draftPlan : planGroups).map((g, gi) => (
-            <details key={g.dateTime} open style={{ borderBottom: '1px solid var(--border)' }}>
-              <summary style={{ padding: '7px 12px', fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', cursor: 'pointer', listStyle: 'none', background: 'var(--bg-subtle)', borderBottom: '1px solid var(--border)', userSelect: 'none' }}>
+            <details key={g.dateTime} open style={{ borderBottom: '1px solid var(--border)', padding: '12px 0' }}>
+              <summary className="chartDateRow" style={{ padding: '7px 10px', fontSize: 11, fontWeight: 800, color: 'var(--accent)', letterSpacing: '0.05em', cursor: 'pointer', listStyle: 'none', userSelect: 'none', display: 'flex', alignItems: 'center', gap: 6, background: 'var(--bg-subtle)', borderRadius: 6 }}><span className="chartDateChev" aria-hidden="true">▶</span>
                 {g.dateTime}
               </summary>
-              <div style={{ padding: '10px 12px 12px' }}>
+              <div style={{ marginTop: 4 }}>
               {!g.planRowsFromDb && g.rows.length > 0 ? (
                 <p style={{ fontSize: 12, color: 'var(--warning)', margin: '0 0 6px' }}>DB 행 없음 — plan_text 파싱 미리보기. 저장 시 DB에 반영됩니다.</p>
               ) : null}
@@ -1674,9 +1771,9 @@ export function AdminRunExtractionDetail({
       </details>
 
       {/* Lab — 전체 너비 */}
-      <details open style={{ ...sectionStyle, gridColumn: '1 / -1' }}>
-        <summary style={summaryStyle}>
-          <span>Lab Examination</span>
+      <details open style={{ ...sectionStyle, gridColumn: '1 / -1', display: activeTab === 'lab' ? undefined : 'none' }}>
+        <summary style={summaryStyle} onClick={(e) => e.preventDefault()}>
+          <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>검사결과</span>
           <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
             <CopyTextButton
               text={result.labItemsByDate
@@ -1712,11 +1809,11 @@ export function AdminRunExtractionDetail({
         </summary>
         <div style={{ borderTop: 'none' }}>
           {(editing.lab && draftLab ? draftLab : result.labItemsByDate).map((g, gi) => (
-            <details key={g.dateTime} open style={{ borderBottom: '1px solid var(--border)' }}>
-              <summary style={{ padding: '7px 12px', fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', cursor: 'pointer', listStyle: 'none', background: 'var(--bg-subtle)', borderBottom: '1px solid var(--border)', userSelect: 'none' }}>
+            <details key={g.dateTime} open style={{ borderBottom: '1px solid var(--border)', padding: '12px 0' }}>
+              <summary className="chartDateRow" style={{ padding: '7px 10px', fontSize: 11, fontWeight: 800, color: 'var(--accent)', letterSpacing: '0.05em', cursor: 'pointer', listStyle: 'none', userSelect: 'none', display: 'flex', alignItems: 'center', gap: 6, background: 'var(--bg-subtle)', borderRadius: 6 }}><span className="chartDateChev" aria-hidden="true">▶</span>
                 {g.dateTime}
               </summary>
-              <div style={{ padding: '8px 12px 12px' }}>
+              <div style={{ marginTop: 4 }}>
               <table className="adminDetailTable">
                 <thead>
                   <tr>
@@ -1947,9 +2044,9 @@ export function AdminRunExtractionDetail({
       </details>
 
       {/* Vitals — 왼쪽 칸 */}
-      <details open style={sectionStyle}>
-        <summary style={summaryStyle}>
-          <span>Vitals (읽기 전용)</span>
+      <details open style={{ ...sectionStyle, gridColumn: '1 / -1', display: activeTab === 'vitals' ? undefined : 'none' }}>
+        <summary style={summaryStyle} onClick={(e) => e.preventDefault()}>
+          <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>바이탈</span>
           <CopyTextButton
             text={result.vitalsByDate
               .map(
@@ -1991,9 +2088,9 @@ export function AdminRunExtractionDetail({
       </details>
 
       {/* 신체검사 — 오른쪽 칸 */}
-      <details open style={sectionStyle}>
-        <summary style={summaryStyle}>
-          <span>신체검사 (읽기 전용)</span>
+      <details open style={{ ...sectionStyle, gridColumn: '1 / -1', display: activeTab === 'exam' ? undefined : 'none' }}>
+        <summary style={summaryStyle} onClick={(e) => e.preventDefault()}>
+          <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>신체검사</span>
           <CopyTextButton
             text={result.physicalExamByDate
               .map((g) =>
@@ -2007,11 +2104,11 @@ export function AdminRunExtractionDetail({
         </summary>
         <div style={{ borderTop: 'none' }}>
           {result.physicalExamByDate.map((g) => (
-            <details key={g.dateTime} open style={{ borderBottom: '1px solid var(--border)' }}>
-              <summary style={{ padding: '7px 12px', fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', cursor: 'pointer', listStyle: 'none', background: 'var(--bg-subtle)', borderBottom: '1px solid var(--border)', userSelect: 'none' }}>
+            <details key={g.dateTime} open style={{ borderBottom: '1px solid var(--border)', padding: '12px 0' }}>
+              <summary className="chartDateRow" style={{ padding: '7px 10px', fontSize: 11, fontWeight: 800, color: 'var(--accent)', letterSpacing: '0.05em', cursor: 'pointer', listStyle: 'none', userSelect: 'none', display: 'flex', alignItems: 'center', gap: 6, background: 'var(--bg-subtle)', borderRadius: 6 }}><span className="chartDateChev" aria-hidden="true">▶</span>
                 {g.dateTime}
               </summary>
-              <div style={{ padding: '8px 12px 12px' }}>
+              <div style={{ marginTop: 4 }}>
                 <table className="adminDetailTable">
                   <thead>
                     <tr>
@@ -2038,13 +2135,25 @@ export function AdminRunExtractionDetail({
         </div>
       </details>
 
-      {/* 이미지 분석 — 전체 너비 */}
-      <CaseImagesSection key={caseImagesRefreshKey} runId={runId} />
+      {/* 이미지 분석 — 전체 너비 (이미지분석 탭) */}
+      {activeTab === 'images' && (
+        <div style={{ gridColumn: '1 / -1' }}>
+          <CaseImagesSection key={caseImagesRefreshKey} runId={runId} onAddAnalysis={() => setImgModalOpen(true)} />
+        </div>
+      )}
 
-      {/* 버킷 디버그 — 전체 너비 */}
-      <BucketDebugPanel key={runId} runId={runId} />
+      {/* 버킷 디버그 — 전체 너비 (디버그 탭) */}
+      {activeTab === 'debug' && (
+        <div style={{ gridColumn: '1 / -1' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 12, paddingBottom: 8, borderBottom: '1px solid var(--border)' }}>
+            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>디버그</span>
+          </div>
+          <BucketDebugPanel key={runId} runId={runId} />
+        </div>
+      )}
 
       </div>{/* end section grid */}
+      </div>{/* end content panel */}
 
       <dialog
         ref={genModalRef}

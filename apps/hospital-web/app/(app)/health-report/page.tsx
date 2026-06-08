@@ -64,7 +64,7 @@ export default function HealthReportPage() {
 
   // Form
   const [chartType, setChartType] = useState<ChartType>('intovet');
-  const [pdfFile, setPdfFile] = useState<File | null>(null);
+  const [pdfFiles, setPdfFiles] = useState<File[]>([]);
   const [pdfError, setPdfError] = useState<string | null>(null);
   const [imageFiles, setImageFiles] = useState<File[]>([]);
   const [imagePreviews, setImagePreviews] = useState<string[]>([]);
@@ -113,18 +113,25 @@ export default function HealthReportPage() {
   // ---------------------------------------------------------------------------
   // PDF handling
   // ---------------------------------------------------------------------------
-  const handlePdfFile = useCallback((file: File) => {
+  const handlePdfFiles = useCallback((files: File[]) => {
     setPdfError(null);
-    if (file.type !== 'application/pdf') { setPdfError('PDF 파일만 업로드할 수 있습니다.'); return; }
-    if (file.size > MAX_FILE_SIZE) { setPdfError(`파일 크기는 30MB 이하여야 합니다. (현재: ${formatBytes(file.size)})`); return; }
-    setPdfFile(file);
-    setStage('idle');
+    const valid: File[] = [];
+    for (const file of files) {
+      if (file.type !== 'application/pdf') { setPdfError('PDF 파일만 업로드할 수 있습니다.'); continue; }
+      if (file.size > MAX_FILE_SIZE) { setPdfError(`각 파일은 30MB 이하여야 합니다. (${file.name}: ${formatBytes(file.size)})`); continue; }
+      valid.push(file);
+    }
+    if (valid.length > 0) { setPdfFiles((prev) => [...prev, ...valid]); setStage('idle'); }
+  }, []);
+
+  const removePdfFile = useCallback((idx: number) => {
+    setPdfFiles((prev) => prev.filter((_, i) => i !== idx));
   }, []);
 
   const onPdfDrop = useCallback((e: DragEvent<HTMLDivElement>) => {
     e.preventDefault(); setIsDragging(false);
-    const file = e.dataTransfer.files?.[0]; if (file) handlePdfFile(file);
-  }, [handlePdfFile]);
+    const files = Array.from(e.dataTransfer.files ?? []); if (files.length) handlePdfFiles(files);
+  }, [handlePdfFiles]);
 
   // ---------------------------------------------------------------------------
   // Image handling
@@ -242,7 +249,7 @@ export default function HealthReportPage() {
   // Submit
   // ---------------------------------------------------------------------------
   const handleSubmit = async () => {
-    if (!pdfFile || !hospitalId) {
+    if (pdfFiles.length === 0 || !hospitalId) {
       if (!hospitalId) { setErrorMessage('병원 정보를 불러올 수 없습니다. 다시 로그인해 주세요.'); setStage('error'); }
       return;
     }
@@ -254,27 +261,35 @@ export default function HealthReportPage() {
     setImageWarning('');
 
     try {
-      // Step 1 — signed URL
-      const urlRes = await fetch('/api/health-report/upload-url', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fileName: pdfFile.name, fileType: pdfFile.type, fileSize: pdfFile.size }),
-      });
-      if (!urlRes.ok) {
-        const err = (await urlRes.json()) as { error?: string };
-        throw new Error(err.error ?? '업로드 URL 생성에 실패했습니다.');
-      }
-      const { signedUrl, storagePath, bucket } = (await urlRes.json()) as {
-        signedUrl: string; storagePath: string; bucket: string;
-      };
+      // Step 1·2 — 각 PDF signed URL 발급 + 업로드 (같은 진료분의 차트본문/검사결과 등 여러 PDF 지원)
+      const storagePaths: string[] = [];
+      let bucket = '';
+      for (let i = 0; i < pdfFiles.length; i++) {
+        const f = pdfFiles[i];
+        setStage('getting-url');
+        setProgressMessage('업로드 URL 생성 중…');
+        const urlRes = await fetch('/api/health-report/upload-url', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ fileName: f.name, fileType: f.type, fileSize: f.size }),
+        });
+        if (!urlRes.ok) {
+          const err = (await urlRes.json()) as { error?: string };
+          throw new Error(err.error ?? '업로드 URL 생성에 실패했습니다.');
+        }
+        const { signedUrl, storagePath, bucket: b } = (await urlRes.json()) as {
+          signedUrl: string; storagePath: string; bucket: string;
+        };
+        bucket = b;
 
-      // Step 2 — PDF upload
-      setStage('uploading-pdf');
-      setProgressMessage('PDF 업로드 중…');
-      await uploadPdfWithProgress(signedUrl, pdfFile, (pct) => {
-        setUploadProgress(pct);
-        setProgressMessage(`PDF 업로드 중… ${pct}%`);
-      });
+        setStage('uploading-pdf');
+        const label = pdfFiles.length > 1 ? `(${i + 1}/${pdfFiles.length}) ` : '';
+        await uploadPdfWithProgress(signedUrl, f, (pct) => {
+          setUploadProgress(pct);
+          setProgressMessage(`PDF 업로드 중… ${label}${pct}%`);
+        });
+        storagePaths.push(storagePath);
+      }
       setUploadProgress(100);
 
       // Step 3 — extract (병원에는 "분석 중" 노출 안 함, 버튼은 "파일 업로드 중"만)
@@ -282,7 +297,7 @@ export default function HealthReportPage() {
       const extractRes = await fetch('/api/health-report/extract', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ storagePath, storageBucket: bucket, chartType, hospitalId, emphasisText }),
+        body: JSON.stringify({ storagePaths, storageBucket: bucket, chartType, hospitalId, emphasisText }),
       });
       const extractData = (await extractRes.json()) as { error?: string; runId?: string };
       if (!extractRes.ok) throw new Error(extractData.error ?? '요청 처리에 실패했습니다.');
@@ -313,7 +328,7 @@ export default function HealthReportPage() {
       );
 
       setStage('done');
-      setPdfFile(null);
+      setPdfFiles([]);
       setImageFiles([]);
       imagePreviews.forEach((u) => URL.revokeObjectURL(u));
       setImagePreviews([]);
@@ -328,7 +343,7 @@ export default function HealthReportPage() {
   };
 
   const isProcessing = stage === 'getting-url' || stage === 'uploading-pdf' || stage === 'extracting' || stage === 'saving';
-  const canSubmit = !!pdfFile && !isProcessing;
+  const canSubmit = pdfFiles.length > 0 && !isProcessing;
 
   // ---------------------------------------------------------------------------
   // Render
@@ -436,7 +451,7 @@ export default function HealthReportPage() {
               </FormField>
 
               {/* PDF */}
-              <FormField label="차트 PDF" required>
+              <FormField label="차트 PDF" required hint="여러 개 가능">
                 <div
                   onDrop={onPdfDrop}
                   onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
@@ -450,19 +465,35 @@ export default function HealthReportPage() {
                     transition: 'border-color 0.15s',
                   }}
                 >
-                  <input ref={pdfInputRef} type="file" accept=".pdf,application/pdf" style={{ display: 'none' }}
-                    onChange={(e: ChangeEvent<HTMLInputElement>) => { const f = e.target.files?.[0]; if (f) handlePdfFile(f); }} />
-                  {pdfFile ? (
-                    <>
-                      <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text)', wordBreak: 'break-all' }}>{pdfFile.name}</div>
-                      <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>{formatBytes(pdfFile.size)}</div>
-                      {!isProcessing && <div style={{ fontSize: '11px', color: 'var(--accent)', marginTop: '4px' }}>클릭하여 다시 선택</div>}
-                    </>
+                  <input ref={pdfInputRef} type="file" accept=".pdf,application/pdf" multiple style={{ display: 'none' }}
+                    onChange={(e: ChangeEvent<HTMLInputElement>) => { const fs = Array.from(e.target.files ?? []); if (fs.length) handlePdfFiles(fs); e.target.value = ''; }} />
+                  {pdfFiles.length > 0 ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', textAlign: 'left' }}>
+                      {pdfFiles.map((f, idx) => (
+                        <div key={idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', background: '#fff', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '6px 10px' }}>
+                          <div style={{ minWidth: 0 }}>
+                            <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text)', wordBreak: 'break-all' }}>{f.name}</div>
+                            <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '1px' }}>{formatBytes(f.size)}</div>
+                          </div>
+                          {!isProcessing && (
+                            <button
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); removePdfFile(idx); }}
+                              aria-label="삭제"
+                              style={{ flexShrink: 0, width: '22px', height: '22px', borderRadius: '50%', border: '1px solid var(--border)', background: 'var(--bg-subtle)', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: '12px', lineHeight: 1 }}
+                            >
+                              ✕
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                      {!isProcessing && <div style={{ fontSize: '11px', color: 'var(--accent)', marginTop: '2px', textAlign: 'center' }}>+ 클릭하여 PDF 추가</div>}
+                    </div>
                   ) : (
                     <>
                       <div style={{ fontSize: '20px', marginBottom: '5px' }}>📄</div>
                       <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '2px' }}>끌어다 놓거나 클릭하여 선택</div>
-                      <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>PDF · 최대 30MB</div>
+                      <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>PDF · 최대 30MB · 여러 개 가능</div>
                     </>
                   )}
                 </div>

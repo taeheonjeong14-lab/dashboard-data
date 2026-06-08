@@ -36,7 +36,7 @@ import { createHash } from "node:crypto";
 import { assignFriendlyIdToParseRun } from "@/lib/friendly-id";
 import { normalizeBasicInfoSpeciesBreed } from "@/lib/basic-info-normalization";
 import { PDF_UPLOAD_BUCKET } from "@/lib/supabase-storage-buckets";
-import { getPdfPageCount } from "@/lib/pdf-slice-pages";
+import { getPdfPageCount, mergePdfs } from "@/lib/pdf-slice-pages";
 import { hospitalsDbUsesCamelCase } from "@/lib/hospital-db";
 import { dbChartPdf, dbCore, getSupabaseCoreSchema } from "@/lib/supabase-db-schema";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
@@ -2542,6 +2542,7 @@ export async function POST(request: NextRequest) {
     const file = formData.get("file");
     const storageBucketRaw = formData.get("storageBucket");
     const storagePathRaw = formData.get("storagePath");
+    const storagePathsRaw = formData.get("storagePaths"); // JSON 배열 문자열(다중 PDF). 있으면 storagePath보다 우선.
     const storageFileNameRaw = formData.get("fileName");
     const storageFileTypeRaw = formData.get("fileType");
     const chartType = parseChartKind(formData.get("chartType"));
@@ -2563,59 +2564,93 @@ export async function POST(request: NextRequest) {
     let binary: Buffer;
     let sourceFileName = "report.pdf";
     let sourceFileType = "application/pdf";
-    if (file instanceof File) {
-      if (file.type !== "application/pdf") {
-        return Response.json({ error: "Text 기반 버켓팅 테스트는 PDF만 지원합니다." }, { status: 400 });
+
+    // 직접 업로드된 파일(다중 가능) — getAll("file")
+    const uploadedFiles = formData.getAll("file").filter((f): f is File => f instanceof File);
+
+    if (uploadedFiles.length > 0) {
+      const buffers: Buffer[] = [];
+      for (const f of uploadedFiles) {
+        if (f.type !== "application/pdf") {
+          return Response.json({ error: "Text 기반 버켓팅 테스트는 PDF만 지원합니다." }, { status: 400 });
+        }
+        if (f.size > MAX_FILE_SIZE_BYTES) {
+          return Response.json({ error: "파일 크기는 각 30MB 이하여야 합니다." }, { status: 400 });
+        }
+        buffers.push(Buffer.from(await f.arrayBuffer()));
       }
-      if (file.size > MAX_FILE_SIZE_BYTES) {
-        return Response.json({ error: "파일 크기는 30MB 이하여야 합니다." }, { status: 400 });
+      sourceFileName = uploadedFiles[0].name || sourceFileName;
+      sourceFileType = "application/pdf";
+      binary = await mergePdfs(buffers);
+      if (uploadedFiles.length > 1) {
+        console.log("[text-bucketing] %d개 PDF 머지 완료 (직접 업로드)", uploadedFiles.length);
       }
-      sourceFileName = file.name || sourceFileName;
-      sourceFileType = file.type;
-      binary = Buffer.from(await file.arrayBuffer());
     } else {
       const storageBucket =
         typeof storageBucketRaw === "string" ? storageBucketRaw.trim() : "";
-      const storagePath =
-        typeof storagePathRaw === "string" ? storagePathRaw.trim() : "";
       const storageFileName =
         typeof storageFileNameRaw === "string" ? storageFileNameRaw.trim() : "";
       const storageFileType =
         typeof storageFileTypeRaw === "string" ? storageFileTypeRaw.trim() : "";
 
-      if (!storageBucket || !storagePath) {
+      // storagePaths(JSON 배열)가 있으면 우선, 없으면 단일 storagePath
+      let storagePaths: string[] = [];
+      if (typeof storagePathsRaw === "string" && storagePathsRaw.trim()) {
+        try {
+          const parsed = JSON.parse(storagePathsRaw);
+          if (Array.isArray(parsed)) {
+            storagePaths = parsed.filter((p): p is string => typeof p === "string" && p.trim().length > 0).map((p) => p.trim());
+          }
+        } catch {
+          return Response.json({ error: "storagePaths 형식이 올바르지 않습니다(JSON 배열)." }, { status: 400 });
+        }
+      }
+      if (storagePaths.length === 0 && typeof storagePathRaw === "string" && storagePathRaw.trim()) {
+        storagePaths = [storagePathRaw.trim()];
+      }
+
+      if (!storageBucket || storagePaths.length === 0) {
         return Response.json(
-          { error: "업로드 파일 또는 storage 경로가 필요합니다. (field: file | storagePath)" },
+          { error: "업로드 파일 또는 storage 경로가 필요합니다. (field: file | storagePath | storagePaths)" },
           { status: 400 },
         );
       }
       if (storageBucket !== EXTRACT_UPLOAD_BUCKET) {
         return Response.json({ error: "허용되지 않은 storage bucket입니다." }, { status: 400 });
       }
-      if (!storagePath.startsWith("extract-uploads/")) {
-        return Response.json({ error: "허용되지 않은 storage path입니다." }, { status: 400 });
+      for (const p of storagePaths) {
+        if (!p.startsWith("extract-uploads/")) {
+          return Response.json({ error: "허용되지 않은 storage path입니다." }, { status: 400 });
+        }
       }
       if (storageFileType && storageFileType !== "application/pdf") {
         return Response.json({ error: "Text 기반 버켓팅 테스트는 PDF만 지원합니다." }, { status: 400 });
       }
 
-      console.log("[text-bucketing] Supabase storage 다운로드 시작: bucket=%s path=%s", storageBucket, storagePath);
       const supabase = getSupabaseServerClient();
-      const { data: downloaded, error: downloadError } = await supabase.storage
-        .from(storageBucket)
-        .download(storagePath);
-      if (downloadError || !downloaded) {
-        console.log("[text-bucketing] Storage 다운로드 실패:", downloadError?.message);
-        return Response.json(
-          { error: `업로드된 PDF를 불러오지 못했습니다: ${downloadError?.message ?? "unknown"}` },
-          { status: 400 },
-        );
+      const buffers: Buffer[] = [];
+      for (const storagePath of storagePaths) {
+        console.log("[text-bucketing] Supabase storage 다운로드 시작: bucket=%s path=%s", storageBucket, storagePath);
+        const { data: downloaded, error: downloadError } = await supabase.storage
+          .from(storageBucket)
+          .download(storagePath);
+        if (downloadError || !downloaded) {
+          console.log("[text-bucketing] Storage 다운로드 실패:", downloadError?.message);
+          return Response.json(
+            { error: `업로드된 PDF를 불러오지 못했습니다: ${downloadError?.message ?? "unknown"}` },
+            { status: 400 },
+          );
+        }
+        console.log("[text-bucketing] Storage 다운로드 성공: size=%d", downloaded.size);
+        if (downloaded.size > MAX_FILE_SIZE_BYTES) {
+          return Response.json({ error: "파일 크기는 각 30MB 이하여야 합니다." }, { status: 400 });
+        }
+        buffers.push(Buffer.from(await downloaded.arrayBuffer()));
       }
-      console.log("[text-bucketing] Storage 다운로드 성공: size=%d", downloaded.size);
-      if (downloaded.size > MAX_FILE_SIZE_BYTES) {
-        return Response.json({ error: "파일 크기는 30MB 이하여야 합니다." }, { status: 400 });
+      binary = await mergePdfs(buffers);
+      if (storagePaths.length > 1) {
+        console.log("[text-bucketing] %d개 PDF 머지 완료 (storage)", storagePaths.length);
       }
-      binary = Buffer.from(await downloaded.arrayBuffer());
       sourceFileName = storageFileName || sourceFileName;
       sourceFileType = storageFileType || sourceFileType;
     }

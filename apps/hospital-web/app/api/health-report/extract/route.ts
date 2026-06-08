@@ -12,6 +12,7 @@ export const maxDuration = 120;
 
 type ExtractBody = {
   storagePath?: string;
+  storagePaths?: string[]; // 다중 PDF(같은 진료분 차트본문+검사결과 등). 있으면 storagePath보다 우선.
   storageBucket?: string;
   chartType?: string;
   hospitalId?: string;
@@ -39,10 +40,13 @@ export async function POST(request: NextRequest) {
   }
 
   const { storagePath, storageBucket, chartType, hospitalId } = body;
+  const storagePaths = Array.isArray(body.storagePaths)
+    ? body.storagePaths.filter((p): p is string => typeof p === 'string' && p.trim().length > 0)
+    : [];
 
-  if (!storagePath || !chartType || !hospitalId) {
+  if ((!storagePath && storagePaths.length === 0) || !chartType || !hospitalId) {
     return NextResponse.json(
-      { error: 'storagePath, chartType, hospitalId는 필수입니다.' },
+      { error: 'storagePath(또는 storagePaths), chartType, hospitalId는 필수입니다.' },
       { status: 400 },
     );
   }
@@ -70,7 +74,11 @@ export async function POST(request: NextRequest) {
   }
 
   const params = new URLSearchParams();
-  params.set('storagePath', storagePath);
+  if (storagePaths.length > 0) {
+    params.set('storagePaths', JSON.stringify(storagePaths));
+  } else if (storagePath) {
+    params.set('storagePath', storagePath);
+  }
   params.set('storageBucket', storageBucket ?? '');
   params.set('chartType', chartType);
   params.set('hospitalId', hospitalId);

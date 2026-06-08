@@ -5,6 +5,22 @@ export async function getPdfPageCount(pdfBuffer: Buffer): Promise<number> {
   return doc.getPageCount();
 }
 
+/**
+ * 여러 PDF를 페이지 순서대로 하나로 이어붙인다(입력 배열 순서 유지).
+ * 같은 진료분의 차트본문/검사결과가 별도 PDF로 올라온 경우, 합쳐서 단일 문서처럼 분석하기 위함.
+ */
+export async function mergePdfs(pdfBuffers: Buffer[]): Promise<Buffer> {
+  if (pdfBuffers.length === 0) throw new Error('mergePdfs: 입력 PDF가 없습니다.');
+  if (pdfBuffers.length === 1) return pdfBuffers[0];
+  const out = await PDFDocument.create();
+  for (const buf of pdfBuffers) {
+    const src = await PDFDocument.load(buf, { ignoreEncryption: true });
+    const pages = await out.copyPages(src, src.getPageIndices());
+    for (const p of pages) out.addPage(p);
+  }
+  return Buffer.from(await out.save());
+}
+
 /** Inclusive 1-based start/end page indices. */
 export async function slicePdfPages(pdfBuffer: Buffer, startPage1: number, endPage1: number): Promise<Buffer> {
   const src = await PDFDocument.load(pdfBuffer, { ignoreEncryption: true });

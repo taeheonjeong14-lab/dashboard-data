@@ -384,3 +384,44 @@ export async function POST(
     );
   }
 }
+
+// DELETE /api/admin/runs/[runId]/case-images?imageId=...  — 개별 이미지 삭제(스토리지+DB)
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ runId: string }> },
+) {
+  const gate = await requireAdminApi();
+  if (!gate.ok) return gate.response;
+
+  const { runId } = await params;
+  const imageId = request.nextUrl.searchParams.get('imageId')?.trim();
+  if (!imageId) {
+    return NextResponse.json({ error: 'imageId가 필요합니다.' }, { status: 400 });
+  }
+
+  const pool = getAdminWebPgPool();
+  const supabase = createServiceRoleClient();
+
+  try {
+    const { rows } = await pool.query<{ storage_path: string }>(
+      `SELECT storage_path FROM chart_pdf.parse_run_case_images
+       WHERE parse_run_id = $1::uuid AND id = $2::uuid`,
+      [runId, imageId],
+    );
+    if (rows.length === 0) {
+      return NextResponse.json({ error: '이미지를 찾을 수 없습니다.' }, { status: 404 });
+    }
+    await supabase.storage.from(CASE_IMAGES_BUCKET).remove([rows[0].storage_path]);
+    await pool.query(
+      `DELETE FROM chart_pdf.parse_run_case_images WHERE parse_run_id = $1::uuid AND id = $2::uuid`,
+      [runId, imageId],
+    );
+    return NextResponse.json({ ok: true });
+  } catch (e) {
+    console.error('[case-images] DELETE error:', e);
+    return NextResponse.json(
+      { error: e instanceof Error ? e.message : '이미지 삭제 실패' },
+      { status: 500 },
+    );
+  }
+}
