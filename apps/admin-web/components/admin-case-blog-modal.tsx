@@ -9,7 +9,7 @@ type OverviewItem = { label: string; value: string };
 type Phase = { id: string; name: string; period: string; type: string; what: string[]; why: string[]; toNext: string[] };
 type CausalFlow = { axis: string; anesthesia: boolean; phases: Phase[] };
 type Section = { id: string; label: string; points: string[]; facts: string[]; imageFileNames: string[] };
-type CaseImg = { fileName: string; signedUrl: string | null };
+type CaseImg = { fileName: string; signedUrl: string | null; caption: string };
 type OverviewCheck = { item: string; reflectedIn: string };
 type Outline = { title_candidates: string[]; sections: Section[]; overviewCheck: OverviewCheck[] };
 type BlogPost = { title: string; bodyMarkdown: string; tags: string[]; charCount: number };
@@ -312,11 +312,18 @@ export function CaseBlogButton({
   async function loadCaseImages() {
     try {
       const res = await fetch(`/api/admin/runs/${encodeURIComponent(runId)}/case-images`, { credentials: 'include' });
-      const data = (await res.json()) as { images?: { fileName?: string; signedUrl?: string | null }[] };
+      const data = (await res.json()) as {
+        images?: { fileName?: string; signedUrl?: string | null; briefComment?: string; bodyPart?: string | null }[];
+      };
       if (res.ok && Array.isArray(data.images)) {
         setCaseImages(
           data.images
-            .map((im) => ({ fileName: String(im.fileName ?? ''), signedUrl: im.signedUrl ?? null }))
+            .map((im) => {
+              const brief = typeof im.briefComment === 'string' ? im.briefComment.trim() : '';
+              const part = typeof im.bodyPart === 'string' ? im.bodyPart.trim() : '';
+              // 이미지 분석 때 AI가 적어둔 한 줄 관찰을 캡션으로 그대로 사용(없으면 부위).
+              return { fileName: String(im.fileName ?? ''), signedUrl: im.signedUrl ?? null, caption: brief || part };
+            })
             .filter((x) => x.fileName),
         );
       }
@@ -377,7 +384,7 @@ export function CaseBlogButton({
   }
 
   const missingOverview = caseOverview.filter((o) => !o.value).length;
-  const imageUrlByName = new Map(caseImages.map((c) => [c.fileName, c.signedUrl] as const));
+  const imageMetaByName = new Map(caseImages.map((c) => [c.fileName, c] as const));
 
   return (
     <>
@@ -486,11 +493,11 @@ export function CaseBlogButton({
                     />
                   ) : step === 2 ? (
                     genLoading === 2 && !outline ? <Loading text="AI가 아웃라인을 배치하는 중…" /> : (
-                      <OutlineEditor outline={outline} updateSection={updateSection} moveSection={moveSection} addSection={addSection} removeSection={removeSection} setOutline={(o) => { setOutline(o); dirty(); }} imageUrl={(fn) => imageUrlByName.get(fn) ?? null} />
+                      <OutlineEditor outline={outline} updateSection={updateSection} moveSection={moveSection} addSection={addSection} removeSection={removeSection} setOutline={(o) => { setOutline(o); dirty(); }} imageMeta={(fn) => imageMetaByName.get(fn) ?? null} />
                     )
                   ) : (
                     genLoading === 3 && !blog ? <Loading text="AI가 블로그 글을 작성하는 중…" /> : (
-                      <BlogEditor blog={blog} setField={setBlogField} />
+                      <BlogEditor blog={blog} setField={setBlogField} outline={outline} imageMeta={(fn) => imageMetaByName.get(fn) ?? null} />
                     )
                   )}
                 </div>
@@ -591,13 +598,37 @@ function CausalEditor({ causal, busy, setField, updatePhase, movePhase, addPhase
   );
 }
 
+// 케이스 이미지 썸네일 + 캡션(이미지 분석 때 AI가 적어둔 관찰). onRemove 있으면 제거 버튼 표시.
+function CaseImageThumb({ fileName, meta, onRemove }: { fileName: string; meta: CaseImg | null; onRemove?: () => void }) {
+  const url = meta?.signedUrl ?? null;
+  const caption = meta?.caption ?? '';
+  return (
+    <figure style={{ width: 110, margin: 0 }}>
+      <div style={{ position: 'relative' }}>
+        {url ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={url} alt={fileName} title={fileName} style={{ width: 110, height: 78, objectFit: 'cover', borderRadius: 6, border: '1px solid var(--border)', display: 'block' }} />
+        ) : (
+          <div style={{ width: 110, height: 78, borderRadius: 6, border: '1px dashed var(--border-strong)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, color: 'var(--text-muted)', textAlign: 'center', padding: 4, wordBreak: 'break-all' }}>{fileName}</div>
+        )}
+        {onRemove ? (
+          <button type="button" onClick={onRemove} aria-label="이미지 제거" style={{ position: 'absolute', top: -6, right: -6, width: 18, height: 18, borderRadius: '50%', background: 'var(--danger)', color: '#fff', border: 'none', fontSize: 11, lineHeight: 1, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
+        ) : null}
+      </div>
+      {caption ? (
+        <figcaption style={{ marginTop: 3, fontSize: 10.5, color: 'var(--text-secondary)', lineHeight: 1.35, wordBreak: 'break-word' }}>{caption}</figcaption>
+      ) : null}
+    </figure>
+  );
+}
+
 // ── 2단계 에디터 ──
-function OutlineEditor({ outline, updateSection, moveSection, addSection, removeSection, setOutline, imageUrl }: {
+function OutlineEditor({ outline, updateSection, moveSection, addSection, removeSection, setOutline, imageMeta }: {
   outline: Outline | null;
   updateSection: (i: number, patch: Partial<Section>) => void;
   moveSection: (i: number, dir: -1 | 1) => void; addSection: () => void; removeSection: (i: number) => void;
   setOutline: (o: Outline) => void;
-  imageUrl: (fileName: string) => string | null;
+  imageMeta: (fileName: string) => CaseImg | null;
 }) {
   if (!outline) return <div style={{ fontSize: 13, color: 'var(--text-muted)', padding: 12 }}>아웃라인이 없습니다. “다시 생성”을 눌러 주세요.</div>;
   return (
@@ -625,28 +656,15 @@ function OutlineEditor({ outline, updateSection, moveSection, addSection, remove
             {s.imageFileNames.length > 0 ? (
               <div style={{ display: 'grid', gap: 4 }}>
                 <span style={fieldLabel}>관련 이미지 (팩트를 보여주는 분석 이미지)</span>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                  {s.imageFileNames.map((fn) => {
-                    const url = imageUrl(fn);
-                    return (
-                      <div key={fn} style={{ position: 'relative', width: 96 }}>
-                        {url ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img src={url} alt={fn} title={fn} style={{ width: 96, height: 70, objectFit: 'cover', borderRadius: 6, border: '1px solid var(--border)', display: 'block' }} />
-                        ) : (
-                          <div style={{ width: 96, height: 70, borderRadius: 6, border: '1px dashed var(--border-strong)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, color: 'var(--text-muted)', textAlign: 'center', padding: 4, wordBreak: 'break-all' }}>{fn}</div>
-                        )}
-                        <button
-                          type="button"
-                          onClick={() => updateSection(i, { imageFileNames: s.imageFileNames.filter((x) => x !== fn) })}
-                          aria-label="이미지 제거"
-                          style={{ position: 'absolute', top: -6, right: -6, width: 18, height: 18, borderRadius: '50%', background: 'var(--danger)', color: '#fff', border: 'none', fontSize: 11, lineHeight: 1, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                        >
-                          ×
-                        </button>
-                      </div>
-                    );
-                  })}
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+                  {s.imageFileNames.map((fn) => (
+                    <CaseImageThumb
+                      key={fn}
+                      fileName={fn}
+                      meta={imageMeta(fn)}
+                      onRemove={() => updateSection(i, { imageFileNames: s.imageFileNames.filter((x) => x !== fn) })}
+                    />
+                  ))}
                 </div>
               </div>
             ) : null}
@@ -659,16 +677,36 @@ function OutlineEditor({ outline, updateSection, moveSection, addSection, remove
 }
 
 // ── 3단계 에디터 ──
-function BlogEditor({ blog, setField }: {
+function BlogEditor({ blog, setField, outline, imageMeta }: {
   blog: BlogPost | null;
   setField: <K extends keyof BlogPost>(k: K, v: BlogPost[K]) => void;
+  outline: Outline | null;
+  imageMeta: (fileName: string) => CaseImg | null;
 }) {
   const liveCount = blog ? blog.bodyMarkdown.length : 0;
   const inRange = liveCount >= 2000 && liveCount <= 3000;
+  const sectionsWithImages = (outline?.sections ?? []).filter((s) => s.imageFileNames.length > 0);
   return (
     <div style={{ display: 'grid', gap: 12 }}>
       {blog ? (
         <>
+          {sectionsWithImages.length > 0 ? (
+            <div style={cardBox}>
+              <div style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text)', marginBottom: 8 }}>관련 이미지 (아웃라인 연결 · 참고용)</div>
+              <div style={{ display: 'grid', gap: 10 }}>
+                {sectionsWithImages.map((s) => (
+                  <div key={s.id} style={{ display: 'grid', gap: 5 }}>
+                    <span style={fieldLabel}>{s.label || '(섹션명 없음)'}</span>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+                      {s.imageFileNames.map((fn) => (
+                        <CaseImageThumb key={fn} fileName={fn} meta={imageMeta(fn)} />
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
           <div style={cardBox}>
             <div style={{ display: 'grid', gap: 3 }}>
               <span style={fieldLabel}>제목</span>

@@ -99,6 +99,51 @@ export default function AdminCaseBlog() {
 
   const selected = useMemo(() => items.find((it) => it.runId === selectedId) ?? null, [items, selectedId]);
 
+  // 선택한 케이스의 "선정된 이미지" — 아웃라인(blog_outline)의 섹션별 imageFileNames + 케이스 이미지(URL·캡션).
+  type ViewerImage = { fileName: string; url: string | null; caption: string };
+  const [imageGroups, setImageGroups] = useState<{ label: string; imgs: ViewerImage[] }[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    setImageGroups([]);
+    if (!selectedId) return;
+    (async () => {
+      try {
+        const [cRes, iRes] = await Promise.all([
+          fetch(`/api/admin/health-report/content?runId=${encodeURIComponent(selectedId)}`, { credentials: 'include' }),
+          fetch(`/api/admin/runs/${encodeURIComponent(selectedId)}/case-images`, { credentials: 'include' }),
+        ]);
+        const cData = (await cRes.json()) as { items?: { contentType?: string; payload?: unknown }[] };
+        const iData = (await iRes.json()) as { images?: { fileName?: string; signedUrl?: string | null; briefComment?: string; bodyPart?: string | null }[] };
+        const outline = (cData.items ?? []).find((i) => i.contentType === 'blog_outline')?.payload as
+          | { sections?: { label?: string; imageFileNames?: unknown }[] }
+          | undefined;
+        const metaByName = new Map<string, { url: string | null; caption: string }>();
+        for (const im of iData.images ?? []) {
+          const fn = String(im.fileName ?? '');
+          if (!fn) continue;
+          const brief = typeof im.briefComment === 'string' ? im.briefComment.trim() : '';
+          const part = typeof im.bodyPart === 'string' ? im.bodyPart.trim() : '';
+          metaByName.set(fn, { url: im.signedUrl ?? null, caption: brief || part });
+        }
+        const groups: { label: string; imgs: ViewerImage[] }[] = [];
+        for (const s of outline?.sections ?? []) {
+          const fns = Array.isArray(s.imageFileNames) ? (s.imageFileNames as unknown[]).filter((x): x is string => typeof x === 'string') : [];
+          if (!fns.length) continue;
+          groups.push({
+            label: typeof s.label === 'string' ? s.label : '',
+            imgs: fns.map((fn) => ({ fileName: fn, url: metaByName.get(fn)?.url ?? null, caption: metaByName.get(fn)?.caption ?? '' })),
+          });
+        }
+        if (!cancelled) setImageGroups(groups);
+      } catch {
+        if (!cancelled) setImageGroups([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedId]);
+
   return (
     <div>
       {/* 헤더 */}
@@ -216,6 +261,36 @@ export default function AdminCaseBlog() {
               >
                 {selected.bodyMarkdown || '본문이 없습니다.'}
               </div>
+
+              {imageGroups.length > 0 ? (
+                <div style={{ marginTop: 28, borderTop: '1px solid var(--border)', paddingTop: 16 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 12 }}>선정된 이미지</div>
+                  <div style={{ display: 'grid', gap: 14 }}>
+                    {imageGroups.map((g, gi) => (
+                      <div key={gi}>
+                        {g.label ? (
+                          <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 6 }}>{g.label}</div>
+                        ) : null}
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
+                          {g.imgs.map((im) => (
+                            <figure key={im.fileName} style={{ width: 150, margin: 0 }}>
+                              {im.url ? (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img src={im.url} alt={im.fileName} title={im.fileName} style={{ width: 150, height: 110, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--border)', display: 'block' }} />
+                              ) : (
+                                <div style={{ width: 150, height: 110, borderRadius: 8, border: '1px dashed var(--border-strong)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, color: 'var(--text-muted)', textAlign: 'center', padding: 6, wordBreak: 'break-all' }}>{im.fileName}</div>
+                              )}
+                              {im.caption ? (
+                                <figcaption style={{ marginTop: 4, fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.4, wordBreak: 'break-word' }}>{im.caption}</figcaption>
+                              ) : null}
+                            </figure>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
             </article>
           ) : (
             <div style={{ padding: '64px 18px', textAlign: 'center', color: 'var(--text-muted)' }}>
