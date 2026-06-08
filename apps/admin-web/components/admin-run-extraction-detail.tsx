@@ -193,7 +193,7 @@ type CaseImage = {
 
 type GroupSummary = {
   examDate: string | null;
-  bullets: { text: string; confidence?: number | null; fileNames: string[] }[];
+  bullets: { text: string; confidence?: number | null; fileNames: string[]; imageConfidence?: Record<string, number> }[];
 };
 
 function FindingOverlay({ spots, imageRef }: { spots: FindingSpot[]; imageRef: React.RefObject<HTMLImageElement | null> }) {
@@ -226,7 +226,7 @@ function FindingOverlay({ spots, imageRef }: { spots: FindingSpot[]; imageRef: R
   );
 }
 
-function CaseImageCard({ img, numbers = [] }: { img: CaseImage; numbers?: number[] }) {
+function CaseImageCard({ img, numbers = [], confidence }: { img: CaseImage; numbers?: number[]; confidence?: number }) {
   const [open, setOpen] = useState(false);
   const examLabel = img.examType ? EXAM_TYPE_LABEL_KO[img.examType] : null;
   const bodyPart = img.bodyPart?.trim() || null;
@@ -283,6 +283,25 @@ function CaseImageCard({ img, numbers = [] }: { img: CaseImage; numbers?: number
                   {n}
                 </span>
               ))}
+            </div>
+          )}
+          {typeof confidence === 'number' && (
+            <div
+              style={{
+                position: 'absolute',
+                top: 6,
+                right: 6,
+                padding: '2px 7px',
+                borderRadius: 999,
+                background: 'rgba(26,46,5,0.85)',
+                color: '#a3ff00',
+                fontSize: 11,
+                fontWeight: 800,
+                boxShadow: '0 1px 3px rgba(0,0,0,0.4)',
+              }}
+              title="이 이미지가 의심 질환을 보여주는 확신도"
+            >
+              {confidence}%
             </div>
           )}
         </div>
@@ -556,12 +575,18 @@ export function CaseImagesSection({ runId }: { runId: string }) {
                 (a, b) => (b.confidence ?? 0) - (a.confidence ?? 0),
               );
               const numberByFile = new Map<string, number[]>();
+              const confidenceByFile = new Map<string, number>();
               bullets.forEach((b, bi) => {
                 const n = bi + 1;
                 for (const fn of new Set(b.fileNames)) {
                   const arr = numberByFile.get(fn) ?? [];
                   if (!arr.includes(n)) arr.push(n);
                   numberByFile.set(fn, arr);
+                  const c = b.imageConfidence?.[fn];
+                  if (typeof c === 'number') {
+                    const prev = confidenceByFile.get(fn);
+                    if (prev == null || c > prev) confidenceByFile.set(fn, c);
+                  }
                 }
               });
               return (
@@ -614,7 +639,12 @@ export function CaseImagesSection({ runId }: { runId: string }) {
                               )}
                               {b.fileNames.length > 0 && (
                                 <span style={{ display: 'block', fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
-                                  관련 이미지: {b.fileNames.join(', ')}
+                                  관련 이미지: {b.fileNames
+                                    .map((fn) => {
+                                      const c = b.imageConfidence?.[fn];
+                                      return typeof c === 'number' ? `${fn} (${c}%)` : fn;
+                                    })
+                                    .join(', ')}
                                 </span>
                               )}
                             </div>
@@ -626,7 +656,7 @@ export function CaseImagesSection({ runId }: { runId: string }) {
 
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 12 }}>
                     {dateImages.map((img) => (
-                      <CaseImageCard key={img.id} img={img} numbers={numberByFile.get(img.fileName) ?? []} />
+                      <CaseImageCard key={img.id} img={img} numbers={numberByFile.get(img.fileName) ?? []} confidence={confidenceByFile.get(img.fileName)} />
                     ))}
                   </div>
                 </div>

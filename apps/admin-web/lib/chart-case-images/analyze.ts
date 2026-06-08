@@ -223,7 +223,13 @@ export type GroupImageLabel = {
   examType: ExamType;
   bodyPart: string;
 };
-export type GroupBullet = { text: string; confidence: number; fileNames: string[] };
+export type GroupBullet = {
+  text: string;
+  confidence: number;
+  fileNames: string[];
+  /** 파일명 → 이미지별 confidence(0~100). 그 이미지가 해당 질환을 얼마나 명확히 보여주는지. */
+  imageConfidence?: Record<string, number>;
+};
 export type ImageGroupAnalysis = { images: GroupImageLabel[]; bullets: GroupBullet[] };
 
 export async function analyzeImageGroup(params: {
@@ -253,7 +259,9 @@ export async function analyzeImageGroup(params: {
     '- 각 불렛(text) = 의심 질환 하나 + 근거. 형식 예: "OOO 의심 — 이미지에서 △△, □□ 소견이 관찰되기 때문." 어떤 질환이 왜(이미지의 어떤 소견 때문에) 의심되는지를 한 문장으로.',
     '- 각 질환에 confidence(0~100 정수)를 매긴다 = 이미지 근거로 그 질환을 의심하는 확신도. 확실할수록 높게, 애매하면 낮게 정직하게 매긴다.',
     '- 이미지를 통해 의심해볼 수 있는 질환만 쓴다. "~을 확인할 수 있다", "~ 평가가 가능하다", "추가 검사가 필요하다" 같은 포괄적·일반적 서술은 절대 쓰지 않는다.',
-    '- 각 불렛마다 그 질환을 뒷받침하는 이미지 파일명을 fileNames 배열에 명시(아래 목록의 파일명 그대로). 한 질환에 이미지 여러 장 가능.',
+    '- 각 불렛마다 그 질환을 뒷받침하는 이미지를 supportingImages 배열에 담는다. 각 원소 = { fileName(아래 목록의 파일명 그대로), confidence(0~100 정수) }.',
+    '  · confidence = "그 이미지"가 해당 질환을 얼마나 명확히 보여주는지의 이미지별 확신도. 명확할수록 높게, 애매하면 낮게 정직하게.',
+    '  · 한 질환당 최대 4장까지만. confidence 높은 순으로 가장 핵심적인 것만 엄선하고 4장을 초과하지 말 것. (너무 많으면 오히려 무분별해짐)',
     '- 의심되는 질환이 없으면 bullets 는 빈 배열로 둔다.',
     '',
     '이미지 목록 (index: 파일명):',
@@ -303,9 +311,20 @@ export async function analyzeImageGroup(params: {
                 properties: {
                   text: { type: 'string' },
                   confidence: { type: 'integer' },
-                  fileNames: { type: 'array', items: { type: 'string' } },
+                  supportingImages: {
+                    type: 'array',
+                    items: {
+                      type: 'object',
+                      properties: {
+                        fileName: { type: 'string' },
+                        confidence: { type: 'integer' },
+                      },
+                      required: ['fileName', 'confidence'],
+                      additionalProperties: false,
+                    },
+                  },
                 },
-                required: ['text', 'confidence', 'fileNames'],
+                required: ['text', 'confidence', 'supportingImages'],
                 additionalProperties: false,
               },
             },
@@ -354,6 +373,8 @@ export async function analyzeImageGroup(params: {
 
   // 불렛: confidence 임계값 이상만 + 텍스트 + 유효 파일명
   const minConfidence = Number(process.env.CASE_DISEASE_MIN_CONFIDENCE) || 70;
+  // 질환당 이미지 최대 장수 — 너무 많으면 무분별해져 의미가 없어지므로 상한을 둔다.
+  const maxImagesPerDisease = Number(process.env.CASE_DISEASE_MAX_IMAGES) || 4;
   const bullets: GroupBullet[] = [];
   for (const row of Array.isArray(parsed.bullets) ? parsed.bullets : []) {
     const o = row as Record<string, unknown>;
@@ -361,10 +382,21 @@ export async function analyzeImageGroup(params: {
     if (!text) continue;
     const confidence = Math.round(Number(o.confidence));
     if (!Number.isFinite(confidence) || confidence < minConfidence) continue; // 확신도 미만 제외
-    const fileNames = Array.isArray(o.fileNames)
-      ? (o.fileNames as unknown[]).filter((n): n is string => typeof n === 'string' && validNames.has(n))
-      : [];
-    bullets.push({ text, confidence, fileNames });
+    // 이미지별 confidence — 유효 파일명만, 중복은 높은 값으로, confidence 내림차순 정렬 후 상한.
+    const byFile = new Map<string, number>();
+    for (const it of Array.isArray(o.supportingImages) ? o.supportingImages : []) {
+      const x = (it ?? {}) as Record<string, unknown>;
+      const fn = typeof x.fileName === 'string' ? x.fileName : '';
+      if (!fn || !validNames.has(fn)) continue;
+      let c = Math.round(Number(x.confidence));
+      c = Number.isFinite(c) ? Math.max(0, Math.min(100, c)) : 0;
+      if (!byFile.has(fn) || c > (byFile.get(fn) ?? 0)) byFile.set(fn, c);
+    }
+    const sorted = [...byFile.entries()].sort((a, b) => b[1] - a[1]).slice(0, maxImagesPerDisease);
+    const fileNames = sorted.map(([fn]) => fn);
+    const imageConfidence: Record<string, number> = {};
+    for (const [fn, c] of sorted) imageConfidence[fn] = c;
+    bullets.push({ text, confidence, fileNames, imageConfidence });
   }
 
   return { images, bullets };

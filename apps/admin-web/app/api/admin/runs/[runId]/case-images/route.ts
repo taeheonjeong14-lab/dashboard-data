@@ -154,12 +154,16 @@ export async function GET(
     const summaries = summaryRows.map((s) => ({
       examDate: s.exam_date,
       bullets: Array.isArray(s.bullets)
-        ? (s.bullets as { text?: unknown; confidence?: unknown; fileNames?: unknown }[]).map((b) => ({
+        ? (s.bullets as { text?: unknown; confidence?: unknown; fileNames?: unknown; imageConfidence?: unknown }[]).map((b) => ({
             text: typeof b?.text === 'string' ? b.text : '',
             confidence: typeof b?.confidence === 'number' ? b.confidence : null,
             fileNames: Array.isArray(b?.fileNames)
               ? (b.fileNames as unknown[]).filter((n): n is string => typeof n === 'string')
               : [],
+            imageConfidence:
+              b?.imageConfidence && typeof b.imageConfidence === 'object' && !Array.isArray(b.imageConfidence)
+                ? (b.imageConfidence as Record<string, number>)
+                : undefined,
           }))
         : [],
     }));
