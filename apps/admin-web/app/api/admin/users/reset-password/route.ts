@@ -18,10 +18,11 @@ export async function POST(request: NextRequest) {
 
     const supabase = createServiceRoleClient();
     // 복구 메일 클릭 후 도착할 hospital-web 비밀번호 재설정 페이지.
-    //   PASSWORD_RESET_REDIRECT_URL=https://<hospital-web 도메인>/reset-password
+    //   기본값은 운영 도메인. 필요 시 PASSWORD_RESET_REDIRECT_URL로 덮어쓸 수 있음.
     //   (Supabase Authentication > URL Configuration의 Redirect URLs에도 등록 필요)
-    // 미설정 시 Supabase 프로젝트 Site URL 기본값으로 발송(전용 페이지로 못 감).
-    const redirectTo = process.env.PASSWORD_RESET_REDIRECT_URL || undefined;
+    const redirectTo =
+      process.env.PASSWORD_RESET_REDIRECT_URL ||
+      'https://vet-solution-hospital-ui.vercel.app/reset-password';
     const { error } = await supabase.auth.resetPasswordForEmail(
       email,
       redirectTo ? { redirectTo } : undefined,

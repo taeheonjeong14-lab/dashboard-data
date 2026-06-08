@@ -28,25 +28,44 @@ export default function ResetPasswordPage() {
       if (event === 'PASSWORD_RECOVERY' || session) markReady();
     });
 
-    // 복구 링크는 implicit flow라 토큰이 URL 해시(#access_token...&type=recovery)로 온다.
-    // 브라우저 클라이언트 자동 감지에 의존하지 않고 직접 파싱해 세션을 설정(가장 확실).
+    const cleanUrl = () => {
+      if (typeof window !== 'undefined') window.history.replaceState(null, '', window.location.pathname);
+    };
+
+    // 복구 링크가 실어 오는 토큰 형식은 Supabase 설정/템플릿에 따라 3가지일 수 있다. 모두 처리한다.
     const hash = typeof window !== 'undefined' ? window.location.hash.slice(1) : '';
     const hp = new URLSearchParams(hash);
+    const qp = typeof window !== 'undefined' ? new URL(window.location.href).searchParams : new URLSearchParams();
+
     const accessToken = hp.get('access_token');
     const refreshToken = hp.get('refresh_token');
-    const errorDesc = hp.get('error_description');
+    const code = qp.get('code');
+    const tokenHash = qp.get('token_hash');
+    const otpType = qp.get('type'); // 보통 'recovery'
+    const errorDesc = hp.get('error_description') || qp.get('error_description');
 
     if (errorDesc) {
       setPhase('invalid');
     } else if (accessToken && refreshToken) {
+      // implicit flow — 해시 토큰
       void supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken }).then(({ error }) => {
-        if (error) setPhase('invalid');
-        else markReady();
-        // 주소창에서 토큰 제거
-        if (typeof window !== 'undefined') window.history.replaceState(null, '', window.location.pathname);
+        if (error) setPhase('invalid'); else markReady();
+        cleanUrl();
+      });
+    } else if (tokenHash) {
+      // SSR 템플릿(token_hash) — verifyOtp는 PKCE verifier가 필요 없어 메일 클라이언트가 달라도 동작
+      void supabase.auth.verifyOtp({ type: (otpType as 'recovery') || 'recovery', token_hash: tokenHash }).then(({ error }) => {
+        if (error) setPhase('invalid'); else markReady();
+        cleanUrl();
+      });
+    } else if (code) {
+      // PKCE code
+      void supabase.auth.exchangeCodeForSession(code).then(({ error }) => {
+        if (error) setPhase('invalid'); else markReady();
+        cleanUrl();
       });
     } else {
-      // 해시 없음 — 이미 복구 세션이 있는지(자동 감지/새로고침) 확인
+      // 토큰 없음 — 이미 복구 세션이 있는지(자동 감지/새로고침) 확인
       void supabase.auth.getSession().then(({ data }) => {
         if (data.session) markReady();
         else {
