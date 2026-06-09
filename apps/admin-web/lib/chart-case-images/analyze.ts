@@ -1,4 +1,5 @@
 import OpenAI from 'openai';
+import { recordOpenAiChatUsage, type UsageContext } from '@/lib/billing/usage-log';
 import {
   EXAM_TYPES,
   RADIOLOGY_SUBS,
@@ -128,6 +129,7 @@ function normalizeAnalysis(
 export async function analyzeCaseImages(params: {
   examDate: string;
   images: ImageInputPart[];
+  usageContext?: UsageContext;
 }): Promise<CaseImageAnalysis> {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) throw new Error('OPENAI_API_KEY is not configured.');
@@ -220,6 +222,7 @@ export async function analyzeCaseImages(params: {
       },
     },
   });
+  await recordOpenAiChatUsage({ model, usage: response.usage, feature: 'image_analysis', ...(params.usageContext ?? {}) });
 
   const output = response.choices[0]?.message.content;
   if (!output) {
@@ -267,6 +270,7 @@ async function runImageGroupRequest(
   model: string,
   examDate: string,
   images: ImageInputPart[],
+  usageContext?: UsageContext,
 ): Promise<{ labelByFile: Map<string, { examType: ExamType; bodyPart: string }>; rawBullets: RawGroupBullet[] }> {
   const manifest = images.map((img, i) => `${i}: ${img.fileName}`).join('\n');
 
@@ -360,6 +364,7 @@ async function runImageGroupRequest(
       },
     },
   });
+  await recordOpenAiChatUsage({ model, usage: response.usage, feature: 'image_analysis', ...(usageContext ?? {}) });
 
   const output = response.choices[0]?.message.content;
   if (!output) {
@@ -412,6 +417,7 @@ async function runImageGroupRequest(
 export async function analyzeImageGroup(params: {
   examDate: string;
   images: ImageInputPart[];
+  usageContext?: UsageContext;
 }): Promise<ImageGroupAnalysis> {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) throw new Error('OPENAI_API_KEY is not configured.');
@@ -432,7 +438,7 @@ export async function analyzeImageGroup(params: {
   const labelByFile = new Map<string, { examType: ExamType; bodyPart: string }>();
   const allRawBullets: RawGroupBullet[] = [];
   for (const chunk of chunks) {
-    const r = await runImageGroupRequest(client, model, params.examDate, chunk);
+    const r = await runImageGroupRequest(client, model, params.examDate, chunk, params.usageContext);
     for (const [fn, l] of r.labelByFile) labelByFile.set(fn, l);
     allRawBullets.push(...r.rawBullets);
   }

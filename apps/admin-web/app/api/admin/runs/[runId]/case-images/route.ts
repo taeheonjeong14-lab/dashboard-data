@@ -374,10 +374,26 @@ export async function POST(
       }
     }
 
+    // 과금 귀속용 병원 id (run → hospital)
+    let usageHospitalId: string | null = null;
+    try {
+      const hr = await pool.query<{ hospital_id: string | null }>(
+        `SELECT hospital_id FROM chart_pdf.parse_runs WHERE id = $1::uuid`,
+        [runId],
+      );
+      usageHospitalId = hr.rows[0]?.hospital_id ?? null;
+    } catch {
+      /* 조회 실패 시 hospital 미귀속(null) */
+    }
+
     // Analyze with OpenAI (그룹 단위: 기존+새 이미지로 라벨 + 시사점)
     let analysis;
     try {
-      analysis = await analyzeImageGroup({ examDate, images: [...priorParts, ...imageParts] });
+      analysis = await analyzeImageGroup({
+        examDate,
+        images: [...priorParts, ...imageParts],
+        usageContext: { hospitalId: usageHospitalId, runId, feature: 'image_analysis' },
+      });
     } catch (e) {
       console.error('[case-images] analysis error:', e);
       return NextResponse.json(
