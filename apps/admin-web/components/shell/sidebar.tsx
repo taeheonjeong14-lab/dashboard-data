@@ -14,6 +14,7 @@ import {
   ClipboardList,
   ClipboardCheck,
   Newspaper,
+  Gauge,
   type LucideProps,
 } from 'lucide-react';
 
@@ -74,6 +75,7 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { href: '/admin/users/users', label: '사용자 관리', icon: Users, matchPrefix: '/admin/users/users' },
       { href: '/admin/users/hospitals', label: '병원 관리', icon: Building2, matchPrefix: '/admin/users/hospitals' },
+      { href: '/admin/usage', label: '사용량', icon: Gauge, matchPrefix: '/admin/usage' },
     ],
   },
 ];
