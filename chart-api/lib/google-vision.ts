@@ -333,9 +333,33 @@ function describeGcpError(e: unknown): string {
         /* getter throw 무시 */
       }
     }
+    // grpc Metadata 객체는 내부값이 non-enumerable 이라 getMap()로 꺼낸다(진짜 사유가 trailer에 있음).
+    const metaObj = (e as unknown as { metadata?: { getMap?: () => unknown } }).metadata;
+    if (metaObj && typeof metaObj.getMap === 'function') {
+      try {
+        props.metadataMap = metaObj.getMap();
+      } catch {
+        /* ignore */
+      }
+    }
     let propsStr = '';
     try {
-      propsStr = JSON.stringify(props, (_k, v) => (typeof v === 'bigint' ? String(v) : v));
+      propsStr = JSON.stringify(props, (_k, v) => {
+        if (typeof v === 'bigint') return String(v);
+        // Buffer(예: grpc-status-details-bin)는 ASCII 조각이라도 보이게 문자열로 변환.
+        if (
+          v &&
+          typeof v === 'object' &&
+          (v as { type?: string }).type === 'Buffer' &&
+          Array.isArray((v as { data?: unknown }).data)
+        ) {
+          return Buffer.from((v as { data: number[] }).data)
+            .toString('utf8')
+            .replace(/[^\x20-\x7e가-힣]+/g, ' ')
+            .trim();
+        }
+        return v;
+      });
     } catch {
       propsStr = String(props);
     }
