@@ -1837,9 +1837,12 @@ function parsePlanRows(planText: string, chartKind: ChartKind = "intovet"): Pars
     /plan|code|treatment|prescription|qty|unit|day|total|route|sign\s*id|\bresult\b|\bpart\b|\btitle\b|\bsign\b|처치실용/i.test(
       line,
     );
+  // 레코드 경계용 코드 판정 — 반드시 숫자를 포함하는 청구코드 패턴만 인정한다.
+  // (이전 `^[A-Z]{1,4}[A-Z0-9-]{1,}$` 는 'Metronidazole' 같은 영문 약품명까지 코드로 오인 →
+  //  실제 코드는 빈 행이 되고 약품명 행이 통째로 버려지는 문제가 있었음. 행 검증의 looksLikeBillingCode 와 동일 기준.)
   const looksLikePlanCode = (token: string) => {
     if (/^(result|part|title|sign|plan|code)$/i.test(token)) return false;
-    return /^[A-Z]{1,4}[A-Z0-9-]{1,}$/i.test(token);
+    return /^(?:[A-Z]{2,}-\d{2,}(?:-\d+)?|TXTEMP\d+|[A-Z]{1,5}\d{2,})$/i.test(token);
   };
   const hasStrongRowEnding = (line: string) =>
     /\bsign\s*id\b/i.test(line) ||
