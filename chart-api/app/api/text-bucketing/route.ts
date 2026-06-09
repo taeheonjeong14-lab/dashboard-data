@@ -27,6 +27,7 @@ import {
 } from "@/lib/text-bucketing/chart-dates";
 import { runGoogleVisionOcr, type OcrRow } from "@/lib/google-vision";
 import { extractOrderedLinesFromPdf, getOpenAiOrderedLinesModel } from "@/lib/report-llm";
+import { extractOrderedLinesFromTextLayer, isTextLayerSufficient } from "@/lib/text-bucketing/pdf-text-layer";
 import { extractOpenAiErrorDetails, exposeOpenAiErrorDetailsInResponse } from "@/lib/openai-api-error";
 import { hasLlmApiKey } from "@/lib/llm-provider";
 import { detectTableBlocks, extractLabItems, rowsFromTableBlocks } from "@/lib/lab-parser";
@@ -560,6 +561,7 @@ function groupChartBodyByDate(lines: BucketedLine[], chartKind: ChartKind): Char
       if (/^(?:\[)?\s*20\d{2}[./-]\d{1,2}[./-]\d{1,2}\s+\d{1,2}:\d{2}/.test(t)) {
         const d = extractLabDateTime(t);
         if (d) pendingDate = d;
+        continue; // 진료 헤더(및 영상/검사 시각) 줄은 본문에 넣지 않음 — 날짜는 그룹 키로만 사용(다음 진료 헤더 누수 방지)
       }
       if (/^subjective\b/i.test(t)) {
         visitIdx += 1;
@@ -2720,9 +2722,29 @@ export async function POST(request: NextRequest) {
       (sourceFileType !== 'application/pdf' || process.env.GOOGLE_CLOUD_OCR_INPUT_BUCKET));
     console.log(`[text-bucketing DEBUG] ocrConfigured=${ocrConfigured} fileType=${sourceFileType}`);
     const emptyOcr: import('@/lib/google-vision').VisionOcrResult = { text: '', confidence: null, rows: [] };
+
+    // PlusVet: 임베디드 텍스트 레이어가 충실하면 그것을 1순위 추출 경로로 쓴다.
+    // Gemini 이미지 전사는 반복 블록(여러 진료에 동일한 Problem list/DDX)을 스킵하고 순서를 잃을 수 있으나,
+    // 텍스트 레이어는 누락 없이 시각 순서를 보존한다(+ 더 빠르고 저렴 → 타임아웃 위험↓). 스캔 PDF면 게이트에서 탈락 → Gemini 폴백.
+    let textLayerLines: OrderedLine[] | null = null;
+    if (chartType === "plusvet") {
+      try {
+        const tl = await extractOrderedLinesFromTextLayer(binary);
+        if (isTextLayerSufficient(tl)) textLayerLines = tl.lines;
+        console.log(
+          `[text-bucketing] plusvet 텍스트레이어: pages=${tl.numPages} lines=${tl.lines.length} sufficient=${textLayerLines !== null}`,
+        );
+      } catch (e) {
+        console.log("[text-bucketing] 텍스트레이어 추출 실패(Gemini로 폴백):", (e as Error)?.message);
+      }
+    }
+    const usingTextLayer = textLayerLines !== null;
+
     // LLM 줄 추출과 OCR은 서로 독립(둘 다 binary만 사용)이라 병렬 실행 — 순차 대비 wall-clock 대폭 단축.
     const [llmLines, ocr] = await Promise.all([
-      extractOrderedLinesFromPdf({ pdfBuffer: binary, filename: sourceFileName || "report.pdf" }),
+      usingTextLayer
+        ? Promise.resolve(textLayerLines as OrderedLine[])
+        : extractOrderedLinesFromPdf({ pdfBuffer: binary, filename: sourceFileName || "report.pdf" }),
       ocrConfigured
         ? runGoogleVisionOcr(binary, sourceFileType).catch((ocrErr) => {
             console.error('[text-bucketing] OCR 실패 (건너뜀):', ocrErr instanceof Error ? ocrErr.message : String(ocrErr));
@@ -2778,7 +2800,10 @@ export async function POST(request: NextRequest) {
     for (const page of allPages) {
       const llmCount = llmCountByPage.get(page) ?? 0;
       const ocrLines = ocrByPage.get(page) ?? [];
-      const underCovered = ocrLines.length >= 5 && llmCount < ocrLines.length * UNDER_COVER_RATIO;
+      // 텍스트 레이어 사용 시엔 OCR 교체를 거의 막는다(거친 OCR 순서가 좋은 텍스트 레이어를 덮어쓰지 않도록).
+      // 텍스트가 사실상 없는 페이지(이미지 전용, <3줄)만 OCR로 메운다.
+      const underCovered =
+        ocrLines.length >= 5 && llmCount < (usingTextLayer ? 3 : ocrLines.length * UNDER_COVER_RATIO);
       if (underCovered) {
         ocrReplacedPages.push(page); // 이 페이지는 LLM이 덜 읽음 → OCR로 교체(LLM 부분분 버림)
         effectivePdfLines.push(...ocrLines);

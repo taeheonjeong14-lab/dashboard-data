@@ -28,6 +28,18 @@ function isEnglishVaccinationSectionHeaderLine(text: string): boolean {
   return /^(?:▶\s*)?vaccination\b/i.test(t);
 }
 
+/**
+ * "바이탈" 섹션 시작 헤더인지(=section 을 vitals 로 전환해도 되는 줄).
+ * 진료 O) 안의 데이터 줄 "- Vital sign : NRF" 처럼 'vital' 글자만 들어간 줄은 제외해야 한다.
+ * (그렇지 않으면 그 줄 이후 A/Problem list/DDX/Rx/Plan 이 전부 vitals 로 새어 진료 본문이 잘린다.)
+ */
+function isVitalsSectionHeaderLine(text: string): boolean {
+  const t = text.replace(/\s+/g, ' ').trim();
+  if (!t) return false;
+  if (/^바이탈\s*$/.test(t)) return true; // 한국어 섹션 제목(단독 줄). \b 는 한글 뒤에서 안 잡혀 제외.
+  return /^vital(?:\s*signs?)?$/i.test(t); // 영문 단독 제목만(콜론·값 붙은 데이터 줄 제외)
+}
+
 export function assignLinesToBuckets(
   sanitizedLines: OrderedLine[],
   ocrRows: OcrRow[],
@@ -148,7 +160,7 @@ export function assignLinesToBuckets(
           buckets.vaccination.push({ page: line.page, text: line.text, corrected: false });
           continue;
         }
-        if (/바이탈|vital/i.test(line.text)) {
+        if (isVitalsSectionHeaderLine(line.text)) {
           plusvetDiagnosticResultsSection = false;
           section = 'vitals';
           continue;
@@ -196,7 +208,8 @@ export function assignLinesToBuckets(
       buckets.vaccination.push({ page: line.page, text: line.text, corrected: false });
       continue;
     }
-    if (/바이탈|vital/i.test(line.text)) {
+    // plusvet 은 엄격한 "바이탈" 헤더만 인정(인라인 'Vital sign : NRF' 오탐 방지). 그 외 종류는 기존 동작 유지.
+    if (chartKind === 'plusvet' ? isVitalsSectionHeaderLine(line.text) : /바이탈|vital/i.test(line.text)) {
       section = 'vitals';
       continue;
     }
