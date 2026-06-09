@@ -318,6 +318,31 @@ function buildRowsFromPlainText(text: string, page: number): OcrRow[] {
   }));
 }
 
+/** GCP/gaxios/grpc 에러를 최대한 풀어서 사람이 읽을 수 있는 문자열로 직렬화한다. */
+function describeGcpError(e: unknown): string {
+  if (e instanceof Error) {
+    const a = e as Error & {
+      code?: unknown;
+      errors?: unknown;
+      details?: unknown;
+      response?: { data?: unknown };
+      cause?: unknown;
+    };
+    const parts: string[] = [`${e.name}: ${e.message}`];
+    if (a.code !== undefined) parts.push(`code=${String(a.code)}`);
+    if (a.details !== undefined) parts.push(`details=${JSON.stringify(a.details)}`);
+    if (a.errors !== undefined) parts.push(`errors=${JSON.stringify(a.errors)}`);
+    if (a.response?.data !== undefined) parts.push(`response=${JSON.stringify(a.response.data).slice(0, 800)}`);
+    if (a.cause !== undefined && a.cause !== null) parts.push(`cause=(${describeGcpError(a.cause)})`);
+    return parts.join(' | ');
+  }
+  try {
+    return JSON.stringify(e);
+  } catch {
+    return String(e);
+  }
+}
+
 async function runGoogleVisionPdfOcr(fileBuffer: Buffer): Promise<VisionOcrResult> {
   const inputBucketName = process.env.GOOGLE_CLOUD_OCR_INPUT_BUCKET;
   const outputBucketName =
@@ -341,30 +366,43 @@ async function runGoogleVisionPdfOcr(fileBuffer: Buffer): Promise<VisionOcrResul
   const inputBucket = storage.bucket(inputBucketName);
   const outputBucket = storage.bucket(outputBucketName);
 
-  await inputBucket.file(inputObjectPath).save(fileBuffer, {
-    metadata: { contentType: 'application/pdf' },
-  });
+  try {
+    await inputBucket.file(inputObjectPath).save(fileBuffer, {
+      metadata: { contentType: 'application/pdf' },
+    });
+  } catch (e) {
+    throw new Error(`[OCR 1/3 업로드 실패 → gs://${inputBucketName}/${inputObjectPath}] ${describeGcpError(e)}`);
+  }
 
-  const [operation] = await client.asyncBatchAnnotateFiles({
-    requests: [
-      {
-        inputConfig: {
-          gcsSource: { uri: inputUri },
-          mimeType: 'application/pdf',
+  let operation;
+  try {
+    [operation] = await client.asyncBatchAnnotateFiles({
+      requests: [
+        {
+          inputConfig: {
+            gcsSource: { uri: inputUri },
+            mimeType: 'application/pdf',
+          },
+          outputConfig: {
+            gcsDestination: { uri: outputUri },
+            batchSize: 5,
+          },
+          features: [{ type: 'DOCUMENT_TEXT_DETECTION' }],
+          imageContext: { languageHints: ['ko', 'en'] },
         },
-        outputConfig: {
-          gcsDestination: { uri: outputUri },
-          batchSize: 5,
-        },
-        features: [{ type: 'DOCUMENT_TEXT_DETECTION' }],
-        imageContext: { languageHints: ['ko', 'en'] },
-      },
-    ],
-  });
+      ],
+    });
+    await operation.promise();
+  } catch (e) {
+    throw new Error(`[OCR 2/3 Vision 호출 실패 (asyncBatchAnnotateFiles)] ${describeGcpError(e)}`);
+  }
 
-  await operation.promise();
-
-  const [outputFiles] = await outputBucket.getFiles({ prefix: outputPrefix });
+  let outputFiles;
+  try {
+    [outputFiles] = await outputBucket.getFiles({ prefix: outputPrefix });
+  } catch (e) {
+    throw new Error(`[OCR 3/3 결과 읽기 실패 → gs://${outputBucketName}/${outputPrefix}] ${describeGcpError(e)}`);
+  }
   if (outputFiles.length === 0) {
     throw new Error('PDF OCR finished but no output files were generated.');
   }
