@@ -2722,12 +2722,7 @@ export async function POST(request: NextRequest) {
     const emptyOcr: import('@/lib/google-vision').VisionOcrResult = { text: '', confidence: null, rows: [] };
     // LLM 줄 추출과 OCR은 서로 독립(둘 다 binary만 사용)이라 병렬 실행 — 순차 대비 wall-clock 대폭 단축.
     const [llmLines, ocr] = await Promise.all([
-      // plusvet은 비슷한 진료가 반복돼 모델이 통째로 스킵하므로 페이지당(1) 추출. 나머지는 기본(10).
-      extractOrderedLinesFromPdf({
-        pdfBuffer: binary,
-        filename: sourceFileName || "report.pdf",
-        pageRangeSize: chartType === "plusvet" ? 1 : undefined,
-      }),
+      extractOrderedLinesFromPdf({ pdfBuffer: binary, filename: sourceFileName || "report.pdf" }),
       ocrConfigured
         ? runGoogleVisionOcr(binary, sourceFileType).catch((ocrErr) => {
             console.error('[text-bucketing] OCR 실패 (건너뜀):', ocrErr instanceof Error ? ocrErr.message : String(ocrErr));
@@ -2756,25 +2751,44 @@ export async function POST(request: NextRequest) {
       })
       .filter((line): line is OrderedLine => Boolean(line.text));
 
-    // LLM이 읽지 못한 페이지(이미지 기반 PDF의 일부 페이지 등)를 OCR로 보완한다.
-    // LLM이 커버한 페이지는 LLM 우선, LLM이 없는 페이지만 OCR로 채운다.
-    const llmCoveredPages = new Set(sanitizedPdfLines.map((l) => l.page));
-    const ocrSupplementLines: OrderedLine[] = ocr.rows
-      .filter((row) => {
-        if (llmCoveredPages.has(row.page)) return false;
-        const t = row.text.trim();
-        if (!t || cleanNoise(t) === null) return false;
-        if (chartType === "efriends" && isEfriendsPdfFooterDateTimeLine(t)) return false;
-        if (chartType === "efriends" && isEfriendsPdfFooterPageLine(t)) return false;
-        if (chartType === "efriends" && isEfriendsRepeatingPdfHeaderLine(t)) return false;
-        return true;
-      })
-      .map((row) => ({ page: row.page, text: row.text.trim() }));
-    const effectivePdfLines: OrderedLine[] = [...ocrSupplementLines, ...sanitizedPdfLines].sort(
-      (a, b) => a.page - b.page,
-    );
+    // LLM이 순서를 잡되, LLM이 한 페이지를 "덜 읽은"(진료를 통째 스킵한) 경우 그 페이지는 OCR로 메운다.
+    // OCR은 순서가 거칠지만 누락이 없으므로, 부족한 페이지만 OCR로 교체해 완전성을 확보한다.
+    // (완전 누락 페이지는 물론, 부분 누락 페이지=LLM 줄 수가 OCR의 60% 미만인 페이지도 포함)
+    const cleanOcrRow = (t: string): boolean => {
+      if (!t || cleanNoise(t) === null) return false;
+      if (chartType === "efriends" && isEfriendsPdfFooterDateTimeLine(t)) return false;
+      if (chartType === "efriends" && isEfriendsPdfFooterPageLine(t)) return false;
+      if (chartType === "efriends" && isEfriendsRepeatingPdfHeaderLine(t)) return false;
+      return true;
+    };
+    const llmCountByPage = new Map<number, number>();
+    for (const l of sanitizedPdfLines) llmCountByPage.set(l.page, (llmCountByPage.get(l.page) ?? 0) + 1);
+    const ocrByPage = new Map<number, OrderedLine[]>();
+    for (const row of ocr.rows) {
+      const t = row.text.trim();
+      if (!cleanOcrRow(t)) continue;
+      const list = ocrByPage.get(row.page) ?? [];
+      list.push({ page: row.page, text: t });
+      ocrByPage.set(row.page, list);
+    }
+    const UNDER_COVER_RATIO = 0.6;
+    const ocrReplacedPages: number[] = [];
+    const allPages = [...new Set<number>([...llmCountByPage.keys(), ...ocrByPage.keys()])];
+    const effectivePdfLines: OrderedLine[] = [];
+    for (const page of allPages) {
+      const llmCount = llmCountByPage.get(page) ?? 0;
+      const ocrLines = ocrByPage.get(page) ?? [];
+      const underCovered = ocrLines.length >= 5 && llmCount < ocrLines.length * UNDER_COVER_RATIO;
+      if (underCovered) {
+        ocrReplacedPages.push(page); // 이 페이지는 LLM이 덜 읽음 → OCR로 교체(LLM 부분분 버림)
+        effectivePdfLines.push(...ocrLines);
+      } else {
+        effectivePdfLines.push(...sanitizedPdfLines.filter((l) => l.page === page));
+      }
+    }
+    effectivePdfLines.sort((a, b) => a.page - b.page);
     console.log(
-      `[text-bucketing DEBUG] llmPages=${llmCoveredPages.size}, ocrSupplementPages=${new Set(ocrSupplementLines.map((l) => l.page)).size}, effectivePdfLines=${effectivePdfLines.length}`,
+      `[text-bucketing DEBUG] effectivePdfLines=${effectivePdfLines.length}, ocrReplacedPages(LLM 덜읽음→OCR)=${JSON.stringify(ocrReplacedPages.sort((a, b) => a - b))}`,
     );
     // 진단: 원본 추출(버켓팅 전)에 "Subjective"가 몇 개인가 = Gemini가 진료를 몇 건 뽑았나.
     // chartBody 그룹 수(subjectiveAnchored visits)와 다르면 버켓팅 문제, 같으면 추출(LLM) 문제.
@@ -3059,8 +3073,8 @@ export async function POST(request: NextRequest) {
     const debugPayload = {
       llmLineCount: llmLines.length,
       ocrRowCount: ocr.rows.length,
-      llmPageCount: llmCoveredPages.size,
-      ocrSupplementPageCount: new Set(ocrSupplementLines.map((l) => l.page)).size,
+      llmPageCount: llmCountByPage.size,
+      ocrReplacedPageCount: ocrReplacedPages.length,
       effectivePdfLineCount: effectivePdfLines.length,
       sanitizedLineCount: sanitizedLines.length,
       bucketSizes: {
