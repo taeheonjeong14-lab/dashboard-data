@@ -456,6 +456,7 @@ export async function POST(request: NextRequest) {
             reportProgramName: reportProgramForPrompt || undefined,
             checkupDate: checkupDate || undefined,
             mustInclude: must || undefined,
+            usageContext: usageCtx('health_checkup'),
           });
 
           // 이미지 페이지(치과·피부 / 방사선·초음파)는 텍스트만 재생성하면 이미지 슬롯이 빈
@@ -502,6 +503,7 @@ export async function POST(request: NextRequest) {
           checkupDate: checkupDate || undefined,
           veterinarian: veterinarian || undefined,
           mustInclude: must || undefined,
+          usageContext: usageCtx('health_checkup'),
         });
 
         /** 표지 merge 순서(vet-report POST /api/content/generate 와 동일 개념): generated → 이전 저장(키별 undefined 아닌 값만) → 요청 checkupDate/veterinarian 덮어쓰기 → 요청 coverProgram 비어 있지 않으면 표지 프로그램 덮어쓰기 → applyHealthCheckupCoverFromSource 로 DB 기본값은 null/undefined 만 채움. */

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { chartAppAuthMiddleware } from '@/lib/chart-app/auth';
 import { geminiGenerateText } from '@/lib/chart-app/gemini';
+import { getChartPgPool } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -64,10 +65,29 @@ export async function POST(request: NextRequest) {
     .filter(Boolean)
     .join('\n');
 
+  // 과금 귀속(best-effort): body.runId 가 있으면 run→hospital 로 귀속, 없으면 hospital 미귀속.
+  const runId = typeof body.runId === 'string' && /^[0-9a-fA-F-]{36}$/.test(body.runId) ? body.runId : null;
+  let hospitalId: string | null = null;
+  if (runId) {
+    try {
+      const r = await getChartPgPool().query<{ hospital_id: string | null }>(
+        `SELECT hospital_id FROM chart_pdf.parse_runs WHERE id = $1::uuid`,
+        [runId],
+      );
+      hospitalId = r.rows[0]?.hospital_id ?? null;
+    } catch {
+      /* 미귀속 허용 */
+    }
+  }
+
   try {
     // maxOutputTokens 는 넉넉히 — Gemini 2.5 계열은 thinking 토큰이 이 한도를 함께 소모하므로
     // 1024 처럼 빡빡하면 본문이 중간에 잘린다(MAX_TOKENS). 200자 본문 + thinking 여유 확보.
-    const raw = await geminiGenerateText(prompt, { maxOutputTokens: 4096, temperature: 0.3 });
+    const raw = await geminiGenerateText(prompt, {
+      maxOutputTokens: 4096,
+      temperature: 0.3,
+      usageContext: { feature: 'disease_intro', hospitalId, runId },
+    });
     const text = raw.replace(/\s+/g, ' ').trim();
     if (!text) throw new Error('Gemini returned empty response.');
     return NextResponse.json({ body: clampToCompleteSentence(text, BODY_MAX) });

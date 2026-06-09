@@ -1,4 +1,5 @@
 import { geminiGenerateText, tryParseJsonObject } from '@/lib/chart-app/gemini';
+import type { UsageContext } from '@/lib/billing/usage-log';
 import { EXAM_TYPE_LABEL_KO, RADIOLOGY_SUB_LABEL_KO } from '@/lib/chart-app/image-case-types';
 import {
   HEALTH_CHECKUP_MAX_FOLLOW_UP_CHARS,
@@ -324,7 +325,12 @@ function trimAtSentenceBoundary(text: string, maxChars: number): string {
   return sliced.trim();
 }
 
-async function generateHealthCheckupRawJson(model: string, prompt: string, schemaHint?: string): Promise<unknown> {
+async function generateHealthCheckupRawJson(
+  model: string,
+  prompt: string,
+  schemaHint?: string,
+  usageContext?: UsageContext,
+): Promise<unknown> {
   const hint = schemaHint ?? [
     'Required keys:',
     'overallSummary, followUpCare, recheckWithin1to2Weeks, recheckWithin1Month, recheckWithin3Months, recheckWithin6Months,',
@@ -334,7 +340,11 @@ async function generateHealthCheckupRawJson(model: string, prompt: string, schem
     '- Return exactly one JSON object (RFC8259). No markdown, no ``` fences, no commentary before or after.',
     '- Use UTF-8 JSON strings only; escape raw line breaks inside string values as \\n.',
   ].join(' ');
-  const output = await geminiGenerateText(`${prompt}\n\n${hint}`, { maxOutputTokens: 16384, temperature: 0.18 });
+  const output = await geminiGenerateText(`${prompt}\n\n${hint}`, {
+    maxOutputTokens: 16384,
+    temperature: 0.18,
+    usageContext: { feature: 'health_checkup', ...usageContext },
+  });
   if (!output.trim()) throw new Error('Gemini returned empty content.');
   try {
     const parsed = tryParseJsonObject(output);
@@ -645,7 +655,7 @@ function normalizeSectionResponse(section: RegenerateSection, raw: unknown): Par
 export async function generateHealthCheckupSection(
   section: RegenerateSection,
   source: ReportSourceData,
-  options?: { reportProgramName?: string; checkupDate?: string; mustInclude?: string },
+  options?: { reportProgramName?: string; checkupDate?: string; mustInclude?: string; usageContext?: UsageContext },
   overallContext?: string,
 ): Promise<Partial<HealthCheckupGeneratedContent>> {
   const apiKey = process.env.GEMINI_API_KEY;
@@ -663,7 +673,11 @@ export async function generateHealthCheckupSection(
   ].join('\n');
 
   void model;
-  const output = await geminiGenerateText(`${prompt}\n\n${schemaHint}`, { maxOutputTokens: 16384, temperature: 0.18 });
+  const output = await geminiGenerateText(`${prompt}\n\n${schemaHint}`, {
+    maxOutputTokens: 16384,
+    temperature: 0.18,
+    usageContext: { feature: 'health_checkup', ...options?.usageContext },
+  });
   if (!output.trim()) throw new Error('Gemini returned empty content.');
 
   let parsed: unknown;
@@ -682,7 +696,7 @@ export async function generateHealthCheckupSection(
 
 export async function generateHealthCheckupContent(
   source: ReportSourceData,
-  options?: { reportProgramName?: string; checkupDate?: string; veterinarian?: string; mustInclude?: string },
+  options?: { reportProgramName?: string; checkupDate?: string; veterinarian?: string; mustInclude?: string; usageContext?: UsageContext },
 ): Promise<HealthCheckupGeneratedContent> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) throw new Error('GEMINI_API_KEY is not configured.');
@@ -697,7 +711,7 @@ export async function generateHealthCheckupContent(
     '- Return exactly one JSON object (RFC8259). No markdown, no ``` fences, no commentary before or after.',
     '- Use UTF-8 JSON strings only; escape raw line breaks inside string values as \\n.',
   ].join('\n');
-  let stage1 = normalizeStage1(await generateHealthCheckupRawJson(model, stage1Prompt, stage1SchemaHint));
+  let stage1 = normalizeStage1(await generateHealthCheckupRawJson(model, stage1Prompt, stage1SchemaHint, options?.usageContext));
 
   // Stage 2 컨텍스트용으로만 트림된 버전을 따로 관리 (저장되는 stage1은 원본 유지)
   let stage1Context = { ...stage1 };
@@ -715,7 +729,7 @@ export async function generateHealthCheckupContent(
         '입력 JSON:',
         JSON.stringify(stage1Context),
       ].join('\n');
-      stage1Context = normalizeStage1(await generateHealthCheckupRawJson(model, retryPrompt, stage1SchemaHint));
+      stage1Context = normalizeStage1(await generateHealthCheckupRawJson(model, retryPrompt, stage1SchemaHint, options?.usageContext));
       if (isWithinPromptLength(stage1Context as HealthCheckupGeneratedContent)) break;
     }
     if (!isWithinPromptLength(stage1Context as HealthCheckupGeneratedContent)) {
