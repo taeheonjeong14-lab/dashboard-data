@@ -8,7 +8,7 @@ type StepNum = 1 | 2 | 3;
 type OverviewItem = { label: string; value: string };
 type Phase = { id: string; name: string; period: string; type: string; what: string[]; why: string[]; toNext: string[] };
 type CausalFlow = { axis: string; anesthesia: boolean; phases: Phase[] };
-type Section = { id: string; label: string; points: string[]; facts: string[]; imageFileNames: string[] };
+type Section = { id: string; label: string; period: string; points: string[]; facts: string[]; imageFileNames: string[] };
 type CaseImg = { fileName: string; signedUrl: string | null; caption: string };
 type OverviewCheck = { item: string; reflectedIn: string };
 type Outline = { title_candidates: string[]; sections: Section[]; overviewCheck: OverviewCheck[] };
@@ -76,7 +76,7 @@ function asOutline(raw: unknown): Outline {
     title_candidates: toLines(o.title_candidates),
     sections: sections.map((s) => {
       const x = (s ?? {}) as Record<string, unknown>;
-      return { id: str(x.id) || `sec_${uid()}`, label: str(x.label), points: toLines(x.points), facts: toLines(x.facts), imageFileNames: toLines(x.imageFileNames) };
+      return { id: str(x.id) || `sec_${uid()}`, label: str(x.label), period: str(x.period), points: toLines(x.points), facts: toLines(x.facts), imageFileNames: toLines(x.imageFileNames) };
     }),
     overviewCheck: checks.map((c) => {
       const x = (c ?? {}) as Record<string, unknown>;
@@ -374,7 +374,7 @@ export function CaseBlogButton({
     }); dirty();
   }
   function addSection() {
-    setOutline((o) => (o ? { ...o, sections: [...o.sections, { id: `sec_${uid()}`, label: '', points: [], facts: [], imageFileNames: [] }] } : o)); dirty();
+    setOutline((o) => (o ? { ...o, sections: [...o.sections, { id: `sec_${uid()}`, label: '', period: '', points: [], facts: [], imageFileNames: [] }] } : o)); dirty();
   }
   function removeSection(i: number) {
     setOutline((o) => (o ? { ...o, sections: o.sections.filter((_, j) => j !== i) } : o)); dirty();
@@ -684,7 +684,7 @@ function BlogEditor({ blog, setField, outline, imageMeta }: {
   imageMeta: (fileName: string) => CaseImg | null;
 }) {
   const liveCount = blog ? blog.bodyMarkdown.length : 0;
-  const inRange = liveCount >= 2000 && liveCount <= 3000;
+  const inRange = liveCount >= 2500 && liveCount <= 3500;
   const sectionsWithImages = (outline?.sections ?? []).filter((s) => s.imageFileNames.length > 0);
   return (
     <div style={{ display: 'grid', gap: 12 }}>
@@ -716,7 +716,7 @@ function BlogEditor({ blog, setField, outline, imageMeta }: {
           <div style={cardBox}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
               <span style={fieldLabel}>본문 (마크다운)</span>
-              <span style={{ fontSize: 11, fontWeight: 700, color: inRange ? 'var(--success)' : 'var(--danger)' }}>{liveCount.toLocaleString()}자 (목표 2,000~3,000)</span>
+              <span style={{ fontSize: 11, fontWeight: 700, color: inRange ? 'var(--success)' : 'var(--danger)' }}>{liveCount.toLocaleString()}자 (목표 2,500~3,500)</span>
             </div>
             <textarea value={blog.bodyMarkdown} onChange={(e) => setField('bodyMarkdown', e.target.value)} rows={20} style={inputStyle} />
           </div>
