@@ -53,6 +53,9 @@ function getVisionClient() {
 
   if (clientEmail && privateKey) {
     cachedClient = new vision.ImageAnnotatorClient({
+      // gRPC가 번들된 서버리스(Vercel/turbopack)에서 통신 실패(callErrorFromStatus, code=undefined)
+      // → REST(HTTP) 폴백으로 전송. asyncBatchAnnotateFiles(LRO)도 REST로 동작.
+      fallback: true,
       credentials: {
         client_email: clientEmail,
         private_key: normalizePrivateKey(privateKey),
@@ -61,7 +64,7 @@ function getVisionClient() {
     return cachedClient;
   }
 
-  cachedClient = new vision.ImageAnnotatorClient();
+  cachedClient = new vision.ImageAnnotatorClient({ fallback: true });
   return cachedClient;
 }
 
