@@ -41,6 +41,8 @@ type Overview = {
 
 const CASE_IMAGE_BUCKET = 'case-image';
 const MAX_FILE_SIZE = 30 * 1024 * 1024;
+// 모든 날짜 그룹 통틀어 업로드 가능한 사진 최대 수(처리 시간/안정성 고려).
+const MAX_IMAGES = 30;
 
 const CHART_TYPE_LABELS: Record<ChartType, string> = {
   intovet: 'IntoVet EMR',
@@ -117,6 +119,7 @@ export function CaseTab() {
   const [pdfError, setPdfError] = useState<string | null>(null);
   const [overview, setOverview] = useState<Overview>(EMPTY_OVERVIEW);
   const [imageGroups, setImageGroups] = useState<ImageGroup[]>(() => [newImageGroup()]);
+  const [imageError, setImageError] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [dragGroupId, setDragGroupId] = useState<string | null>(null);
 
@@ -192,18 +195,33 @@ export function CaseTab() {
   );
 
   // ----- Images (날짜별 그룹) -----
-  const addImagesToGroup = useCallback((groupId: string, files: File[]) => {
+  const addImagesToGroup = (groupId: string, files: File[]) => {
     const images = files.filter((f) => f.type.startsWith('image/'));
     if (!images.length) return;
-    const previews = images.map((f) => URL.createObjectURL(f));
+
+    // 모든 그룹 합산 최대 MAX_IMAGES 장. 초과분은 받지 않고 안내한다.
+    const currentTotal = imageGroups.reduce((s, g) => s + g.files.length, 0);
+    const available = MAX_IMAGES - currentTotal;
+    if (available <= 0) {
+      setImageError(`사진은 모든 날짜 합쳐 최대 ${MAX_IMAGES}장까지 업로드할 수 있습니다.`);
+      return;
+    }
+    const accepted = images.slice(0, available);
+    setImageError(
+      accepted.length < images.length
+        ? `사진은 모든 날짜 합쳐 최대 ${MAX_IMAGES}장까지 업로드할 수 있습니다. (${images.length - accepted.length}장 제외됨)`
+        : null,
+    );
+
+    const previews = accepted.map((f) => URL.createObjectURL(f));
     setImageGroups((prev) =>
       prev.map((g) =>
         g.id === groupId
-          ? { ...g, files: [...g.files, ...images], previews: [...g.previews, ...previews] }
+          ? { ...g, files: [...g.files, ...accepted], previews: [...g.previews, ...previews] }
           : g,
       ),
     );
-  }, []);
+  };
 
   const onGroupImageChange = (groupId: string, e: ChangeEvent<HTMLInputElement>) => {
     addImagesToGroup(groupId, Array.from(e.target.files ?? []));
@@ -394,6 +412,7 @@ export function CaseTab() {
       setOverview(EMPTY_OVERVIEW);
       imageGroups.forEach((g) => g.previews.forEach((u) => URL.revokeObjectURL(u)));
       setImageGroups([newImageGroup()]);
+      setImageError(null);
       setProgressMessage('');
       await loadList();
     } catch (e) {
@@ -596,9 +615,12 @@ export function CaseTab() {
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 5, marginBottom: 6 }}>
               <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)' }}>사진 자료</label>
               <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                선택 · 날짜별로 나눠 올릴 수 있어요{totalImageCount > 0 ? ` · 총 ${totalImageCount}장` : ''}
+                선택 · 날짜별로 나눠 · 최대 {MAX_IMAGES}장{totalImageCount > 0 ? ` · 총 ${totalImageCount}/${MAX_IMAGES}장` : ''}
               </span>
             </div>
+            {imageError && (
+              <div style={{ marginBottom: 6, fontSize: 11, color: 'var(--danger)' }}>{imageError}</div>
+            )}
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               {imageGroups.map((group) => {

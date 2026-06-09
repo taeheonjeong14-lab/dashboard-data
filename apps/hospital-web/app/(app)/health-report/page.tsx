@@ -32,6 +32,8 @@ type RequestItem = {
 
 const CASE_IMAGE_BUCKET = 'case-image';
 const MAX_FILE_SIZE = 30 * 1024 * 1024;
+// 업로드 가능한 사진 최대 수(처리 시간/안정성 고려).
+const MAX_IMAGES = 30;
 
 const CHART_TYPE_LABELS: Record<ChartType, string> = {
   intovet: 'IntoVet EMR',
@@ -79,6 +81,7 @@ export default function HealthReportPage() {
   const [errorMessage, setErrorMessage] = useState('');
   // 이미지 일부/전부 업로드 실패 시 소프트 경고(제출 자체는 성공 — 강조·스티커는 저장됨).
   const [imageWarning, setImageWarning] = useState('');
+  const [imageError, setImageError] = useState<string | null>(null);
 
   const { hospitalId } = useHospital();
 
@@ -136,13 +139,27 @@ export default function HealthReportPage() {
   // ---------------------------------------------------------------------------
   // Image handling
   // ---------------------------------------------------------------------------
-  const addImageFiles = useCallback((files: File[]) => {
+  const addImageFiles = (files: File[]) => {
     const images = files.filter((f) => f.type.startsWith('image/'));
     if (!images.length) return;
-    const previews = images.map((f) => URL.createObjectURL(f));
-    setImageFiles((prev) => [...prev, ...images]);
+
+    // 최대 MAX_IMAGES 장. 초과분은 받지 않고 안내한다.
+    const available = MAX_IMAGES - imageFiles.length;
+    if (available <= 0) {
+      setImageError(`사진은 최대 ${MAX_IMAGES}장까지 업로드할 수 있습니다.`);
+      return;
+    }
+    const accepted = images.slice(0, available);
+    setImageError(
+      accepted.length < images.length
+        ? `사진은 최대 ${MAX_IMAGES}장까지 업로드할 수 있습니다. (${images.length - accepted.length}장 제외됨)`
+        : null,
+    );
+
+    const previews = accepted.map((f) => URL.createObjectURL(f));
+    setImageFiles((prev) => [...prev, ...accepted]);
     setImagePreviews((prev) => [...prev, ...previews]);
-  }, []);
+  };
 
   const onImageChange = (e: ChangeEvent<HTMLInputElement>) => {
     addImageFiles(Array.from(e.target.files ?? []));
@@ -342,6 +359,7 @@ export default function HealthReportPage() {
       setStage('done');
       setPdfFiles([]);
       setImageFiles([]);
+      setImageError(null);
       imagePreviews.forEach((u) => URL.revokeObjectURL(u));
       setImagePreviews([]);
       setEmphasisText('');
@@ -513,7 +531,7 @@ export default function HealthReportPage() {
               </FormField>
 
               {/* Images */}
-              <FormField label="사진 자료" hint="선택">
+              <FormField label="사진 자료" hint={`선택 · 최대 ${MAX_IMAGES}장`}>
                 <div
                   onDrop={onImageDrop}
                   onDragOver={(e) => { e.preventDefault(); if (!isProcessing) setIsImageDragging(true); }}
@@ -530,8 +548,13 @@ export default function HealthReportPage() {
                   <input ref={imageInputRef} type="file" accept=".jpg,.jpeg,.png,.webp,image/*" multiple style={{ display: 'none' }} onChange={onImageChange} />
                   <div style={{ fontSize: '20px', marginBottom: '5px' }}>🖼️</div>
                   <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '2px' }}>끌어다 놓거나 클릭하여 선택</div>
-                  <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>여러 장 가능 · jpg / png / webp</div>
+                  <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                    최대 {MAX_IMAGES}장 · jpg / png / webp{imageFiles.length > 0 ? ` · ${imageFiles.length}/${MAX_IMAGES}장` : ''}
+                  </div>
                 </div>
+                {imageError && (
+                  <div style={{ marginTop: '5px', fontSize: '11px', color: 'var(--danger)' }}>{imageError}</div>
+                )}
                 {imagePreviews.length > 0 && (
                   <div style={{ marginTop: '8px', display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
                     {imagePreviews.map((src, idx) => (
