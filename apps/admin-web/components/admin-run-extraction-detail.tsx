@@ -800,6 +800,8 @@ export function AdminRunExtractionDetail({
   const [imgModalFiles, setImgModalFiles] = useState<File[]>([]);
   const [imgModalStatus, setImgModalStatus] = useState<'idle' | 'uploading' | 'done' | 'error'>('idle');
   const [imgModalError, setImgModalError] = useState<string | null>(null);
+  const [imgModalDate, setImgModalDate] = useState<string>(''); // 추가 분석할 이미지의 날짜(YYYY-MM-DD)
+  const [imgModalDates, setImgModalDates] = useState<string[]>([]); // 이 run의 기존 날짜 그룹
   const [caseImagesRefreshKey, setCaseImagesRefreshKey] = useState(0);
   const [activeTab, setActiveTab] = useState<ChartTabKey>('basic');
   const imgModalRef = useRef<HTMLDialogElement>(null);
@@ -878,10 +880,24 @@ export function AdminRunExtractionDetail({
     if (!dialog) return;
     if (imgModalOpen) {
       if (!dialog.open) dialog.showModal();
+      setImgModalDate((d) => d || new Date().toISOString().slice(0, 10));
+      // 기존 날짜 그룹 로드 — 기존 날짜에 추가하면 그 그룹에 합쳐 재분석된다.
+      void (async () => {
+        try {
+          const res = await fetch(`/api/admin/runs/${encodeURIComponent(runId)}/case-images`, { credentials: 'include' });
+          const data = (await res.json().catch(() => ({}))) as { images?: { examDate: string | null }[] };
+          const dates = Array.from(
+            new Set((data.images ?? []).map((im) => im.examDate).filter((d): d is string => !!d)),
+          ).sort();
+          setImgModalDates(dates);
+        } catch {
+          /* ignore */
+        }
+      })();
     } else {
       if (dialog.open) dialog.close();
     }
-  }, [imgModalOpen]);
+  }, [imgModalOpen, runId]);
 
   useEffect(() => {
     setEditing({
@@ -1088,7 +1104,7 @@ export function AdminRunExtractionDetail({
     setImgModalError(null);
     try {
       const formData = new FormData();
-      formData.set('examDate', new Date().toISOString().slice(0, 10));
+      formData.set('examDate', imgModalDate || new Date().toISOString().slice(0, 10));
       formData.set('mode', 'append');
       for (const f of imgModalFiles) formData.append('images', f);
       const res = await fetch(`/api/admin/runs/${encodeURIComponent(runId)}/case-images`, {
@@ -2290,6 +2306,44 @@ export function AdminRunExtractionDetail({
                 추가로 분석할 이미지를 선택하세요. 기존 분석 이미지는 유지되고 새 이미지가 추가됩니다.
               </p>
 
+              {/* 날짜 선택 */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)' }}>분석 날짜</label>
+                {imgModalDates.length > 0 && (
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                    {imgModalDates.map((d) => (
+                      <button
+                        key={d}
+                        type="button"
+                        onClick={() => setImgModalDate(d)}
+                        style={{
+                          padding: '3px 8px',
+                          borderRadius: 6,
+                          fontSize: 11,
+                          cursor: 'pointer',
+                          border: `1px solid ${imgModalDate === d ? 'var(--accent)' : 'var(--border)'}`,
+                          background: imgModalDate === d ? 'var(--accent-subtle)' : 'var(--bg-subtle)',
+                          color: imgModalDate === d ? 'var(--accent)' : 'var(--text-secondary)',
+                        }}
+                      >
+                        {d}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                <input
+                  type="date"
+                  value={imgModalDate}
+                  max={new Date().toISOString().slice(0, 10)}
+                  onChange={(e) => setImgModalDate(e.target.value)}
+                  disabled={imgModalStatus === 'uploading'}
+                  style={{ padding: '6px 8px', border: '1px solid var(--border-strong)', borderRadius: 6, fontSize: 13, width: 'fit-content' }}
+                />
+                <p style={{ margin: 0, fontSize: 11, color: 'var(--text-muted)' }}>
+                  기존 날짜를 고르면 그 그룹에 합쳐 재분석되고, 새 날짜면 새 그룹이 생깁니다.
+                </p>
+              </div>
+
               {/* 드롭존 */}
               <div
                 onDragOver={(e) => e.preventDefault()}
@@ -2348,7 +2402,7 @@ export function AdminRunExtractionDetail({
                 type="button"
                 className="adminLegacyPrimaryBtn"
                 onClick={() => void submitImages()}
-                disabled={imgModalStatus === 'uploading' || imgModalFiles.length === 0}
+                disabled={imgModalStatus === 'uploading' || imgModalFiles.length === 0 || !imgModalDate}
                 style={{ width: '100%', fontSize: 13 }}
               >
                 {imgModalStatus === 'uploading' ? '분석 중… (OpenAI Vision)' : `분석 시작 (${imgModalFiles.length}장)`}

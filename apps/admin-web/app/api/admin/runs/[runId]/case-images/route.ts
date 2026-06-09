@@ -302,10 +302,30 @@ export async function POST(
       );
     }
 
-    // Analyze with OpenAI (그룹 단위: 이미지 라벨 + 시사점)
+    // append + 같은 날짜에 기존 이미지가 있으면, 그 날짜 그룹 시사점이 전체(기존+새)를 반영하도록
+    // 기존 이미지도 다운로드해 함께 재분석한다. (insert/upload 는 새 이미지만; 시사점만 전체 기준 갱신)
+    const priorParts: ImageInputPart[] = [];
+    if (mode === 'append' && examDate) {
+      const { rows: priorRows } = await pool.query<{ storage_path: string; file_name: string }>(
+        `SELECT storage_path, file_name FROM chart_pdf.parse_run_case_images
+         WHERE parse_run_id = $1::uuid AND exam_date IS NOT DISTINCT FROM $2
+         ORDER BY idx ASC`,
+        [runId, examDate || null],
+      );
+      for (const r of priorRows) {
+        const { data: blob } = await supabase.storage.from(CASE_IMAGES_BUCKET).download(r.storage_path);
+        if (!blob) continue;
+        const buf = Buffer.from(await blob.arrayBuffer());
+        const ext = r.storage_path.split('.').pop()?.toLowerCase();
+        const mimeType = ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : 'image/jpeg';
+        priorParts.push({ buffer: buf, fileName: r.file_name, mimeType });
+      }
+    }
+
+    // Analyze with OpenAI (그룹 단위: 기존+새 이미지로 라벨 + 시사점)
     let analysis;
     try {
-      analysis = await analyzeImageGroup({ examDate, images: imageParts });
+      analysis = await analyzeImageGroup({ examDate, images: [...priorParts, ...imageParts] });
     } catch (e) {
       console.error('[case-images] analysis error:', e);
       return NextResponse.json(
@@ -330,7 +350,8 @@ export async function POST(
 
         if (uploadErr) throw new Error(`이미지 업로드 실패: ${uploadErr.message}`);
 
-        const result = analysis.images[i];
+        // 분석 결과는 [기존…, 새…] 순서라 새 이미지는 priorParts 이후 인덱스.
+        const result = analysis.images[priorParts.length + i];
         return {
           idx: idxOffset + i,
           fileName: img.fileName,
