@@ -72,10 +72,14 @@ export async function POST(
 
   try {
     const pool = getChartPgPool();
-    const exists = await pool.query(`SELECT 1 FROM chart_pdf.parse_runs WHERE id = $1::uuid`, [id]);
+    const exists = await pool.query<{ hospital_id: string | null }>(
+      `SELECT hospital_id FROM chart_pdf.parse_runs WHERE id = $1::uuid`,
+      [id],
+    );
     if (exists.rows.length === 0) {
       return NextResponse.json({ error: 'Not found' }, { status: 404 });
     }
+    const hospitalId = exists.rows[0]?.hospital_id ?? null;
 
     let assessmentJson: unknown;
     try {
@@ -98,7 +102,9 @@ If uncertain, keep conditions as an empty array.
 
 DATA:
 ${src}`;
-      const raw = await geminiGenerateText(prompt);
+      const raw = await geminiGenerateText(prompt, {
+        usageContext: { feature: 'assessment', hospitalId, runId: id },
+      });
       assessmentJson = tryParseJsonObject(raw);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);

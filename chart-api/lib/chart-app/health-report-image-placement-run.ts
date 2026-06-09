@@ -14,6 +14,7 @@ import {
   type PlacementImageInput,
 } from '@/lib/chart-app/health-report-image-placement-llm';
 import { parseHealthSystemsBlocksFromUnknown } from '@/lib/chart-app/health-report-systems-blocks-parse';
+import type { UsageContext } from '@/lib/billing/usage-log';
 
 type ImageRow = {
   id: string;
@@ -29,6 +30,7 @@ type ImageRow = {
 async function loadCaseImagePlacement(
   client: pg.Pool | pg.PoolClient,
   runId: string,
+  usageContext?: UsageContext,
 ): Promise<{ placement: ImagePlacementResult; storagePathById: Map<string, string> } | null> {
   const q = await client.query<ImageRow>(
     `select id, exam_type, radiology_sub, brief_comment, has_notable_finding, related_assessment_condition, storage_path
@@ -51,7 +53,7 @@ async function loadCaseImagePlacement(
   }));
 
   const storagePathById = new Map(images.map((i) => [i.id, i.storagePath]));
-  const placement = await generateImagePlacement(images);
+  const placement = await generateImagePlacement(images, usageContext);
   return { placement, storagePathById };
 }
 
@@ -59,8 +61,9 @@ export async function runImagePlacementForRun(
   client: pg.Pool | pg.PoolClient,
   runId: string,
   payload: HealthCheckupValidatedPayload,
+  usageContext?: UsageContext,
 ): Promise<void> {
-  const loaded = await loadCaseImagePlacement(client, runId);
+  const loaded = await loadCaseImagePlacement(client, runId, usageContext);
   if (!loaded) return;
   const { placement, storagePathById } = loaded;
 
@@ -86,6 +89,7 @@ export async function applyImagePlacementForSection(
   runId: string,
   section: 'systems4' | 'systems5',
   blocksUnknown: unknown,
+  usageContext?: UsageContext,
 ): Promise<HealthSystemsReportBlock[]> {
   const blocks =
     parseHealthSystemsBlocksFromUnknown(blocksUnknown) ??
@@ -93,7 +97,7 @@ export async function applyImagePlacementForSection(
       section === 'systems4' ? DEMO_HEALTH_DENTAL_SKIN_BLOCKS : DEMO_RADIOLOGY_ULTRASOUND_BLOCKS,
     );
 
-  const loaded = await loadCaseImagePlacement(client, runId);
+  const loaded = await loadCaseImagePlacement(client, runId, usageContext);
   if (!loaded) return blocks;
   const { placement, storagePathById } = loaded;
 

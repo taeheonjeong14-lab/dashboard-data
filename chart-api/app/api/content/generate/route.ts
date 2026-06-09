@@ -470,6 +470,7 @@ export async function POST(request: NextRequest) {
                 runId,
                 sectionRaw,
                 partialRecord[blocksKey],
+                usageCtx('image_placement'),
               );
             } catch (placementErr) {
               console.error('[content/generate] section image placement failed (non-blocking):', placementErr);
@@ -536,7 +537,7 @@ export async function POST(request: NextRequest) {
           return NextResponse.json({ error: validated.error }, { status: 422 });
         }
         try {
-          await runImagePlacementForRun(pool, runId, validated.value);
+          await runImagePlacementForRun(pool, runId, validated.value, usageCtx('image_placement'));
         } catch (placementErr) {
           console.error('[content/generate] image placement failed (non-blocking):', placementErr);
         }

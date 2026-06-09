@@ -2,6 +2,7 @@ import type { ExamType, RadiologySub } from '@/lib/chart-app/image-case-types';
 import { EXAM_TYPE_LABEL_KO, RADIOLOGY_SUB_LABEL_KO } from '@/lib/chart-app/image-case-types';
 import { geminiGenerateText, tryParseJsonObject } from '@/lib/chart-app/gemini';
 import { simpleHealthReportImageCaption } from '@/lib/chart-app/health-report-image-caption';
+import type { UsageContext } from '@/lib/billing/usage-log';
 
 export type PlacementImageInput = {
   id: string;
@@ -72,7 +73,10 @@ function normalizePlacement(raw: unknown, images: PlacementImageInput[]): ImageP
   };
 }
 
-export async function generateImagePlacement(images: PlacementImageInput[]): Promise<ImagePlacementResult> {
+export async function generateImagePlacement(
+  images: PlacementImageInput[],
+  usageContext?: UsageContext,
+): Promise<ImagePlacementResult> {
   if (images.length === 0) {
     return {
       dentalOphthalmology: [null, null, null, null, null, null],
@@ -116,7 +120,10 @@ export async function generateImagePlacement(images: PlacementImageInput[]): Pro
     '배치할 이미지가 없는 슬롯은 { "imageId": "", "caption": "" }.',
   ].join('\n');
 
-  const raw = await geminiGenerateText(prompt, { maxOutputTokens: 4096 });
+  const raw = await geminiGenerateText(prompt, {
+    maxOutputTokens: 4096,
+    usageContext: { feature: 'image_placement', ...usageContext },
+  });
   if (!raw?.trim()) throw new Error('Gemini returned empty placement content.');
   let parsed: unknown;
   try {
