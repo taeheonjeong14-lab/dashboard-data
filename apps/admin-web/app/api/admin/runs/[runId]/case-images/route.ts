@@ -4,6 +4,7 @@ import { requireAdminApi } from '@/lib/assert-admin-api';
 import { getAdminWebPgPool } from '@/lib/db';
 import { createServiceRoleClient } from '@/lib/supabase/service-role';
 import { analyzeImageGroup, type ImageInputPart } from '@/lib/chart-case-images/analyze';
+import { hospitalHasTokens, chargeOperationTokens } from '@/lib/billing/token-charge';
 import { prepareImageForAnalysis } from '@/lib/chart-case-images/encode';
 import type { ExamType, RadiologySub, FindingSpot } from '@/lib/chart-case-images/types';
 
@@ -385,6 +386,10 @@ export async function POST(
     } catch {
       /* 조회 실패 시 hospital 미귀속(null) */
     }
+    const imageOperationId = crypto.randomUUID();
+    if (!(await hospitalHasTokens(usageHospitalId))) {
+      return NextResponse.json({ error: '토큰이 부족합니다. 충전 후 다시 시도해 주세요.' }, { status: 402 });
+    }
 
     // Analyze with OpenAI (그룹 단위: 기존+새 이미지로 라벨 + 시사점)
     let analysis;
@@ -392,7 +397,7 @@ export async function POST(
       analysis = await analyzeImageGroup({
         examDate,
         images: [...priorParts, ...imageParts],
-        usageContext: { hospitalId: usageHospitalId, runId, feature: 'image_analysis' },
+        usageContext: { hospitalId: usageHospitalId, runId, feature: 'image_analysis', operationId: imageOperationId },
       });
     } catch (e) {
       console.error('[case-images] analysis error:', e);
@@ -401,6 +406,8 @@ export async function POST(
         { status: 500 },
       );
     }
+    // 이미지 분석 작업 토큰 차감(병원 잔액에서 1회).
+    await chargeOperationTokens(usageHospitalId, imageOperationId, 'image_analysis');
 
     // Upload images to Supabase Storage
     const savedImages = await Promise.all(
