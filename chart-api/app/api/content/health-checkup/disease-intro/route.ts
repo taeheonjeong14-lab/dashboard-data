@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { chartAppAuthMiddleware } from '@/lib/chart-app/auth';
 import { geminiGenerateText } from '@/lib/chart-app/gemini';
 import { getChartPgPool } from '@/lib/db';
+import { chargeOperationTokens } from '@/lib/billing/token-charge';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -80,16 +81,18 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  const operationId = (typeof crypto !== 'undefined' ? crypto.randomUUID() : null);
   try {
     // maxOutputTokens 는 넉넉히 — Gemini 2.5 계열은 thinking 토큰이 이 한도를 함께 소모하므로
     // 1024 처럼 빡빡하면 본문이 중간에 잘린다(MAX_TOKENS). 200자 본문 + thinking 여유 확보.
     const raw = await geminiGenerateText(prompt, {
       maxOutputTokens: 4096,
       temperature: 0.3,
-      usageContext: { feature: 'disease_intro', hospitalId, runId },
+      usageContext: { feature: 'disease_intro', hospitalId, runId, operationId },
     });
     const text = raw.replace(/\s+/g, ' ').trim();
     if (!text) throw new Error('Gemini returned empty response.');
+    await chargeOperationTokens(hospitalId, operationId, 'disease_intro');
     return NextResponse.json({ body: clampToCompleteSentence(text, BODY_MAX) });
   } catch (e) {
     console.error('[content/health-checkup/disease-intro] error:', e);

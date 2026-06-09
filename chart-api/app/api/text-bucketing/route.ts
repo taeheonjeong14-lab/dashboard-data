@@ -28,6 +28,7 @@ import {
 import { runGoogleVisionOcr, type OcrRow } from "@/lib/google-vision";
 import { extractOrderedLinesFromPdf, getOpenAiOrderedLinesModel } from "@/lib/report-llm";
 import { extractOrderedLinesFromTextLayer, isTextLayerSufficient } from "@/lib/text-bucketing/pdf-text-layer";
+import { hospitalHasTokens, chargeOperationTokens } from "@/lib/billing/token-charge";
 import { extractOpenAiErrorDetails, exposeOpenAiErrorDetailsInResponse } from "@/lib/openai-api-error";
 import { hasLlmApiKey } from "@/lib/llm-provider";
 import { detectTableBlocks, extractLabItems, rowsFromTableBlocks } from "@/lib/lab-parser";
@@ -2599,6 +2600,15 @@ export async function POST(request: NextRequest) {
       return Response.json({ error: "병원을 선택해 주세요." }, { status: 400 });
     }
 
+    // 과금: 이 추출 작업의 operationId + 사전 잔액 점검(0 이하면 차단, 토큰 미설정이면 통과).
+    const extractOperationId = crypto.randomUUID();
+    if (!(await hospitalHasTokens(hospitalId))) {
+      return Response.json(
+        { error: "토큰이 부족합니다. 충전 후 다시 시도해 주세요." },
+        { status: 402 },
+      );
+    }
+
     const chartPasteRaw = formData.get("chartPasteText");
     const chartPasteText = typeof chartPasteRaw === "string" ? chartPasteRaw.trim() : "";
     const efriendsChartBlocks = parseEfriendsChartBlocksFromFormJson(formData.get("efriendsChartBlocksJson"));
@@ -2747,15 +2757,17 @@ export async function POST(request: NextRequest) {
         : extractOrderedLinesFromPdf({
             pdfBuffer: binary,
             filename: sourceFileName || "report.pdf",
-            usageContext: { hospitalId, feature: "extract" },
+            usageContext: { hospitalId, feature: "extract", operationId: extractOperationId },
           }),
       ocrConfigured
-        ? runGoogleVisionOcr(binary, sourceFileType, { hospitalId, feature: "ocr" }).catch((ocrErr) => {
+        ? runGoogleVisionOcr(binary, sourceFileType, { hospitalId, feature: "ocr", operationId: extractOperationId }).catch((ocrErr) => {
             console.error('[text-bucketing] OCR 실패 (건너뜀):', ocrErr instanceof Error ? ocrErr.message : String(ocrErr));
             return emptyOcr;
           })
         : Promise.resolve(emptyOcr),
     ]);
+    // 추출 작업 토큰 차감(추출+OCR usage 합산 → ceil($/0.10), 병원 잔액에서 1회).
+    await chargeOperationTokens(hospitalId, extractOperationId, "extract");
     console.log(`[text-bucketing DEBUG] llmLines count=${llmLines.length}, first3=${JSON.stringify(llmLines.slice(0, 3))}, last3=${JSON.stringify(llmLines.slice(-3))}`);
     console.log(`[text-bucketing] OCR 결과: rows=${ocr.rows.length} (ocrConfigured=${ocrConfigured}) — rows>0 이면 OCR 동작, 0이면 실패/미동작`);
 

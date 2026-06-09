@@ -21,6 +21,7 @@ import {
 } from '@/lib/chart-app/health-report-image-placement-run';
 import { isParseRunUuid } from '@/lib/chart-app/uuid';
 import { getChartPgPool } from '@/lib/db';
+import { hospitalHasTokens, chargeOperationTokens } from '@/lib/billing/token-charge';
 import { applyHealthCheckupCoverFromSource } from '@/lib/chart-app/health-checkup-cover-from-source';
 import { loadReportSourceData } from '@/lib/chart-app/report-source';
 
@@ -431,7 +432,13 @@ export async function POST(request: NextRequest) {
   if (runOk.rows.length === 0) return NextResponse.json({ error: 'run not found' }, { status: 404 });
   // 과금 로깅 귀속용(병원/run/기능). geminiGenerateText 에 넘기면 billing.llm_usage 에 적재.
   const hospitalId = runOk.rows[0]?.hospital_id ?? null;
-  const usageCtx = (feature: string) => ({ hospitalId, feature, runId });
+  const operationId = crypto.randomUUID(); // 이 요청(=한 단계 작업)의 모든 LLM 호출을 묶는 id
+  const usageCtx = (feature: string) => ({ hospitalId, feature, runId, operationId });
+
+  // 사전 점검: 병원 토큰 잔액이 0 이하면 작업을 막는다(토큰 미설정이면 통과).
+  if (!(await hospitalHasTokens(hospitalId))) {
+    return NextResponse.json({ error: '토큰이 부족합니다. 충전 후 다시 시도해 주세요.' }, { status: 402 });
+  }
 
   try {
     const source = await loadReportSourceData(runId);
@@ -477,6 +484,7 @@ export async function POST(request: NextRequest) {
             }
           }
 
+          await chargeOperationTokens(hospitalId, operationId, 'health_checkup');
           return NextResponse.json({ runId, contentType, section: sectionRaw, generated: partial, saved: false });
         } catch (e) {
           const msg = e instanceof Error ? e.message : String(e);
@@ -547,6 +555,7 @@ export async function POST(request: NextRequest) {
           repaired: false,
         };
         const saved = await upsertGeneratedRunContent(pool, runId, HEALTH_CHECKUP, validated.value);
+        await chargeOperationTokens(hospitalId, operationId, 'health_checkup');
         const debug: GenerateDebugInfo | undefined = debugEnabled
           ? {
               enabled: true,
@@ -645,6 +654,7 @@ export async function POST(request: NextRequest) {
         const debug: GenerateDebugInfo | undefined = debugEnabled
           ? { enabled: true, parser: parserDebug, model: { maxOutputTokens: stageMaxTokens } }
           : undefined;
+        await chargeOperationTokens(hospitalId, operationId, 'blog_causal');
         return NextResponse.json({
           runId,
           contentType,
@@ -704,6 +714,7 @@ export async function POST(request: NextRequest) {
         const debug: GenerateDebugInfo | undefined = debugEnabled
           ? { enabled: true, parser: parserDebug, model: { maxOutputTokens: stageMaxTokens } }
           : undefined;
+        await chargeOperationTokens(hospitalId, operationId, 'blog_outline');
         return NextResponse.json({
           runId,
           contentType,
@@ -758,6 +769,7 @@ export async function POST(request: NextRequest) {
           'object with keys: title (string), bodyMarkdown (string), tags (string[]), charCount (number)',
         );
         const saved = await upsertGeneratedRunContent(pool, runId, BLOG_POST, generated);
+        await chargeOperationTokens(hospitalId, operationId, 'blog_post');
         const debug: GenerateDebugInfo | undefined = debugEnabled
           ? { enabled: true, parser: parserDebug, model: { maxOutputTokens: stageMaxTokens } }
           : undefined;

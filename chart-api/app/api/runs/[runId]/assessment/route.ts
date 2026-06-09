@@ -3,6 +3,7 @@ import { chartAppAuthMiddleware } from '@/lib/chart-app/auth';
 import { geminiGenerateText, tryParseJsonObject } from '@/lib/chart-app/gemini';
 import { isParseRunUuid } from '@/lib/chart-app/uuid';
 import { getChartPgPool } from '@/lib/db';
+import { chargeOperationTokens } from '@/lib/billing/token-charge';
 
 async function buildAssessmentSource(pool: ReturnType<typeof getChartPgPool>, runId: string): Promise<string> {
   const { rows: basics } = await pool.query(
@@ -80,6 +81,7 @@ export async function POST(
       return NextResponse.json({ error: 'Not found' }, { status: 404 });
     }
     const hospitalId = exists.rows[0]?.hospital_id ?? null;
+    const operationId = crypto.randomUUID();
 
     let assessmentJson: unknown;
     try {
@@ -103,9 +105,10 @@ If uncertain, keep conditions as an empty array.
 DATA:
 ${src}`;
       const raw = await geminiGenerateText(prompt, {
-        usageContext: { feature: 'assessment', hospitalId, runId: id },
+        usageContext: { feature: 'assessment', hospitalId, runId: id, operationId },
       });
       assessmentJson = tryParseJsonObject(raw);
+      await chargeOperationTokens(hospitalId, operationId, 'assessment');
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       if (msg.includes('GEMINI_API_KEY')) {
