@@ -51,10 +51,13 @@ export async function POST(
     }
 
     const pub = supabase.storage.from(HOSPITAL_ASSETS_BUCKET).getPublicUrl(objectPath);
-    const url = pub.data.publicUrl;
-    if (!url) {
+    const baseUrl = pub.data.publicUrl;
+    if (!baseUrl) {
       return NextResponse.json({ error: 'could not resolve uploaded URL' }, { status: 500 });
     }
+    // 경로가 고정(`{id}/{type}.{ext}`)이라 재업로드해도 URL이 같아 브라우저·CDN이 이전 이미지를 캐시한다.
+    // 업로드마다 버전 쿼리를 붙여 캐시를 무효화 → 미리보기·리포트가 항상 최신 이미지를 보여준다.
+    const url = `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}v=${Date.now()}`;
 
     const updateCandidates =
       assetType === 'logo'
