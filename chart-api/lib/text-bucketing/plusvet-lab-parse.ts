@@ -152,13 +152,19 @@ function stripTrailingLH(head: string): { head: string; lh: 'L' | 'H' | null } {
   return { head: head.trim(), lh: null };
 }
 
+// 곱셈기호(× * x)·마이크로(μ u) 표기 차이를 흡수해 단위 매칭. (텍스트레이어는 "10x9/L", 목록은 "10×9/L")
+function canonUnit(s: string): string {
+  return s.toLowerCase().replace(/[×*]/g, 'x').replace(/μ/g, 'u');
+}
+
 function stripTrailingUnit(head: string): { head: string; unit: string | null } {
   const h = head.trim();
-  const lower = h.toLowerCase();
+  const ch = canonUnit(h);
 
   for (const u of PLUSVET_UNITS_LONGEST_FIRST) {
     const suf = ` ${u}`;
-    if (lower.endsWith(suf.toLowerCase())) {
+    // canonUnit 은 문자 1:1 치환이라 길이 보존 → slice 인덱스 그대로 사용 가능.
+    if (ch.endsWith(canonUnit(suf))) {
       return { head: h.slice(0, h.length - suf.length).trimEnd(), unit: u };
     }
   }
