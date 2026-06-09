@@ -201,6 +201,7 @@ const CBC_DIFF_BASE: Record<string, string> = {
   LYM: 'LYM', LYMS: 'LYM', LYMPH: 'LYM', LYMPHS: 'LYM', LYMPHO: 'LYM', LYMPHOCYTE: 'LYM', LYMPHOCYTES: 'LYM',
   MONO: 'MONO', MONOS: 'MONO', MONOCYTE: 'MONO', MONOCYTES: 'MONO',
   MON: 'MON',
+  MID: 'MID', MXD: 'MID', MIXED: 'MID', // 중간세포(혼합세포) — WBC-MID%/WBC-MID# 등
   EOS: 'EOS', EOSIN: 'EOS', EOSINOPHIL: 'EOS', EOSINOPHILS: 'EOS',
   BASO: 'BASO', BASOS: 'BASO', BASOPHIL: 'BASO', BASOPHILS: 'BASO',
   RETIC: 'RETIC', RETICS: 'RETIC', RET: 'RETIC', RETICULOCYTE: 'RETIC', RETICULOCYTES: 'RETIC',
@@ -264,9 +265,9 @@ const RECOGNIZED_LAB_ITEMS: ReadonlySet<string> = new Set(
   [
     // CBC
     'WBC', 'RBC', 'HGB', 'HCT', 'PLT', 'MCV', 'MCH', 'MCHC', 'RDW', 'RDW-CV', 'RDW-SD', 'PDW', 'PDW-CV', 'MPV',
-    'NEU', 'LYM', 'MONO', 'MON', 'GRA', 'EOS', 'BASO', 'RETIC', 'RET-He', 'IRF', 'LFR', 'MFR', 'HFR', 'PCT', 'PLT-LCR',
+    'NEU', 'LYM', 'MONO', 'MON', 'MID', 'GRA', 'EOS', 'BASO', 'RETIC', 'RET-He', 'IRF', 'LFR', 'MFR', 'HFR', 'PCT', 'PLT-LCR',
     '%NEU', '%LYM', '%MONO', '%EOS', '%BASO', '%RETIC', 'NRBC', 'BANDS', 'Blood smear',
-    'NEU(%)', 'LYM(%)', 'MONO(%)', 'MON(%)', 'GRA(%)', 'EOS(%)', 'BASO(%)', 'RETIC(%)',
+    'NEU(%)', 'LYM(%)', 'MONO(%)', 'MON(%)', 'MID(%)', 'GRA(%)', 'EOS(%)', 'BASO(%)', 'RETIC(%)',
     // Chemistry
     'ALT', 'AST', 'ALP', 'GGT', 'ALB', 'TP', 'GLOB', 'ALB/GLOB', 'BUN', 'CREA', 'BUN/CREA', 'SDMA', 'GLU',
     'TBIL', 'DBIL', 'TBA', 'TCHO', 'CHOL', 'TRIG', 'AMYL', 'LIPA', 'CK', 'TLI', 'NH3', 'FRUC', 'OSM', 'OSM CA',
@@ -353,6 +354,7 @@ const ITEM_TO_CATEGORY: Record<string, string> = {
   LYM: 'cbc',
   MONO: 'cbc',
   MON: 'cbc',
+  MID: 'cbc',
   GRA: 'cbc',
   EOS: 'cbc',
   BASO: 'cbc',
@@ -361,6 +363,7 @@ const ITEM_TO_CATEGORY: Record<string, string> = {
   'LYM(%)': 'cbc',
   'MONO(%)': 'cbc',
   'MON(%)': 'cbc',
+  'MID(%)': 'cbc',
   'GRA(%)': 'cbc',
   'EOS(%)': 'cbc',
   'BASO(%)': 'cbc',

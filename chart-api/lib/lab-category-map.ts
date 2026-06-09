@@ -21,7 +21,7 @@ const CBC_LAB_SHEET_FIXED: readonly string[] = [
   'PLT', 'MPV',
 ];
 const CBC_LAB_SHEET_SUPPLEMENTARY: readonly string[] = [
-  'RDW-SD', 'PDW', 'PCT', 'PLT-LCR', 'RETIC', 'RET-He', 'IRF', 'LFR', 'MFR', 'HFR', 'NRBC', 'Blood smear',
+  'MID', 'MID(%)', 'RDW-SD', 'PDW', 'PCT', 'PLT-LCR', 'RETIC', 'RET-He', 'IRF', 'LFR', 'MFR', 'HFR', 'NRBC', 'Blood smear',
 ];
 
 const CHEMISTRY_LAB_SHEET_FIXED: readonly string[] = [
