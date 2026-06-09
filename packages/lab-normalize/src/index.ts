@@ -76,6 +76,7 @@ const DIRECT_ALIASES: Record<string, string> = {
   BLOODSMEAR: 'Blood smear',
   CPL: 'cPL',
   FPL: 'fPL',
+  QPL: 'PL', // species 미상일 때의 폴백(아는 경우 pancreaticLipaseImmunoCanonical 가 cPL/fPL 로)
   ANIONGAP: 'AG',
   TT4: 'T4',
   BILTOTAL: 'TBIL',
@@ -182,6 +183,7 @@ function pancreaticLipaseImmunoCanonical(
     normalized === 'PLI' ||
     normalized === 'CPLI' ||
     normalized === 'FPLI' ||
+    normalized === 'QPL' || // 플러스벳 등 EMR 의 정량 췌장 리파아제 표기 — 개 cPL / 고양이 fPL
     normalized === 'SPECPL' ||
     normalized === 'SPECCPL' ||
     normalized === 'SPECFPL'
