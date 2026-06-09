@@ -2771,6 +2771,10 @@ export async function POST(request: NextRequest) {
     console.log(
       `[text-bucketing DEBUG] llmPages=${llmCoveredPages.size}, ocrSupplementPages=${new Set(ocrSupplementLines.map((l) => l.page)).size}, effectivePdfLines=${effectivePdfLines.length}`,
     );
+    // 진단: 원본 추출(버켓팅 전)에 "Subjective"가 몇 개인가 = Gemini가 진료를 몇 건 뽑았나.
+    // chartBody 그룹 수(subjectiveAnchored visits)와 다르면 버켓팅 문제, 같으면 추출(LLM) 문제.
+    const rawSubjectiveCount = effectivePdfLines.filter((l) => /^subjective\b/i.test(l.text.trim())).length;
+    console.log(`[text-bucketing DEBUG] rawSubjectiveCount(추출단계 진료수)=${rawSubjectiveCount}`);
 
     const sanitizedLines = [...pasteLines, ...effectivePdfLines];
 
