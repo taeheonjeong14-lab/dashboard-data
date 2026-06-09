@@ -261,11 +261,13 @@ function parsePlusVetBasicInfoFromText(block: string): ParsedBasicInfo {
       continue;
     }
 
-    // Case 2: "라벨 값" 인라인 포맷 — 가장 긴 라벨부터 prefix 매칭
+    // Case 2: "라벨값" / "라벨 값" 인라인 포맷 — 가장 긴 라벨부터 prefix 매칭.
+    // 텍스트레이어는 라벨과 값이 공백 없이 붙는다(예: "동물명포니", "축종/품종개/폼피츠") →
+    // 라벨 뒤 공백을 요구하지 않고 prefix 로 매칭(긴 라벨 우선이라 "보호자 성함"이 "보호자"보다 먼저 잡힘).
     let handledInline = false;
     for (const [label, field] of sortedLabels) {
-      if (normalized.startsWith(`${label} `)) {
-        const value = normalized.slice(label.length + 1).trim();
+      if (normalized.length > label.length && normalized.startsWith(label)) {
+        const value = normalized.slice(label.length).trim();
         if (value && !extracted[field]) extracted[field] = value;
         handledInline = true;
         break;
