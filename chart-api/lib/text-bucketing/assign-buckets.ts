@@ -75,6 +75,24 @@ export function assignLinesToBuckets(
     }
 
     /**
+     * PlusVet 진료 헤더: 날짜+시각 줄이고 곧(3줄 내) Subjective가 따라오면, 그건 lab 시각 앵커가 아니라
+     * 그 진료의 헤더다 → chartBody로 보낸다. 이렇게 해야 (1) 그 진료의 날짜가 chartBody 그룹 키로 잡히고
+     * (앞 진료 날짜 재사용 방지), (2) 진료 시작 시 lab 모드가 아니어서 A/P/Plan이 lab으로 새지 않는다.
+     */
+    if (chartKind === 'plusvet') {
+      const t0 = line.text.replace(/\s+/g, ' ').trim();
+      const isDateTime = /^(?:\[)?\s*20\d{2}[./-]\d{1,2}[./-]\d{1,2}\s+\d{1,2}:\d{2}/.test(t0);
+      const next3 = sanitizedLines[i + 3]?.text ?? '';
+      const subjSoon = [next1, next2, next3].some((x) => /^subjective\b/i.test(x.replace(/\s+/g, ' ').trim()));
+      if (isDateTime && subjSoon) {
+        section = 'chartBody';
+        plusvetDiagnosticResultsSection = false;
+        buckets.chartBody.push({ page: line.page, text: line.text, corrected: false });
+        continue;
+      }
+    }
+
+    /**
      * PlusVet: "Subjective"는 새 진료의 시작이다. 어떤 섹션(특히 한번 들어가면 잘 못 빠져나오는 lab)에
      * 있든 chartBody로 복귀시킨다. 진료 헤더(`DATE | 재진 | 담당의`) 줄은 추출이 들쭉날쭉해 신뢰 불가 —
      * Subjective가 진료 경계를 가리키는 안정적 신호다. (이게 없으면 첫 lab 진입 후 모든 진료가 lab에 처박힘)
