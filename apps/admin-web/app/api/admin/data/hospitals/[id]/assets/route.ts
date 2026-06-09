@@ -83,3 +83,56 @@ export async function POST(
   }
 }
 
+// DELETE /api/admin/data/hospitals/[id]/assets?asset_type=logo|seal — 자산 삭제(스토리지 + DB 컬럼 null)
+export async function DELETE(
+  request: NextRequest,
+  context: { params: Promise<{ id: string }> },
+) {
+  const gate = await requireAdminApi();
+  if (!gate.ok) return gate.response;
+
+  const { id } = await context.params;
+  const hospitalId = String(id || '').trim();
+  if (!hospitalId) {
+    return NextResponse.json({ error: 'id required' }, { status: 400 });
+  }
+
+  const assetType = (request.nextUrl.searchParams.get('asset_type') ?? request.nextUrl.searchParams.get('assetType') ?? '')
+    .trim()
+    .toLowerCase();
+  if (assetType !== 'logo' && assetType !== 'seal') {
+    return NextResponse.json({ error: 'asset_type must be logo or seal' }, { status: 400 });
+  }
+
+  try {
+    const supabase = createServiceRoleClient();
+
+    // 스토리지 객체 삭제 — 업로드 시 확장자를 모르므로 후보 경로 전부 제거(없는 건 무시됨).
+    const exts = ['png', 'jpg', 'jpeg', 'webp', 'svg'];
+    const paths = exts.map((e) => `${hospitalId}/${assetType}.${e}`);
+    await supabase.storage.from(HOSPITAL_ASSETS_BUCKET).remove(paths);
+
+    // DB 컬럼 null 처리(컬럼명 호환: snake/camel 둘 다 시도).
+    const updateCandidates =
+      assetType === 'logo'
+        ? [{ logoUrl: null }, { logo_url: null }]
+        : [{ seal_url: null }, { sealUrl: null }];
+
+    let updated = false;
+    let lastErr: unknown = null;
+    for (const patch of updateCandidates) {
+      const res = await supabase.schema('core').from('hospitals').update(patch).eq('id', hospitalId);
+      if (!res.error) {
+        updated = true;
+        break;
+      }
+      lastErr = res.error;
+    }
+    if (!updated && lastErr) throw lastErr;
+
+    return NextResponse.json({ ok: true, assetType });
+  } catch (e) {
+    return NextResponse.json({ error: formatSupabaseError(e) }, { status: 500 });
+  }
+}
+

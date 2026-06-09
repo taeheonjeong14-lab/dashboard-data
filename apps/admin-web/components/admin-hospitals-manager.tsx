@@ -174,10 +174,12 @@ function AssetDropzone({
   url,
   disabled,
   onFile,
+  onRemove,
 }: {
   url?: string;
   disabled?: boolean;
   onFile: (file: File | undefined) => void;
+  onRemove?: () => void;
 }) {
   const [dragging, setDragging] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -223,6 +225,28 @@ function AssetDropzone({
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={url} alt="" style={{ maxHeight: 88, maxWidth: '100%', objectFit: 'contain' }} />
           <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>클릭하거나 끌어다 놓아 변경</span>
+          {onRemove ? (
+            <button
+              type="button"
+              disabled={disabled}
+              onClick={(e) => {
+                e.stopPropagation(); // 박스 클릭(파일 선택) 막기
+                onRemove();
+              }}
+              style={{
+                marginTop: 2,
+                padding: '2px 10px',
+                fontSize: 11,
+                color: 'var(--danger)',
+                background: 'transparent',
+                border: '1px solid var(--danger-subtle)',
+                borderRadius: 4,
+                cursor: disabled ? 'not-allowed' : 'pointer',
+              }}
+            >
+              삭제
+            </button>
+          ) : null}
         </>
       ) : (
         <>
@@ -400,6 +424,33 @@ export default function AdminHospitalsManager() {
     }
   }
 
+  async function removeHospitalAsset(assetType: 'logo' | 'seal') {
+    const hospitalId = String(selectedId || form.id || '').trim();
+    if (!hospitalId) {
+      setMessage('병원을 먼저 저장한 뒤 삭제할 수 있습니다.');
+      return;
+    }
+    const label = assetType === 'logo' ? '로고' : '도장';
+    if (typeof window !== 'undefined' && !window.confirm(`${label} 이미지를 삭제할까요?`)) return;
+    setLoading(true);
+    setMessage('');
+    try {
+      const res = await fetch(
+        `/api/admin/data/hospitals/${encodeURIComponent(hospitalId)}/assets?asset_type=${assetType}`,
+        { method: 'DELETE' },
+      );
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) throw new Error(data.error || '삭제 실패');
+      if (assetType === 'logo') setForm((f) => ({ ...f, logoUrl: '' }));
+      else setForm((f) => ({ ...f, seal_url: '' }));
+      setMessage(`${label} 삭제 완료`);
+    } catch (e) {
+      setMessage(`삭제 실패: ${formatSupabaseError(e)}`);
+    } finally {
+      setLoading(false);
+    }
+  }
+
   return (
     <div className="adminLayout2WithMain">
       <aside className="adminLayoutSecondaryRail" aria-label="병원 목록">
@@ -545,6 +596,7 @@ export default function AdminHospitalsManager() {
                     url={form.logoUrl}
                     disabled={loading}
                     onFile={(file) => void uploadHospitalAsset('logo', file)}
+                    onRemove={() => void removeHospitalAsset('logo')}
                   />
                 </LabeledField>
                 <LabeledField label="대표원장 도장 이미지" hint="리포트 마지막 장 대표원장 서명 도장">
@@ -552,6 +604,7 @@ export default function AdminHospitalsManager() {
                     url={form.seal_url}
                     disabled={loading}
                     onFile={(file) => void uploadHospitalAsset('seal', file)}
+                    onRemove={() => void removeHospitalAsset('seal')}
                   />
                 </LabeledField>
               </div>
