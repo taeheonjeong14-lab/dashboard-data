@@ -13,8 +13,10 @@ export type TextLayerResult = {
  * Gemini 이미지 전사와 달리 (1) 반복 블록을 스킵하지 않고 (2) 순서를 보존한다.
  * 디지털 EMR 출력처럼 텍스트 레이어가 충실한 PDF에 한해 1순위 추출 경로로 쓴다(품질 게이트로 판단).
  *
- * 줄 재구성: pdf.js textContent 아이템을 동일 y(transform[5]) 기준으로 묶는다.
- * (pdf-parse 기본 render_page 와 동일 — 본 PDF에서 시각순 정확도 검증됨)
+ * 줄 재구성: pdf.js textContent 아이템을 동일 y(transform[5]) 기준으로 묶고,
+ * 페이지 안에서 y 내림차순(위→아래)으로 정렬한다.
+ * (콘텐츠 스트림 순서는 시각 순서와 다를 수 있다 — 플러스벳은 Plan 표 박스를 본문보다 먼저 나열 →
+ *  정렬 안 하면 페이지를 넘어가는 진료에서 본문이 Plan 뒤로 새어 잘못 묶인다.)
  */
 export async function extractOrderedLinesFromTextLayer(pdfBuffer: Buffer): Promise<TextLayerResult> {
   const lines: OrderedLine[] = [];
@@ -34,12 +36,13 @@ export async function extractOrderedLinesFromTextLayer(pdfBuffer: Buffer): Promi
     return pageData
       .getTextContent({ normalizeWhitespace: false, disableCombineTextItems: false })
       .then((tc) => {
+        const pageLines: Array<{ y: number; text: string }> = [];
         let lastY: number | undefined;
         let buf = '';
         let chars = 0;
         const flush = () => {
-          const text = buf.replace(/[ \t ]+$/u, '');
-          if (text.trim().length > 0) lines.push({ page, text });
+          const text = buf.replace(/\s+$/u, '');
+          if (text.trim().length > 0 && lastY !== undefined) pageLines.push({ y: lastY, text });
           buf = '';
         };
         for (const item of tc.items) {
@@ -54,6 +57,9 @@ export async function extractOrderedLinesFromTextLayer(pdfBuffer: Buffer): Promi
           chars += (item.str ?? '').length;
         }
         flush();
+        // 안정 정렬(Node 20): y가 같은 항목은 원래 스트림 순서 유지(좌/우 컬럼 헤더 등).
+        pageLines.sort((a, b) => b.y - a.y);
+        for (const l of pageLines) lines.push({ page, text: l.text });
         charsByPage.set(page, chars);
         return ''; // pdf-parse 의 합본 text 는 쓰지 않음(우리는 lines 로 받는다)
       });
