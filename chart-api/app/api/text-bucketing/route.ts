@@ -24,6 +24,7 @@ import {
   extractChartBodyDateKey,
   extractEfriendsVisitDateKey,
   extractLabDateTime,
+  extractPlusVetVisitDateKey,
 } from "@/lib/text-bucketing/chart-dates";
 import { runGoogleVisionOcr, type OcrRow } from "@/lib/google-vision";
 import { extractOrderedLinesFromPdf, getOpenAiOrderedLinesModel } from "@/lib/report-llm";
@@ -546,11 +547,28 @@ function groupChartBodyByDate(lines: BucketedLine[], chartKind: ChartKind): Char
   const groups = new Map<string, BucketedLine[]>();
   let currentKey = "unknown";
 
+  // PlusVet: 진료 헤더(`DATE | 재진 | 담당의`)가 하나라도 있으면 그걸로만 그룹 분할(엄격).
+  // 헤더를 전혀 못 잡으면(추출 형태가 다른 경우) 회귀 방지로 기존 방식 폴백.
+  const plusvetHasVisitHeaders =
+    chartKind === "plusvet" && linesToGroup.some((l) => extractPlusVetVisitDateKey(l.text) !== null);
+  if (chartKind === "plusvet") {
+    const headerLines = linesToGroup.filter((l) => extractPlusVetVisitDateKey(l.text) !== null);
+    console.log(
+      "[groupChartBodyByDate] plusvet visitHeaderMode=%s headerLines=%d (%s)",
+      plusvetHasVisitHeaders,
+      headerLines.length,
+      JSON.stringify(headerLines.map((l) => l.text).slice(0, 8)),
+    );
+  }
+
   for (const line of linesToGroup) {
     const dateTime =
       chartKind === "efriends"
         ? extractEfriendsVisitDateKey(line.text) ?? extractChartBodyDateKey(line.text, chartKind)
-        : extractChartBodyDateKey(line.text, chartKind);
+        : chartKind === "plusvet" && plusvetHasVisitHeaders
+          ? // PlusVet은 진료 헤더 줄에서만 그룹을 나눈다(본문 속 잡다한 날짜로 진료가 쪼개지지 않게).
+            extractPlusVetVisitDateKey(line.text)
+          : extractChartBodyDateKey(line.text, chartKind);
     if (dateTime) {
       currentKey = dateTime;
       if (!groups.has(currentKey)) {
@@ -597,7 +615,9 @@ function groupChartBodyByDate(lines: BucketedLine[], chartKind: ChartKind): Char
       lineCount: groupLines.length,
       planDetected,
     };
-  });
+  })
+  // 본문·플랜이 모두 빈 그룹은 랩/영상 시각 등으로 잘못 잡힌 노이즈라 버린다.
+  .filter((g) => g.bodyText.trim().length > 0 || g.planText.trim().length > 0);
 }
 
 function groupLabByDate(lines: BucketedLine[]): LabByDateGroup[] {

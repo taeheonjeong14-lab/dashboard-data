@@ -4,3 +4,6 @@
 .vercel.env*.tmp
 .vercel.env.prod.tmp
 .vercel.env.tmp
+
+# 디버그용 샘플 차트 PDF (개인정보 포함 — 절대 커밋 금지)
+_samples/

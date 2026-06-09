@@ -60,13 +60,13 @@ export function extractPlusVetLabSectionAnchorDateTime(text: string): string | n
   return `${m[1]} ${mer}${m[3]}`.trim();
 }
 
-function matchPlusVetDatetimePipeRest(text: string): { line: string; afterFirstPipe: string } | null {
+function matchPlusVetDatetimePipeRest(text: string): { line: string; dateTime: string; afterFirstPipe: string } | null {
   const line = text.replace(/\s+/g, ' ').trim();
   const m = line.match(
     /^(?:\[)?\s*(20\d{2}[./-]\d{1,2}[./-]\d{1,2}\s+\d{1,2}:\d{2}(?::\d{2})?)\s*\|\s*(.+)$/i,
   );
   if (!m) return null;
-  return { line, afterFirstPipe: m[2].trim() };
+  return { line, dateTime: m[1].trim(), afterFirstPipe: m[2].trim() };
 }
 
 /**
@@ -91,6 +91,18 @@ export function isPlusVetChartVisitHeaderLine(text: string): boolean {
   const hit = matchPlusVetDatetimePipeRest(text);
   if (!hit) return false;
   return /^(재진|초진|예진|응급|검진|당일|복진|외래)\b/.test(hit.afterFirstPipe);
+}
+
+/**
+ * PlusVet 차트 본문을 진료(visit)별로 나눌 때의 그룹 키.
+ * **진료 헤더(`DATE TIME | 재진 | 담당의`) 줄에서만** 날짜를 추출한다.
+ * 본문 안에 섞인 랩/영상 시각·노트 속 날짜로 한 진료가 여러 그룹으로 쪼개지는 것을 막는다.
+ */
+export function extractPlusVetVisitDateKey(text: string): string | null {
+  const hit = matchPlusVetDatetimePipeRest(text);
+  if (!hit) return null;
+  if (!/^(재진|초진|예진|응급|검진|당일|복진|외래)\b/.test(hit.afterFirstPipe)) return null;
+  return hit.dateTime;
 }
 
 /** 차트 본문을 날짜별로 나눌 때 사용하는 앵커 */
