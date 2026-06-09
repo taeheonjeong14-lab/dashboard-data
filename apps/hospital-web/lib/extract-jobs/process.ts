@@ -1,3 +1,4 @@
+// 비동기 추출 워커 (extract_jobs). 변경 시 hospital-web 재배포 트리거됨.
 import { setGlobalDispatcher, Agent } from 'undici';
 import { createServiceRoleClient } from '@/lib/supabase/service-role';
 
