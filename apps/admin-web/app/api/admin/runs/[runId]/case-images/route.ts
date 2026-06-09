@@ -179,7 +179,13 @@ export async function GET(
   }
 }
 
+type RawFile = { rawBuffer: Buffer; fileName: string; hash: string };
+
 // POST /api/admin/runs/[runId]/case-images
+// 입력 두 가지 지원:
+//  - JSON { examDate, mode, uploads:[{path,fileName}] }: 클라이언트가 스토리지에 직접 업로드한 staging 경로.
+//    이미지 바이트가 함수 본문을 거치지 않아 Vercel 요청 본문 4.5MB 한도를 우회한다(권장).
+//  - multipart(이미지 파일 직접): 소량 업로드용 하위호환.
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ runId: string }> },
@@ -188,57 +194,102 @@ export async function POST(
   if (!gate.ok) return gate.response;
 
   const { runId } = await params;
+  const supabase = createServiceRoleClient();
 
-  let form: FormData;
-  try {
-    form = await request.formData();
-  } catch {
-    return NextResponse.json({ error: 'multipart 파싱 실패' }, { status: 400 });
+  let examDate = '';
+  let mode: string | undefined;
+  let rawFiles: RawFile[] = [];
+  const stagingPaths: string[] = []; // JSON 직접 업로드의 임시 파일(처리 후 삭제)
+
+  const contentType = request.headers.get('content-type') ?? '';
+  if (contentType.includes('application/json')) {
+    let body: { examDate?: string; mode?: string; uploads?: { path?: string; fileName?: string }[] };
+    try {
+      body = (await request.json()) as typeof body;
+    } catch {
+      return NextResponse.json({ error: '요청 형식이 올바르지 않습니다.' }, { status: 400 });
+    }
+    examDate = typeof body.examDate === 'string' ? body.examDate.trim() : '';
+    mode = typeof body.mode === 'string' ? body.mode.trim() : undefined;
+    const uploads = Array.isArray(body.uploads) ? body.uploads : [];
+    if (uploads.length === 0) {
+      return NextResponse.json({ error: '업로드된 이미지가 없습니다.' }, { status: 400 });
+    }
+    if (uploads.length > MAX_IMAGES) {
+      return NextResponse.json({ error: `이미지는 최대 ${MAX_IMAGES}장까지 가능합니다.` }, { status: 400 });
+    }
+    // 경로는 반드시 이 runId 하위여야 함(임의 경로 주입 방지)
+    for (const u of uploads) {
+      if (typeof u?.path !== 'string' || !u.path.startsWith(`${runId}/`)) {
+        return NextResponse.json({ error: '업로드 경로가 올바르지 않습니다.' }, { status: 400 });
+      }
+    }
+    try {
+      rawFiles = await Promise.all(
+        uploads.map(async (u) => {
+          const path = u.path as string;
+          stagingPaths.push(path);
+          const { data: blob, error } = await supabase.storage.from(CASE_IMAGES_BUCKET).download(path);
+          if (error || !blob) throw new Error('업로드된 이미지를 불러오지 못했습니다.');
+          const rawBuffer = Buffer.from(await blob.arrayBuffer());
+          const hash = createHash('sha256').update(rawBuffer).digest('hex');
+          return { rawBuffer, fileName: String(u.fileName || 'image'), hash };
+        }),
+      );
+    } catch (e) {
+      if (stagingPaths.length > 0) await supabase.storage.from(CASE_IMAGES_BUCKET).remove(stagingPaths).catch(() => {});
+      return NextResponse.json({ error: e instanceof Error ? e.message : '이미지 불러오기 실패' }, { status: 400 });
+    }
+  } else {
+    let form: FormData;
+    try {
+      form = await request.formData();
+    } catch {
+      return NextResponse.json({ error: 'multipart 파싱 실패' }, { status: 400 });
+    }
+    examDate = (form.get('examDate') as string | null)?.trim() ?? '';
+    mode = (form.get('mode') as string | null)?.trim() || undefined; // 'append' | undefined(replace)
+    const imageFiles = form.getAll('images') as File[];
+    if (imageFiles.length === 0) {
+      return NextResponse.json({ error: '이미지 파일이 필요합니다.' }, { status: 400 });
+    }
+    if (imageFiles.length > MAX_IMAGES) {
+      return NextResponse.json({ error: `이미지는 최대 ${MAX_IMAGES}개까지 업로드 가능합니다.` }, { status: 400 });
+    }
+    for (const file of imageFiles) {
+      const mime = file.type.toLowerCase();
+      if (!isAllowedMime(mime)) {
+        return NextResponse.json({ error: `지원하지 않는 이미지 형식입니다: ${mime} (JPEG/PNG/WebP만 가능)` }, { status: 400 });
+      }
+    }
+    rawFiles = await Promise.all(
+      imageFiles.map(async (file) => {
+        const rawBuffer = Buffer.from(await file.arrayBuffer());
+        const hash = createHash('sha256').update(rawBuffer).digest('hex');
+        return { rawBuffer, fileName: file.name || 'image', hash };
+      }),
+    );
   }
 
-  const examDate = (form.get('examDate') as string | null)?.trim() ?? '';
-  const mode = (form.get('mode') as string | null)?.trim(); // 'append' | undefined(replace)
-  const imageFiles = form.getAll('images') as File[];
-
-  if (imageFiles.length === 0) {
-    return NextResponse.json({ error: '이미지 파일이 필요합니다.' }, { status: 400 });
-  }
-  if (imageFiles.length > MAX_IMAGES) {
-    return NextResponse.json({ error: `이미지는 최대 ${MAX_IMAGES}개까지 업로드 가능합니다.` }, { status: 400 });
-  }
-
-  // Validate upload sizes
-  const totalBytes = imageFiles.reduce((s, f) => s + f.size, 0);
+  // 공통 크기 검증
+  const totalBytes = rawFiles.reduce((s, f) => s + f.rawBuffer.length, 0);
   if (totalBytes > MAX_TOTAL_UPLOAD_BYTES) {
+    if (stagingPaths.length > 0) await supabase.storage.from(CASE_IMAGES_BUCKET).remove(stagingPaths).catch(() => {});
     return NextResponse.json(
       { error: `전체 파일 용량이 초과되었습니다. (${Math.round(totalBytes / 1024 / 1024)}MB / 허용 ${MAX_TOTAL_UPLOAD_BYTES / 1024 / 1024}MB)` },
       { status: 400 },
     );
   }
-  for (const file of imageFiles) {
-    const mime = file.type.toLowerCase();
-    if (!isAllowedMime(mime)) {
-      return NextResponse.json({ error: `지원하지 않는 이미지 형식입니다: ${mime} (JPEG/PNG/WebP만 가능)` }, { status: 400 });
-    }
-    if (file.size > MAX_IMAGE_BYTES) {
-      return NextResponse.json({ error: `이미지 파일은 ${MAX_IMAGE_BYTES / 1024 / 1024}MB 이하여야 합니다. (${file.name})` }, { status: 400 });
+  for (const f of rawFiles) {
+    if (f.rawBuffer.length > MAX_IMAGE_BYTES) {
+      if (stagingPaths.length > 0) await supabase.storage.from(CASE_IMAGES_BUCKET).remove(stagingPaths).catch(() => {});
+      return NextResponse.json({ error: `이미지 파일은 ${MAX_IMAGE_BYTES / 1024 / 1024}MB 이하여야 합니다. (${f.fileName})` }, { status: 400 });
     }
   }
-
-  // Load raw buffers + compute SHA-256 hash for duplicate detection
-  type RawFile = { rawBuffer: Buffer; fileName: string; hash: string };
-  const rawFiles: RawFile[] = await Promise.all(
-    imageFiles.map(async (file) => {
-      const rawBuffer = Buffer.from(await file.arrayBuffer());
-      const hash = createHash('sha256').update(rawBuffer).digest('hex');
-      return { rawBuffer, fileName: file.name || 'image', hash };
-    }),
-  );
 
   // 중복 체크는 DB 접근 후 수행하므로 압축은 deduped 기준으로 아래에서 처리
 
   const pool = getAdminWebPgPool();
-  const supabase = createServiceRoleClient();
 
   try {
     await ensureTable(pool);
@@ -403,6 +454,11 @@ export async function POST(
       { error: e instanceof Error ? e.message : '이미지 저장 실패' },
       { status: 500 },
     );
+  } finally {
+    // JSON 직접 업로드의 임시(staging) 파일 정리. 최종 이미지는 다른 경로에 저장되므로 항상 안전.
+    if (stagingPaths.length > 0) {
+      await supabase.storage.from(CASE_IMAGES_BUCKET).remove(stagingPaths).catch(() => {});
+    }
   }
 }
 

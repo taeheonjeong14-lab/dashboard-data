@@ -10,6 +10,9 @@ import { HEALTH_CHECKUP_MAX_COVER_FIELD_CHARS, HEALTH_CHECKUP_MUST_INCLUDE_MAX_C
 import { canonicalizeLabItemName, isRecognizedLabItem, type LabCanonicalizeSpecies } from '@/lib/chart-extraction/lab-item-normalize';
 import { labItemCategory } from '@dashboard/lab-normalize';
 import { speciesProfileFromBasicSpecies } from '@/lib/chart-extraction/lab-species-profile';
+import { createClient } from '@/lib/supabase/client';
+
+const CASE_IMAGES_BUCKET = 'chart-case-images';
 import { isParseRunUuid } from '@/lib/chart-extraction/uuid';
 import { BucketDebugPanel } from '@/components/bucket-debug-panel';
 import { CaseBlogButton } from '@/components/admin-case-blog-modal';
@@ -1103,17 +1106,63 @@ export function AdminRunExtractionDetail({
     setImgModalStatus('uploading');
     setImgModalError(null);
     try {
-      const formData = new FormData();
-      formData.set('examDate', imgModalDate || new Date().toISOString().slice(0, 10));
-      formData.set('mode', 'append');
-      for (const f of imgModalFiles) formData.append('images', f);
+      // 1) 스토리지 직접 업로드용 서명 URL 발급 — 이미지 바이트가 서버 함수 본문을 거치지 않아
+      //    Vercel 요청 본문 4.5MB 한도를 우회한다(많은/큰 이미지도 가능).
+      const exts = imgModalFiles.map((f) => (f.name.split('.').pop() || 'jpg').toLowerCase());
+      const signRes = await fetch(`/api/admin/runs/${encodeURIComponent(runId)}/case-images/sign`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ exts }),
+      });
+      const signData = (await signRes.json().catch(() => ({}))) as {
+        uploads?: { path: string; token: string }[];
+        error?: string;
+      };
+      if (!signRes.ok) throw new Error(signData.error ?? '업로드 URL 생성에 실패했습니다.');
+      const uploads = signData.uploads ?? [];
+      if (uploads.length !== imgModalFiles.length) throw new Error('업로드 URL 개수가 맞지 않습니다.');
+
+      // 2) 각 이미지를 스토리지에 직접 업로드
+      const supabase = createClient();
+      await Promise.all(
+        uploads.map(async ({ path, token }, i) => {
+          const file = imgModalFiles[i];
+          const { error } = await supabase.storage
+            .from(CASE_IMAGES_BUCKET)
+            .uploadToSignedUrl(path, token, file, { contentType: file.type });
+          if (error) throw new Error(`이미지 업로드에 실패했습니다: ${error.message}`);
+        }),
+      );
+
+      // 3) 경로만 서버로 전달 → 분석/저장(본문은 작은 JSON이라 413 없음)
       const res = await fetch(`/api/admin/runs/${encodeURIComponent(runId)}/case-images`, {
         method: 'POST',
-        body: formData,
+        headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
+        body: JSON.stringify({
+          examDate: imgModalDate || new Date().toISOString().slice(0, 10),
+          mode: 'append',
+          uploads: uploads.map((u, i) => ({ path: u.path, fileName: imgModalFiles[i].name })),
+        }),
       });
-      const data = (await res.json()) as { ok?: boolean; count?: number; skipped?: string[]; allSkipped?: boolean; error?: string };
-      if (!res.ok || !data.ok) throw new Error(data.error ?? '이미지 분석 실패');
+      if (!res.ok) {
+        let serverMsg = '';
+        try {
+          serverMsg = ((await res.json()) as { error?: string }).error ?? '';
+        } catch {
+          /* 비-JSON 응답 */
+        }
+        throw new Error(serverMsg || `이미지 분석에 실패했습니다. (오류 ${res.status})`);
+      }
+      const data = (await res.json().catch(() => ({}))) as {
+        ok?: boolean;
+        count?: number;
+        skipped?: string[];
+        allSkipped?: boolean;
+        error?: string;
+      };
+      if (!data.ok) throw new Error(data.error ?? '이미지 분석 실패');
       if (data.allSkipped) {
         throw new Error(`선택한 이미지 ${imgModalFiles.length}장 모두 이미 이 차트에 분석된 이미지와 동일합니다.`);
       }
