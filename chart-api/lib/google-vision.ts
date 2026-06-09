@@ -327,7 +327,7 @@ function describeGcpError(e: unknown): string {
     for (const k of Object.getOwnPropertyNames(e)) {
       if (k === 'stack' || k === 'message') continue;
       try {
-        const v = (e as Record<string, unknown>)[k];
+        const v = (e as unknown as Record<string, unknown>)[k];
         if (v !== undefined) props[k] = v;
       } catch {
         /* getter throw 무시 */
