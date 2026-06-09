@@ -318,23 +318,29 @@ function buildRowsFromPlainText(text: string, page: number): OcrRow[] {
   }));
 }
 
-/** GCP/gaxios/grpc 에러를 최대한 풀어서 사람이 읽을 수 있는 문자열로 직렬화한다. */
+/** GCP/gaxios/grpc 에러를 최대한 풀어서(비표준 속성·스택 포함) 직렬화한다. */
 function describeGcpError(e: unknown): string {
   if (e instanceof Error) {
-    const a = e as Error & {
-      code?: unknown;
-      errors?: unknown;
-      details?: unknown;
-      response?: { data?: unknown };
-      cause?: unknown;
-    };
-    const parts: string[] = [`${e.name}: ${e.message}`];
-    if (a.code !== undefined) parts.push(`code=${String(a.code)}`);
-    if (a.details !== undefined) parts.push(`details=${JSON.stringify(a.details)}`);
-    if (a.errors !== undefined) parts.push(`errors=${JSON.stringify(a.errors)}`);
-    if (a.response?.data !== undefined) parts.push(`response=${JSON.stringify(a.response.data).slice(0, 800)}`);
-    if (a.cause !== undefined && a.cause !== null) parts.push(`cause=(${describeGcpError(a.cause)})`);
-    return parts.join(' | ');
+    // Error 의 표준 속성(code/message 등)은 non-enumerable 이라 JSON.stringify 가 {}를 뱉는다.
+    // getOwnPropertyNames 로 전부 긁어온다.
+    const props: Record<string, unknown> = {};
+    for (const k of Object.getOwnPropertyNames(e)) {
+      if (k === 'stack' || k === 'message') continue;
+      try {
+        const v = (e as Record<string, unknown>)[k];
+        if (v !== undefined) props[k] = v;
+      } catch {
+        /* getter throw 무시 */
+      }
+    }
+    let propsStr = '';
+    try {
+      propsStr = JSON.stringify(props, (_k, v) => (typeof v === 'bigint' ? String(v) : v));
+    } catch {
+      propsStr = String(props);
+    }
+    const stack = (e.stack ?? '').split('\n').slice(0, 6).join('  >>  ');
+    return `${e.name}: ${e.message} | props=${propsStr} | stack=${stack}`;
   }
   try {
     return JSON.stringify(e);
@@ -394,6 +400,7 @@ async function runGoogleVisionPdfOcr(fileBuffer: Buffer): Promise<VisionOcrResul
     });
     await operation.promise();
   } catch (e) {
+    console.error('[OCR 2/3 raw error]', e);
     throw new Error(`[OCR 2/3 Vision 호출 실패 (asyncBatchAnnotateFiles)] ${describeGcpError(e)}`);
   }
 
