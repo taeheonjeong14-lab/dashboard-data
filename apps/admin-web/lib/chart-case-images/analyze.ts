@@ -15,6 +15,33 @@ export type ImageInputPart = {
   mimeType: 'image/jpeg' | 'image/png' | 'image/webp';
 };
 
+/**
+ * 429(분당 토큰 한도)·일시적 5xx 는 지수 백오프로 재시도한다.
+ * 단, "한 요청"이 분당 한도 자체를 넘으면 재시도로도 통과 못 하므로, 호출부에서 요청당 이미지 수를
+ * 한도 아래로 쪼개 보내야 한다(아래 analyzeImageGroup 의 청크 처리). 여기서는 누적 TPM 페이싱을 담당.
+ */
+async function createChatWithRetry(
+  client: OpenAI,
+  params: OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming,
+  maxRetries = 5,
+): Promise<OpenAI.Chat.Completions.ChatCompletion> {
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      return await client.chat.completions.create(params);
+    } catch (e) {
+      const status = (e as { status?: number })?.status;
+      const retryable = status === 429 || status === 500 || status === 502 || status === 503 || status === 504;
+      if (!retryable || attempt >= maxRetries) throw e;
+      const retryAfter = Number((e as { headers?: Record<string, string> })?.headers?.['retry-after']);
+      const waitMs =
+        Number.isFinite(retryAfter) && retryAfter > 0
+          ? retryAfter * 1000
+          : Math.min(20000, 800 * 2 ** attempt) + Math.floor(Math.random() * 400);
+      await new Promise((r) => setTimeout(r, waitMs));
+    }
+  }
+}
+
 function normalizeAnalysis(
   raw: unknown,
   expected: { index: number; fileName: string }[],
@@ -150,7 +177,7 @@ export async function analyzeCaseImages(params: {
     });
   }
 
-  const response = await client.chat.completions.create({
+  const response = await createChatWithRetry(client, {
     model,
     messages: [{ role: 'user', content }],
     response_format: {
@@ -232,24 +259,22 @@ export type GroupBullet = {
 };
 export type ImageGroupAnalysis = { images: GroupImageLabel[]; bullets: GroupBullet[] };
 
-export async function analyzeImageGroup(params: {
-  examDate: string;
-  images: ImageInputPart[];
-}): Promise<ImageGroupAnalysis> {
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) throw new Error('OPENAI_API_KEY is not configured.');
-  if (params.images.length === 0) return { images: [], bullets: [] };
+type RawGroupBullet = { text: string; confidence: number; supporting: { fileName: string; confidence: number }[] };
 
-  const model = process.env.OPENAI_VISION_MODEL?.trim() || 'gpt-4o';
-  const client = new OpenAI({ apiKey });
-  const manifest = params.images.map((img, i) => `${i}: ${img.fileName}`).join('\n');
-  const validNames = new Set(params.images.map((i) => i.fileName));
+// 그룹 분석 1회 요청(이미지 한 청크). 라벨은 fileName 기준 Map, 불렛은 원시 형태로 반환(필터·병합은 호출부).
+async function runImageGroupRequest(
+  client: OpenAI,
+  model: string,
+  examDate: string,
+  images: ImageInputPart[],
+): Promise<{ labelByFile: Map<string, { examType: ExamType; bodyPart: string }>; rawBullets: RawGroupBullet[] }> {
+  const manifest = images.map((img, i) => `${i}: ${img.fileName}`).join('\n');
 
   const prompt = [
     '너는 세상에서 가장 실력 좋은 수의사야.',
     '수의 임상 이미지를 보고 이미지 라벨과 의심 질환을 정리한다. 출력은 스키마에 맞는 JSON만.',
     '확정 진단은 내리지 말고 관찰·가능성으로 표현한다. 최종 판단은 담당 수의사가 한다.',
-    '검사일(지정됨, 추론·변경 금지): ' + (params.examDate || '(미지정)'),
+    '검사일(지정됨, 추론·변경 금지): ' + (examDate || '(미지정)'),
     '',
     '[이미지 라벨] 각 이미지에 대해 딱 두 가지만 적는다(자세한 해석 금지):',
     '- examType: radiology / ultrasound / microscopy / endoscopy / slit_lamp / other 중 하나.',
@@ -272,14 +297,14 @@ export async function analyzeImageGroup(params: {
     | { type: 'text'; text: string }
     | { type: 'image_url'; image_url: { url: string } };
   const content: MessageContentPart[] = [{ type: 'text', text: prompt }];
-  for (const img of params.images) {
+  for (const img of images) {
     content.push({
       type: 'image_url',
       image_url: { url: `data:${img.mimeType};base64,${img.buffer.toString('base64')}` },
     });
   }
 
-  const response = await client.chat.completions.create({
+  const response = await createChatWithRetry(client, {
     model,
     messages: [{ role: 'user', content }],
     response_format: {
@@ -351,53 +376,97 @@ export async function analyzeImageGroup(params: {
     throw new Error('모델이 올바른 JSON 형식을 반환하지 않았습니다.');
   }
 
-  // 라벨: index 로 매핑해 입력 순서대로 정렬
-  const byIndex = new Map<number, { examType: ExamType; bodyPart: string }>();
+  // 라벨: 청크 내 index → fileName 으로 매핑(전역 순서는 호출부에서 fileName 기준으로 재구성).
+  const labelByFile = new Map<string, { examType: ExamType; bodyPart: string }>();
   for (const row of Array.isArray(parsed.images) ? parsed.images : []) {
     const o = row as Record<string, unknown>;
     const idx = typeof o.index === 'number' ? o.index : Number(o.index);
-    if (!Number.isInteger(idx) || idx < 0) continue;
+    if (!Number.isInteger(idx) || idx < 0 || idx >= images.length) continue;
     const examType = EXAM_TYPES.includes(o.examType as ExamType) ? (o.examType as ExamType) : 'other';
     const bodyPart = typeof o.bodyPart === 'string' ? o.bodyPart.trim() : '';
-    byIndex.set(idx, { examType, bodyPart });
+    labelByFile.set(images[idx].fileName, { examType, bodyPart });
   }
-  const images: GroupImageLabel[] = params.images.map((img, index) => {
-    const found = byIndex.get(index);
-    return {
-      index,
-      fileName: img.fileName,
-      examType: found?.examType ?? 'other',
-      bodyPart: found?.bodyPart ?? '',
-    };
-  });
 
-  // 불렛: confidence 임계값 이상만 + 텍스트 + 유효 파일명
-  const minConfidence = Number(process.env.CASE_DISEASE_MIN_CONFIDENCE) || 70;
-  // 질환당 이미지 최대 장수 — 너무 많으면 무분별해져 의미가 없어지므로 상한을 둔다.
-  const maxImagesPerDisease = Number(process.env.CASE_DISEASE_MAX_IMAGES) || 4;
-  const bullets: GroupBullet[] = [];
+  // 불렛: 원시 형태로만 반환(임계값·유효 파일명·상한·청크 간 병합은 analyzeImageGroup 에서).
+  const rawBullets: RawGroupBullet[] = [];
   for (const row of Array.isArray(parsed.bullets) ? parsed.bullets : []) {
     const o = row as Record<string, unknown>;
     const text = typeof o.text === 'string' ? o.text.trim() : '';
     if (!text) continue;
     const confidence = Math.round(Number(o.confidence));
-    if (!Number.isFinite(confidence) || confidence < minConfidence) continue; // 확신도 미만 제외
-    // 이미지별 confidence — 유효 파일명만, 중복은 높은 값으로, confidence 내림차순 정렬 후 상한.
-    const byFile = new Map<string, number>();
+    const supporting: { fileName: string; confidence: number }[] = [];
     for (const it of Array.isArray(o.supportingImages) ? o.supportingImages : []) {
       const x = (it ?? {}) as Record<string, unknown>;
       const fn = typeof x.fileName === 'string' ? x.fileName : '';
-      if (!fn || !validNames.has(fn)) continue;
+      if (!fn) continue;
       let c = Math.round(Number(x.confidence));
       c = Number.isFinite(c) ? Math.max(0, Math.min(100, c)) : 0;
-      if (!byFile.has(fn) || c > (byFile.get(fn) ?? 0)) byFile.set(fn, c);
+      supporting.push({ fileName: fn, confidence: c });
     }
-    const sorted = [...byFile.entries()].sort((a, b) => b[1] - a[1]).slice(0, maxImagesPerDisease);
+    rawBullets.push({ text, confidence: Number.isFinite(confidence) ? confidence : 0, supporting });
+  }
+
+  return { labelByFile, rawBullets };
+}
+
+export async function analyzeImageGroup(params: {
+  examDate: string;
+  images: ImageInputPart[];
+}): Promise<ImageGroupAnalysis> {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) throw new Error('OPENAI_API_KEY is not configured.');
+  if (params.images.length === 0) return { images: [], bullets: [] };
+
+  const model = process.env.OPENAI_VISION_MODEL?.trim() || 'gpt-4o';
+  const client = new OpenAI({ apiKey });
+  const validNames = new Set(params.images.map((i) => i.fileName));
+
+  // 이미지가 많으면 한 요청 토큰이 분당 한도(TPM)를 넘어 429 가 난다(한 요청이 한도를 넘으면 재시도로도 불가).
+  // 요청당 이미지 수를 제한해 청크로 나누고 순차로 보낸다(누적 TPM 페이싱은 createChatWithRetry 가 백오프로 담당).
+  const maxPerReq = Number(process.env.CASE_GROUP_MAX_IMAGES_PER_REQUEST) || 10;
+  const chunks: ImageInputPart[][] = [];
+  for (let i = 0; i < params.images.length; i += maxPerReq) {
+    chunks.push(params.images.slice(i, i + maxPerReq));
+  }
+
+  const labelByFile = new Map<string, { examType: ExamType; bodyPart: string }>();
+  const allRawBullets: RawGroupBullet[] = [];
+  for (const chunk of chunks) {
+    const r = await runImageGroupRequest(client, model, params.examDate, chunk);
+    for (const [fn, l] of r.labelByFile) labelByFile.set(fn, l);
+    allRawBullets.push(...r.rawBullets);
+  }
+
+  const images: GroupImageLabel[] = params.images.map((img, index) => {
+    const found = labelByFile.get(img.fileName);
+    return { index, fileName: img.fileName, examType: found?.examType ?? 'other', bodyPart: found?.bodyPart ?? '' };
+  });
+
+  // 불렛: 청크 간 동일 질환(text) 병합 → confidence 임계값 + 유효 파일명 + 질환당 이미지 상한.
+  const minConfidence = Number(process.env.CASE_DISEASE_MIN_CONFIDENCE) || 70;
+  const maxImagesPerDisease = Number(process.env.CASE_DISEASE_MAX_IMAGES) || 4;
+  const mergedByText = new Map<string, { text: string; confidence: number; byFile: Map<string, number> }>();
+  for (const b of allRawBullets) {
+    if (!b.text) continue;
+    if (!Number.isFinite(b.confidence) || b.confidence < minConfidence) continue;
+    const key = b.text.replace(/\s+/g, ' ').toLowerCase();
+    const entry = mergedByText.get(key) ?? { text: b.text, confidence: b.confidence, byFile: new Map<string, number>() };
+    entry.confidence = Math.max(entry.confidence, b.confidence);
+    for (const it of b.supporting) {
+      if (!validNames.has(it.fileName)) continue;
+      if (!entry.byFile.has(it.fileName) || it.confidence > (entry.byFile.get(it.fileName) ?? 0)) {
+        entry.byFile.set(it.fileName, it.confidence);
+      }
+    }
+    mergedByText.set(key, entry);
+  }
+  const bullets: GroupBullet[] = [...mergedByText.values()].map((e) => {
+    const sorted = [...e.byFile.entries()].sort((a, b) => b[1] - a[1]).slice(0, maxImagesPerDisease);
     const fileNames = sorted.map(([fn]) => fn);
     const imageConfidence: Record<string, number> = {};
     for (const [fn, c] of sorted) imageConfidence[fn] = c;
-    bullets.push({ text, confidence, fileNames, imageConfidence });
-  }
+    return { text: e.text, confidence: e.confidence, fileNames, imageConfidence };
+  });
 
   return { images, bullets };
 }

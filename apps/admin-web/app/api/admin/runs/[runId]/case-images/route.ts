@@ -8,7 +8,8 @@ import { prepareImageForAnalysis } from '@/lib/chart-case-images/encode';
 import type { ExamType, RadiologySub, FindingSpot } from '@/lib/chart-case-images/types';
 
 export const dynamic = 'force-dynamic';
-export const maxDuration = 120;
+// 이미지가 많은 그룹은 비전 분석을 청크로 순차 처리 + 429 백오프 재시도하므로 시간 여유를 둔다.
+export const maxDuration = 300;
 
 const CASE_IMAGES_BUCKET = 'chart-case-images';
 const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp'] as const;
