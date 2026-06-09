@@ -8,7 +8,8 @@ import { prepareImageForAnalysis } from '@/lib/chart-case-images/encode';
 import { ensureCaseImagesTable } from '@/lib/chart-case-images/ensure-table';
 
 export const dynamic = 'force-dynamic';
-export const maxDuration = 120;
+// 병원 제출 이미지가 많으면(수십~100장) 다운로드+압축+LLM 분석이 오래 걸린다. Pro 상한까지 허용.
+export const maxDuration = 800;
 
 const HOSPITAL_BUCKET = 'case-image'; // hospital-ui 업로드 버킷
 const CASE_IMAGES_BUCKET = 'chart-case-images'; // 분류 결과 저장 버킷
@@ -32,17 +33,8 @@ export async function POST(
     // 이게 없으면 content_hash 누락 DB 에서 아래 INSERT 가 전량 실패한다.
     await ensureCaseImagesTable(pool);
 
-    // 멱등: 이미 case images 가 있으면 스킵
-    const { rows: existing } = await pool.query<{ n: string }>(
-      'SELECT COUNT(*)::text AS n FROM chart_pdf.parse_run_case_images WHERE parse_run_id = $1::uuid',
-      [runId],
-    );
-    if (Number(existing[0]?.n ?? '0') > 0) {
-      return NextResponse.json({ ok: true, skipped: true, reason: 'already_has_case_images' });
-    }
-
     // 병원 제출 이미지 경로 조회: 진료케이스(blog_case) 또는 건강검진(hospital_notes)의 payload.image_paths.
-    // (진료케이스는 blog_case, 건강검진은 hospital_notes 로 저장되므로 둘 다 확인.)
+    // (멱등/완전성 판단에 총 개수가 필요하므로 먼저 조회한다.)
     const { data: notesRows } = await supabase
       .schema('health_report')
       .from('generated_run_content')
@@ -68,6 +60,27 @@ export async function POST(
       return NextResponse.json({ ok: true, count: 0, reason: 'no_hospital_images' });
     }
 
+    // 멱등/자가복구: 전량 분류돼 있으면 스킵. 부분만 있으면(이전 타임아웃 등) 정리 후 전량 재분류.
+    const { rows: existing } = await pool.query<{ n: string }>(
+      'SELECT COUNT(*)::text AS n FROM chart_pdf.parse_run_case_images WHERE parse_run_id = $1::uuid',
+      [runId],
+    );
+    const existingCount = Number(existing[0]?.n ?? '0');
+    if (existingCount >= imagePaths.length) {
+      return NextResponse.json({ ok: true, skipped: true, reason: 'already_complete', count: existingCount });
+    }
+    if (existingCount > 0) {
+      const { rows: oldRows } = await pool.query<{ storage_path: string }>(
+        'SELECT storage_path FROM chart_pdf.parse_run_case_images WHERE parse_run_id = $1::uuid',
+        [runId],
+      );
+      if (oldRows.length > 0) {
+        await supabase.storage.from(CASE_IMAGES_BUCKET).remove(oldRows.map((r) => r.storage_path));
+      }
+      await pool.query('DELETE FROM chart_pdf.parse_run_case_images WHERE parse_run_id = $1::uuid', [runId]);
+      await pool.query('DELETE FROM chart_pdf.parse_run_case_image_summaries WHERE parse_run_id = $1::uuid', [runId]);
+    }
+
     // 날짜 그룹 구성: image_groups 있으면 그걸로, 없으면 전체를 날짜 없는 단일 그룹으로.
     type Group = { date: string | null; paths: string[] };
     let groups: Group[] = rawGroups
@@ -86,14 +99,17 @@ export async function POST(
     let globalIdx = 0;
     let savedCount = 0;
     for (const group of groups) {
-      const downloaded: { rawBuffer: Buffer; fileName: string; hash: string }[] = [];
-      for (const path of group.paths) {
-        const { data: blob, error } = await supabase.storage.from(HOSPITAL_BUCKET).download(path);
-        if (error || !blob) continue;
-        const rawBuffer = Buffer.from(await blob.arrayBuffer());
-        const hash = createHash('sha256').update(rawBuffer).digest('hex');
-        downloaded.push({ rawBuffer, fileName: path.split('/').pop() || 'image', hash });
-      }
+      type Downloaded = { rawBuffer: Buffer; fileName: string; hash: string };
+      const downloadedRaw = await Promise.all(
+        group.paths.map(async (path): Promise<Downloaded | null> => {
+          const { data: blob, error } = await supabase.storage.from(HOSPITAL_BUCKET).download(path);
+          if (error || !blob) return null;
+          const rawBuffer = Buffer.from(await blob.arrayBuffer());
+          const hash = createHash('sha256').update(rawBuffer).digest('hex');
+          return { rawBuffer, fileName: path.split('/').pop() || 'image', hash };
+        }),
+      );
+      const downloaded = downloadedRaw.filter((d): d is Downloaded => d !== null);
       if (downloaded.length === 0) continue;
 
       const imageParts: (ImageInputPart & { hash: string })[] = await Promise.all(
