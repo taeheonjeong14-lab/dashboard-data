@@ -94,10 +94,8 @@ export async function POST(request: Request) {
       phone: (hospitalForm.phone || '').trim() || null,
       address: (hospitalForm.address || '').trim() || null,
       addressDetail: (hospitalForm.addressDetail || '').trim() || null,
-      logoUrl: (hospitalForm.logoUrl || '').trim() || null,
       brandColor: (hospitalForm.brandColor || '').trim() || null,
       director_name_ko: (hospitalForm.director_name_ko || '').trim() || null,
-      seal_url: (hospitalForm.seal_url || '').trim() || null,
       tagline_line1: (hospitalForm.tagline_line1 || '').trim() || null,
       tagline_line2: (hospitalForm.tagline_line2 || '').trim() || null,
       blog_intro: (hospitalForm.blog_intro || '').trim() || null,
@@ -107,6 +105,13 @@ export async function POST(request: Request) {
       smartplace_review_url: (hospitalForm.smartplace_review_url || '').trim() || null,
       debug_port: hospitalForm.debug_port ? Number(hospitalForm.debug_port) : null,
     };
+
+    // 로고/직인은 전용 업로드 경로로 관리한다. 편집 폼이 기존 값을 못 실어 빈 값으로 와도 기존 자산을
+    // 덮어쓰지(지우지) 않도록, 값이 있을 때만 갱신한다. (이전에 저장 시 로고/직인이 사라지던 원인)
+    const logoUrlVal = (hospitalForm.logoUrl || '').trim();
+    if (logoUrlVal) payload.logoUrl = logoUrlVal;
+    const sealUrlVal = (hospitalForm.seal_url || '').trim();
+    if (sealUrlVal) payload.seal_url = sealUrlVal;
 
     if (searchadReady) {
       payload.searchad_customer_id = scid;
