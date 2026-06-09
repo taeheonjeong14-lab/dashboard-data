@@ -75,6 +75,18 @@ export function assignLinesToBuckets(
     }
 
     /**
+     * PlusVet: "Subjective"는 새 진료의 시작이다. 어떤 섹션(특히 한번 들어가면 잘 못 빠져나오는 lab)에
+     * 있든 chartBody로 복귀시킨다. 진료 헤더(`DATE | 재진 | 담당의`) 줄은 추출이 들쭉날쭉해 신뢰 불가 —
+     * Subjective가 진료 경계를 가리키는 안정적 신호다. (이게 없으면 첫 lab 진입 후 모든 진료가 lab에 처박힘)
+     */
+    if (chartKind === 'plusvet' && /^subjective\b/i.test(line.text.replace(/\s+/g, ' ').trim())) {
+      section = 'chartBody';
+      plusvetDiagnosticResultsSection = false;
+      buckets.chartBody.push({ page: line.page, text: line.text, corrected: false });
+      continue;
+    }
+
+    /**
      * 인투벳·기타: 방문마다 차트 끝에 "예방 접종 및 기생충" 문진이 붙음.
      * vaccination으로 넘긴 뒤에도 다음 `[재진] [날짜]…` 가 오면 새 방문 chartBody로 복귀해야 함.
      * (그렇지 않으면 첫 방문 문진 이후 모든 줄이 영구히 vaccination 버킷에만 쌓임)
