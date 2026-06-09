@@ -60,15 +60,21 @@ export async function POST(request: NextRequest) {
   const { data: profile } = await supabase
     .schema('core')
     .from('users')
-    .select('hospital_id, token_balance')
+    .select('hospital_id')
     .eq('id', user.id)
     .single();
   const hospitalId = (profile as { hospital_id?: string } | null)?.hospital_id;
   if (!hospitalId) return NextResponse.json({ error: '병원 정보를 찾을 수 없습니다.' }, { status: 400 });
 
-  // 토큰 사전 점검(컬럼 없으면 미적용 — 기존 동작 유지).
-  const balance = (profile as { token_balance?: number } | null)?.token_balance;
-  const tokensReady = typeof balance === 'number';
+  // 토큰 사전 점검 — token_balance 컬럼이 아직 없을 수 있으므로 별도 쿼리로(에러면 미적용, 기존 동작 유지).
+  const { data: tb, error: tbErr } = await supabase
+    .schema('core')
+    .from('users')
+    .select('token_balance')
+    .eq('id', user.id)
+    .single();
+  const balance = (tb as { token_balance?: number } | null)?.token_balance;
+  const tokensReady = !tbErr && typeof balance === 'number';
   if (tokensReady && (balance as number) < TOKEN_COST) {
     return NextResponse.json(
       { error: `토큰이 부족합니다. (보유 ${(balance as number).toLocaleString()}, 필요 ${TOKEN_COST})` },
