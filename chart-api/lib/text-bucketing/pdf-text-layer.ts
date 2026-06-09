@@ -8,6 +8,30 @@ export type TextLayerResult = {
   charsByPage: Map<number, number>;
 };
 
+type Item = { x: number; w: number; str: string; fs: number };
+
+/**
+ * 한 줄(동일 y) 아이템들을 x순으로 잇되, 열(column) 사이의 큰 x-간격에는 공백을 넣는다.
+ * 표(Plan/검사 표)는 칸이 공백 없이 붙어 추출되므로(예: "진료비-재진료1회1박현지"),
+ * 간격 기반 공백 삽입으로 칸 경계를 복원해야 파서가 열을 나눌 수 있다.
+ * 본문은 공백이 이미 아이템 문자열 안에 있어 간격이 0 → 추가 공백이 들어가지 않는다.
+ */
+function joinLineItems(items: Item[]): string {
+  items.sort((a, b) => a.x - b.x);
+  let text = '';
+  let prevEnd: number | null = null;
+  for (const it of items) {
+    if (prevEnd !== null) {
+      const gap = it.x - prevEnd;
+      const threshold = Math.max(3, it.fs * 0.35); // 열 사이 간격(≥수십)만 잡고 글자 간 커닝(≤1)은 무시
+      if (gap > threshold) text += ' ';
+    }
+    text += it.str;
+    prevEnd = it.x + it.w;
+  }
+  return text.replace(/\s+$/u, '');
+}
+
 /**
  * PDF 임베디드 텍스트 레이어를 페이지별 "시각 줄" 순서로 추출한다.
  * Gemini 이미지 전사와 달리 (1) 반복 블록을 스킵하지 않고 (2) 순서를 보존한다.
@@ -28,7 +52,7 @@ export async function extractOrderedLinesFromTextLayer(pdfBuffer: Buffer): Promi
   const pagerender = (pageData: {
     pageNumber?: number;
     getTextContent: (opts: { normalizeWhitespace: boolean; disableCombineTextItems: boolean }) => Promise<{
-      items: Array<{ str: string; transform: number[] }>;
+      items: Array<{ str: string; transform: number[]; width?: number }>;
     }>;
   }): Promise<string> => {
     pageCounter += 1;
@@ -38,26 +62,30 @@ export async function extractOrderedLinesFromTextLayer(pdfBuffer: Buffer): Promi
       .then((tc) => {
         const pageLines: Array<{ y: number; text: string }> = [];
         let lastY: number | undefined;
-        let buf = '';
+        let cur: Item[] = [];
         let chars = 0;
         const flush = () => {
-          const text = buf.replace(/\s+$/u, '');
-          if (text.trim().length > 0 && lastY !== undefined) pageLines.push({ y: lastY, text });
-          buf = '';
+          if (cur.length > 0 && lastY !== undefined) {
+            const text = joinLineItems(cur);
+            if (text.trim().length > 0) pageLines.push({ y: lastY, text });
+          }
+          cur = [];
         };
         for (const item of tc.items) {
           const y = item.transform?.[5];
-          if (lastY === undefined || y === lastY) {
-            buf += item.str;
-          } else {
-            flush();
-            buf += item.str;
-          }
+          const it: Item = {
+            x: item.transform?.[4] ?? 0,
+            w: item.width ?? 0,
+            str: item.str,
+            fs: Math.abs(item.transform?.[3] ?? item.transform?.[0] ?? 10),
+          };
+          if (lastY !== undefined && y !== lastY) flush();
+          cur.push(it);
           lastY = y;
           chars += (item.str ?? '').length;
         }
         flush();
-        // 안정 정렬(Node 20): y가 같은 항목은 원래 스트림 순서 유지(좌/우 컬럼 헤더 등).
+        // 안정 정렬(Node 20): y가 같은 줄은 원래 스트림 순서 유지(좌/우 컬럼 헤더 등).
         pageLines.sort((a, b) => b.y - a.y);
         for (const l of pageLines) lines.push({ page, text: l.text });
         charsByPage.set(page, chars);
