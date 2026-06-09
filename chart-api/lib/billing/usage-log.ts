@@ -103,16 +103,39 @@ export async function recordUnitUsage(
   });
 }
 
-/** Gemini REST 응답의 usageMetadata → 토큰 사용량 추출. */
+const num = (v: unknown): number => (typeof v === 'number' && Number.isFinite(v) ? v : 0);
+
+/** Gemini REST/genai 응답의 usageMetadata → 토큰 사용량 추출. */
 export function geminiUsageFromMetadata(
   usageMetadata: unknown,
 ): { inputTokens: number; outputTokens: number; cachedTokens: number; thinkingTokens: number } {
   const u = (usageMetadata ?? {}) as Record<string, unknown>;
-  const num = (v: unknown): number => (typeof v === 'number' && Number.isFinite(v) ? v : 0);
   return {
     inputTokens: num(u.promptTokenCount),
     outputTokens: num(u.candidatesTokenCount),
     cachedTokens: num(u.cachedContentTokenCount),
     thinkingTokens: num(u.thoughtsTokenCount),
+  };
+}
+
+/** OpenAI Responses API 의 usage → 토큰 사용량. (input_tokens / output_tokens) */
+export function openaiResponsesUsage(usage: unknown): { inputTokens: number; outputTokens: number; cachedTokens: number } {
+  const u = (usage ?? {}) as Record<string, unknown>;
+  const details = (u.input_tokens_details ?? {}) as Record<string, unknown>;
+  return {
+    inputTokens: num(u.input_tokens),
+    outputTokens: num(u.output_tokens),
+    cachedTokens: num(details.cached_tokens),
+  };
+}
+
+/** OpenAI Chat Completions 의 usage → 토큰 사용량. (prompt_tokens / completion_tokens) */
+export function openaiChatUsage(usage: unknown): { inputTokens: number; outputTokens: number; cachedTokens: number } {
+  const u = (usage ?? {}) as Record<string, unknown>;
+  const details = (u.prompt_tokens_details ?? {}) as Record<string, unknown>;
+  return {
+    inputTokens: num(u.prompt_tokens),
+    outputTokens: num(u.completion_tokens),
+    cachedTokens: num(details.cached_tokens),
   };
 }

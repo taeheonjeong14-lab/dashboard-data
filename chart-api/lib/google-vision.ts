@@ -1,6 +1,7 @@
 import vision from '@google-cloud/vision';
 import { Storage } from '@google-cloud/storage';
 import { randomUUID } from 'node:crypto';
+import { recordUnitUsage, type UsageContext } from '@/lib/billing/usage-log';
 
 type VisionVertex = {
   x: number;
@@ -540,12 +541,31 @@ async function runGoogleVisionPdfOcr(fileBuffer: Buffer): Promise<VisionOcrResul
   };
 }
 
+// Vision OCR 건당 사용량 적재(과금). PDF는 처리 페이지 수, 이미지는 1건.
+async function recordVisionUsage(res: VisionOcrResult, ctx: UsageContext | undefined, forceUnits?: number): Promise<void> {
+  try {
+    const units = forceUnits ?? Math.max(1, new Set(res.rows.map((r) => r.page)).size);
+    await recordUnitUsage({
+      provider: 'google_vision',
+      model: 'documentTextDetection',
+      unitKey: 'google_vision_ocr',
+      units,
+      ...(ctx ?? {}),
+    });
+  } catch {
+    /* 로깅 실패 무시 */
+  }
+}
+
 export async function runGoogleVisionOcr(
   fileBuffer: Buffer,
   mimeType: string,
+  usageContext?: UsageContext,
 ): Promise<VisionOcrResult> {
   if (mimeType === 'application/pdf') {
-    return runGoogleVisionPdfOcr(fileBuffer);
+    const res = await runGoogleVisionPdfOcr(fileBuffer);
+    await recordVisionUsage(res, usageContext);
+    return res;
   }
 
   const client = getVisionClient();
@@ -565,7 +585,7 @@ export async function runGoogleVisionOcr(
   const fallbackText = result.fullTextAnnotation?.text ?? '';
   const fallbackRows = buildRowsFromPlainText(fallbackText, 1);
   const rows = detectedRows.length <= 1 ? fallbackRows : detectedRows;
-  return {
+  const imageResult: VisionOcrResult = {
     text: getTextFromRows(rows) || fallbackText,
     confidence: (page as { confidence?: number } | undefined)?.confidence ?? null,
     rows,
@@ -582,4 +602,6 @@ export async function runGoogleVisionOcr(
       totalRows: rows.length,
     },
   };
+  await recordVisionUsage(imageResult, usageContext, 1);
+  return imageResult;
 }

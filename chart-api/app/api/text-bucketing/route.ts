@@ -2744,9 +2744,13 @@ export async function POST(request: NextRequest) {
     const [llmLines, ocr] = await Promise.all([
       usingTextLayer
         ? Promise.resolve(textLayerLines as OrderedLine[])
-        : extractOrderedLinesFromPdf({ pdfBuffer: binary, filename: sourceFileName || "report.pdf" }),
+        : extractOrderedLinesFromPdf({
+            pdfBuffer: binary,
+            filename: sourceFileName || "report.pdf",
+            usageContext: { hospitalId, feature: "extract" },
+          }),
       ocrConfigured
-        ? runGoogleVisionOcr(binary, sourceFileType).catch((ocrErr) => {
+        ? runGoogleVisionOcr(binary, sourceFileType, { hospitalId, feature: "ocr" }).catch((ocrErr) => {
             console.error('[text-bucketing] OCR 실패 (건너뜀):', ocrErr instanceof Error ? ocrErr.message : String(ocrErr));
             return emptyOcr;
           })
