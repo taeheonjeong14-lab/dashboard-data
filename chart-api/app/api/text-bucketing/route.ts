@@ -24,7 +24,6 @@ import {
   extractChartBodyDateKey,
   extractEfriendsVisitDateKey,
   extractLabDateTime,
-  extractPlusVetVisitDateKey,
 } from "@/lib/text-bucketing/chart-dates";
 import { runGoogleVisionOcr, type OcrRow } from "@/lib/google-vision";
 import { extractOrderedLinesFromPdf, getOpenAiOrderedLinesModel } from "@/lib/report-llm";
@@ -547,43 +546,59 @@ function groupChartBodyByDate(lines: BucketedLine[], chartKind: ChartKind): Char
   const groups = new Map<string, BucketedLine[]>();
   let currentKey = "unknown";
 
-  // PlusVet: 진료 헤더(`DATE | 재진 | 담당의`)가 하나라도 있으면 그걸로만 그룹 분할(엄격).
-  // 헤더를 전혀 못 잡으면(추출 형태가 다른 경우) 회귀 방지로 기존 방식 폴백.
-  const plusvetHasVisitHeaders =
-    chartKind === "plusvet" && linesToGroup.some((l) => extractPlusVetVisitDateKey(l.text) !== null);
-  if (chartKind === "plusvet") {
-    const headerLines = linesToGroup.filter((l) => extractPlusVetVisitDateKey(l.text) !== null);
-    console.log(
-      "[groupChartBodyByDate] plusvet visitHeaderMode=%s headerLines=%d (%s)",
-      plusvetHasVisitHeaders,
-      headerLines.length,
-      JSON.stringify(headerLines.map((l) => l.text).slice(0, 8)),
-    );
-  }
+  // PlusVet: Gemini 출력의 진료 헤더 형태가 실행마다 달라(셀 단위로 쪼개지기도 함) 헤더 줄 가정은 불안정.
+  // 대신 각 진료가 "Subjective"로 시작한다는 점을 이용한다 — Subjective 줄에서 새 진료 그룹을 시작하고,
+  // 직전까지 본 가장 최근 "4자리 연도" 날짜시각(랩 표의 2자리연도 26.xx 는 제외됨)을 그 진료의 키로 쓴다.
+  const plusvetSubjectiveAnchored =
+    chartKind === "plusvet" && linesToGroup.some((l) => /^subjective\b/i.test(l.text.trim()));
 
-  for (const line of linesToGroup) {
-    const dateTime =
-      chartKind === "efriends"
-        ? extractEfriendsVisitDateKey(line.text) ?? extractChartBodyDateKey(line.text, chartKind)
-        : chartKind === "plusvet" && plusvetHasVisitHeaders
-          ? // PlusVet은 진료 헤더 줄에서만 그룹을 나눈다(본문 속 잡다한 날짜로 진료가 쪼개지지 않게).
-            extractPlusVetVisitDateKey(line.text)
-          : extractChartBodyDateKey(line.text, chartKind);
-    if (dateTime) {
-      currentKey = dateTime;
-      if (!groups.has(currentKey)) {
-        groups.set(currentKey, []);
+  if (plusvetSubjectiveAnchored) {
+    let pendingDate: string | null = null;
+    let visitIdx = 0;
+    for (const line of linesToGroup) {
+      const t = line.text.trim();
+      if (/^(?:\[)?\s*20\d{2}[./-]\d{1,2}[./-]\d{1,2}\s+\d{1,2}:\d{2}/.test(t)) {
+        const d = extractLabDateTime(t);
+        if (d) pendingDate = d;
       }
-      if (chartKind === "efriends") {
-        const list = groups.get(currentKey) ?? [];
-        list.push(line);
-        groups.set(currentKey, list);
+      if (/^subjective\b/i.test(t)) {
+        visitIdx += 1;
+        let key = pendingDate ?? `진료 ${visitIdx}`;
+        if (groups.has(key)) key = `${key} (${visitIdx})`;
+        currentKey = key;
+        groups.set(currentKey, [line]);
+        continue;
       }
-      continue;
+      if (currentKey === "unknown") continue; // 첫 Subjective 이전(기본정보 등)은 버림
+      groups.get(currentKey)?.push(line);
     }
-    const list = groups.get(currentKey) ?? [];
-    list.push(line);
-    groups.set(currentKey, list);
+    console.log(
+      "[groupChartBodyByDate] plusvet subjectiveAnchored visits=%d keys=%s",
+      visitIdx,
+      JSON.stringify([...groups.keys()]),
+    );
+  } else {
+    for (const line of linesToGroup) {
+      const dateTime =
+        chartKind === "efriends"
+          ? extractEfriendsVisitDateKey(line.text) ?? extractChartBodyDateKey(line.text, chartKind)
+          : extractChartBodyDateKey(line.text, chartKind);
+      if (dateTime) {
+        currentKey = dateTime;
+        if (!groups.has(currentKey)) {
+          groups.set(currentKey, []);
+        }
+        if (chartKind === "efriends") {
+          const list = groups.get(currentKey) ?? [];
+          list.push(line);
+          groups.set(currentKey, list);
+        }
+        continue;
+      }
+      const list = groups.get(currentKey) ?? [];
+      list.push(line);
+      groups.set(currentKey, list);
+    }
   }
 
   return [...groups.entries()]
