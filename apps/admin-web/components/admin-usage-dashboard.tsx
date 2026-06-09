@@ -8,6 +8,7 @@ const KRW_PER_USD = 1380;
 type HospitalRow = {
   hospitalId: string | null;
   hospitalName: string;
+  tokenBalance: number;
   costUsd: number;
   inputTokens: number;
   outputTokens: number;
@@ -57,6 +58,31 @@ export default function AdminUsageDashboard() {
   useEffect(() => {
     void load(days);
   }, [days, load]);
+
+  const grant = useCallback(
+    async (hospitalId: string, name: string, current: number) => {
+      const input = window.prompt(`"${name}" 에 지급할 토큰 수 (음수면 차감). 현재 잔액 ${current.toLocaleString()}`, '1000');
+      if (input == null) return;
+      const tokens = Math.trunc(Number(input));
+      if (!Number.isFinite(tokens) || tokens === 0) return;
+      try {
+        const res = await fetch('/api/admin/usage', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ hospitalId, tokens }),
+        });
+        const json = (await res.json()) as { error?: string; balanceAfter?: number };
+        if (!res.ok) throw new Error(json.error || '지급 실패');
+        await load(days);
+      } catch (e) {
+        window.alert(e instanceof Error ? e.message : '지급 실패');
+      }
+    },
+    [days, load],
+  );
+
+  const anyZero = (data?.hospitals ?? []).some((h) => h.tokenBalance <= 0);
 
   return (
     <div style={{ padding: '4px 2px', maxWidth: 1100 }}>
@@ -127,6 +153,20 @@ export default function AdminUsageDashboard() {
           {error}
         </div>
       ) : null}
+      {anyZero ? (
+        <div
+          style={{
+            padding: 12,
+            marginBottom: 12,
+            fontSize: 12.5,
+            background: 'var(--warning-subtle, #fef9c3)',
+            borderRadius: 8,
+            color: 'var(--text-secondary)',
+          }}
+        >
+          잔액이 0 이하인 병원은 AI 작업이 차단됩니다(생성·추출·분석 시 "토큰 부족"). 아래 표의 <b>지급</b> 버튼으로 충전하세요.
+        </div>
+      ) : null}
 
       <div style={{ display: 'flex', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
         <SummaryCard
@@ -143,12 +183,12 @@ export default function AdminUsageDashboard() {
           <thead>
             <tr>
               <Th>병원</Th>
+              <Th right>토큰 잔액</Th>
               <Th right>호출</Th>
-              <Th right>입력 토큰</Th>
-              <Th right>출력 토큰</Th>
               <Th right>비용(USD)</Th>
               <Th right>≈ 원화</Th>
               <Th right>최근 사용</Th>
+              <Th right>지급</Th>
             </tr>
           </thead>
           <tbody>
@@ -168,15 +208,34 @@ export default function AdminUsageDashboard() {
               data!.hospitals.map((h) => (
                 <tr key={h.hospitalId ?? 'none'} style={{ borderTop: '1px solid var(--border)' }}>
                   <Td>{h.hospitalName}</Td>
-                  <Td right>{num(h.calls)}</Td>
-                  <Td right>{num(h.inputTokens)}</Td>
-                  <Td right>{num(h.outputTokens)}</Td>
                   <Td right strong>
-                    {usd(h.costUsd)}
+                    <span style={{ color: h.tokenBalance <= 0 ? 'var(--danger)' : 'var(--text)' }}>{num(h.tokenBalance)}</span>
                   </Td>
+                  <Td right>{num(h.calls)}</Td>
+                  <Td right>{usd(h.costUsd)}</Td>
                   <Td right>{krw(h.costUsd)}</Td>
                   <Td right muted>
                     {fmtDate(h.lastUsed)}
+                  </Td>
+                  <Td right>
+                    {h.hospitalId ? (
+                      <button
+                        type="button"
+                        onClick={() => grant(h.hospitalId as string, h.hospitalName, h.tokenBalance)}
+                        style={{
+                          padding: '3px 10px',
+                          fontSize: 11.5,
+                          fontWeight: 700,
+                          borderRadius: 6,
+                          cursor: 'pointer',
+                          border: '1px solid var(--accent)',
+                          background: 'var(--accent-subtle)',
+                          color: 'var(--accent)',
+                        }}
+                      >
+                        지급
+                      </button>
+                    ) : null}
                   </Td>
                 </tr>
               ))
