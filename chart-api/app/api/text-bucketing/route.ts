@@ -2722,7 +2722,12 @@ export async function POST(request: NextRequest) {
     const emptyOcr: import('@/lib/google-vision').VisionOcrResult = { text: '', confidence: null, rows: [] };
     // LLM 줄 추출과 OCR은 서로 독립(둘 다 binary만 사용)이라 병렬 실행 — 순차 대비 wall-clock 대폭 단축.
     const [llmLines, ocr] = await Promise.all([
-      extractOrderedLinesFromPdf({ pdfBuffer: binary, filename: sourceFileName || "report.pdf" }),
+      // plusvet은 비슷한 진료가 반복돼 모델이 통째로 스킵하므로 페이지당(1) 추출. 나머지는 기본(10).
+      extractOrderedLinesFromPdf({
+        pdfBuffer: binary,
+        filename: sourceFileName || "report.pdf",
+        pageRangeSize: chartType === "plusvet" ? 1 : undefined,
+      }),
       ocrConfigured
         ? runGoogleVisionOcr(binary, sourceFileType).catch((ocrErr) => {
             console.error('[text-bucketing] OCR 실패 (건너뜀):', ocrErr instanceof Error ? ocrErr.message : String(ocrErr));
