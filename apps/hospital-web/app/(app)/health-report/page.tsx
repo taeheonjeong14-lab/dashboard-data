@@ -28,6 +28,8 @@ type RequestItem = {
   ownerName: string | null;
   shareUrl: string | null;
   expiresAt: string | null;
+  status?: 'done' | 'processing' | 'error';
+  errorText?: string;
 };
 
 const CASE_IMAGE_BUCKET = 'case-image';
@@ -112,6 +114,13 @@ export default function HealthReportPage() {
   }, []);
 
   useEffect(() => { void loadList(); }, [loadList]);
+
+  // 처리중(분석 중) 접수가 있으면 주기적으로 목록을 갱신해 완료/실패를 반영한다.
+  useEffect(() => {
+    if (!items.some((it) => it.status === 'processing')) return;
+    const t = setInterval(() => void loadList(), 10000);
+    return () => clearInterval(t);
+  }, [items, loadList]);
 
   // ---------------------------------------------------------------------------
   // PDF handling
@@ -203,14 +212,14 @@ export default function HealthReportPage() {
   // Image upload — 서버에서 발급한 서명 URL로 case-image 버킷에 직접 업로드.
   // (서비스 롤이 경로/URL을 발급하므로 클라이언트 스토리지 RLS·함수 본문 크기 제한에 의존하지 않음)
   // ---------------------------------------------------------------------------
-  async function uploadImages(runId: string): Promise<{ paths: string[]; failed: number }> {
+  async function uploadImages(submissionId: string): Promise<{ paths: string[]; failed: number }> {
     if (imageFiles.length === 0) return { paths: [], failed: 0 };
     const supabase = createClient();
     const exts = imageFiles.map((f) => (f.name.split('.').pop() || 'jpg').toLowerCase());
     const signRes = await fetch('/api/health-report/case-images/sign', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ runId, exts }),
+      body: JSON.stringify({ submissionId, exts }),
     });
     // ok 체크를 .json() 앞에 둔다 — 타임아웃/에러 시 비-JSON 응답이 와도 "JSON" 파싱 에러가 아니라 진짜 원인이 뜨도록.
     if (!signRes.ok) {
@@ -248,22 +257,7 @@ export default function HealthReportPage() {
   }
 
   // ---------------------------------------------------------------------------
-  // Save hospital_notes — 서버(서비스 롤)에서 저장. admin 강조사항 pre-fill / 이미지 분류 트리거의 소스.
-  // ---------------------------------------------------------------------------
-  async function saveHospitalNotes(runId: string, imagePaths: string[]): Promise<void> {
-    const res = await fetch('/api/health-report/hospital-notes', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ runId, emphasisText, imagePaths }),
-    });
-    if (!res.ok) {
-      const err = (await res.json().catch(() => ({}))) as { error?: string };
-      throw new Error(err.error ?? '접수 정보 저장에 실패했습니다.');
-    }
-  }
-
-  // ---------------------------------------------------------------------------
-  // Submit
+  // Submit (비동기 접수)
   // ---------------------------------------------------------------------------
   const handleSubmit = async () => {
     if (pdfFiles.length === 0 || !hospitalId) {
@@ -278,6 +272,9 @@ export default function HealthReportPage() {
     setImageWarning('');
 
     try {
+      // 제출ID — 추출 전(runId 없음)에도 이미지를 이 ID 경로로 올려 연결한다.
+      const submissionId = crypto.randomUUID();
+
       // Step 1·2 — 각 PDF signed URL 발급 + 업로드 (같은 진료분의 차트본문/검사결과 등 여러 PDF 지원)
       const storagePaths: string[] = [];
       let bucket = '';
@@ -309,50 +306,43 @@ export default function HealthReportPage() {
       }
       setUploadProgress(100);
 
-      // Step 3 — extract (병원에는 "분석 중" 노출 안 함, 버튼은 "파일 업로드 중"만)
-      setStage('extracting');
-      const extractRes = await fetch('/api/health-report/extract', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ storagePaths, storageBucket: bucket, chartType, hospitalId, emphasisText }),
-      });
-      // 타임아웃/크래시 시 Vercel이 비-JSON 에러 페이지를 주므로 text로 받아 안전 파싱한다.
-      const extractRaw = await extractRes.text();
-      let extractData: { error?: string; runId?: string } = {};
-      try { extractData = extractRaw ? JSON.parse(extractRaw) : {}; } catch { /* 비-JSON(타임아웃 등) */ }
-      if (!extractRes.ok || !extractData.runId) {
-        const timedOut =
-          extractRes.status === 504 ||
-          extractRes.status === 408 ||
-          /FUNCTION_INVOCATION_TIMEOUT|timeout|timed out/i.test(extractRaw);
-        throw new Error(
-          timedOut
-            ? '파일 용량 초과 - PDF파일이 너무 용량이 크거나 이미지 파일이 너무 많습니다.'
-            : (extractData.error ?? '요청 처리에 실패했습니다.'),
-        );
-      }
-      const runId = extractData.runId;
-
-      // Step 4 — 이미지(best-effort) + hospital_notes(항상 저장)
-      // 이미지가 일부/전부 실패해도 강조사항·"병원 제출" 스티커(hospital_notes)는 반드시 저장한다.
+      // Step 3 — 이미지 업로드(submissionId 경로, best-effort)
       setStage('saving');
-      setProgressMessage('접수 정보 저장 중…');
+      setProgressMessage('이미지 업로드 중…');
       let imagePaths: string[] = [];
       let imgFailed = 0;
       let imgStepFailed = false;
       try {
-        const r = await uploadImages(runId);
+        const r = await uploadImages(submissionId);
         imagePaths = r.paths;
         imgFailed = r.failed;
       } catch {
-        imgStepFailed = true; // 서명 URL 단계 실패 등 — 그래도 notes는 저장한다
+        imgStepFailed = true; // 서명 URL 단계 실패 등 — 그래도 접수는 진행
       }
-      await saveHospitalNotes(runId, imagePaths);
+
+      // Step 4 — 비동기 접수(추출·저장은 백그라운드). 사용자는 기다리지 않아도 됨.
+      setProgressMessage('접수 중…');
+      const submitRes = await fetch('/api/health-report/submit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          kind: 'hospital_notes',
+          chartType,
+          storageBucket: bucket,
+          storagePaths,
+          emphasisText,
+          imagePaths,
+        }),
+      });
+      const submitData = (await submitRes.json().catch(() => ({}))) as { jobId?: string; error?: string };
+      if (!submitRes.ok || !submitData.jobId) {
+        throw new Error(submitData.error ?? '접수에 실패했습니다.');
+      }
       setImageWarning(
         imgStepFailed
-          ? '이미지 업로드에 실패했지만 강조사항은 저장되었습니다. 이미지는 다시 등록해 주세요.'
+          ? '이미지 업로드에 실패했습니다. 접수는 되었으나 이미지는 다시 등록해 주세요.'
           : imgFailed > 0
-            ? `이미지 ${imgFailed}장 업로드에 실패했습니다. (강조사항은 저장됨)`
+            ? `이미지 ${imgFailed}장 업로드에 실패했습니다. (접수는 됨)`
             : '',
       );
 
@@ -431,8 +421,16 @@ export default function HealthReportPage() {
                     <td style={{ padding: '11px 14px', color: 'var(--text)' }}>{item.patientName ?? '—'}</td>
                     <td style={{ padding: '11px 14px', color: 'var(--text)' }}>{item.ownerName ?? '—'}</td>
                     <td style={{ padding: '11px 14px' }}>
-                      {/* 활성 검토 링크가 있으면 '리포트 확인' 버튼, 아직 링크 생성 전이면 '요청 완료' 표시. */}
-                      {item.shareUrl ? (
+                      {/* 처리중/실패 접수면 상태 배지, 아니면 링크/완료 표시. */}
+                      {item.status === 'processing' ? (
+                        <span style={{ display: 'inline-block', padding: '3px 10px', background: 'var(--accent-subtle)', color: 'var(--accent)', borderRadius: '999px', fontSize: '11px', fontWeight: 700, whiteSpace: 'nowrap' }}>
+                          분석 중…
+                        </span>
+                      ) : item.status === 'error' ? (
+                        <span title={item.errorText} style={{ display: 'inline-block', padding: '3px 10px', background: 'var(--danger-subtle)', color: 'var(--danger)', borderRadius: '999px', fontSize: '11px', fontWeight: 700, whiteSpace: 'nowrap', cursor: 'help' }}>
+                          실패
+                        </span>
+                      ) : item.shareUrl ? (
                         <a href={item.shareUrl} target="_blank" rel="noopener noreferrer"
                           style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '4px 10px', background: 'var(--accent)', color: '#fff', borderRadius: 'var(--radius)', fontSize: '12px', fontWeight: 600, textDecoration: 'none', whiteSpace: 'nowrap' }}>
                           리포트 확인
@@ -598,8 +596,8 @@ export default function HealthReportPage() {
                 {isProcessing ? <><Spinner />파일 업로드 중…</> : '리포트 생성 요청'}
               </button>
               {stage === 'done' && (
-                <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--success)', textAlign: 'center' }}>
-                  요청 완료
+                <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--success)', textAlign: 'center', lineHeight: 1.5 }}>
+                  접수되었습니다 · 분석이 끝나면 왼쪽 목록에 표시됩니다
                   {imageWarning && (
                     <div style={{ marginTop: '6px', fontWeight: 600, color: 'var(--danger)' }}>{imageWarning}</div>
                   )}

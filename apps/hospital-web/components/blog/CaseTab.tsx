@@ -27,6 +27,8 @@ type CaseItem = {
   finalDiagnosis: string;
   imageCount: number;
   createdAt: string;
+  status?: 'done' | 'processing' | 'error';
+  errorText?: string;
 };
 
 type Overview = {
@@ -159,6 +161,13 @@ export function CaseTab() {
     void loadList();
   }, [loadList]);
 
+  // 처리중(분석 중) 항목이 있으면 주기적으로 목록을 갱신해 완료/실패를 반영한다.
+  useEffect(() => {
+    if (!items.some((it) => it.status === 'processing')) return;
+    const t = setInterval(() => void loadList(), 10000);
+    return () => clearInterval(t);
+  }, [items, loadList]);
+
   // ----- PDF -----
   const handlePdfFiles = useCallback((files: File[]) => {
     setPdfError(null);
@@ -275,7 +284,7 @@ export function CaseTab() {
   }
 
   // 건강검진 리포트와 동일한 서명 URL 직접 업로드(case-image 버킷). 날짜 그룹별로 묶어 반환.
-  async function uploadImageGroups(runId: string): Promise<{ date: string; paths: string[] }[]> {
+  async function uploadImageGroups(submissionId: string): Promise<{ date: string; paths: string[] }[]> {
     const flat: { groupIdx: number; file: File }[] = [];
     imageGroups.forEach((g, gi) => g.files.forEach((file) => flat.push({ groupIdx: gi, file })));
     if (flat.length === 0) return [];
@@ -285,7 +294,7 @@ export function CaseTab() {
     const signRes = await fetch('/api/health-report/case-images/sign', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ runId, exts }),
+      body: JSON.stringify({ submissionId, exts }),
     });
     const signData = (await signRes.json()) as { uploads?: { path: string; token: string }[]; error?: string };
     if (!signRes.ok) throw new Error(signData.error ?? '이미지 업로드 URL 생성에 실패했습니다.');
@@ -336,8 +345,10 @@ export function CaseTab() {
     setErrorMessage('');
 
     try {
+      // 제출ID — 추출 전(runId 없음)에도 이미지를 이 ID 경로로 올려 연결한다.
+      const submissionId = crypto.randomUUID();
+
       // 1·2) 각 PDF 서명 URL 발급 + 업로드 (같은 진료분 차트본문/검사결과 등 여러 PDF 지원)
-      //       — 건강검진 리포트와 동일한 차트 파싱 파이프라인 재사용
       const storagePaths: string[] = [];
       let bucket = '';
       for (let i = 0; i < pdfFiles.length; i++) {
@@ -367,43 +378,28 @@ export function CaseTab() {
         storagePaths.push(storagePath);
       }
 
-      // 3) 파싱(parse_run 생성) — 건강검진 리포트와 동일
-      setStage('extracting');
-      setProgressMessage('차트 분석 중…');
-      const extractRes = await fetch('/api/health-report/extract', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ storagePaths, storageBucket: bucket, chartType, hospitalId }),
-      });
-      // 타임아웃/크래시 시 Vercel이 비-JSON 에러 페이지를 주므로 text로 받아 안전 파싱한다.
-      const extractRaw = await extractRes.text();
-      let extractData: { error?: string; runId?: string } = {};
-      try { extractData = extractRaw ? JSON.parse(extractRaw) : {}; } catch { /* 비-JSON(타임아웃 등) */ }
-      if (!extractRes.ok || !extractData.runId) {
-        const timedOut =
-          extractRes.status === 504 ||
-          extractRes.status === 408 ||
-          /FUNCTION_INVOCATION_TIMEOUT|timeout|timed out/i.test(extractRaw);
-        throw new Error(
-          timedOut
-            ? '파일 용량 초과 - PDF파일이 너무 용량이 크거나 이미지 파일이 너무 많습니다.'
-            : (extractData.error ?? '요청 처리에 실패했습니다.'),
-        );
-      }
-      const runId = extractData.runId;
-
-      // 4) 이미지 업로드 + 케이스 개요 저장(blog_case)
+      // 3) 이미지 업로드 (submissionId 경로 — runId 없이)
       setStage('saving');
-      setProgressMessage('케이스 정보 저장 중…');
-      const imageGroupsPayload = await uploadImageGroups(runId);
-      const saveRes = await fetch('/api/blog/case/save', {
+      setProgressMessage('이미지 업로드 중…');
+      const imageGroupsPayload = await uploadImageGroups(submissionId);
+
+      // 4) 접수(비동기) — 추출·저장은 백그라운드에서 처리된다. 사용자는 기다리지 않아도 됨.
+      setProgressMessage('접수 중…');
+      const submitRes = await fetch('/api/health-report/submit', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ runId, overview, imageGroups: imageGroupsPayload }),
+        body: JSON.stringify({
+          kind: 'blog_case',
+          chartType,
+          storageBucket: bucket,
+          storagePaths,
+          overview,
+          imageGroups: imageGroupsPayload,
+        }),
       });
-      if (!saveRes.ok) {
-        const err = (await saveRes.json().catch(() => ({}))) as { error?: string };
-        throw new Error(err.error ?? '케이스 정보 저장에 실패했습니다.');
+      const submitData = (await submitRes.json().catch(() => ({}))) as { jobId?: string; error?: string };
+      if (!submitRes.ok || !submitData.jobId) {
+        throw new Error(submitData.error ?? '접수에 실패했습니다.');
       }
 
       // 완료 — 폼 초기화
@@ -474,7 +470,19 @@ export function CaseTab() {
                     {formatDate(item.createdAt)}
                     {item.friendlyId && <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 1 }}>#{item.friendlyId}</div>}
                   </td>
-                  <td style={{ padding: '11px 14px', color: 'var(--text)', whiteSpace: 'nowrap' }}>{item.patientName || '—'}</td>
+                  <td style={{ padding: '11px 14px', color: 'var(--text)', whiteSpace: 'nowrap' }}>
+                    {item.status === 'processing' ? (
+                      <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--accent)', background: 'var(--accent-subtle)', padding: '2px 7px', borderRadius: 999 }}>
+                        분석 중…
+                      </span>
+                    ) : item.status === 'error' ? (
+                      <span title={item.errorText} style={{ fontSize: 11, fontWeight: 700, color: 'var(--danger)', background: 'var(--danger-subtle)', padding: '2px 7px', borderRadius: 999, cursor: 'help' }}>
+                        실패
+                      </span>
+                    ) : (
+                      item.patientName || '—'
+                    )}
+                  </td>
                   <td style={{ padding: '11px 14px', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>{item.ownerName || '—'}</td>
                   <td style={{ padding: '11px 14px', color: 'var(--text)' }}>{item.finalDiagnosis || '—'}</td>
                   <td style={{ padding: '11px 14px', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
@@ -744,7 +752,9 @@ export function CaseTab() {
             )}
           </button>
           {stage === 'done' && (
-            <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--success)', textAlign: 'center' }}>등록 완료</div>
+            <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--success)', textAlign: 'center', lineHeight: 1.5 }}>
+              접수되었습니다 · 분석이 끝나면 왼쪽 목록에 표시됩니다
+            </div>
           )}
         </div>
       </div>

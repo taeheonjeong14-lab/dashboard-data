@@ -86,9 +86,41 @@ export async function GET() {
           updatedAt: c.updated_at,
         };
       })
+      .map((it) => ({ ...it, status: 'done' as const, errorText: '' }))
       .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
 
-    return NextResponse.json({ items });
+    // 아직 추출 전/중이거나 실패한 접수(blog_case 미생성) 도 함께 보여준다.
+    const { data: jobs } = await srvc
+      .schema('health_report')
+      .from('extract_jobs')
+      .select('id, status, error_text, payload, created_at, updated_at')
+      .eq('hospital_id', hospitalId)
+      .eq('kind', 'blog_case')
+      .in('status', ['queued', 'processing', 'error'])
+      .order('created_at', { ascending: false });
+    type JobRow = {
+      id: string;
+      status: string;
+      error_text: string | null;
+      payload: { overview?: Record<string, string>; image_paths?: string[] } | null;
+      created_at: string;
+      updated_at: string;
+    };
+    const pending = ((jobs ?? []) as JobRow[]).map((j) => ({
+      runId: `job:${j.id}`,
+      friendlyId: null,
+      patientName: '',
+      ownerName: '',
+      finalDiagnosis: j.payload?.overview?.final_diagnosis ?? '',
+      imageCount: Array.isArray(j.payload?.image_paths) ? j.payload!.image_paths.length : 0,
+      createdAt: j.created_at,
+      updatedAt: j.updated_at,
+      status: (j.status === 'error' ? 'error' : 'processing') as 'error' | 'processing',
+      errorText: j.error_text ?? '',
+    }));
+
+    const all = [...pending, ...items].sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+    return NextResponse.json({ items: all });
   } catch (e) {
     console.error('GET /api/blog/case/list:', e);
     return NextResponse.json(

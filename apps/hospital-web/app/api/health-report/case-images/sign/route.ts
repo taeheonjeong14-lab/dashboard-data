@@ -8,7 +8,10 @@ export const maxDuration = 60;
 const CASE_IMAGE_BUCKET = 'case-image';
 const ALLOWED_EXT = new Set(['jpg', 'jpeg', 'png', 'webp']);
 
-type SignBody = { runId?: string; exts?: string[] };
+// runId(동기 흐름) 또는 submissionId(비동기 제출 — runId가 아직 없을 때) 중 하나로 경로 scope 를 구성.
+type SignBody = { runId?: string; submissionId?: string; exts?: string[] };
+
+const UUIDISH = /^[0-9a-zA-Z][0-9a-zA-Z_-]{7,63}$/;
 
 // POST /api/health-report/case-images/sign
 // 병원 제출 이미지용 서명 업로드 URL 발급(서비스 롤). 브라우저는 받은 토큰으로 스토리지에 직접 업로드한다.
@@ -27,8 +30,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
   }
 
-  const runId = String(body.runId ?? '').trim();
-  if (!runId) return NextResponse.json({ error: 'runId는 필수입니다.' }, { status: 400 });
+  const scope = String(body.runId ?? body.submissionId ?? '').trim();
+  if (!scope || !UUIDISH.test(scope)) {
+    return NextResponse.json({ error: 'runId 또는 submissionId가 필요합니다.' }, { status: 400 });
+  }
 
   const exts = Array.isArray(body.exts) ? body.exts : [];
   if (exts.length === 0) return NextResponse.json({ uploads: [] });
@@ -51,7 +56,7 @@ export async function POST(request: NextRequest) {
       exts.map(async (rawExt) => {
         const e = String(rawExt).toLowerCase();
         const ext = ALLOWED_EXT.has(e) ? e : 'jpg';
-        const path = `${hospitalId}/${runId}/${randomUUID()}.${ext}`;
+        const path = `${hospitalId}/${scope}/${randomUUID()}.${ext}`;
         const { data, error } = await srvc.storage.from(CASE_IMAGE_BUCKET).createSignedUploadUrl(path);
         if (error || !data) throw new Error(error?.message ?? '서명 URL 생성 실패');
         return { path: data.path, token: data.token };
