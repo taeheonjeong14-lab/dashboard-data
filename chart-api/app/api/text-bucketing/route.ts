@@ -2693,6 +2693,7 @@ export async function POST(request: NextRequest) {
         : Promise.resolve(emptyOcr),
     ]);
     console.log(`[text-bucketing DEBUG] llmLines count=${llmLines.length}, first3=${JSON.stringify(llmLines.slice(0, 3))}, last3=${JSON.stringify(llmLines.slice(-3))}`);
+    console.log(`[text-bucketing] OCR 결과: rows=${ocr.rows.length} (ocrConfigured=${ocrConfigured}) — rows>0 이면 OCR 동작, 0이면 실패/미동작`);
 
     const pasteLines =
       chartType === "efriends" ? orderedLinesFromPastedChartText(chartPasteText, "efriends") : [];
