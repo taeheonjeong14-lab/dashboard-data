@@ -2,6 +2,8 @@
  * Thin Gemini REST caller — vet-report 포팅 전까지 최소 의존 LLM.
  * GEMINI_API_KEY 또는 NEXT_PUBLIC_GEMINI_API_KEY 사용 (ddx-api와 동일 계열).
  */
+import { recordTokenUsage, geminiUsageFromMetadata, type UsageContext } from '@/lib/billing/usage-log';
+
 export type GeminiTextOptions = {
   /** 기본 8192. 긴 버킷팅 JSON 등은 늘림 */
   maxOutputTokens?: number;
@@ -15,6 +17,8 @@ export type GeminiTextOptions = {
   thinkingBudget?: number;
   /** systemInstruction(역할/규칙) 을 user content 와 분리해 전달 */
   systemInstruction?: string;
+  /** 과금 로깅용 컨텍스트(병원/사용자/기능/run). 제공 시 billing.llm_usage 에 적재. */
+  usageContext?: UsageContext;
 };
 
 export async function geminiGenerateText(prompt: string, opts?: GeminiTextOptions): Promise<string> {
@@ -62,6 +66,7 @@ export async function geminiGenerateText(prompt: string, opts?: GeminiTextOption
 
   const data = (await res.json()) as {
     candidates?: Array<{ content?: { parts?: Array<{ text?: string }> }; finishReason?: string }>;
+    usageMetadata?: unknown;
   };
   const cand = data.candidates?.[0];
   const text = cand?.content?.parts?.map((p) => p.text ?? '').join('') ?? '';
@@ -71,6 +76,12 @@ export async function geminiGenerateText(prompt: string, opts?: GeminiTextOption
   if (cand?.finishReason === 'MAX_TOKENS') {
     console.warn(`[gemini] output truncated: finishReason=MAX_TOKENS model=${model} maxOut=${maxOut}`);
   }
+  await recordTokenUsage({
+    provider: 'gemini',
+    model,
+    ...geminiUsageFromMetadata(data.usageMetadata),
+    ...(opts?.usageContext ?? {}),
+  });
   return text;
 }
 
@@ -79,7 +90,10 @@ export type GeminiContentPart =
   | { text: string }
   | { inlineData: { mimeType: string; data: string } };
 
-export async function geminiGenerateFromParts(parts: GeminiContentPart[]): Promise<string> {
+export async function geminiGenerateFromParts(
+  parts: GeminiContentPart[],
+  usageContext?: UsageContext,
+): Promise<string> {
   const key =
     process.env.GEMINI_API_KEY?.trim() ||
     process.env.NEXT_PUBLIC_GEMINI_API_KEY?.trim();
@@ -118,9 +132,16 @@ export async function geminiGenerateFromParts(parts: GeminiContentPart[]): Promi
 
   const data = (await res.json()) as {
     candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
+    usageMetadata?: unknown;
   };
   const text = data.candidates?.[0]?.content?.parts?.map((part) => part.text ?? '').join('') ?? '';
   if (!text) throw new Error('Gemini returned empty text');
+  await recordTokenUsage({
+    provider: 'gemini',
+    model,
+    ...geminiUsageFromMetadata(data.usageMetadata),
+    ...(usageContext ?? {}),
+  });
   return text;
 }
 

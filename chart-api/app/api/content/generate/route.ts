@@ -424,8 +424,14 @@ export async function POST(request: NextRequest) {
   if (!isParseRunUuid(runId)) return NextResponse.json({ error: 'runId invalid' }, { status: 400 });
 
   const pool = getChartPgPool();
-  const runOk = await pool.query(`SELECT 1 FROM chart_pdf.parse_runs WHERE id = $1::uuid`, [runId]);
+  const runOk = await pool.query<{ hospital_id: string | null }>(
+    `SELECT hospital_id FROM chart_pdf.parse_runs WHERE id = $1::uuid`,
+    [runId],
+  );
   if (runOk.rows.length === 0) return NextResponse.json({ error: 'run not found' }, { status: 404 });
+  // 과금 로깅 귀속용(병원/run/기능). geminiGenerateText 에 넘기면 billing.llm_usage 에 적재.
+  const hospitalId = runOk.rows[0]?.hospital_id ?? null;
+  const usageCtx = (feature: string) => ({ hospitalId, feature, runId });
 
   try {
     const source = await loadReportSourceData(runId);
@@ -627,6 +633,7 @@ export async function POST(request: NextRequest) {
           systemInstruction: SYS_CAUSAL,
           thinkingBudget: 4096,
           maxOutputTokens: stageMaxTokens,
+          usageContext: usageCtx('blog_causal'),
         });
         const { parsed: causalFlow, debug: parserDebug } = await parseJsonWithRepair(
           raw,
@@ -685,6 +692,7 @@ export async function POST(request: NextRequest) {
           systemInstruction: SYS_OUTLINE,
           thinkingBudget: 0,
           maxOutputTokens: stageMaxTokens,
+          usageContext: usageCtx('blog_outline'),
         });
         const { parsed: outline, debug: parserDebug } = await parseJsonWithRepair(
           raw,
@@ -740,6 +748,7 @@ export async function POST(request: NextRequest) {
           systemInstruction: SYS_BLOGPOST,
           thinkingBudget: 0,
           maxOutputTokens: stageMaxTokens,
+          usageContext: usageCtx('blog_post'),
         });
         const { parsed: generated, debug: parserDebug } = await parseJsonWithRepair(
           raw,
