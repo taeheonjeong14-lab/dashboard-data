@@ -6,7 +6,12 @@ export type UsageContext = {
   userId?: string | null;
   feature?: string | null;
   runId?: string | null;
+  /** 한 사용자 작업(operation)을 묶는 id. 작업의 모든 LLM 호출 usage 에 동일하게 태깅 → 합산 후 1회 토큰 차감. */
+  operationId?: string | null;
 };
+
+/** 1토큰 = $0.10 (원가 1:1). 변경 시 env BILLING_TOKEN_VALUE_USD 로 오버라이드. */
+export const TOKEN_VALUE_USD = Number(process.env.BILLING_TOKEN_VALUE_USD) || 0.1;
 
 type RecordBase = UsageContext & {
   provider: string;
@@ -19,6 +24,7 @@ async function insertUsage(row: {
   userId: string | null;
   feature: string | null;
   runId: string | null;
+  operationId: string | null;
   provider: string;
   model: string;
   inputTokens: number;
@@ -34,14 +40,15 @@ async function insertUsage(row: {
     const pool = getChartPgPool();
     await pool.query(
       `INSERT INTO billing.llm_usage
-        (hospital_id, user_id, feature, run_id, provider, model,
+        (hospital_id, user_id, feature, run_id, operation_id, provider, model,
          input_tokens, output_tokens, cached_tokens, thinking_tokens, units, cost_usd, meta)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
       [
         row.hospitalId,
         row.userId,
         row.feature,
         row.runId,
+        row.operationId,
         row.provider,
         row.model,
         row.inputTokens,
@@ -69,6 +76,7 @@ export async function recordTokenUsage(params: RecordBase & TokenUsage): Promise
     userId: uuidOrNull(params.userId),
     feature: params.feature ?? null,
     runId: uuidOrNull(params.runId),
+    operationId: uuidOrNull(params.operationId),
     provider: params.provider,
     model: params.model,
     inputTokens: Math.max(0, params.inputTokens ?? 0),
@@ -91,6 +99,7 @@ export async function recordUnitUsage(
     userId: uuidOrNull(params.userId),
     feature: params.feature ?? null,
     runId: uuidOrNull(params.runId),
+    operationId: uuidOrNull(params.operationId),
     provider: params.provider,
     model: params.model,
     inputTokens: 0,

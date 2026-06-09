@@ -22,6 +22,7 @@ export type UsageContext = {
   userId?: string | null;
   feature?: string | null;
   runId?: string | null;
+  operationId?: string | null;
 };
 
 const uuidOrNull = (v: string | null | undefined): string | null =>
@@ -48,14 +49,15 @@ export async function recordOpenAiChatUsage(params: UsageContext & { model: stri
     const pool = getAdminWebPgPool();
     await pool.query(
       `INSERT INTO billing.llm_usage
-        (hospital_id, user_id, feature, run_id, provider, model,
+        (hospital_id, user_id, feature, run_id, operation_id, provider, model,
          input_tokens, output_tokens, cached_tokens, thinking_tokens, units, cost_usd, meta)
-       VALUES ($1,$2,$3,$4,'openai',$5,$6,$7,$8,0,null,$9,null)`,
+       VALUES ($1,$2,$3,$4,$5,'openai',$6,$7,$8,$9,0,null,$10,null)`,
       [
         uuidOrNull(params.hospitalId),
         uuidOrNull(params.userId),
         params.feature ?? null,
         uuidOrNull(params.runId),
+        uuidOrNull(params.operationId),
         params.model,
         input,
         output,
