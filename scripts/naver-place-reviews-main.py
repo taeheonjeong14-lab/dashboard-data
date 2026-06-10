@@ -485,20 +485,24 @@ def collect_reviews_for_hospital(hospital: dict, cutoff_date: str) -> list[dict]
 
     with sync_playwright() as pw:
         own_context = True
+        cdp_ok = False
         if use_cdp:
             endpoint = f"http://127.0.0.1:{debug_port}"
             try:
                 browser = pw.chromium.connect_over_cdp(endpoint)
-            except Exception as e:
-                raise RuntimeError(
-                    f"디버깅 Chrome(CDP) 연결 실패: {endpoint} — "
-                    f"Chrome을 --remote-debugging-port={debug_port} 로 띄웠는지 확인하세요."
-                ) from e
-            had_contexts = bool(browser.contexts)
-            context = browser.contexts[0] if had_contexts else browser.new_context()
-            own_context = not had_contexts
-            print(f"   (CDP 실 Chrome 연결: {endpoint})")
-        else:
+                cdp_ok = True
+            except Exception:
+                # 그 포트 Chrome 이 안 떠 있으면 에러로 죽지 말고 자체 헤드리스로 폴백.
+                print(
+                    f"   ⚠️ CDP 연결 실패({endpoint}) → 헤드리스 브라우저로 폴백 "
+                    f"(원치 않으면 그 포트로 Chrome 을 띄우거나, CDP 강제는 REVIEW_USE_DEBUG_CHROME=0)"
+                )
+            if cdp_ok:
+                had_contexts = bool(browser.contexts)
+                context = browser.contexts[0] if had_contexts else browser.new_context()
+                own_context = not had_contexts
+                print(f"   (CDP 실 Chrome 연결: {endpoint})")
+        if not cdp_ok:
             browser = pw.chromium.launch(headless=headless)
             context = browser.new_context(
                 user_agent=(
@@ -507,6 +511,7 @@ def collect_reviews_for_hospital(hospital: dict, cutoff_date: str) -> list[dict]
                 ),
                 locale="ko-KR",
             )
+            own_context = True
 
         page = context.new_page()
         page.on("request", handle_request)
