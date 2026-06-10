@@ -43,13 +43,15 @@ const EMPTY_FORM = {
   googleads_refresh_token_encrypted: '',
   intake_survey_enabled: false,
   competitors: [
-    { slot: 1, name: '', naver_blog_id: '' },
-    { slot: 2, name: '', naver_blog_id: '' },
-    { slot: 3, name: '', naver_blog_id: '' },
+    { slot: 1, name: '', naver_blog_id: '', smartplace_review_url: '' },
+    { slot: 2, name: '', naver_blog_id: '', smartplace_review_url: '' },
+    { slot: 3, name: '', naver_blog_id: '', smartplace_review_url: '' },
   ],
 };
 
-function normalizeCompetitors(raw: unknown): { slot: number; name: string; naver_blog_id: string }[] {
+function normalizeCompetitors(
+  raw: unknown,
+): { slot: number; name: string; naver_blog_id: string; smartplace_review_url: string }[] {
   const arr = Array.isArray(raw) ? (raw as Record<string, unknown>[]) : [];
   return [1, 2, 3].map((slot) => {
     const found = arr.find((c) => Number(c?.slot) === slot);
@@ -57,6 +59,7 @@ function normalizeCompetitors(raw: unknown): { slot: number; name: string; naver
       slot,
       name: String(found?.name || ''),
       naver_blog_id: String(found?.naver_blog_id || ''),
+      smartplace_review_url: String(found?.smartplace_review_url || ''),
     };
   });
 }
@@ -724,6 +727,19 @@ export default function AdminHospitalsManager() {
                       />
                     </LabeledField>
                   </div>
+                  <LabeledField label="스마트플레이스 리뷰 URL" hint="리뷰 추이 수집 대상(경쟁병원 플레이스 리뷰 페이지)">
+                    <input
+                      placeholder="https://m.place.naver.com/.../review/visitor"
+                      value={c.smartplace_review_url}
+                      onChange={(e) =>
+                        setForm((f) => ({
+                          ...f,
+                          competitors: f.competitors.map((x, j) => (j === i ? { ...x, smartplace_review_url: e.target.value } : x)),
+                        }))
+                      }
+                      style={fieldStyle}
+                    />
+                  </LabeledField>
                 </DataCard>
               ))}
             </div>

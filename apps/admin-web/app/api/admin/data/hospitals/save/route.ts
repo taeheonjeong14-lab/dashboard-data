@@ -52,7 +52,7 @@ type FormBody = {
     googleads_customer_id?: string;
     googleads_refresh_token_encrypted?: string;
     intake_survey_enabled?: boolean;
-    competitors?: { slot?: number; name?: string; naver_blog_id?: string }[];
+    competitors?: { slot?: number; name?: string; naver_blog_id?: string; smartplace_review_url?: string }[];
   };
 };
 
@@ -212,6 +212,7 @@ export async function POST(request: Request) {
           slot: Number(c?.slot) || i + 1,
           name: (c?.name || '').trim(),
           naver_blog_id: (c?.naver_blog_id || '').trim() || null,
+          smartplace_review_url: (c?.smartplace_review_url || '').trim() || null,
           is_active: true,
         }))
         .filter((c) => c.name && c.slot >= 1 && c.slot <= 3);

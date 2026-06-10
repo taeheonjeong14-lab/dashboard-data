@@ -124,12 +124,12 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
     };
 
     // 경쟁병원(최대 3) — 테이블 미생성 가능성 대비 방어적으로 조회
-    let competitors: { slot: number; name: string; naver_blog_id: string }[] = [];
+    let competitors: { slot: number; name: string; naver_blog_id: string; smartplace_review_url: string }[] = [];
     {
       const r = await supabase
         .schema('analytics')
         .from('analytics_hospital_competitors')
-        .select('slot, name, naver_blog_id')
+        .select('slot, name, naver_blog_id, smartplace_review_url')
         .eq('hospital_id', hospitalId)
         .order('slot', { ascending: true });
       if (!r.error && Array.isArray(r.data)) {
@@ -137,6 +137,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
           slot: Number((c as { slot?: number }).slot) || 0,
           name: String((c as { name?: string }).name || ''),
           naver_blog_id: String((c as { naver_blog_id?: string }).naver_blog_id || ''),
+          smartplace_review_url: String((c as { smartplace_review_url?: string }).smartplace_review_url || ''),
         }));
       }
     }
