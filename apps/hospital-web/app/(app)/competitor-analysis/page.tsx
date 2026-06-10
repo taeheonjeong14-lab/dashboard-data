@@ -46,33 +46,42 @@ function RankChartCard({
 
   return (
     <section style={card}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10, marginBottom: 12 }}>
-        <h2 className="text-base font-semibold text-[var(--text)]" style={{ margin: 0 }}>{title}</h2>
-        {series.keywords.length > 0 ? (
-          <select value={kw} onChange={(e) => setKeyword(e.target.value)} style={selectStyle}>
-            {series.keywords.map((k) => (
-              <option key={k} value={k}>{k}</option>
-            ))}
-          </select>
-        ) : null}
+      <h2 className="text-base font-semibold text-[var(--text)]" style={{ margin: 0, marginBottom: 12 }}>{title}</h2>
+      <div style={{ display: "flex", gap: 16, alignItems: "flex-start", flexWrap: "wrap" }}>
+        {/* 좌: 키워드 선택 */}
+        <div style={{ width: 170, flexShrink: 0, display: "flex", flexDirection: "column", gap: 6 }}>
+          <span style={{ fontSize: 12, fontWeight: 600, color: "var(--text-secondary)" }}>키워드</span>
+          {series.keywords.length > 0 ? (
+            <select value={kw} onChange={(e) => setKeyword(e.target.value)} style={{ ...selectStyle, width: "100%", maxWidth: "100%" }}>
+              {series.keywords.map((k) => (
+                <option key={k} value={k}>{k}</option>
+              ))}
+            </select>
+          ) : (
+            <span style={{ fontSize: 12, color: "var(--text-muted)" }}>키워드 없음</span>
+          )}
+        </div>
+        {/* 우: 그래프(폭 축소) */}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          {data.length === 0 ? (
+            <p className="text-xs text-[var(--text-muted)]">추적 중인 순위 데이터가 없습니다. (경쟁사는 수집 후 채워집니다.)</p>
+          ) : (
+            <ResponsiveContainer width="100%" height={300}>
+              <LineChart data={data} margin={{ top: 8, right: 12, bottom: 4, left: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
+                <XAxis dataKey="date" tick={{ fontSize: 11 }} tickFormatter={(d: string) => d.slice(5)} />
+                <YAxis reversed allowDecimals={false} width={36} tick={{ fontSize: 11 }} domain={[1, "dataMax"]} label={{ value: "순위", angle: -90, position: "insideLeft", fontSize: 11 }} />
+                <Tooltip formatter={(v) => (v == null ? "미노출" : `${v}위`)} contentStyle={{ fontSize: 12 }} />
+                <Legend wrapperStyle={{ fontSize: 11 }} />
+                {defs.map((d) => (
+                  <Line key={d.key} type="monotone" dataKey={d.key} name={d.name} stroke={d.color} strokeWidth={2} dot={{ r: 2 }} connectNulls />
+                ))}
+              </LineChart>
+            </ResponsiveContainer>
+          )}
+          <p className="text-xs text-[var(--text-muted)]" style={{ marginTop: 8 }}>위로 갈수록 상위 노출입니다. 미노출 구간은 선이 이어집니다.</p>
+        </div>
       </div>
-      {data.length === 0 ? (
-        <p className="text-xs text-[var(--text-muted)]">추적 중인 순위 데이터가 없습니다. (경쟁사는 수집 후 채워집니다.)</p>
-      ) : (
-        <ResponsiveContainer width="100%" height={300}>
-          <LineChart data={data} margin={{ top: 8, right: 12, bottom: 4, left: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
-            <XAxis dataKey="date" tick={{ fontSize: 11 }} tickFormatter={(d: string) => d.slice(5)} />
-            <YAxis reversed allowDecimals={false} width={36} tick={{ fontSize: 11 }} domain={[1, "dataMax"]} label={{ value: "순위", angle: -90, position: "insideLeft", fontSize: 11 }} />
-            <Tooltip formatter={(v) => (v == null ? "미노출" : `${v}위`)} contentStyle={{ fontSize: 12 }} />
-            <Legend wrapperStyle={{ fontSize: 11 }} />
-            {defs.map((d) => (
-              <Line key={d.key} type="monotone" dataKey={d.key} name={d.name} stroke={d.color} strokeWidth={2} dot={{ r: 2 }} connectNulls />
-            ))}
-          </LineChart>
-        </ResponsiveContainer>
-      )}
-      <p className="text-xs text-[var(--text-muted)]" style={{ marginTop: 8 }}>위로 갈수록 상위 노출입니다. 미노출 구간은 선이 이어집니다.</p>
     </section>
   );
 }
