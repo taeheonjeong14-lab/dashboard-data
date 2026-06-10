@@ -10,8 +10,8 @@ export type UsageContext = {
   operationId?: string | null;
 };
 
-/** 1토큰 = $0.10 (원가 1:1). 변경 시 env BILLING_TOKEN_VALUE_USD 로 오버라이드. */
-export const TOKEN_VALUE_USD = Number(process.env.BILLING_TOKEN_VALUE_USD) || 0.1;
+/** 1토큰 = $0.01 (원가 1:1, 소수 토큰 정밀 차감). 변경 시 env BILLING_TOKEN_VALUE_USD 로 오버라이드. */
+export const TOKEN_VALUE_USD = Number(process.env.BILLING_TOKEN_VALUE_USD) || 0.01;
 
 type RecordBase = UsageContext & {
   provider: string;

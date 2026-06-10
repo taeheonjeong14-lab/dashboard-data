@@ -32,16 +32,18 @@ grant select on billing.token_ledger to authenticated;
 -- 4) 작업 단위 토큰 차감: 그 operation 의 usage 합산원가 → ceil($합계/단가), 최소 1, 병원 잔액에서 차감.
 --    이미 청구된 작업이면 재청구하지 않음(멱등). 비용 0이면 청구 없음.
 -- core.hospitals.id 가 text 이므로 p_hospital_id 는 text 로 받고, uuid 컬럼(billing.*)엔 ::uuid 캐스트.
-create or replace function billing.token_charge_operation(
+-- 1토큰=$0.01. 작업 합산원가 → 소수 토큰(올림 없이 round 2자리)으로 정밀 차감.
+drop function if exists billing.token_charge_operation(text, uuid, text, numeric);
+create function billing.token_charge_operation(
   p_hospital_id     text,
   p_operation_id    uuid,
   p_feature         text default null,
-  p_token_value_usd numeric default 0.10
-) returns table(tokens integer, balance_after numeric, cost_usd numeric)
+  p_token_value_usd numeric default 0.01
+) returns table(tokens numeric, balance_after numeric, cost_usd numeric)
 language plpgsql security definer as $$
 declare
   v_cost    numeric;
-  v_tokens  integer;
+  v_tokens  numeric;
   v_balance numeric;
 begin
   if p_hospital_id is null or p_operation_id is null then
@@ -56,8 +58,10 @@ begin
   if v_cost <= 0 then
     return; -- 비용 없음
   end if;
-  v_tokens := ceil(v_cost / nullif(p_token_value_usd, 0))::integer;
-  if v_tokens < 1 then v_tokens := 1; end if;
+  v_tokens := round(v_cost / nullif(p_token_value_usd, 0), 2);
+  if v_tokens <= 0 then
+    return;
+  end if;
 
   update core.hospitals
      set token_balance = coalesce(token_balance, 0) - v_tokens

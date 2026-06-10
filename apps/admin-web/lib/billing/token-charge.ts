@@ -1,7 +1,7 @@
 import { getAdminWebPgPool } from '@/lib/db';
 
-/** 1토큰 = $0.10 (원가 1:1). chart-api 와 동일 값 유지. */
-const TOKEN_VALUE_USD = Number(process.env.BILLING_TOKEN_VALUE_USD) || 0.1;
+/** 1토큰 = $0.01 (원가 1:1, 소수 정밀). chart-api 와 동일 값 유지. */
+const TOKEN_VALUE_USD = Number(process.env.BILLING_TOKEN_VALUE_USD) || 0.01;
 
 export async function getHospitalTokenBalance(hospitalId: string): Promise<number | null> {
   try {
