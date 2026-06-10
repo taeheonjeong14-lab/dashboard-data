@@ -142,7 +142,7 @@ export default function CompetitorAnalysisPage() {
   const reviewEmpty = reviewCounts.every((r) => r.own === 0 && r.c1 === 0 && r.c2 === 0 && r.c3 === 0);
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 28 }}>
       <div>
         <h1 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: "var(--text)" }}>경쟁병원 분석</h1>
         <p style={{ margin: "4px 0 0", fontSize: 13, color: "var(--text-secondary)" }}>
@@ -182,7 +182,8 @@ export default function CompetitorAnalysisPage() {
   );
 }
 
-const card: React.CSSProperties = { background: "var(--bg)", borderRadius: "var(--radius-lg)", padding: 20 };
+// 경영 대시보드 컨셉: 흰 카드 배경 없이 페이지에 바로 — 섹션 간 간격(gap)으로만 구분.
+const card: React.CSSProperties = { padding: 0 };
 const selectStyle: React.CSSProperties = {
   padding: "6px 10px", fontSize: 13, borderRadius: "var(--radius)", border: "1px solid var(--border)",
   background: "var(--bg)", color: "var(--text)", outline: "none", maxWidth: 240,
