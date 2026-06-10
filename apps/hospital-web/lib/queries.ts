@@ -850,19 +850,35 @@ export type HospitalCompetitor = { slot: number; name: string; naverBlogId: stri
 
 export type MonthlyReviewCount = { month: string; own: number; c1: number; c2: number; c3: number };
 
-export type RankPoint = { date: string; own: number | null; c1: number | null; c2: number | null; c3: number | null };
+export type RankPoint = {
+  date: string;
+  own: number | null; c1: number | null; c2: number | null; c3: number | null;
+  // 블로그: 그 최고 순위가 어느 섹션에서 나왔는지(툴팁용). 플레이스는 없음.
+  own_section?: string; c1_section?: string; c2_section?: string; c3_section?: string;
+};
 export type RankSeries = { keywords: string[]; byKeyword: Record<string, RankPoint[]> };
+
+// 블로그 4개 섹션 — 이 중 최고(최소 숫자) 순위를 그 병원 대표 순위로 본다.
+const BLOG_SECTIONS: { col: string; label: string }[] = [
+  { col: "blog_rank_tab", label: "블로그탭" },
+  { col: "blog_rank_integrated", label: "통합검색" },
+  { col: "blog_rank_pet_popular", label: "반려동물 인기글" },
+  { col: "blog_rank_general", label: "일반검색" },
+];
 
 /**
  * 키워드별 날짜별 순위 추이 — 우리 병원 + 경쟁병원(slot 1~3).
- * blog: analytics_blog_keyword_ranks_daily_view(blog_rank_tab) / place: analytics_place_keyword_ranks(rank_value).
- * 경쟁사: analytics_competitor_ranks(channel). RLS로 자기 병원 행만.
+ * blog: analytics_blog_keyword_ranks_daily_view 4개 섹션 중 "최고 순위" + 섹션 라벨 / place: analytics_place_keyword_ranks(rank_value).
+ * 경쟁사: analytics_competitor_ranks(channel). 경쟁사 블로그는 블로그탭 기준만 수집됨. RLS로 자기 병원 행만.
  */
 export async function fetchRankSeries(hospitalId: string, channel: "blog" | "place"): Promise<RankSeries> {
   const empty: RankSeries = { keywords: [], byKeyword: {} };
   try {
     const supabase = createClient();
-    type Cell = { own: number | null; c1: number | null; c2: number | null; c3: number | null };
+    type Cell = {
+      own: number | null; c1: number | null; c2: number | null; c3: number | null;
+      own_section?: string; c1_section?: string; c2_section?: string; c3_section?: string;
+    };
     const map = new Map<string, Map<string, Cell>>(); // keyword -> date -> cell
     const ensure = (kw: string, date: string): Cell => {
       let bd = map.get(kw);
@@ -877,14 +893,23 @@ export async function fetchRankSeries(hospitalId: string, channel: "blog" | "pla
       const { data } = await supabase
         .schema("analytics")
         .from("analytics_blog_keyword_ranks_daily_view")
-        .select("metric_date, keyword, blog_rank_tab")
+        .select("metric_date, keyword, blog_rank_tab, blog_rank_integrated, blog_rank_pet_popular, blog_rank_general")
         .eq("hospital_id", hospitalId)
         .order("metric_date", { ascending: true });
       for (const r of data ?? []) {
         const kw = asStringOrNull((r as { keyword?: unknown }).keyword);
         const date = String((r as { metric_date?: unknown }).metric_date ?? "").slice(0, 10);
         if (!kw || !date) continue;
-        ensure(kw, date).own = asNumberOrNull((r as { blog_rank_tab?: unknown }).blog_rank_tab);
+        // 4개 섹션 중 최고(최소) 순위 + 그 섹션 라벨
+        let best: number | null = null;
+        let bestLabel: string | undefined;
+        for (const s of BLOG_SECTIONS) {
+          const v = asNumberOrNull((r as Record<string, unknown>)[s.col]);
+          if (v != null && (best == null || v < best)) { best = v; bestLabel = s.label; }
+        }
+        const cell = ensure(kw, date);
+        cell.own = best;
+        cell.own_section = bestLabel;
       }
     } else {
       const { data } = await supabase
@@ -901,7 +926,7 @@ export async function fetchRankSeries(hospitalId: string, channel: "blog" | "pla
       }
     }
 
-    // 경쟁병원 일별 순위
+    // 경쟁병원 일별 순위 (블로그는 블로그탭 기준)
     const { data: cdata } = await supabase
       .schema("analytics")
       .from("analytics_competitor_ranks")
@@ -916,9 +941,10 @@ export async function fetchRankSeries(hospitalId: string, channel: "blog" | "pla
       if (!kw || !date || slot < 1 || slot > 3) continue;
       const cell = ensure(kw, date);
       const v = asNumberOrNull((r as { rank_value?: unknown }).rank_value);
-      if (slot === 1) cell.c1 = v;
-      else if (slot === 2) cell.c2 = v;
-      else cell.c3 = v;
+      const sec = channel === "blog" ? "블로그탭" : undefined;
+      if (slot === 1) { cell.c1 = v; cell.c1_section = sec; }
+      else if (slot === 2) { cell.c2 = v; cell.c2_section = sec; }
+      else { cell.c3 = v; cell.c3_section = sec; }
     }
 
     const keywords = [...map.keys()].sort((a, b) => a.localeCompare(b, "ko"));

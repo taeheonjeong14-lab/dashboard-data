@@ -71,7 +71,16 @@ function RankChartCard({
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
                 <XAxis dataKey="date" tick={{ fontSize: 11 }} tickFormatter={(d: string) => d.slice(5)} />
                 <YAxis reversed allowDecimals={false} width={36} tick={{ fontSize: 11 }} domain={[1, "dataMax"]} label={{ value: "순위", angle: -90, position: "insideLeft", fontSize: 11 }} />
-                <Tooltip formatter={(v) => (v == null ? "미노출" : `${v}위`)} contentStyle={{ fontSize: 12 }} />
+                <Tooltip
+                  formatter={(value, name, item) => {
+                    if (value == null) return ["미노출", name];
+                    const dk = (item as { dataKey?: string } | undefined)?.dataKey;
+                    const p = (item as { payload?: Record<string, unknown> } | undefined)?.payload;
+                    const sec = dk && p ? p[`${dk}_section`] : undefined;
+                    return [`${value}위${sec ? ` · ${sec}` : ""}`, name];
+                  }}
+                  contentStyle={{ fontSize: 12 }}
+                />
                 <Legend wrapperStyle={{ fontSize: 11 }} />
                 {defs.map((d) => (
                   <Line key={d.key} type="monotone" dataKey={d.key} name={d.name} stroke={d.color} strokeWidth={2} dot={{ r: 2 }} connectNulls />
@@ -160,7 +169,7 @@ export default function CompetitorAnalysisPage() {
         </p>
       </div>
 
-      <RankChartCard title="블로그 순위 추이 (블로그탭)" series={blogSeries} competitors={competitors} />
+      <RankChartCard title="블로그 순위 추이" series={blogSeries} competitors={competitors} />
       <RankChartCard title="플레이스 순위 추이" series={placeSeries} competitors={competitors} />
 
       <section style={card}>
