@@ -2195,7 +2195,9 @@ def main():
     service_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
     target_hospital_id = os.getenv("COLLECT_HOSPITAL_ID", "").strip()
     check_date = metric_date or os.getenv("RANK_METRIC_DATE") or _to_kst_date_str()
-    if target_hospital_id and supabase_url and service_key:
+    # 기본: 같은 날 재수집하면 최신 값으로 덮어쓴다(날짜 키 upsert merge-duplicates).
+    # 예전처럼 "그날 이미 수집됐으면 스킵"하려면 RANK_SKIP_IF_COLLECTED=1 로 켠다.
+    if _is_truthy_env("RANK_SKIP_IF_COLLECTED") and target_hospital_id and supabase_url and service_key:
         if _check_rank_already_collected(supabase_url, service_key, target_hospital_id, check_date):
             print(f"ℹ️ 키워드 순위 이미 수집됨 (hospital_id={target_hospital_id}, date={check_date}). 스킵합니다.")
             return
