@@ -22,8 +22,8 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
     const supabase = createServiceRoleClient();
 
     const rowAttempts = [
-      'id,name,name_en,code,phone,address,addressDetail,logoUrl,brandColor,director_name_ko,seal_url,tagline_line1,tagline_line2,blog_intro,blog_outro,naver_blog_id,smartplace_stat_url,smartplace_review_url,debug_port',
-      'id,name,name_en,code,phone,address,address_detail,logo_url,brand_color,director_name_ko,seal_url,tagline_line1,tagline_line2,blog_intro,blog_outro,naver_blog_id,smartplace_stat_url,smartplace_review_url,debug_port',
+      'id,name,name_en,code,phone,address,addressDetail,chart_type,vet_count,logoUrl,brandColor,director_name_ko,seal_url,tagline_line1,tagline_line2,blog_intro,blog_outro,naver_blog_id,smartplace_stat_url,smartplace_review_url,debug_port',
+      'id,name,name_en,code,phone,address,address_detail,chart_type,vet_count,logo_url,brand_color,director_name_ko,seal_url,tagline_line1,tagline_line2,blog_intro,blog_outro,naver_blog_id,smartplace_stat_url,smartplace_review_url,debug_port',
       // 폴백: review_url 컬럼이 아직 없을 수 있으므로 제외(마이그레이션 전 우아하게 degrade)
       'id,name,naver_blog_id,smartplace_stat_url,debug_port',
     ];
@@ -92,6 +92,8 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
       phone: String(row.phone || ''),
       address: String(row.address || ''),
       addressDetail: String((row.addressDetail ?? row.address_detail) || ''),
+      chart_type: String(row.chart_type || ''),
+      vet_count: row.vet_count == null ? '' : String(row.vet_count),
       logoUrl: String((row.logoUrl ?? row.logo_url) || ''),
       brandColor: String((row.brandColor ?? row.brand_color) || ''),
       director_name_ko: String(row.director_name_ko || ''),

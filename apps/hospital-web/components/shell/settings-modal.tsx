@@ -1,11 +1,11 @@
 'use client';
 
 import { useState, useEffect, useMemo, useCallback, type FormEvent } from 'react';
-import { X, User, CreditCard, KeyRound, Building2, BarChart3, Coins } from 'lucide-react';
+import { X, User, CreditCard, KeyRound, BarChart3, Coins } from 'lucide-react';
 import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { createClient } from '@/lib/supabase/client';
 
-type Tab = 'basic' | 'hospital' | 'usage' | 'tokens' | 'payment' | 'password';
+type Tab = 'basic' | 'usage' | 'tokens' | 'payment' | 'password';
 
 // 1토큰=$0.01(원가 기준). 사용량 그래프는 원가를 토큰으로 환산해 표시.
 const TOKEN_VALUE_USD = 0.01;
@@ -14,7 +14,7 @@ const FEATURE_LABEL: Record<string, string> = {
   health_checkup: '건강검진', disease_intro: '질환소개', image_placement: '이미지배치', image_analysis: '이미지분석', assessment: 'AI평가',
 };
 const PALETTE = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#3b82f6', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316', '#64748b'];
-const KIND_LABEL: Record<string, string> = { charge: '사용', grant: '지급', adjust: '조정' };
+const KIND_LABEL: Record<string, string> = { charge: '사용', grant: '관리자 지급', adjust: '조정' };
 const featLabel = (f: string) => FEATURE_LABEL[f] ?? f;
 const fmtTok = (v: number) => (Math.abs(v) >= 100 ? Math.round(v).toLocaleString() : v.toFixed(1));
 
@@ -26,16 +26,8 @@ type HospitalSettings = {
   name: string;
   phone: string;
   address: string;
-  chartType: string;
-  vetCount: number | null;
+  addressDetail: string;
 };
-
-const CHART_TYPE_OPTIONS: { value: string; label: string }[] = [
-  { value: '', label: '선택 안 함' },
-  { value: 'woorien_pms', label: '우리엔PMS' },
-  { value: 'intovet', label: '인투벳' },
-  { value: 'efriends', label: '이프렌즈' },
-];
 
 type Profile = {
   name: string;
@@ -48,14 +40,13 @@ type Profile = {
 
 const MENU: { key: Tab; label: string; icon: typeof User }[] = [
   { key: 'basic', label: '기본 정보', icon: User },
-  { key: 'hospital', label: '병원 관리', icon: Building2 },
   { key: 'usage', label: '사용량', icon: BarChart3 },
   { key: 'tokens', label: '토큰 관리', icon: Coins },
   { key: 'payment', label: '결제수단', icon: CreditCard },
   { key: 'password', label: '비밀번호 변경', icon: KeyRound },
 ];
 
-export function SettingsModal({ open, onClose, tokenBalance = 0 }: { open: boolean; onClose: () => void; tokenBalance?: number }) {
+export function SettingsModal({ open, onClose }: { open: boolean; onClose: () => void; tokenBalance?: number }) {
   const [tab, setTab] = useState<Tab>('basic');
 
   const [profile, setProfile] = useState<Profile>({
@@ -65,15 +56,14 @@ export function SettingsModal({ open, onClose, tokenBalance = 0 }: { open: boole
   const [savingProfile, setSavingProfile] = useState(false);
   const [profileMsg, setProfileMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
+  const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [newPasswordConfirm, setNewPasswordConfirm] = useState('');
   const [savingPw, setSavingPw] = useState(false);
   const [pwMsg, setPwMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
+  // 병원 레코드(병원명/주소 등) — 기본 정보 탭에서 읽기 전용으로 표시.
   const [hospital, setHospital] = useState<HospitalSettings | null>(null);
-  const [loadingHospital, setLoadingHospital] = useState(true);
-  const [savingHospital, setSavingHospital] = useState(false);
-  const [hospitalMsg, setHospitalMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   const [usageDays, setUsageDays] = useState(30);
   const [overview, setOverview] = useState<Overview | null>(null);
@@ -127,20 +117,16 @@ export function SettingsModal({ open, onClose, tokenBalance = 0 }: { open: boole
     })();
   }, [open]);
 
-  // 병원 관리 정보 로드
+  // 병원 레코드 로드 (기본 정보 탭의 읽기 전용 병원명/주소 표시용)
   useEffect(() => {
     if (!open) return;
-    setHospitalMsg(null);
     (async () => {
-      setLoadingHospital(true);
       try {
         const res = await fetch('/api/settings/hospital');
         const data = await res.json() as { ok?: boolean; hospital?: HospitalSettings | null };
         setHospital(data.hospital ?? null);
       } catch {
         setHospital(null);
-      } finally {
-        setLoadingHospital(false);
       }
     })();
   }, [open]);
@@ -173,18 +159,20 @@ export function SettingsModal({ open, onClose, tokenBalance = 0 }: { open: boole
 
   async function handleProfileSubmit(e: FormEvent) {
     e.preventDefault();
+    if (!profile.phone.trim()) {
+      setProfileMsg({ type: 'error', text: '연락처를 입력해 주세요.' });
+      return;
+    }
     setSavingProfile(true);
     setProfileMsg(null);
     try {
+      // 병원명/주소/상세주소는 병원 레코드 기준(읽기 전용)이라 저장하지 않음 — 이름/연락처만 저장.
       const res = await fetch('/api/settings/profile', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: profile.name,
           phone: profile.phone,
-          customHospitalName: profile.customHospitalName,
-          hospital_address: profile.hospital_address,
-          hospital_address_detail: profile.hospital_address_detail,
         }),
       });
       const data = await res.json() as { ok?: boolean; error?: string };
@@ -197,38 +185,26 @@ export function SettingsModal({ open, onClose, tokenBalance = 0 }: { open: boole
     }
   }
 
-  async function handleHospitalSubmit(e: FormEvent) {
-    e.preventDefault();
-    if (!hospital) return;
-    setSavingHospital(true);
-    setHospitalMsg(null);
-    try {
-      const res = await fetch('/api/settings/hospital', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ chartType: hospital.chartType, vetCount: hospital.vetCount }),
-      });
-      const data = await res.json() as { ok?: boolean; error?: string };
-      if (!res.ok || !data.ok) throw new Error(data.error ?? '저장 실패');
-      setHospitalMsg({ type: 'success', text: '저장되었습니다.' });
-    } catch (err) {
-      setHospitalMsg({ type: 'error', text: err instanceof Error ? err.message : '저장 실패' });
-    } finally {
-      setSavingHospital(false);
-    }
-  }
-
   async function handlePasswordSubmit(e: FormEvent) {
     e.preventDefault();
     setPwMsg(null);
+    if (!currentPassword) { setPwMsg({ type: 'error', text: '현재 비밀번호를 입력해 주세요.' }); return; }
     if (newPassword.length < 6) { setPwMsg({ type: 'error', text: '새 비밀번호는 최소 6자 이상이어야 합니다.' }); return; }
     if (newPassword !== newPasswordConfirm) { setPwMsg({ type: 'error', text: '새 비밀번호가 일치하지 않습니다.' }); return; }
     setSavingPw(true);
     try {
       const supabase = createClient();
+      // 현재 비밀번호 검증 — 같은 계정 이메일로 재인증해 본다. 틀리면 에러.
+      const { data: { user } } = await supabase.auth.getUser();
+      const email = user?.email;
+      if (!email) throw new Error('로그인 정보를 확인할 수 없습니다.');
+      const { error: signInErr } = await supabase.auth.signInWithPassword({ email, password: currentPassword });
+      if (signInErr) { setPwMsg({ type: 'error', text: '현재 비밀번호가 올바르지 않습니다.' }); setSavingPw(false); return; }
+
       const { error } = await supabase.auth.updateUser({ password: newPassword });
       if (error) throw error;
       setPwMsg({ type: 'success', text: '비밀번호가 변경되었습니다.' });
+      setCurrentPassword('');
       setNewPassword('');
       setNewPasswordConfirm('');
     } catch (err) {
@@ -283,73 +259,21 @@ export function SettingsModal({ open, onClose, tokenBalance = 0 }: { open: boole
                   <Field label="이름" required>
                     <input value={profile.name} onChange={(e) => setProfile((p) => ({ ...p, name: e.target.value }))} style={inputStyle} placeholder="홍길동" />
                   </Field>
-                  <Field label="연락처">
-                    <input value={profile.phone} onChange={(e) => setProfile((p) => ({ ...p, phone: e.target.value }))} style={inputStyle} placeholder="010-0000-0000" />
+                  <Field label="연락처" required>
+                    <input value={profile.phone} onChange={(e) => setProfile((p) => ({ ...p, phone: e.target.value }))} style={inputStyle} placeholder="010-0000-0000" required />
                   </Field>
-                  <Field label="병원명 (커스텀)" hint="비워두면 등록된 병원명 사용">
-                    <input value={profile.customHospitalName} onChange={(e) => setProfile((p) => ({ ...p, customHospitalName: e.target.value }))} style={inputStyle} placeholder="뉴엘동물의료센터" />
+                  <Field label="병원명" hint="관리자만 수정 가능">
+                    <input value={hospital?.name ?? ''} disabled style={{ ...inputStyle, background: 'var(--bg-raised)', color: 'var(--text-muted)', cursor: 'not-allowed' }} />
                   </Field>
-                  <Field label="병원 주소">
-                    <input value={profile.hospital_address} onChange={(e) => setProfile((p) => ({ ...p, hospital_address: e.target.value }))} style={inputStyle} placeholder="서울특별시 강남구 …" />
+                  <Field label="병원 주소" hint="관리자만 수정 가능">
+                    <input value={hospital?.address ?? ''} disabled style={{ ...inputStyle, background: 'var(--bg-raised)', color: 'var(--text-muted)', cursor: 'not-allowed' }} />
                   </Field>
-                  <Field label="병원 상세 주소">
-                    <input value={profile.hospital_address_detail} onChange={(e) => setProfile((p) => ({ ...p, hospital_address_detail: e.target.value }))} style={inputStyle} placeholder="2층 201호" />
+                  <Field label="병원 상세 주소" hint="관리자만 수정 가능">
+                    <input value={hospital?.addressDetail ?? ''} disabled style={{ ...inputStyle, background: 'var(--bg-raised)', color: 'var(--text-muted)', cursor: 'not-allowed' }} />
                   </Field>
                   {profileMsg && <Msg type={profileMsg.type} text={profileMsg.text} />}
                   <button type="submit" disabled={savingProfile} style={primaryBtn(savingProfile)}>
                     {savingProfile ? '저장 중…' : '저장'}
-                  </button>
-                </form>
-              )
-            )}
-
-            {tab === 'hospital' && (
-              loadingHospital ? (
-                <p style={{ margin: 0, fontSize: 13, color: 'var(--text-muted)' }}>불러오는 중…</p>
-              ) : !hospital ? (
-                <p style={{ margin: 0, fontSize: 13, color: 'var(--text-muted)' }}>
-                  배정된 병원이 없습니다. 관리자에게 문의하세요.
-                </p>
-              ) : (
-                <form onSubmit={(e) => void handleHospitalSubmit(e)} style={formStyle}>
-                  <Field label="병원명" hint="관리자만 수정 가능">
-                    <input value={hospital.name} disabled style={{ ...inputStyle, background: 'var(--bg-raised)', color: 'var(--text-muted)', cursor: 'not-allowed' }} />
-                  </Field>
-                  <Field label="병원 전화번호" hint="관리자만 수정 가능">
-                    <input value={hospital.phone || '-'} disabled style={{ ...inputStyle, background: 'var(--bg-raised)', color: 'var(--text-muted)', cursor: 'not-allowed' }} />
-                  </Field>
-                  <Field label="병원 주소" hint="관리자만 수정 가능">
-                    <input value={hospital.address || '-'} disabled style={{ ...inputStyle, background: 'var(--bg-raised)', color: 'var(--text-muted)', cursor: 'not-allowed' }} />
-                  </Field>
-                  <Field label="차트 종류">
-                    <select
-                      value={hospital.chartType}
-                      onChange={(e) => setHospital((h) => (h ? { ...h, chartType: e.target.value } : h))}
-                      style={inputStyle}
-                    >
-                      {CHART_TYPE_OPTIONS.map((o) => (
-                        <option key={o.value} value={o.value}>{o.label}</option>
-                      ))}
-                    </select>
-                  </Field>
-                  <Field label="수의사 수">
-                    <input
-                      type="number"
-                      min={1}
-                      max={100}
-                      step={1}
-                      value={hospital.vetCount ?? ''}
-                      onChange={(e) => {
-                        const v = e.target.value;
-                        setHospital((h) => (h ? { ...h, vetCount: v === '' ? null : Number(v) } : h));
-                      }}
-                      style={{ ...inputStyle, maxWidth: 140 }}
-                      placeholder="예: 3"
-                    />
-                  </Field>
-                  {hospitalMsg && <Msg type={hospitalMsg.type} text={hospitalMsg.text} />}
-                  <button type="submit" disabled={savingHospital} style={primaryBtn(savingHospital)}>
-                    {savingHospital ? '저장 중…' : '저장'}
                   </button>
                 </form>
               )
@@ -418,7 +342,7 @@ export function SettingsModal({ open, onClose, tokenBalance = 0 }: { open: boole
                   충전·결제 연동은 추후 제공됩니다.
                 </p>
                 <div>
-                  <div style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 6 }}>최근 내역</div>
+                  <div style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 6 }}>사용·충전 내역</div>
                   <div style={{ border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
                     {(overview?.ledger ?? []).length === 0 ? (
                       <div style={{ padding: 12, fontSize: 13, color: 'var(--text-muted)' }}>
@@ -457,38 +381,36 @@ export function SettingsModal({ open, onClose, tokenBalance = 0 }: { open: boole
 
             {tab === 'payment' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                <div style={{
-                  display: 'flex', alignItems: 'baseline', justifyContent: 'space-between',
-                  padding: '14px 16px', borderRadius: 'var(--radius)', background: 'var(--bg-raised)',
-                }}>
-                  <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>현재 보유 토큰</span>
-                  <span style={{ fontSize: 18, fontWeight: 700, color: 'var(--text)' }}>
-                    {tokenBalance.toLocaleString()} <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-muted)' }}>토큰</span>
-                  </span>
+                <div>
+                  <div style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 8 }}>등록된 결제수단</div>
+                  <div style={{
+                    border: '1px dashed var(--border)', borderRadius: 10,
+                    padding: '22px 16px', textAlign: 'center', background: 'var(--bg-raised)',
+                  }}>
+                    <CreditCard size={22} style={{ color: 'var(--text-muted)', marginBottom: 8 }} />
+                    <p style={{ margin: '0 0 14px', fontSize: 13, color: 'var(--text-muted)' }}>등록된 카드가 없습니다.</p>
+                    <button disabled style={primaryBtn(true)}>카드 등록 (준비 중)</button>
+                  </div>
                 </div>
-                <p style={{ margin: 0, fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.7 }}>
-                  보유 토큰·사용 내역은 <b>토큰 관리</b> 메뉴에서 확인할 수 있습니다.
+                <p style={{ margin: 0, fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.7 }}>
+                  * 카드 등록과 토큰 충전은 결제 연동(PG) 후 제공됩니다. 토큰 잔액·사용/충전 내역은 <b>토큰 관리</b> 탭에서 확인할 수 있습니다.
                 </p>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  <p style={{ margin: 0, fontSize: 13, color: 'var(--text-secondary)' }}>등록된 결제수단이 없습니다.</p>
-                  <button disabled style={primaryBtn(true)}>결제수단 등록 / 토큰 충전 (준비 중)</button>
-                  <p style={{ margin: 0, fontSize: 12, color: 'var(--text-muted)' }}>
-                    * 결제수단 등록 및 토큰 충전은 결제 연동(PG) 후 제공됩니다.
-                  </p>
-                </div>
               </div>
             )}
 
             {tab === 'password' && (
               <form onSubmit={(e) => void handlePasswordSubmit(e)} style={formStyle}>
+                <Field label="현재 비밀번호" required>
+                  <input type="password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} style={inputStyle} placeholder="현재 비밀번호" autoComplete="current-password" />
+                </Field>
                 <Field label="새 비밀번호" required>
-                  <input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} style={inputStyle} placeholder="6자 이상" />
+                  <input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} style={inputStyle} placeholder="6자 이상" autoComplete="new-password" />
                 </Field>
                 <Field label="새 비밀번호 확인" required>
-                  <input type="password" value={newPasswordConfirm} onChange={(e) => setNewPasswordConfirm(e.target.value)} style={inputStyle} placeholder="새 비밀번호 재입력" />
+                  <input type="password" value={newPasswordConfirm} onChange={(e) => setNewPasswordConfirm(e.target.value)} style={inputStyle} placeholder="새 비밀번호 재입력" autoComplete="new-password" />
                 </Field>
                 {pwMsg && <Msg type={pwMsg.type} text={pwMsg.text} />}
-                <button type="submit" disabled={savingPw || !newPassword} style={primaryBtn(savingPw || !newPassword)}>
+                <button type="submit" disabled={savingPw || !currentPassword || !newPassword} style={primaryBtn(savingPw || !currentPassword || !newPassword)}>
                   {savingPw ? '변경 중…' : '비밀번호 변경'}
                 </button>
               </form>

@@ -32,6 +32,8 @@ type FormBody = {
     phone?: string;
     address?: string;
     addressDetail?: string;
+    chart_type?: string;
+    vet_count?: string | number;
     logoUrl?: string;
     brandColor?: string;
     director_name_ko?: string;
@@ -94,6 +96,11 @@ export async function POST(request: Request) {
       phone: (hospitalForm.phone || '').trim() || null,
       address: (hospitalForm.address || '').trim() || null,
       addressDetail: (hospitalForm.addressDetail || '').trim() || null,
+      chart_type: (String(hospitalForm.chart_type ?? '')).trim() || null,
+      vet_count:
+        hospitalForm.vet_count === '' || hospitalForm.vet_count == null
+          ? null
+          : Number(hospitalForm.vet_count) || null,
       brandColor: (hospitalForm.brandColor || '').trim() || null,
       director_name_ko: (hospitalForm.director_name_ko || '').trim() || null,
       tagline_line1: (hospitalForm.tagline_line1 || '').trim() || null,

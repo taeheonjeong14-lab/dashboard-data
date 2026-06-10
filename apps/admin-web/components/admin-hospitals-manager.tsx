@@ -14,6 +14,13 @@ const hospitalListScrollStyle: React.CSSProperties = {
   overflowX: 'hidden',
 };
 
+const CHART_TYPE_OPTIONS: { value: string; label: string }[] = [
+  { value: '', label: '선택 안 함' },
+  { value: 'woorien_pms', label: '우리엔PMS' },
+  { value: 'intovet', label: '인투벳' },
+  { value: 'efriends', label: '이프렌즈' },
+];
+
 const EMPTY_FORM = {
   id: '',
   name: '',
@@ -22,6 +29,8 @@ const EMPTY_FORM = {
   phone: '',
   address: '',
   addressDetail: '',
+  chart_type: '',
+  vet_count: '',
   logoUrl: '',
   brandColor: '',
   director_name_ko: '',
@@ -574,6 +583,27 @@ export default function AdminHospitalsManager() {
                 </LabeledField>
                 <LabeledField label="상세주소" hint="동·호수 등 상세주소">
                   <input value={form.addressDetail} onChange={(e) => setForm((f) => ({ ...f, addressDetail: e.target.value }))} style={fieldStyle} />
+                </LabeledField>
+              </div>
+              <div style={twoColStyle}>
+                <LabeledField label="차트 종류" hint="병원이 사용하는 차트(PMS) 종류">
+                  <select value={form.chart_type} onChange={(e) => setForm((f) => ({ ...f, chart_type: e.target.value }))} style={fieldStyle}>
+                    {CHART_TYPE_OPTIONS.map((o) => (
+                      <option key={o.value} value={o.value}>{o.label}</option>
+                    ))}
+                  </select>
+                </LabeledField>
+                <LabeledField label="수의사 수" hint="병원 소속 수의사 인원">
+                  <input
+                    type="number"
+                    min={1}
+                    max={100}
+                    step={1}
+                    value={form.vet_count}
+                    onChange={(e) => setForm((f) => ({ ...f, vet_count: e.target.value }))}
+                    style={fieldStyle}
+                    placeholder="예: 3"
+                  />
                 </LabeledField>
               </div>
             </DataCard>
