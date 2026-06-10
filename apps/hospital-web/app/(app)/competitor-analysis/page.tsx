@@ -70,7 +70,16 @@ function RankChartCard({
               <LineChart data={data} margin={{ top: 8, right: 12, bottom: 4, left: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
                 <XAxis dataKey="date" tick={{ fontSize: 11 }} tickFormatter={(d: string) => d.slice(5)} />
-                <YAxis reversed allowDecimals={false} width={36} tick={{ fontSize: 11 }} domain={[1, "dataMax"]} label={{ value: "순위", angle: -90, position: "insideLeft", fontSize: 11 }} />
+                <YAxis
+                  reversed
+                  allowDecimals={false}
+                  allowDataOverflow
+                  width={36}
+                  tick={{ fontSize: 11 }}
+                  domain={[1, 10]}
+                  ticks={[1, 2, 3, 4, 5, 6, 7, 8, 9, 10]}
+                  label={{ value: "순위", angle: -90, position: "insideLeft", fontSize: 11 }}
+                />
                 <Tooltip
                   formatter={(value, name, item) => {
                     if (value == null) return ["미노출", name];
