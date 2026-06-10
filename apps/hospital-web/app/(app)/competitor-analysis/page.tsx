@@ -41,7 +41,10 @@ function RankChartCard({
 }) {
   const [keyword, setKeyword] = useState<string>("");
   const kw = keyword || series.keywords[0] || "";
-  const data = (kw && series.byKeyword[kw]) || [];
+  const raw = (kw && series.byKeyword[kw]) || [];
+  // 10위 밖(또는 미노출)은 null 처리 → 1~10 밴드 밖에선 선을 잇지 않고 끊는다.
+  const within = (v: number | null) => (v != null && v <= 10 ? v : null);
+  const data = raw.map((p) => ({ ...p, own: within(p.own), c1: within(p.c1), c2: within(p.c2), c3: within(p.c3) }));
   const defs = useMemo(() => seriesDefs(competitors), [competitors]);
 
   return (
@@ -92,12 +95,12 @@ function RankChartCard({
                 />
                 <Legend wrapperStyle={{ fontSize: 11 }} />
                 {defs.map((d) => (
-                  <Line key={d.key} type="monotone" dataKey={d.key} name={d.name} stroke={d.color} strokeWidth={2} dot={{ r: 2 }} connectNulls />
+                  <Line key={d.key} type="monotone" dataKey={d.key} name={d.name} stroke={d.color} strokeWidth={2} dot={{ r: 2 }} />
                 ))}
               </LineChart>
             </ResponsiveContainer>
           )}
-          <p className="text-xs text-[var(--text-muted)]" style={{ marginTop: 8 }}>위로 갈수록 상위 노출입니다. 미노출 구간은 선이 이어집니다.</p>
+          <p className="text-xs text-[var(--text-muted)]" style={{ marginTop: 8 }}>위로 갈수록 상위 노출입니다. 10위 밖(미노출 포함)인 구간은 선이 끊깁니다.</p>
         </div>
       </div>
     </section>
