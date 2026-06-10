@@ -756,6 +756,82 @@ const CHART_TABS: { key: ChartTabKey; label: string }[] = [
   { key: 'debug', label: '디버그' },
 ];
 
+/**
+ * 병원이 업로드한 원본 PDF 버튼. 1개면 바로 새 탭, 여러 개면 드롭다운에서 선택.
+ * (다중 PDF는 추출 시 메모리에서만 merge되고 저장되지 않으므로 원본 개별 파일을 그대로 연다.)
+ */
+function SourcePdfMenu({ pdfs }: { pdfs: { name: string; url: string }[] }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLSpanElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e: globalThis.MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', onDoc);
+    return () => document.removeEventListener('mousedown', onDoc);
+  }, [open]);
+
+  if (pdfs.length === 0) return null;
+  if (pdfs.length === 1) {
+    return (
+      <a href={pdfs[0].url} target="_blank" rel="noopener noreferrer" title={pdfs[0].name} className="adminLegacySmallBtn">
+        PDF 원본
+      </a>
+    );
+  }
+  return (
+    <span ref={ref} style={{ position: 'relative', display: 'inline-flex' }}>
+      <button type="button" className="adminLegacySmallBtn" onClick={() => setOpen((o) => !o)}>
+        PDF 원본 ({pdfs.length}) ▾
+      </button>
+      {open ? (
+        <div
+          style={{
+            position: 'absolute',
+            top: 'calc(100% + 4px)',
+            right: 0,
+            zIndex: 50,
+            background: '#fff',
+            border: '1px solid var(--border)',
+            borderRadius: 8,
+            boxShadow: '0 8px 24px rgba(0,0,0,0.15)',
+            padding: 4,
+            minWidth: 200,
+            maxWidth: 340,
+          }}
+        >
+          {pdfs.map((f, i) => (
+            <a
+              key={i}
+              href={f.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              title={f.name}
+              onClick={() => setOpen(false)}
+              style={{
+                display: 'block',
+                padding: '7px 10px',
+                fontSize: 12,
+                color: 'var(--text)',
+                textDecoration: 'none',
+                borderRadius: 6,
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--bg-subtle)'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+            >
+              {i + 1}. {f.name}
+            </a>
+          ))}
+        </div>
+      ) : null}
+    </span>
+  );
+}
+
 export function AdminRunExtractionDetail({
   runId,
   embedded = false,
@@ -1212,6 +1288,9 @@ export function AdminRunExtractionDetail({
     userSelect: 'none' as const,
   };
 
+  // 병원이 업로드한 원본 PDF — 헤더의 '건강검진 리포트 생성' 좌측에 배치(이미지는 이미지 분석 탭).
+  const sourcePdfs = result.sourceFiles?.pdfs ?? [];
+
   return (
     <div style={{ paddingBottom: 24 }}>
       {!embedded ? (
@@ -1232,10 +1311,15 @@ export function AdminRunExtractionDetail({
               블로그
             </span>
           )}
+          {sourcePdfs.length > 0 ? (
+            <span style={{ marginLeft: 'auto', display: 'inline-flex', gap: 6, alignItems: 'center' }}>
+              <SourcePdfMenu pdfs={sourcePdfs} />
+            </span>
+          ) : null}
           <button
             type="button"
             className="adminLegacySecondaryBtn"
-            style={{ marginLeft: 'auto' }}
+            style={sourcePdfs.length > 0 ? undefined : { marginLeft: 'auto' }}
             onClick={() => { setGenSuccess(false); setGenError(null); setGenModalOpen(true); }}
           >
             건강검진 리포트 생성
@@ -1313,6 +1397,7 @@ export function AdminRunExtractionDetail({
             </span>
           )}
           <span style={{ marginLeft: 'auto', display: 'inline-flex', gap: 6, alignItems: 'center', marginRight: 14 }}>
+            <SourcePdfMenu pdfs={sourcePdfs} />
             <button
               type="button"
               className="adminLegacySecondaryBtn"

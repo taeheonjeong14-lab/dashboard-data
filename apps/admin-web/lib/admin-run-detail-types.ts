@@ -39,6 +39,10 @@ export type RunDetailResponse = {
     sex: string | null;
   } | null;
   chartTypeNotice: string | null;
+  /** 병원이 업로드한 원본 PDF(서명 URL). 이미지는 이미지 분석 탭에서 본다. */
+  sourceFiles: {
+    pdfs: Array<{ name: string; url: string }>;
+  };
   chartBodyByDate: Array<{
     id: string;
     dateTime: string;
