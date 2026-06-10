@@ -12,7 +12,8 @@ declare
   v_daily   jsonb;
   v_ledger  jsonb;
 begin
-  select hospital_id into v_hid from core.users where id = auth.uid();
+  -- users.id / auth.uid() 타입(text/uuid) 불일치 방지로 text 비교.
+  select hospital_id into v_hid from core.users where id::text = (auth.uid())::text;
   if v_hid is null then
     return jsonb_build_object('balance', null, 'daily', '[]'::jsonb, 'ledger', '[]'::jsonb);
   end if;
