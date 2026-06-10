@@ -138,6 +138,7 @@ async function main() {
       .select('review_id, content')
       .is('sentiment', null)
       .not('content', 'is', null)
+      .is('competitor_slot', null) // 경쟁병원 리뷰는 감성 분석 제외(우리 병원만)
       .order('review_date', { ascending: false })
       .limit(BATCH);
     if (hospitalId) q = q.eq('hospital_id', hospitalId);

@@ -848,6 +848,46 @@ export async function fetchPlaceReviewStats(
 /** 병원별 등록된 경쟁 병원(최대 3). */
 export type HospitalCompetitor = { slot: number; name: string; naverBlogId: string | null };
 
+export type MonthlyReviewCount = { month: string; own: number; c1: number; c2: number; c3: number };
+
+/** 최근 12개월 월별 플레이스 리뷰 갯수 — 우리 병원 + 경쟁병원(slot 1~3). RLS로 자기 병원 행만 보임. */
+export async function fetchMonthlyReviewCounts(hospitalId: string): Promise<MonthlyReviewCount[]> {
+  const byMonth = new Map<string, MonthlyReviewCount>();
+  for (let i = 11; i >= 0; i--) {
+    const d = new Date();
+    d.setMonth(d.getMonth() - i);
+    const m = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    byMonth.set(m, { month: m, own: 0, c1: 0, c2: 0, c3: 0 });
+  }
+  try {
+    const supabase = createClient();
+    const since = new Date();
+    since.setMonth(since.getMonth() - 11);
+    since.setDate(1);
+    const sinceStr = since.toISOString().slice(0, 10);
+    const { data } = await supabase
+      .schema("analytics")
+      .from("analytics_place_reviews")
+      .select("review_date, competitor_slot")
+      .eq("hospital_id", hospitalId)
+      .gte("review_date", sinceStr)
+      .limit(50000);
+    for (const r of data ?? []) {
+      const m = String((r as { review_date?: string }).review_date || "").slice(0, 7);
+      const slot = (r as { competitor_slot?: number | null }).competitor_slot;
+      const row = byMonth.get(m);
+      if (!row) continue;
+      if (slot == null) row.own += 1;
+      else if (slot === 1) row.c1 += 1;
+      else if (slot === 2) row.c2 += 1;
+      else if (slot === 3) row.c3 += 1;
+    }
+  } catch {
+    /* RLS/미수집 등 → 빈 버킷 반환 */
+  }
+  return [...byMonth.values()];
+}
+
 export async function fetchCompetitors(hospitalId: string): Promise<HospitalCompetitor[]> {
   try {
     const supabase = createClient();

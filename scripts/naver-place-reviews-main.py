@@ -199,11 +199,39 @@ def fetch_hospitals(supabase_url: str, service_key: str) -> list[dict]:
     return out
 
 
-def fetch_last_review_date(supabase_url: str, service_key: str, hospital_id: str) -> str | None:
-    """DB에 이미 수집된 그 병원 리뷰 중 가장 최신 review_date (YYYY-MM-DD). 없으면 None(=최초)."""
+def fetch_competitors(supabase_url: str, service_key: str, hospital_id: str) -> list[dict]:
+    """그 병원의 경쟁병원 중 smartplace_review_url 이 설정된 것(슬롯별). 리뷰 갯수 비교 대상."""
+    params = {
+        "select": "slot,name,smartplace_review_url",
+        "hospital_id": f"eq.{hospital_id}",
+        "smartplace_review_url": "not.is.null",
+        "is_active": "eq.true",
+        "order": "slot.asc",
+    }
+    url = f"{supabase_url.rstrip('/')}/rest/v1/analytics_hospital_competitors?{urlencode(params)}"
+    req = Request(url, headers=_supabase_headers(service_key, profile="analytics"), method="GET")
+    out = []
+    try:
+        with urlopen(req, timeout=20) as resp:
+            rows = json.loads(resp.read().decode("utf-8"))
+        for r in rows:
+            review_url = (r.get("smartplace_review_url") or "").strip()
+            slot = r.get("slot")
+            if review_url and slot:
+                out.append({"slot": int(slot), "name": r.get("name") or "", "review_url": review_url})
+    except Exception:
+        pass
+    return out
+
+
+def fetch_last_review_date(
+    supabase_url: str, service_key: str, hospital_id: str, competitor_slot: int | None = None
+) -> str | None:
+    """DB에 이미 수집된 그 (병원[, 경쟁슬롯]) 리뷰 중 가장 최신 review_date (YYYY-MM-DD). 없으면 None(=최초)."""
     params = {
         "select": "review_date",
         "hospital_id": f"eq.{hospital_id}",
+        "competitor_slot": ("eq." + str(competitor_slot)) if competitor_slot is not None else "is.null",
         "order": "review_date.desc",
         "limit": "1",
     }
@@ -742,6 +770,39 @@ def main() -> None:
         n = upsert_reviews(supabase_url, service_key, rows)
         print(f"  ✅ {n}건 upsert")
         grand_total += n
+
+        # 경쟁병원 리뷰(월별 갯수 비교용) — 본문/감성 없이 날짜만, competitor_slot 태그로 owner 하위에 저장.
+        competitors = fetch_competitors(supabase_url, service_key, h["id"])
+        for comp in competitors:
+            if force_since:
+                c_cutoff = force_since
+            elif force_full:
+                c_cutoff = "2000-01-01"
+            else:
+                c_last = fetch_last_review_date(supabase_url, service_key, h["id"], comp["slot"])
+                c_cutoff = c_last or "2000-01-01"
+            print(f"  ⚔️ 경쟁 {comp['slot']}. {comp['name']}")
+            try:
+                c_reviews = collect_reviews_for_hospital(
+                    {"id": h["id"], "name": comp["name"], "review_url": comp["review_url"]}, c_cutoff
+                )
+            except Exception as exc:
+                print(f"     ⚠️ 경쟁 수집 실패: {exc}")
+                continue
+            c_rows = [
+                {
+                    "hospital_id": h["id"],
+                    "review_id": f"c{comp['slot']}_{r['review_id']}",
+                    "review_date": r["review_date"],
+                    "competitor_slot": comp["slot"],
+                    "collected_at": collected_at,
+                    # content/sentiment 없음(갯수만 필요) → 경쟁사 본문은 저장하지 않음
+                }
+                for r in c_reviews
+            ]
+            cn = upsert_reviews(supabase_url, service_key, c_rows)
+            print(f"     ✅ {cn}건")
+            grand_total += cn
 
     print(f"\n완료 — 총 {grand_total}건 upsert")
 

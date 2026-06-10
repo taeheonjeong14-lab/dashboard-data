@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { useHospital } from "@/components/shell/hospital-context";
 import { CenteredSpinner } from "@/components/ui/loading-spinner";
 import {
@@ -8,11 +9,15 @@ import {
   fetchCompetitorRanks,
   fetchSummaryBlogRanks,
   fetchSummaryPlaceRanks,
+  fetchMonthlyReviewCounts,
   type HospitalCompetitor,
   type CompetitorRank,
   type BlogRankSummaryRow,
   type PlaceRankSummaryRow,
+  type MonthlyReviewCount,
 } from "@/lib/queries";
+
+const REVIEW_COLORS = ["var(--accent)", "#10b981", "#f59e0b", "#ef4444"];
 
 type LoadState = "loading" | "error" | "done";
 
@@ -96,6 +101,7 @@ export default function CompetitorAnalysisPage() {
   const [blogRows, setBlogRows] = useState<BlogRankSummaryRow[]>([]);
   const [placeRows, setPlaceRows] = useState<PlaceRankSummaryRow[]>([]);
   const [competitorRanks, setCompetitorRanks] = useState<CompetitorRank[]>([]);
+  const [reviewCounts, setReviewCounts] = useState<MonthlyReviewCount[]>([]);
 
   const { hospitalId: ctxHospitalId } = useHospital();
 
@@ -111,11 +117,12 @@ export default function CompetitorAnalysisPage() {
           }
           return;
         }
-        const [comps, blog, place, compRanks] = await Promise.all([
+        const [comps, blog, place, compRanks, reviews] = await Promise.all([
           fetchCompetitors(hid),
           fetchSummaryBlogRanks(hid),
           fetchSummaryPlaceRanks(hid),
           fetchCompetitorRanks(hid),
+          fetchMonthlyReviewCounts(hid),
         ]);
         if (!cancelled) {
           setHospitalId(hid);
@@ -123,6 +130,7 @@ export default function CompetitorAnalysisPage() {
           setBlogRows(blog);
           setPlaceRows(place);
           setCompetitorRanks(compRanks);
+          setReviewCounts(reviews);
           setLoadState("done");
         }
       } catch (err) {
@@ -184,6 +192,34 @@ export default function CompetitorAnalysisPage() {
             : " (경쟁사 순위는 수집 후 채워집니다.)"}
         </p>
       </div>
+
+      <section style={{ background: "var(--bg)", borderRadius: "var(--radius-lg)", padding: 20 }}>
+        <h2 className="text-base font-semibold text-[var(--text)]" style={{ marginBottom: 12 }}>
+          월별 리뷰 갯수 (최근 1년)
+        </h2>
+        {reviewCounts.every((r) => r.own === 0 && r.c1 === 0 && r.c2 === 0 && r.c3 === 0) ? (
+          <p className="text-xs text-[var(--text-muted)]">
+            수집된 리뷰가 없습니다. (경쟁병원은 관리자에서 스마트플레이스 리뷰 URL 등록 후 수집됩니다.)
+          </p>
+        ) : (
+          <ResponsiveContainer width="100%" height={300}>
+            <BarChart data={reviewCounts} margin={{ top: 8, right: 8, bottom: 4, left: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
+              <XAxis dataKey="month" tick={{ fontSize: 11 }} tickFormatter={(m: string) => m.slice(2)} />
+              <YAxis tick={{ fontSize: 11 }} width={36} allowDecimals={false} />
+              <Tooltip contentStyle={{ fontSize: 12 }} />
+              <Legend wrapperStyle={{ fontSize: 11 }} />
+              <Bar dataKey="own" name="우리 병원" fill={REVIEW_COLORS[0]} />
+              {competitors.map((c) => (
+                <Bar key={c.slot} dataKey={`c${c.slot}`} name={c.name || `경쟁${c.slot}`} fill={REVIEW_COLORS[c.slot] ?? "#64748b"} />
+              ))}
+            </BarChart>
+          </ResponsiveContainer>
+        )}
+        <p className="text-xs text-[var(--text-muted)]" style={{ marginTop: 8 }}>
+          월별 네이버 스마트플레이스 방문자 리뷰 수입니다. (감성 분석은 우리 병원만 제공)
+        </p>
+      </section>
 
       <div style={{ display: "flex", flexWrap: "wrap", alignItems: "flex-start", gap: 24 }}>
         <CompareTable
