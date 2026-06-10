@@ -554,7 +554,8 @@ def get_place_ranks_with_pagination(page, keyword: str, targets: list[str]) -> d
         # 우리 가게를 찾은 뒤에는 경쟁사용으로 몇 페이지만 더 보고 멈춰 런타임을 제한한다.
         max_pages = int(os.getenv("PLACE_MAX_PAGES", "12") or "12")
         store_orig = targets[0] if targets else None  # 우리 병원(첫 타깃)
-        extra_pages_after_store = 2
+        # 우리 가게를 찾은 뒤 경쟁사를 위해 더 보는 페이지 수. 경쟁사는 보통 우리보다 하위라 충분히 봐야 함.
+        extra_pages_after_store = int(os.getenv("PLACE_EXTRA_PAGES_AFTER_STORE", "6") or "6")
         pages_after_store = 0
         for _ in range(max_pages):
             ul = page.query_selector(container_sel)
@@ -1191,13 +1192,15 @@ def _scan_blog_tab_competitors(page, competitor_blog_ids: list[str]) -> dict[str
     (추가 검색/네비게이션 없이 우리 블로그 스캔과 같은 컨테이너를 다시 훑는다.)
     """
     out: dict[str, int | None] = {}
+    # 경쟁사는 우리보다 하위인 경우가 많아 상위 N개를 넉넉히 본다(블로그탭 로드분 한도 내).
+    comp_max_cards = int(os.getenv("BLOG_COMPETITOR_MAX_CARDS", "30") or "30")
     for cid in competitor_blog_ids:
         nid = normalize_blog_id(cid)
         if not nid or nid in out:
             continue
         rank = None
         for container_sel in SELECTOR_BLOG_TAB_CONTAINER:
-            r, _url = find_rank_in_cards(page, container_sel, CARD_BLOG_TAB, nid, max_cards=20)
+            r, _url = find_rank_in_cards(page, container_sel, CARD_BLOG_TAB, nid, max_cards=comp_max_cards)
             if r is not None:
                 rank = r
                 break
