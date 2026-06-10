@@ -7,7 +7,7 @@ import { TOKEN_VALUE_USD } from '@/lib/billing/usage-log';
 export async function getHospitalTokenBalance(hospitalId: string): Promise<number | null> {
   try {
     const { rows } = await getChartPgPool().query<{ token_balance: string | number | null }>(
-      `SELECT token_balance FROM core.hospitals WHERE id = $1::uuid`,
+      `SELECT token_balance FROM core.hospitals WHERE id = $1`,
       [hospitalId],
     );
     const v = rows[0]?.token_balance;
@@ -39,7 +39,7 @@ export async function chargeOperationTokens(
   if (!hospitalId || !operationId) return null;
   try {
     const { rows } = await getChartPgPool().query<{ tokens: number; balance_after: number; cost_usd: number }>(
-      `SELECT * FROM billing.token_charge_operation($1::uuid, $2::uuid, $3, $4::numeric)`,
+      `SELECT * FROM billing.token_charge_operation($1, $2::uuid, $3, $4::numeric)`,
       [hospitalId, operationId, feature ?? null, TOKEN_VALUE_USD],
     );
     if (rows.length === 0) return null; // 비용 0 또는 이미 청구됨

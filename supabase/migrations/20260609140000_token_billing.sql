@@ -31,8 +31,9 @@ grant select on billing.token_ledger to authenticated;
 
 -- 4) 작업 단위 토큰 차감: 그 operation 의 usage 합산원가 → ceil($합계/단가), 최소 1, 병원 잔액에서 차감.
 --    이미 청구된 작업이면 재청구하지 않음(멱등). 비용 0이면 청구 없음.
+-- core.hospitals.id 가 text 이므로 p_hospital_id 는 text 로 받고, uuid 컬럼(billing.*)엔 ::uuid 캐스트.
 create or replace function billing.token_charge_operation(
-  p_hospital_id     uuid,
+  p_hospital_id     text,
   p_operation_id    uuid,
   p_feature         text default null,
   p_token_value_usd numeric default 0.10
@@ -51,7 +52,7 @@ begin
   end if;
   select coalesce(sum(u.cost_usd), 0) into v_cost
     from billing.llm_usage u
-   where u.operation_id = p_operation_id and u.hospital_id = p_hospital_id;
+   where u.operation_id = p_operation_id and u.hospital_id = p_hospital_id::uuid;
   if v_cost <= 0 then
     return; -- 비용 없음
   end if;
@@ -64,14 +65,14 @@ begin
    returning token_balance into v_balance;
 
   insert into billing.token_ledger(hospital_id, operation_id, feature, cost_usd, tokens, balance_after, kind)
-    values (p_hospital_id, p_operation_id, p_feature, v_cost, -v_tokens, v_balance, 'charge');
+    values (p_hospital_id::uuid, p_operation_id, p_feature, v_cost, -v_tokens, v_balance, 'charge');
 
   return query select v_tokens, v_balance, v_cost;
 end $$;
 
 -- 5) 토큰 지급/충전(양수)·조정. admin 에서 호출.
 create or replace function billing.token_grant(
-  p_hospital_id uuid,
+  p_hospital_id text,
   p_tokens      integer,
   p_note        text default null,
   p_kind        text default 'grant'
@@ -88,9 +89,9 @@ begin
    where id = p_hospital_id
    returning token_balance into v_balance;
   insert into billing.token_ledger(hospital_id, feature, tokens, balance_after, kind, note)
-    values (p_hospital_id, null, p_tokens, v_balance, case when p_kind = 'adjust' then 'adjust' else 'grant' end, p_note);
+    values (p_hospital_id::uuid, null, p_tokens, v_balance, case when p_kind = 'adjust' then 'adjust' else 'grant' end, p_note);
   return v_balance;
 end $$;
 
-grant execute on function billing.token_charge_operation(uuid, uuid, text, numeric) to service_role;
-grant execute on function billing.token_grant(uuid, integer, text, text) to service_role;
+grant execute on function billing.token_charge_operation(text, uuid, text, numeric) to service_role;
+grant execute on function billing.token_grant(text, integer, text, text) to service_role;

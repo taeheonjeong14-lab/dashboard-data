@@ -40,7 +40,7 @@ export async function GET(request: NextRequest) {
              FROM billing.llm_usage
             WHERE created_at >= now() - make_interval(days => $1::int)
             GROUP BY hospital_id
-         ) u ON u.hospital_id = h.id
+         ) u ON u.hospital_id = h.id::uuid
         ORDER BY COALESCE(u.cost_usd, 0) DESC, h.name ASC`,
       [days],
     );
@@ -121,7 +121,7 @@ export async function POST(request: NextRequest) {
   }
   try {
     const { rows } = await getAdminWebPgPool().query<{ token_grant: number }>(
-      `SELECT billing.token_grant($1::uuid, $2::int, $3, 'grant') AS token_grant`,
+      `SELECT billing.token_grant($1, $2::int, $3, 'grant') AS token_grant`,
       [hospitalId, tokens, typeof body.note === 'string' ? body.note : null],
     );
     return NextResponse.json({ ok: true, balanceAfter: Number(rows[0]?.token_grant) });
