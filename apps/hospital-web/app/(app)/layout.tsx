@@ -134,17 +134,23 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
     (user.user_metadata?.hospital_name as string | undefined)?.trim() ||
     null;
 
-  // 토큰 잔액 — 마이그레이션 전(컬럼 없음)에도 깨지지 않게 별도 방어적 조회
+  // 토큰 잔액 — 병원 단위(core.hospitals.token_balance). 과금은 병원 잔액에서 차감되므로 여기를 본다.
+  // (옛 core.users.token_balance 아님) 마이그레이션 전/권한 없음이면 0.
   let tokenBalance = 0;
-  {
-    const { data: tb } = await supabase
-      .schema('core')
-      .from('users')
-      .select('token_balance')
-      .eq('id', user.id)
-      .single();
-    const v = (tb as { token_balance?: number } | null)?.token_balance;
-    if (typeof v === 'number') tokenBalance = v;
+  if (cu?.hospital_id) {
+    try {
+      const srvc = createServiceRoleClient();
+      const { data: hb } = await srvc
+        .schema('core')
+        .from('hospitals')
+        .select('token_balance')
+        .eq('id', cu.hospital_id)
+        .single();
+      const v = (hb as { token_balance?: number | string | null } | null)?.token_balance;
+      if (v != null) tokenBalance = Number(v) || 0;
+    } catch {
+      /* 미설정/권한 등 → 0 */
+    }
   }
 
   return (
