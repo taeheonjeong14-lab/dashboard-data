@@ -83,7 +83,26 @@ export async function GET(request: NextRequest) {
     const totalCalls = hospitals.reduce((s, h) => s + h.calls, 0) + (Number(sys.rows[0]?.calls) || 0);
     const systemUsd = Number(sys.rows[0]?.cost_usd) || 0;
 
-    return NextResponse.json({ days, totalUsd, totalCalls, systemUsd, hospitals, features });
+    // 선택 병원: 날짜×기능 일별 사용량(그래프용)
+    const hospitalIdParam = request.nextUrl.searchParams.get('hospitalId');
+    let daily: { date: string; feature: string; costUsd: number }[] = [];
+    let featureKeys: string[] = [];
+    if (hospitalIdParam && /^[0-9a-fA-F-]{36}$/.test(hospitalIdParam)) {
+      const d = await pool.query<{ date: string; feature: string; cost_usd: number }>(
+        `SELECT to_char(date_trunc('day', created_at), 'YYYY-MM-DD') AS date,
+                COALESCE(feature, '(기타)') AS feature,
+                SUM(cost_usd)::float8 AS cost_usd
+           FROM billing.llm_usage
+          WHERE hospital_id = $1::uuid AND created_at >= now() - make_interval(days => $2::int)
+          GROUP BY 1, 2
+          ORDER BY 1`,
+        [hospitalIdParam, days],
+      );
+      daily = d.rows.map((r) => ({ date: r.date, feature: r.feature, costUsd: Number(r.cost_usd) || 0 }));
+      featureKeys = [...new Set(daily.map((x) => x.feature))];
+    }
+
+    return NextResponse.json({ days, totalUsd, totalCalls, systemUsd, hospitals, features, daily, featureKeys });
   } catch (e) {
     if ((e as { code?: string }).code === '42P01' || (e as { code?: string }).code === '42703') {
       return NextResponse.json({
