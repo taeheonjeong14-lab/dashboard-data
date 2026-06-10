@@ -13,6 +13,11 @@ export function getChartPgPool(): pg.Pool {
       max: 10,
       idleTimeoutMillis: 30_000,
     });
+    // 유휴 커넥션이 풀러/DB 쪽에서 끊길 때(ECONNRESET 등) 나는 에러를 잡지 않으면
+    // 프로세스가 uncaughtException 으로 떨어진다. 풀은 죽은 커넥션을 알아서 버리므로 로그만 남긴다.
+    globalForPool.chartPgPool.on('error', (err) => {
+      console.warn('[pg pool] idle client error (무시 가능):', err.message);
+    });
   }
   return globalForPool.chartPgPool;
 }
