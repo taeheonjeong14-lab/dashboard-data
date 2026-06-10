@@ -850,6 +850,89 @@ export type HospitalCompetitor = { slot: number; name: string; naverBlogId: stri
 
 export type MonthlyReviewCount = { month: string; own: number; c1: number; c2: number; c3: number };
 
+export type RankPoint = { date: string; own: number | null; c1: number | null; c2: number | null; c3: number | null };
+export type RankSeries = { keywords: string[]; byKeyword: Record<string, RankPoint[]> };
+
+/**
+ * 키워드별 날짜별 순위 추이 — 우리 병원 + 경쟁병원(slot 1~3).
+ * blog: analytics_blog_keyword_ranks_daily_view(blog_rank_tab) / place: analytics_place_keyword_ranks(rank_value).
+ * 경쟁사: analytics_competitor_ranks(channel). RLS로 자기 병원 행만.
+ */
+export async function fetchRankSeries(hospitalId: string, channel: "blog" | "place"): Promise<RankSeries> {
+  const empty: RankSeries = { keywords: [], byKeyword: {} };
+  try {
+    const supabase = createClient();
+    type Cell = { own: number | null; c1: number | null; c2: number | null; c3: number | null };
+    const map = new Map<string, Map<string, Cell>>(); // keyword -> date -> cell
+    const ensure = (kw: string, date: string): Cell => {
+      let bd = map.get(kw);
+      if (!bd) { bd = new Map(); map.set(kw, bd); }
+      let c = bd.get(date);
+      if (!c) { c = { own: null, c1: null, c2: null, c3: null }; bd.set(date, c); }
+      return c;
+    };
+
+    // 우리 병원 일별 순위
+    if (channel === "blog") {
+      const { data } = await supabase
+        .schema("analytics")
+        .from("analytics_blog_keyword_ranks_daily_view")
+        .select("metric_date, keyword, blog_rank_tab")
+        .eq("hospital_id", hospitalId)
+        .order("metric_date", { ascending: true });
+      for (const r of data ?? []) {
+        const kw = asStringOrNull((r as { keyword?: unknown }).keyword);
+        const date = String((r as { metric_date?: unknown }).metric_date ?? "").slice(0, 10);
+        if (!kw || !date) continue;
+        ensure(kw, date).own = asNumberOrNull((r as { blog_rank_tab?: unknown }).blog_rank_tab);
+      }
+    } else {
+      const { data } = await supabase
+        .schema("analytics")
+        .from("analytics_place_keyword_ranks")
+        .select("metric_date, keyword, rank_value")
+        .eq("hospital_id", hospitalId)
+        .order("metric_date", { ascending: true });
+      for (const r of data ?? []) {
+        const kw = asStringOrNull((r as { keyword?: unknown }).keyword);
+        const date = String((r as { metric_date?: unknown }).metric_date ?? "").slice(0, 10);
+        if (!kw || !date) continue;
+        ensure(kw, date).own = asNumberOrNull((r as { rank_value?: unknown }).rank_value);
+      }
+    }
+
+    // 경쟁병원 일별 순위
+    const { data: cdata } = await supabase
+      .schema("analytics")
+      .from("analytics_competitor_ranks")
+      .select("metric_date, keyword, slot, rank_value")
+      .eq("hospital_id", hospitalId)
+      .eq("channel", channel)
+      .order("metric_date", { ascending: true });
+    for (const r of cdata ?? []) {
+      const kw = asStringOrNull((r as { keyword?: unknown }).keyword);
+      const date = String((r as { metric_date?: unknown }).metric_date ?? "").slice(0, 10);
+      const slot = Number((r as { slot?: unknown }).slot) || 0;
+      if (!kw || !date || slot < 1 || slot > 3) continue;
+      const cell = ensure(kw, date);
+      const v = asNumberOrNull((r as { rank_value?: unknown }).rank_value);
+      if (slot === 1) cell.c1 = v;
+      else if (slot === 2) cell.c2 = v;
+      else cell.c3 = v;
+    }
+
+    const keywords = [...map.keys()].sort((a, b) => a.localeCompare(b, "ko"));
+    const byKeyword: Record<string, RankPoint[]> = {};
+    for (const kw of keywords) {
+      const bd = map.get(kw)!;
+      byKeyword[kw] = [...bd.entries()].sort((a, b) => (a[0] < b[0] ? -1 : 1)).map(([date, c]) => ({ date, ...c }));
+    }
+    return { keywords, byKeyword };
+  } catch {
+    return empty;
+  }
+}
+
 /** 최근 12개월 월별 플레이스 리뷰 갯수 — 우리 병원 + 경쟁병원(slot 1~3). RLS로 자기 병원 행만 보임. */
 export async function fetchMonthlyReviewCounts(hospitalId: string): Promise<MonthlyReviewCount[]> {
   const byMonth = new Map<string, MonthlyReviewCount>();
