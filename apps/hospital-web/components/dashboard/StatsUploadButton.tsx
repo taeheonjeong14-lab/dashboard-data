@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useCallback, useEffect, type DragEvent, type ChangeEvent, type CSSProperties } from 'react';
+import { createClient } from '@/lib/supabase/client';
 
 type ChartType = 'intovet' | 'woorien_pms' | 'efriends';
 type UploadStage = 'idle' | 'uploading' | 'done' | 'error';
@@ -112,10 +113,30 @@ function StatsUploadModal({ onClose }: { onClose: () => void }) {
     setErrorMessage('');
     setResult(null);
     try {
-      const fd = new FormData();
-      fd.set('file', file);
-      fd.set('chartType', chartType);
-      const res = await fetch('/api/stats-upload', { method: 'POST', body: fd });
+      // 1) 서명 업로드 URL 발급
+      const signRes = await fetch('/api/stats-upload/sign', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ fileName: file.name }),
+      });
+      const sign = (await signRes.json()) as { bucket?: string; path?: string; token?: string; error?: string };
+      if (!signRes.ok || !sign.bucket || !sign.path || !sign.token) {
+        throw new Error(sign.error ?? '업로드 준비에 실패했습니다.');
+      }
+
+      // 2) 파일을 Storage 에 직접 업로드 (Vercel 함수 본문 한도 우회)
+      const supabase = createClient();
+      const { error: upErr } = await supabase.storage
+        .from(sign.bucket)
+        .uploadToSignedUrl(sign.path, sign.token, file);
+      if (upErr) throw new Error(`파일 업로드 실패: ${upErr.message}`);
+
+      // 3) 서버에 경로만 전달해 파싱·저장 요청
+      const res = await fetch('/api/stats-upload', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ storagePath: sign.path, chartType, fileName: file.name }),
+      });
       const data = (await res.json()) as { ok?: boolean; rowCount?: number; dateFrom?: string | null; dateTo?: string | null; error?: string };
       if (!res.ok || !data.ok) throw new Error(data.error ?? '업로드에 실패했습니다.');
       setResult({ rowCount: data.rowCount ?? 0, dateFrom: data.dateFrom ?? null, dateTo: data.dateTo ?? null });

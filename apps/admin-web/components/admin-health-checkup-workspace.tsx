@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { createClient } from '@/lib/supabase/client';
 import {
   HEALTH_CHECKUP_DENTAL_SKIN_ROW_MAX_CHARS,
   HEALTH_CHECKUP_LAB_INTERP_MAX_CHARS,
@@ -1442,19 +1443,49 @@ export function AdminHealthCheckupWorkspace({
             if (files.length === 0) return;
             setModalUploading(true);
             try {
-              const form = new FormData();
-              form.append('mode', 'append');
-              for (const f of files) form.append('images', f);
+              // 1) 서명 업로드 URL 발급 — 이미지 바이트가 함수 본문을 거치지 않아 Vercel 4.5MB 한도를 우회한다.
+              const exts = files.map((f) => (f.name.split('.').pop() || 'jpg').toLowerCase());
+              const signRes = await fetch(`/api/admin/runs/${runId}/case-images/sign`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({ exts }),
+              });
+              const signData = (await signRes.json().catch(() => ({}))) as {
+                uploads?: { path: string; token: string }[];
+                error?: string;
+              };
+              if (!signRes.ok) { alert(signData.error ?? '업로드 URL 생성 실패'); return; }
+              const uploads = signData.uploads ?? [];
+              if (uploads.length !== files.length) { alert('업로드 URL 개수가 맞지 않습니다.'); return; }
+
+              // 2) 각 이미지를 스토리지에 직접 업로드
+              const supabase = createClient();
+              await Promise.all(
+                uploads.map(async ({ path, token }, i) => {
+                  const file = files[i];
+                  const { error } = await supabase.storage
+                    .from('chart-case-images')
+                    .uploadToSignedUrl(path, token, file, { contentType: file.type });
+                  if (error) throw new Error(`이미지 업로드 실패: ${error.message}`);
+                }),
+              );
+
+              // 3) 경로만 서버로 전달 → 분석/저장
               const res = await fetch(`/api/admin/runs/${runId}/case-images`, {
                 method: 'POST',
-                body: form,
+                headers: { 'Content-Type': 'application/json' },
                 credentials: 'include',
+                body: JSON.stringify({
+                  mode: 'append',
+                  uploads: uploads.map((u, i) => ({ path: u.path, fileName: files[i].name })),
+                }),
               });
               const d = (await res.json()) as { error?: string };
               if (!res.ok) { alert(d.error ?? '업로드 실패'); return; }
               setCandidatesRefreshKey((n) => n + 1);
-            } catch {
-              alert('업로드 중 오류가 발생했습니다.');
+            } catch (e) {
+              alert(e instanceof Error ? e.message : '업로드 중 오류가 발생했습니다.');
             } finally {
               setModalUploading(false);
             }
