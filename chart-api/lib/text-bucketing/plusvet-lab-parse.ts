@@ -16,6 +16,9 @@ const PLUSVET_UNITS_LONGEST_FIRST = [
   '10×10/L',
   '10^12/L',
   '10^9/L',
+  // 세포수 카운트 단위 (ProCyte/Catalyst). OCR이 K를 그리스 카파(Κ), μ를 그리스 뮤로 뽑음 → canonUnit에서 흡수.
+  'K/μL',
+  'M/μL',
   'mmol/L',
   'μmol/L',
   'umol/L',
@@ -85,14 +88,38 @@ function mergeVerticalLabItems(rows: LineIn[]): LineIn[] {
   while (i < rows.length) {
     const row = rows[i]!;
     const next = rows[i + 1];
-    // 현재 줄: 숫자·화살표 없음(항목명), 다음 줄: 숫자로 시작(값)
-    if (!/\d/.test(row.text) && row.text.trim() && next && /^[<>≤≥]?\d/.test(next.text.trim())) {
+    // 현재 줄: 숫자·화살표 없음(항목명), 다음 줄: 숫자로 시작(값). "< 10" 처럼 부등호 뒤 공백 허용.
+    if (!/\d/.test(row.text) && row.text.trim() && next && /^[<>≤≥]?\s*\d/.test(next.text.trim())) {
       out.push({ page: row.page, text: normalizeSpaces(`${row.text} ${next.text}`) });
       i += 2;
     } else {
       out.push(row);
       i += 1;
     }
+  }
+  return out;
+}
+
+/** 단독 줄로 떨어진 참고범위(예: "2.2-4", "151-600")를 화살표 없는 정상값 항목 줄에 흡수.
+ *  (화살표가 붙은 항목은 mergeContinuationRows 에서 이미 참고범위를 흡수함 → 여기선 화살표 없는 줄만 대상) */
+function mergeOrphanRefRanges(rows: LineIn[]): LineIn[] {
+  const isPureRefRange = (t: string) => /^-?\d+(?:\.\d+)?\s*-\s*-?\d+(?:\.\d+)?$/.test(t.trim());
+  const out: LineIn[] = [];
+  for (const row of rows) {
+    const t = normalizeSpaces(row.text);
+    if (!t) continue;
+    const prev = out[out.length - 1];
+    if (
+      isPureRefRange(t) &&
+      prev &&
+      /\d/.test(prev.text) &&
+      !ARROWS.some((a) => prev.text.includes(a)) &&
+      !isPureRefRange(prev.text)
+    ) {
+      out[out.length - 1] = { page: prev.page, text: normalizeSpaces(`${prev.text} ${t}`) };
+      continue;
+    }
+    out.push({ page: row.page, text: t });
   }
   return out;
 }
@@ -152,9 +179,14 @@ function stripTrailingLH(head: string): { head: string; lh: 'L' | 'H' | null } {
   return { head: head.trim(), lh: null };
 }
 
-// 곱셈기호(× * x)·마이크로(μ u) 표기 차이를 흡수해 단위 매칭. (텍스트레이어는 "10x9/L", 목록은 "10×9/L")
+// 곱셈기호(× * x)·마이크로(μ µ u)·그리스 카파(Κ κ→k) 표기 차이를 흡수해 단위 매칭.
+// (텍스트레이어는 "10x9/L"·"K/uL", 스캔 OCR은 "10×9/L"·"Κ/μL"처럼 그리스 문자로 뽑힘)
 function canonUnit(s: string): string {
-  return s.toLowerCase().replace(/[×*]/g, 'x').replace(/μ/g, 'u');
+  return s
+    .toLowerCase()
+    .replace(/[×*]/g, 'x')
+    .replace(/[μµ]/g, 'u')
+    .replace(/[κΚ]/g, 'k');
 }
 
 function stripTrailingUnit(head: string): { head: string; unit: string | null } {
@@ -280,7 +312,7 @@ export function parsePlusVetLabBucketLines(lines: LineIn[]): LabItem[] {
     if (isDiagnosisTrendSectionTitle(row.text)) break;
     untilTrend.push(row);
   }
-  const merged = mergeVerticalLabItems(mergeContinuationRows(untilTrend));
+  const merged = mergeOrphanRefRanges(mergeVerticalLabItems(mergeContinuationRows(untilTrend)));
   const items: LabItem[] = [];
   for (const row of merged) {
     const item = parsePlusVetLabLine(row.text, row.page);
