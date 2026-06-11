@@ -165,6 +165,28 @@ const DIRECT_ALIASES: Record<string, string> = {
   PTHRP: 'PTHrP',
 };
 
+/**
+ * OCR이 라틴 글자를 같은 모양의 그리스/키릴 글자로 잘못 읽는 경우가 있다(예: "MONO"→"ΜΟΝΟ").
+ * 검사 항목명은 관례상 ASCII이므로, 룩얼라이크 글자를 라틴으로 접어 정규화 매칭이 되게 한다.
+ * (canonicalizeLabItemName 진입부에서 적용 → PRIORITY_RULES·CBC 차등·alias 매칭 전부 커버)
+ */
+const HOMOGLYPH_TO_LATIN: Record<string, string> = {
+  // Greek 대문자 → Latin
+  Α: 'A', Β: 'B', Ε: 'E', Ζ: 'Z', Η: 'H', Ι: 'I', Κ: 'K', Μ: 'M', Ν: 'N', Ο: 'O', Ρ: 'P', Τ: 'T', Υ: 'Y', Χ: 'X',
+  // Greek 소문자 → Latin
+  α: 'a', β: 'b', ε: 'e', ι: 'i', κ: 'k', μ: 'm', ν: 'n', ο: 'o', ρ: 'p', τ: 't', υ: 'u', χ: 'x', η: 'n',
+  // Cyrillic 대문자 → Latin
+  А: 'A', В: 'B', Е: 'E', К: 'K', М: 'M', Н: 'H', О: 'O', Р: 'P', С: 'C', Т: 'T', У: 'Y', Х: 'X',
+  // Cyrillic 소문자 → Latin
+  а: 'a', в: 'b', е: 'e', к: 'k', м: 'm', н: 'n', о: 'o', р: 'p', с: 'c', т: 't', у: 'y', х: 'x',
+};
+
+function foldOcrHomoglyphs(s: string): string {
+  let out = '';
+  for (const ch of s) out += HOMOGLYPH_TO_LATIN[ch] ?? ch;
+  return out;
+}
+
 function normalizeToken(raw: string): string {
   return raw
     .trim()
@@ -232,7 +254,7 @@ export function canonicalizeLabItemName(
   rawName: string,
   species?: LabCanonicalizeSpecies | null,
 ): string {
-  const raw = rawName.trim();
+  const raw = foldOcrHomoglyphs(rawName.trim());
   if (!raw) return '';
 
   for (const rule of PRIORITY_RULES) {
