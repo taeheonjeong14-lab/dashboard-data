@@ -1,5 +1,6 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
+import { SUPABASE_COOKIE_OPTIONS } from '@/lib/supabase/cookie-options';
 
 export async function middleware(request: NextRequest) {
   const supabaseResponse = NextResponse.next();
@@ -11,6 +12,7 @@ export async function middleware(request: NextRequest) {
   }
 
   const supabase = createServerClient(url, anon, {
+    cookieOptions: SUPABASE_COOKIE_OPTIONS,
     cookies: {
       getAll() {
         return request.cookies.getAll();

@@ -3,6 +3,7 @@
 import { redirect } from 'next/navigation';
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
+import { SUPABASE_COOKIE_OPTIONS } from '@/lib/supabase/cookie-options';
 
 export type SignInResult = { ok: true } | { ok: false; error: string };
 
@@ -21,6 +22,7 @@ export async function signInWithPasswordAction(email: string, password: string):
   const cookieStore = await cookies();
 
   const supabase = createServerClient(url, anon, {
+    cookieOptions: SUPABASE_COOKIE_OPTIONS,
     cookies: {
       getAll() {
         return cookieStore.getAll();
