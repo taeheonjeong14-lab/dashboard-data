@@ -2,16 +2,16 @@
 
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
-import type { HealthCheckupGeneratedContent } from '@/lib/chart-app/health-checkup-content-llm';
+import type { HealthCheckupGeneratedContent } from '@/lib/chart-app/health-checkup-content-shared';
 import type { HealthReportPreviewModel } from '@/lib/chart-app/health-report-preview-model';
-import { parseHealthCheckupPayloadFromStorage } from '@/lib/chart-app/health-checkup-content-llm';
+import { parseHealthCheckupPayloadFromStorage } from '@/lib/chart-app/health-checkup-content-shared';
 import {
   HEALTH_CHECKUP_MAX_COVER_BREED_CHARS,
   HEALTH_CHECKUP_MAX_COVER_CHECKUP_DATE_CHARS,
   HEALTH_CHECKUP_MAX_COVER_FIELD_CHARS,
   HEALTH_CHECKUP_MAX_COVER_SEX_CHARS,
   HEALTH_CHECKUP_MAX_COVER_SHORT_FIELD_CHARS,
-} from '@/lib/chart-app/health-checkup-content-llm';
+} from '@/lib/chart-app/health-checkup-content-shared';
 import {
   HEALTH_CHECKUP_MAX_FOLLOW_UP_CHARS,
   HEALTH_CHECKUP_MAX_OVERALL_CHARS,

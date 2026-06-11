@@ -4,8 +4,6 @@ import { EXAM_TYPE_LABEL_KO, RADIOLOGY_SUB_LABEL_KO } from '@/lib/chart-app/imag
 import {
   HEALTH_CHECKUP_MAX_FOLLOW_UP_CHARS,
   HEALTH_CHECKUP_MAX_OVERALL_CHARS,
-  HEALTH_CHECKUP_MAX_RECHECK_BODY_CHARS,
-  HEALTH_CHECKUP_MAX_RECHECK_TITLE_CHARS,
   HEALTH_CHECKUP_PROMPT_DENTAL_SKIN_DX_MAX_CHARS,
   HEALTH_CHECKUP_PROMPT_DENTAL_SKIN_IMP_MAX_CHARS,
   HEALTH_CHECKUP_PROMPT_IMAGING_INTERP_MAX_CHARS,
@@ -36,113 +34,34 @@ import {
   HEALTH_CHECKUP_SYSTEMS_LLM_FIELD_KEYS,
   mergeHealthSystemsDemosWithLlmFields,
 } from '@/lib/chart-app/health-checkup-systems-llm-merge';
-import { joinTimelineCardText } from '@/lib/chart-app/health-report-timeline-card';
 import type { ReportSourceData } from '@/lib/chart-app/report-types';
+import {
+  type HealthCheckupGeneratedContent,
+  clampStoredRecheckCard,
+} from '@/lib/chart-app/health-checkup-content-shared';
 
-export type HealthCheckupGeneratedContent = {
-  overallSummary: string;
-  followUpCare: string;
-  recheckWithin1to2Weeks: string;
-  recheckWithin1Month: string;
-  recheckWithin3Months: string;
-  recheckWithin6Months: string;
-  coverCheckupDate?: string;
-  coverProgram?: string;
-  coverVeterinarian?: string;
-  coverPatientName?: string;
-  coverPatientSpecies?: string;
-  coverPatientBreed?: string;
-  coverPatientSex?: string;
-  coverPatientAge?: string;
-  coverPatientWeight?: string;
-  coverOwnerName?: string;
-  systemsPage3Blocks?: unknown;
-  systemsPage3bBlocks?: unknown;
-  systemsPage4Blocks?: unknown;
-  systemsPage5Blocks?: unknown;
-  labInterpretation?: string;
-};
+// 하위 호환: 기존에 이 모듈에서 import 하던 순수 심볼들을 그대로 re-export (실제 정의는 shared).
+export type { HealthCheckupGeneratedContent };
+export {
+  parseHealthCheckupPayloadFromStorage,
+  clampStoredRecheckCard,
+  clampText,
+  HEALTH_CHECKUP_MAX_COVER_FIELD_CHARS,
+  HEALTH_CHECKUP_MAX_COVER_SHORT_FIELD_CHARS,
+  HEALTH_CHECKUP_MAX_COVER_BREED_CHARS,
+  HEALTH_CHECKUP_MAX_COVER_CHECKUP_DATE_CHARS,
+  HEALTH_CHECKUP_MAX_COVER_SEX_CHARS,
+  HEALTH_CHECKUP_COVER_STORAGE_KEYS,
+} from '@/lib/chart-app/health-checkup-content-shared';
 
 const MAX_OVERALL = HEALTH_CHECKUP_MAX_OVERALL_CHARS;
 const MAX_FOLLOW_UP = HEALTH_CHECKUP_MAX_FOLLOW_UP_CHARS;
 const PROMPT_MAX_OVERALL = HEALTH_CHECKUP_PROMPT_MAX_OVERALL_CHARS;
 const PROMPT_MAX_FOLLOW_UP = HEALTH_CHECKUP_PROMPT_MAX_FOLLOW_UP_CHARS;
 
-export const HEALTH_CHECKUP_MAX_COVER_FIELD_CHARS = 500;
-export const HEALTH_CHECKUP_MAX_COVER_SHORT_FIELD_CHARS = 7;
-// 품종은 "래브라도리트리버"(8자)처럼 7자를 넘는 경우가 흔해 별도로 넉넉히 둔다.
-export const HEALTH_CHECKUP_MAX_COVER_BREED_CHARS = 20;
-export const HEALTH_CHECKUP_MAX_COVER_CHECKUP_DATE_CHARS = 32;
-export const HEALTH_CHECKUP_MAX_COVER_SEX_CHARS = 12;
-
-/** 저장·검증에서 항상 존재해야 하는 표지 키(vet-report 패리티). */
-export const HEALTH_CHECKUP_COVER_STORAGE_KEYS = [
-  'coverCheckupDate',
-  'coverProgram',
-  'coverVeterinarian',
-  'coverPatientName',
-  'coverPatientSpecies',
-  'coverPatientBreed',
-  'coverPatientSex',
-  'coverPatientAge',
-  'coverPatientWeight',
-  'coverOwnerName',
-] as const satisfies readonly (keyof HealthCheckupGeneratedContent)[];
-
-const COVER_FIELD_KEYS = HEALTH_CHECKUP_COVER_STORAGE_KEYS;
-
-function maxCharsForCoverField(key: (typeof COVER_FIELD_KEYS)[number]): number {
-  switch (key) {
-    case 'coverCheckupDate':
-      return HEALTH_CHECKUP_MAX_COVER_CHECKUP_DATE_CHARS;
-    case 'coverProgram':
-    case 'coverVeterinarian':
-      return HEALTH_CHECKUP_MAX_COVER_FIELD_CHARS;
-    case 'coverPatientName':
-    case 'coverPatientSpecies':
-    case 'coverPatientAge':
-    case 'coverPatientWeight':
-    case 'coverOwnerName':
-      return HEALTH_CHECKUP_MAX_COVER_SHORT_FIELD_CHARS;
-    case 'coverPatientBreed':
-      return HEALTH_CHECKUP_MAX_COVER_BREED_CHARS;
-    case 'coverPatientSex':
-      return HEALTH_CHECKUP_MAX_COVER_SEX_CHARS;
-    default:
-      return HEALTH_CHECKUP_MAX_COVER_FIELD_CHARS;
-  }
-}
-
 function examTypeLabel(examType: keyof typeof EXAM_TYPE_LABEL_KO, radiologySub: keyof typeof RADIOLOGY_SUB_LABEL_KO | null) {
   if (examType === 'radiology' && radiologySub) return `${EXAM_TYPE_LABEL_KO.radiology}(${RADIOLOGY_SUB_LABEL_KO[radiologySub]})`;
   return EXAM_TYPE_LABEL_KO[examType] ?? EXAM_TYPE_LABEL_KO.other;
-}
-
-function clampText(s: unknown, max: number): string {
-  const t = typeof s === 'string' ? s.trim() : '';
-  return t.length <= max ? t : t.slice(0, max);
-}
-
-function clampStoredRecheckCard(raw: unknown): string {
-  const s = typeof raw === 'string' ? raw : '';
-  const nl = s.indexOf('\n');
-  let title = '';
-  let body = '';
-  if (nl === -1) {
-    body = s.trim();
-  } else {
-    title = s.slice(0, nl).trim();
-    const rest = s.slice(nl + 1);
-    const nl2 = rest.indexOf('\n');
-    body = (nl2 === -1 ? rest : rest.slice(0, nl2)).trim();
-    if (!body) {
-      body = title;
-      title = '';
-    }
-  }
-  title = clampText(title, HEALTH_CHECKUP_MAX_RECHECK_TITLE_CHARS);
-  body = clampText(body, HEALTH_CHECKUP_MAX_RECHECK_BODY_CHARS);
-  return joinTimelineCardText(title, body);
 }
 
 function extractDatePart(s: string): string {
@@ -245,32 +164,6 @@ function buildHealthCheckupPrompt(
   ].join('\n');
 }
 
-function pickCoverFields(o: Record<string, unknown>): Partial<HealthCheckupGeneratedContent> {
-  const out: Partial<HealthCheckupGeneratedContent> = {};
-  for (const key of COVER_FIELD_KEYS) {
-    if (!(key in o)) continue;
-    (out as Record<string, string>)[key] = clampText(o[key], maxCharsForCoverField(key));
-  }
-  return out;
-}
-
-function healthCheckupFromPlainObject(o: Record<string, unknown>): HealthCheckupGeneratedContent {
-  return {
-    overallSummary: typeof o.overallSummary === 'string' ? o.overallSummary.trim() : '',
-    followUpCare: typeof o.followUpCare === 'string' ? o.followUpCare.trim() : '',
-    recheckWithin1to2Weeks: clampStoredRecheckCard(o.recheckWithin1to2Weeks),
-    recheckWithin1Month: clampStoredRecheckCard(o.recheckWithin1Month),
-    recheckWithin3Months: clampStoredRecheckCard(o.recheckWithin3Months),
-    recheckWithin6Months: clampStoredRecheckCard(o.recheckWithin6Months),
-    ...pickCoverFields(o),
-    ...('systemsPage3Blocks' in o ? { systemsPage3Blocks: o.systemsPage3Blocks } : {}),
-    ...('systemsPage3bBlocks' in o ? { systemsPage3bBlocks: o.systemsPage3bBlocks } : {}),
-    ...('systemsPage4Blocks' in o ? { systemsPage4Blocks: o.systemsPage4Blocks } : {}),
-    ...('systemsPage5Blocks' in o ? { systemsPage5Blocks: o.systemsPage5Blocks } : {}),
-    ...(typeof o.labInterpretation === 'string' ? { labInterpretation: o.labInterpretation } : {}),
-  };
-}
-
 function normalizeHealthCheckup(raw: unknown): HealthCheckupGeneratedContent {
   if (!raw || typeof raw !== 'object') throw new Error('Invalid health checkup content response.');
   const o = raw as Record<string, unknown>;
@@ -356,11 +249,6 @@ async function generateHealthCheckupRawJson(
     const preview = output.replace(/\s+/g, ' ').slice(0, 280);
     throw new Error(`Gemini returned non-JSON content. Preview: ${preview}`);
   }
-}
-
-export function parseHealthCheckupPayloadFromStorage(raw: unknown): HealthCheckupGeneratedContent {
-  if (!raw || typeof raw !== 'object') return healthCheckupFromPlainObject({});
-  return healthCheckupFromPlainObject(raw as Record<string, unknown>);
 }
 
 export type RegenerateSection =
