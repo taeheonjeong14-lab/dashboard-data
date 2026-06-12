@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState, type CSSProperties } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
 import { CaseBlogButton } from './admin-case-blog-modal';
 
 type CaseBlogItem = {
@@ -51,12 +51,33 @@ function caseId(friendlyId: string | null): string {
   return friendlyId ? `${friendlyId}C` : '';
 }
 
+// 검사 타입 → 한글 검사명 (chart-api image-case-types 와 동기화). 'other'/null 은 일반 사진 → 캡션 자유.
+const EXAM_NAME_KO: Record<string, string> = {
+  radiology: '방사선검사',
+  ultrasound: '초음파검사',
+  microscopy: '현미경검사',
+  endoscopy: '검이경검사',
+  slit_lamp: '슬릿램프검사',
+};
+
+/** 검사 이미지면 [부위] [검사명] (예: "흉부 방사선검사"), 일반 사진이면 AI 자유 캡션(briefComment). */
+function buildImageCaption(im: { examType?: unknown; bodyPart?: unknown; briefComment?: unknown }): string {
+  const part = typeof im.bodyPart === 'string' ? im.bodyPart.trim() : '';
+  const examName = typeof im.examType === 'string' ? EXAM_NAME_KO[im.examType] : undefined;
+  if (examName) return part ? `${part} ${examName}` : examName;
+  const brief = typeof im.briefComment === 'string' ? im.briefComment.trim() : '';
+  return brief || part || '';
+}
+
 export default function AdminCaseBlog() {
   const [items, setItems] = useState<CaseBlogItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState('');
+  const [filterHospital, setFilterHospital] = useState('');
+  const [filterMonth, setFilterMonth] = useState('');
   const [selectedId, setSelectedId] = useState('');
+  const [pseudoOpen, setPseudoOpen] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -78,16 +99,27 @@ export default function AdminCaseBlog() {
     void load();
   }, [load]);
 
+  const hospitalOptions = useMemo(
+    () => [...new Set(items.map((it) => it.hospitalName?.trim()).filter((h): h is string => Boolean(h)))].sort(),
+    [items],
+  );
+  const monthOptions = useMemo(
+    () => [...new Set(items.map((it) => (it.createdAt || '').slice(0, 7)).filter((m) => m.length === 7))].sort().reverse(),
+    [items],
+  );
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return items;
-    return items.filter((it) =>
-      [it.title, it.hospitalName, it.patientName, it.ownerName, it.finalDiagnosis, it.friendlyId ?? '', caseId(it.friendlyId), it.tags.join(' ')]
+    return items.filter((it) => {
+      if (filterHospital && (it.hospitalName?.trim() || '') !== filterHospital) return false;
+      if (filterMonth && (it.createdAt || '').slice(0, 7) !== filterMonth) return false;
+      if (!q) return true;
+      return [it.title, it.hospitalName, it.patientName, it.ownerName, it.finalDiagnosis, it.friendlyId ?? '', caseId(it.friendlyId), it.tags.join(' ')]
         .join(' ')
         .toLowerCase()
-        .includes(q),
-    );
-  }, [items, query]);
+        .includes(q);
+    });
+  }, [items, query, filterHospital, filterMonth]);
 
   useEffect(() => {
     if (filtered.length === 0) {
@@ -99,12 +131,15 @@ export default function AdminCaseBlog() {
 
   const selected = useMemo(() => items.find((it) => it.runId === selectedId) ?? null, [items, selectedId]);
 
-  // 선택한 케이스의 "선정된 이미지" — 아웃라인(blog_outline)의 섹션별 imageFileNames + 케이스 이미지(URL·캡션).
-  type ViewerImage = { fileName: string; url: string | null; caption: string };
-  const [imageGroups, setImageGroups] = useState<{ label: string; imgs: ViewerImage[] }[]>([]);
+  // 선택한 케이스의 사진 — 케이스 이미지 전체(URL·캡션) + AI 추천 여부(blog_outline 섹션 imageFileNames).
+  type CaseImage = { fileName: string; url: string | null; caption: string; aiPicked: boolean };
+  const [caseImages, setCaseImages] = useState<CaseImage[]>([]);
+  const [checked, setChecked] = useState<Set<string>>(new Set());
+  const [downloading, setDownloading] = useState(false);
   useEffect(() => {
     let cancelled = false;
-    setImageGroups([]);
+    setCaseImages([]);
+    setChecked(new Set());
     if (!selectedId) return;
     (async () => {
       try {
@@ -113,30 +148,49 @@ export default function AdminCaseBlog() {
           fetch(`/api/admin/runs/${encodeURIComponent(selectedId)}/case-images`, { credentials: 'include' }),
         ]);
         const cData = (await cRes.json()) as { items?: { contentType?: string; payload?: unknown }[] };
-        const iData = (await iRes.json()) as { images?: { fileName?: string; signedUrl?: string | null; briefComment?: string; bodyPart?: string | null }[] };
-        const outline = (cData.items ?? []).find((i) => i.contentType === 'blog_outline')?.payload as
-          | { sections?: { label?: string; imageFileNames?: unknown }[] }
+        const iData = (await iRes.json()) as { images?: { fileName?: string; signedUrl?: string | null; briefComment?: string; bodyPart?: string | null; examType?: string | null }[] };
+        // blog_outline 저장 구조는 { outline: { sections: [...] }, caseOverview } — payload.outline.sections 가 정확.
+        // (구버전 호환으로 payload.sections 도 폴백)
+        const outlinePayload = (cData.items ?? []).find((i) => i.contentType === 'blog_outline')?.payload as
+          | { outline?: { sections?: { imageFileNames?: unknown }[] }; sections?: { imageFileNames?: unknown }[] }
           | undefined;
-        const metaByName = new Map<string, { url: string | null; caption: string }>();
+        const sections = outlinePayload?.outline?.sections ?? outlinePayload?.sections ?? [];
+        const aiNames = new Set<string>();
+        for (const s of sections) {
+          const fns = Array.isArray(s.imageFileNames) ? (s.imageFileNames as unknown[]).filter((x): x is string => typeof x === 'string') : [];
+          for (const fn of fns) aiNames.add(fn);
+        }
+        const seen = new Set<string>();
+        const raw: { fileName: string; url: string | null; aiPicked: boolean; caption: string }[] = [];
         for (const im of iData.images ?? []) {
           const fn = String(im.fileName ?? '');
-          if (!fn) continue;
-          const brief = typeof im.briefComment === 'string' ? im.briefComment.trim() : '';
-          const part = typeof im.bodyPart === 'string' ? im.bodyPart.trim() : '';
-          metaByName.set(fn, { url: im.signedUrl ?? null, caption: brief || part });
+          if (!fn || seen.has(fn)) continue;
+          seen.add(fn);
+          raw.push({ fileName: fn, url: im.signedUrl ?? null, aiPicked: aiNames.has(fn), caption: buildImageCaption(im) });
         }
-        const groups: { label: string; imgs: ViewerImage[] }[] = [];
-        for (const s of outline?.sections ?? []) {
-          const fns = Array.isArray(s.imageFileNames) ? (s.imageFileNames as unknown[]).filter((x): x is string => typeof x === 'string') : [];
-          if (!fns.length) continue;
-          groups.push({
-            label: typeof s.label === 'string' ? s.label : '',
-            imgs: fns.map((fn) => ({ fileName: fn, url: metaByName.get(fn)?.url ?? null, caption: metaByName.get(fn)?.caption ?? '' })),
-          });
+        // 케이스 내 동일 캡션은 넘버링("심장 초음파검사 1", "심장 초음파검사 2") — 100% 중복 방지.
+        const capCount = new Map<string, number>();
+        for (const r of raw) if (r.caption) capCount.set(r.caption, (capCount.get(r.caption) ?? 0) + 1);
+        const capSeen = new Map<string, number>();
+        const imgs: CaseImage[] = raw.map((r) => {
+          let caption = r.caption;
+          if (caption && (capCount.get(caption) ?? 0) > 1) {
+            const n = (capSeen.get(caption) ?? 0) + 1;
+            capSeen.set(caption, n);
+            caption = `${caption} ${n}`;
+          }
+          return { fileName: r.fileName, url: r.url, caption, aiPicked: r.aiPicked };
+        });
+        if (!cancelled) {
+          setCaseImages(imgs);
+          // 기본 선택 = AI 추천 사진(다운로드 가능한 것).
+          setChecked(new Set(imgs.filter((x) => x.aiPicked && x.url).map((x) => x.fileName)));
         }
-        if (!cancelled) setImageGroups(groups);
       } catch {
-        if (!cancelled) setImageGroups([]);
+        if (!cancelled) {
+          setCaseImages([]);
+          setChecked(new Set());
+        }
       }
     })();
     return () => {
@@ -144,96 +198,147 @@ export default function AdminCaseBlog() {
     };
   }, [selectedId]);
 
-  return (
-    <div>
-      {/* 헤더 */}
-      <div style={{ marginBottom: 16, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
-        <div style={{ minWidth: 0 }}>
-          <h1 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: 'var(--text)' }}>진료케이스</h1>
-          <p style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--text-secondary)' }}>
-            전체 {items.length}건 — 차트 목록에서 작성한 진료케이스 블로그 글을 확인합니다.
-          </p>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
-          <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{loading ? '불러오는 중…' : error ?? ''}</span>
-          <button type="button" style={btnSecondary} onClick={() => void load()} disabled={loading}>
-            새로고침
-          </button>
-        </div>
-      </div>
+  const toggleChecked = useCallback((fn: string) => {
+    setChecked((prev) => {
+      const next = new Set(prev);
+      if (next.has(fn)) next.delete(fn);
+      else next.add(fn);
+      return next;
+    });
+  }, []);
 
-      {/* 좌우 split */}
-      <div style={{ display: 'flex', gap: 0, alignItems: 'stretch', width: '100%' }}>
-        {/* LEFT — 진료케이스 목록 */}
-        <div style={{ flex: 1, minWidth: 0, paddingRight: 24 }}>
+  async function downloadSelectedImages() {
+    const targets = caseImages.filter((im) => checked.has(im.fileName) && im.url);
+    if (targets.length === 0) return;
+    setDownloading(true);
+    try {
+      for (const t of targets) {
+        const res = await fetch(t.url as string);
+        if (!res.ok) throw new Error(`다운로드 실패: ${t.fileName}`);
+        const blob = await res.blob();
+        const objUrl = URL.createObjectURL(blob);
+        const ext = (t.fileName.split('.').pop() || 'jpg').toLowerCase();
+        const downloadName = t.caption
+          ? `${t.caption.replace(/[\\/:*?"<>|\n\r]+/g, '_').trim()}.${ext}`
+          : t.fileName;
+        const a = document.createElement('a');
+        a.href = objUrl;
+        a.download = downloadName;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(objUrl), 1000);
+        await new Promise((r) => setTimeout(r, 300)); // 브라우저가 연속 다운로드를 막지 않도록 약간 텀
+      }
+    } catch (e) {
+      alert(e instanceof Error ? e.message : '다운로드 중 오류가 발생했습니다.');
+    } finally {
+      setDownloading(false);
+    }
+  }
+
+  return (
+    <div className="adminLayout2WithMain">
+      <aside className="adminLayoutSecondaryRail" aria-label="진료케이스 목록">
+        <div className="adminRailToolbar">
           <input
+            type="search"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="제목·병원·환자·태그 검색"
             aria-label="진료케이스 검색"
             disabled={loading}
-            style={{ width: '100%', padding: '8px 12px', fontSize: 13, border: '1px solid var(--border-strong)', borderRadius: 8, background: '#fff', color: 'var(--text)', outline: 'none', boxSizing: 'border-box', marginBottom: 10 }}
+            style={{ flex: 1, minWidth: 0, padding: '8px 0', background: 'transparent', border: 0, borderRadius: 0, outline: 'none', font: 'inherit', fontSize: 13 }}
           />
-          <div style={{ border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden', background: '#fff' }}>
-            {filtered.map((it, i) => {
-              const active = selectedId === it.runId;
-              return (
-                <div
-                  key={it.runId}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'flex-start',
-                    gap: 8,
-                    padding: '10px 12px',
-                    borderBottom: i < filtered.length - 1 ? '1px solid var(--border)' : 0,
-                    background: active ? 'var(--accent-subtle)' : 'transparent',
-                  }}
-                >
-                  <div
-                    role="button"
-                    tabIndex={0}
-                    onClick={() => setSelectedId(it.runId)}
-                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setSelectedId(it.runId); }}
-                    style={{ flex: 1, minWidth: 0, cursor: loading ? 'not-allowed' : 'pointer' }}
-                  >
-                    <span style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 }}>
-                      <span style={{ display: 'flex', alignItems: 'baseline', gap: 6, minWidth: 0 }}>
-                        <span style={{ fontWeight: 600, fontSize: 13, color: active ? 'var(--accent)' : 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          {it.hospitalName || '—'}
-                        </span>
-                        {it.friendlyId ? (
-                          <span style={{ flexShrink: 0, fontSize: 10.5, color: 'var(--text-muted)', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace' }}>
-                            {caseId(it.friendlyId)}
-                          </span>
-                        ) : null}
-                      </span>
-                      <span style={{ fontSize: 11, color: 'var(--text-muted)', flexShrink: 0 }}>{formatDate(it.createdAt)}</span>
-                    </span>
-                    <span style={{ display: 'block', marginTop: 3, fontSize: 11.5, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {[it.patientName, it.finalDiagnosis].filter(Boolean).join(' · ') || '—'}
-                    </span>
-                  </div>
-                  <CaseBlogButton runId={it.runId} label="수정" triggerStyle={editBtnStyle} onClose={() => void load()} />
-                </div>
-              );
-            })}
-            {filtered.length === 0 ? (
-              <div style={{ padding: '40px 14px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>
-                {loading ? '불러오는 중…' : items.length === 0 ? '작성된 진료케이스가 없습니다.' : '검색 결과가 없습니다.'}
-              </div>
-            ) : null}
-          </div>
+          <button
+            type="button"
+            onClick={() => void load()}
+            disabled={loading}
+            aria-label="새로고침"
+            title="새로고침"
+            style={{ flexShrink: 0, border: 0, background: 'transparent', cursor: loading ? 'default' : 'pointer', fontSize: 15, color: 'var(--text-muted)', padding: '0 2px' }}
+          >
+            ↻
+          </button>
         </div>
+        {!loading && items.length > 0 && (
+          <div className="adminRailFilterBar">
+            <select
+              className="adminRailFilterSelect"
+              style={{ flexBasis: '100%' }}
+              value={filterHospital}
+              onChange={(e) => setFilterHospital(e.target.value)}
+              aria-label="병원 필터"
+            >
+              <option value="">병원 전체</option>
+              {hospitalOptions.map((h) => (
+                <option key={h} value={h}>{h}</option>
+              ))}
+            </select>
+            <select
+              className="adminRailFilterSelect"
+              value={filterMonth}
+              onChange={(e) => setFilterMonth(e.target.value)}
+              aria-label="작성월 필터"
+            >
+              <option value="">작성월 전체</option>
+              {monthOptions.map((m) => (
+                <option key={m} value={m}>{`${m.slice(2, 4)}년 ${String(Number(m.slice(5, 7)))}월`}</option>
+              ))}
+            </select>
+          </div>
+        )}
+        <div style={{ maxHeight: 'min(72vh, calc(100vh - 200px))', overflow: 'auto' }}>
+          {loading ? (
+            <p style={{ margin: '10px 10px', fontSize: 12, color: 'var(--text-muted)' }}>불러오는 중…</p>
+          ) : error ? (
+            <p style={{ margin: '10px 10px', fontSize: 12, color: 'var(--danger)' }}>{error}</p>
+          ) : items.length === 0 ? (
+            <p style={{ margin: '10px 10px', fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.5 }}>작성된 진료케이스가 없습니다.</p>
+          ) : filtered.length === 0 ? (
+            <p style={{ margin: '10px 10px', fontSize: 12, color: 'var(--text-muted)' }}>검색 결과 없음</p>
+          ) : (
+            filtered.map((it) => (
+              <button
+                key={it.runId}
+                type="button"
+                className={`adminRailRow${selectedId === it.runId ? ' adminRailRowActive' : ''}`}
+                onClick={() => setSelectedId(it.runId)}
+                disabled={loading}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 6 }}>
+                  <span style={{ fontWeight: 700, color: 'inherit', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {it.hospitalName || '병원명 없음'}
+                  </span>
+                  <span style={{ fontSize: 11, color: 'var(--text-muted)', flexShrink: 0 }}>{formatDate(it.createdAt)}</span>
+                </div>
+                <span className="adminRailSub">
+                  {it.patientName?.trim() ? `${it.patientName.trim()} · ` : ''}
+                  {caseId(it.friendlyId) || it.runId.slice(0, 8)}
+                </span>
+              </button>
+            ))
+          )}
+        </div>
+      </aside>
 
-        {/* RIGHT — 글 뷰어 */}
-        <div style={{ flex: 1, minWidth: 0, borderLeft: '1px solid var(--border-strong)', paddingLeft: 24 }}>
+      <div className="adminLayoutMainPane">
+        <div className="adminLayoutMainColumnInset">
           {selected ? (
             <article>
-              {selected.friendlyId ? (
-                <div style={{ fontSize: 11.5, color: 'var(--text-muted)', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', marginBottom: 4 }}>
-                  진료케이스 ID · {caseId(selected.friendlyId)}
+              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: 6 }}>
+                <div style={{ minWidth: 0, fontSize: 11.5, color: 'var(--text-muted)', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace' }}>
+                  {selected.friendlyId ? `진료케이스 ID · ${caseId(selected.friendlyId)}` : ''}
                 </div>
-              ) : null}
+                <div style={{ display: 'flex', flexShrink: 0, gap: 6 }}>
+                  {selected.patientName ? (
+                    <button type="button" style={editBtnStyle} onClick={() => setPseudoOpen(true)}>
+                      가명 처리
+                    </button>
+                  ) : null}
+                  <CaseBlogButton runId={selected.runId} label="수정" triggerStyle={editBtnStyle} onClose={() => void load()} />
+                </div>
+              </div>
               <h2 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: 'var(--text)', lineHeight: 1.35 }}>{selected.title}</h2>
               <div style={{ marginTop: 6, fontSize: 12, color: 'var(--text-muted)' }}>
                 {[selected.hospitalName, selected.patientName ? `${selected.patientName}${selected.ownerName ? ` (${selected.ownerName})` : ''}` : '', selected.finalDiagnosis, `작성 ${formatDate(selected.createdAt)}`]
@@ -257,40 +362,94 @@ export default function AdminCaseBlog() {
                   color: 'var(--text)',
                   whiteSpace: 'pre-wrap',
                   wordBreak: 'break-word',
+                  // 본문은 고정 높이 + 내부 스크롤 — 글이 길어도 아래 사진 섹션이 한 화면에 같이 보이게.
+                  maxHeight: '46vh',
+                  overflowY: 'auto',
+                  paddingRight: 8,
                 }}
               >
                 {selected.bodyMarkdown || '본문이 없습니다.'}
               </div>
 
-              {imageGroups.length > 0 ? (
-                <div style={{ marginTop: 28, borderTop: '1px solid var(--border)', paddingTop: 16 }}>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 12 }}>선정된 이미지</div>
-                  <div style={{ display: 'grid', gap: 14 }}>
-                    {imageGroups.map((g, gi) => (
-                      <div key={gi}>
-                        {g.label ? (
-                          <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 6 }}>{g.label}</div>
-                        ) : null}
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
-                          {g.imgs.map((im) => (
-                            <figure key={im.fileName} style={{ width: 150, margin: 0 }}>
-                              {im.url ? (
-                                // eslint-disable-next-line @next/next/no-img-element
-                                <img src={im.url} alt={im.fileName} title={im.fileName} style={{ width: 150, height: 110, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--border)', display: 'block' }} />
-                              ) : (
-                                <div style={{ width: 150, height: 110, borderRadius: 8, border: '1px dashed var(--border-strong)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, color: 'var(--text-muted)', textAlign: 'center', padding: 6, wordBreak: 'break-all' }}>{im.fileName}</div>
-                              )}
-                              {im.caption ? (
-                                <figcaption style={{ marginTop: 4, fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.4, wordBreak: 'break-word' }}>{im.caption}</figcaption>
-                              ) : null}
-                            </figure>
-                          ))}
-                        </div>
-                      </div>
-                    ))}
+              <div style={{ marginTop: 14, borderTop: '1px solid var(--border)', paddingTop: 14 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>
+                      사진 {caseImages.length}장
+                      <span style={{ fontSize: 11.5, fontWeight: 500, color: 'var(--text-muted)', marginLeft: 6 }}>
+                        · AI 추천 {caseImages.filter((i) => i.aiPicked).length}장
+                      </span>
+                    </div>
+                    {caseImages.length > 0 && (
+                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                      <button type="button" style={btnSecondary} onClick={() => setChecked(new Set(caseImages.filter((i) => i.aiPicked && i.url).map((i) => i.fileName)))}>
+                        AI 추천 선택
+                      </button>
+                      <button type="button" style={btnSecondary} onClick={() => setChecked(new Set(caseImages.filter((i) => i.url).map((i) => i.fileName)))}>
+                        전체 선택
+                      </button>
+                      <button type="button" style={btnSecondary} onClick={() => setChecked(new Set())}>
+                        선택 해제
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void downloadSelectedImages()}
+                        disabled={checked.size === 0 || downloading}
+                        style={{
+                          padding: '5px 12px', fontSize: 12, fontWeight: 600, borderRadius: 6,
+                          background: checked.size === 0 || downloading ? 'var(--bg-raised)' : 'var(--accent)',
+                          color: checked.size === 0 || downloading ? 'var(--text-muted)' : '#fff',
+                          border: 'none', cursor: checked.size === 0 || downloading ? 'not-allowed' : 'pointer',
+                        }}
+                      >
+                        {downloading ? '다운로드 중…' : `선택 다운로드 (${checked.size})`}
+                      </button>
+                    </div>
+                    )}
                   </div>
+                  {caseImages.length > 0 ? (
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
+                    {caseImages.map((im) => {
+                      const isChecked = checked.has(im.fileName);
+                      return (
+                        <figure
+                          key={im.fileName}
+                          onClick={() => im.url && toggleChecked(im.fileName)}
+                          style={{ width: 150, margin: 0, cursor: im.url ? 'pointer' : 'default' }}
+                        >
+                          <div style={{ position: 'relative' }}>
+                            {im.url ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img src={im.url} alt={im.fileName} title={im.fileName} style={{ width: 150, height: 110, objectFit: 'cover', borderRadius: 8, border: isChecked ? '2px solid var(--accent)' : '1px solid var(--border)', display: 'block' }} />
+                            ) : (
+                              <div style={{ width: 150, height: 110, borderRadius: 8, border: '1px dashed var(--border-strong)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, color: 'var(--text-muted)', textAlign: 'center', padding: 6, wordBreak: 'break-all' }}>{im.fileName}</div>
+                            )}
+                            {im.url ? (
+                              <input
+                                type="checkbox"
+                                checked={isChecked}
+                                onChange={() => toggleChecked(im.fileName)}
+                                onClick={(e) => e.stopPropagation()}
+                                aria-label={`${im.fileName} 선택`}
+                                style={{ position: 'absolute', top: 6, left: 6, width: 18, height: 18, cursor: 'pointer' }}
+                              />
+                            ) : null}
+                            {im.aiPicked ? (
+                              <span style={{ position: 'absolute', top: 6, right: 6, fontSize: 10, fontWeight: 700, color: '#fff', background: 'var(--accent)', padding: '1px 6px', borderRadius: 999 }}>
+                                AI 추천
+                              </span>
+                            ) : null}
+                          </div>
+                          {im.caption ? (
+                            <figcaption style={{ marginTop: 4, fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.4, wordBreak: 'break-word' }}>{im.caption}</figcaption>
+                          ) : null}
+                        </figure>
+                      );
+                    })}
+                  </div>
+                  ) : (
+                    <div style={{ fontSize: 12.5, color: 'var(--text-muted)', padding: '8px 0' }}>등록된 사진이 없습니다.</div>
+                  )}
                 </div>
-              ) : null}
             </article>
           ) : (
             <div style={{ padding: '64px 18px', textAlign: 'center', color: 'var(--text-muted)' }}>
@@ -299,6 +458,115 @@ export default function AdminCaseBlog() {
               <div style={{ fontSize: 13 }}>좌측 목록에서 글을 선택하세요.</div>
             </div>
           )}
+        </div>
+      </div>
+      {pseudoOpen && selected ? (
+        <PseudonymModal
+          patientName={selected.patientName}
+          body={selected.bodyMarkdown}
+          onClose={() => setPseudoOpen(false)}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+// 본문에서 환자명(name)이 나오는 모든 위치를 가명(pseudo)으로 치환하면서, 치환된 자리를 하이라이트로 감싼다.
+// pseudo 가 비어 있으면 원래 환자명을 그대로 보여주되 위치만 하이라이트한다(무엇이 바뀔지 미리 보기).
+function highlightReplaced(body: string, name: string, pseudo: string): ReactNode {
+  if (!name) return body;
+  const parts = body.split(name);
+  if (parts.length === 1) return body; // 환자명이 본문에 없음
+  const replacement = pseudo.trim() || name;
+  return parts.map((part, i) => (
+    <Fragment key={i}>
+      {part}
+      {i < parts.length - 1 ? (
+        <mark style={{ background: 'var(--accent-subtle, #fde68a)', color: 'var(--accent)', fontWeight: 700, borderRadius: 3, padding: '0 2px' }}>
+          {replacement}
+        </mark>
+      ) : null}
+    </Fragment>
+  ));
+}
+
+// 가명 처리 모달 — AI 없이 환자명을 입력한 가명으로 단순 치환. 결과는 어디에도 저장하지 않고 복사만 제공한다.
+function PseudonymModal({ patientName, body, onClose }: { patientName: string; body: string; onClose: () => void }) {
+  const [pseudo, setPseudo] = useState('');
+  const [copied, setCopied] = useState(false);
+  const occurrences = patientName ? body.split(patientName).length - 1 : 0;
+  const pseudonymizedText = patientName ? body.split(patientName).join(pseudo.trim() || patientName) : body;
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(pseudonymizedText);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      alert('복사에 실패했습니다. 미리보기 텍스트를 직접 선택해 복사해주세요.');
+    }
+  };
+
+  return (
+    <div
+      onClick={onClose}
+      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{ width: 'min(92vw, 760px)', maxHeight: '90vh', display: 'flex', flexDirection: 'column', background: '#fff', borderRadius: 12, border: '1px solid var(--border)', overflow: 'hidden', boxShadow: '0 12px 40px rgba(0,0,0,0.18)' }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 18px', borderBottom: '1px solid var(--border)' }}>
+          <h2 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: 'var(--text)' }}>가명 처리</h2>
+          <button type="button" onClick={onClose} aria-label="닫기" style={{ border: 0, background: 'transparent', fontSize: 20, lineHeight: 1, cursor: 'pointer', color: 'var(--text-muted)' }}>
+            ×
+          </button>
+        </div>
+
+        <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--border)' }}>
+          <div style={{ fontSize: 12.5, color: 'var(--text-secondary)', marginBottom: 8 }}>
+            실제 환자명 <b style={{ color: 'var(--text)' }}>{patientName || '—'}</b> 을(를) 본문에서{' '}
+            <b style={{ color: 'var(--text)' }}>{occurrences}곳</b> 찾았습니다. 블로그에 사용할 가명을 입력하세요.
+          </div>
+          <input
+            autoFocus
+            value={pseudo}
+            onChange={(e) => setPseudo(e.target.value)}
+            placeholder="가명 입력 (예: OO)"
+            style={{ width: '100%', padding: '9px 12px', fontSize: 14, border: '1px solid var(--border-strong)', borderRadius: 8, outline: 'none', boxSizing: 'border-box' }}
+          />
+        </div>
+
+        <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '14px 18px' }}>
+          <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 8 }}>
+            미리보기 · 가명 적용 (하이라이트 = 환자명 위치)
+          </div>
+          <div style={{ fontSize: 14, lineHeight: 1.8, color: 'var(--text)', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+            {highlightReplaced(body, patientName, pseudo)}
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, padding: '12px 18px', borderTop: '1px solid var(--border)' }}>
+          <button type="button" onClick={onClose} style={{ ...btnSecondary, padding: '8px 14px' }}>
+            닫기
+          </button>
+          <button
+            type="button"
+            onClick={() => void handleCopy()}
+            disabled={!pseudo.trim()}
+            style={{
+              padding: '8px 16px',
+              fontSize: 13,
+              fontWeight: 700,
+              borderRadius: 6,
+              border: 'none',
+              background: pseudo.trim() ? 'var(--accent)' : 'var(--bg-raised, #f1f5f9)',
+              color: pseudo.trim() ? '#fff' : 'var(--text-muted)',
+              cursor: pseudo.trim() ? 'pointer' : 'not-allowed',
+            }}
+          >
+            {copied ? '복사됨!' : '가명 적용본 복사'}
+          </button>
         </div>
       </div>
     </div>
