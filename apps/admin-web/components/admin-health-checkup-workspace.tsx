@@ -327,6 +327,7 @@ export function AdminHealthCheckupWorkspace({
         credentials: 'include',
         body: JSON.stringify({
           runId,
+          expectedPatientName: patientName,
           contentType: 'health_checkup',
           payload: draft,
         }),
@@ -365,6 +366,7 @@ export function AdminHealthCheckupWorkspace({
         credentials: 'include',
         body: JSON.stringify({
           runId,
+          expectedPatientName: patientName,
           contentType: 'health_checkup',
           section: systemKeyToApiSection(k),
           checkupDate: checkupDate.trim(),
@@ -412,6 +414,7 @@ export function AdminHealthCheckupWorkspace({
         credentials: 'include',
         body: JSON.stringify({
           runId,
+          expectedPatientName: patientName,
           contentType: 'health_checkup',
           section: apiSection,
           checkupDate: checkupDate.trim(),
@@ -642,6 +645,7 @@ export function AdminHealthCheckupWorkspace({
         credentials: 'include',
         body: JSON.stringify({
           runId,
+          expectedPatientName: patientName,
           contentType: 'health_checkup',
           checkupDate: checkupDate.trim(),
           veterinarian: veterinarian.trim(),

@@ -487,6 +487,8 @@ export async function POST(request: NextRequest) {
 
   const runId = String(body.runId ?? '').trim();
   const contentType = String(body.contentType ?? '').trim();
+  // 가드용: 클라이언트가 "선택한" 환자명(목록에 표시된 환자). runId 로 로드한 추출 데이터의 환자와 대조한다.
+  const expectedPatientName = typeof body.expectedPatientName === 'string' ? body.expectedPatientName.trim() : '';
   const debugEnabled = isDebugEnabled(body);
   const maxOutputTokens = 8192;
   if (!isParseRunUuid(runId)) return NextResponse.json({ error: 'runId invalid' }, { status: 400 });
@@ -509,6 +511,28 @@ export async function POST(request: NextRequest) {
 
   try {
     const source = await loadReportSourceData(runId);
+
+    // 환자 불일치 가드 — 선택한 환자(클라이언트 표시)와 runId 로 로드된 추출 환자가 다르면 차단한다.
+    // (다른 차트 데이터로 리포트가 생성되는 사고 방지. 같은 run 이면 동일 컬럼이라 오탐 없음.)
+    if (expectedPatientName) {
+      const sourcePatient = (source.basicInfo?.patientName ?? '').trim();
+      const normName = (s: string) => s.replace(/\s+/g, ' ').trim();
+      const isPlaceholder = (s: string) => !s || /미상/.test(s);
+      if (
+        !isPlaceholder(sourcePatient) &&
+        !isPlaceholder(expectedPatientName) &&
+        normName(sourcePatient) !== normName(expectedPatientName)
+      ) {
+        console.error('[content/generate] PATIENT_MISMATCH', { runId, expectedPatientName, sourcePatient });
+        return NextResponse.json(
+          {
+            error: `선택한 환자(${expectedPatientName})와 이 차트의 추출 환자(${sourcePatient})가 일치하지 않습니다. 올바른 차트인지 확인해 주세요.`,
+            code: 'PATIENT_MISMATCH',
+          },
+          { status: 409 },
+        );
+      }
+    }
 
     if (contentType === HEALTH_CHECKUP) {
       const sectionRaw = typeof body.section === 'string' ? body.section.trim() : '';
