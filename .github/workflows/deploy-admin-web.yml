@@ -1,6 +1,7 @@
 name: Deploy admin-web to Vercel
 
 on:
+  workflow_dispatch: # 설정(리전 등) 변경 후 코드 변경 없이 수동 재배포용
   push:
     branches: [main]
     paths:
