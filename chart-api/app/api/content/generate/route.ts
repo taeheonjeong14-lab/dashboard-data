@@ -523,10 +523,16 @@ export async function POST(request: NextRequest) {
         !isPlaceholder(expectedPatientName) &&
         normName(sourcePatient) !== normName(expectedPatientName)
       ) {
-        console.error('[content/generate] PATIENT_MISMATCH', { runId, expectedPatientName, sourcePatient });
+        // 정상이라면 선택 환자명과 추출 환자명은 같은 run·같은 컬럼이라 일치한다.
+        // 다르면 = 잘못된 차트 데이터가 로드된 시스템 오류(사용자 잘못 아님) → 생성을 중단하고 재시도를 안내.
+        console.error('[content/generate] PATIENT_MISMATCH (system bug — wrong run loaded)', {
+          runId,
+          expectedPatientName,
+          sourcePatient,
+        });
         return NextResponse.json(
           {
-            error: `선택한 환자(${expectedPatientName})와 이 차트의 추출 환자(${sourcePatient})가 일치하지 않습니다. 올바른 차트인지 확인해 주세요.`,
+            error: `시스템 오류로 생성을 중단했습니다. 선택하신 환자는 '${expectedPatientName}'인데, 불러온 차트 데이터는 '${sourcePatient}'입니다. 페이지를 새로고침한 뒤 다시 시도해 주세요. 계속되면 알려주세요.`,
             code: 'PATIENT_MISMATCH',
           },
           { status: 409 },
