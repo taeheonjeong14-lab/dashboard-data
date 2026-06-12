@@ -66,6 +66,25 @@ function resolveIntoVetFinalAmount(row, amountColumn) {
   return amountToNumber(row?.[idx]);
 }
 
+/**
+ * 매출 금액 컬럼을 "헤더 이름"으로 탐지한다.
+ * IntoVet export 는 2줄 헤더 — 0행은 묶음(기준판매/할인/…/청구금액/결제금액), 1행은 하위(진료/…/합계/입원).
+ * 매출 기준은 "청구금액 묶음의 합계" 칸. 묶음 구성에 따라 위치(BJ 등)가 밀릴 수 있어, 고정 컬럼 대신
+ * 헤더를 읽어 매번 찾는다. 못 찾으면 -1 → 호출부에서 기존 고정 컬럼(amountColumn) 으로 폴백.
+ */
+function detectIntoVetAmountColIndex(rows) {
+  const groupRow = Array.isArray(rows[0]) ? rows[0] : [];
+  const subRow = Array.isArray(rows[1]) ? rows[1] : [];
+  const width = Math.max(groupRow.length, subRow.length);
+  let group = "";
+  for (let c = 0; c < width; c += 1) {
+    const gv = groupRow[c];
+    if (gv != null && String(gv).trim() !== "") group = String(gv).trim();
+    if (group === "청구금액" && String(subRow[c] ?? "").trim() === "합계") return c;
+  }
+  return -1;
+}
+
 function normalizeText(value) {
   return String(value || "").trim().replace(/\s+/g, " ");
 }
@@ -148,6 +167,13 @@ export async function parseIntoVetWorkbook(source, hospitalId, options = {}) {
   if (!rows.length) throw new Error("엑셀 데이터가 비어 있습니다.");
   const trailingTotalRowIndex = findTrailingTotalRowIndex(rows);
 
+  // 금액 컬럼: "청구금액 > 합계"를 헤더로 탐지(권장). 실패하면 기존 고정 컬럼(amountColumn/BS…)으로 폴백.
+  const detectedAmountIdx = detectIntoVetAmountColIndex(rows);
+  const amountColIndex =
+    detectedAmountIdx >= 0
+      ? detectedAmountIdx
+      : INTO_VET_AMOUNT_COL_INDEX[amountColumn] ?? INTO_VET_AMOUNT_COL_INDEX[DEFAULT_INTO_VET_AMOUNT_COLUMN];
+
   const parsedRows = [];
   const errors = [];
 
@@ -165,7 +191,7 @@ export async function parseIntoVetWorkbook(source, hospitalId, options = {}) {
     const customerNameRaw = normalizeText(row[INTO_VET_MIN_COLS.customerName]);
     const patientNameRaw = normalizeText(row[INTO_VET_MIN_COLS.patientName]);
     const receiptNoRaw = normalizeText(row[INTO_VET_MIN_COLS.receiptNo]);
-    const finalAmountRaw = resolveIntoVetFinalAmount(row, amountColumn);
+    const finalAmountRaw = amountToNumber(row?.[amountColIndex]);
 
     const rowNo = i + 1;
 
