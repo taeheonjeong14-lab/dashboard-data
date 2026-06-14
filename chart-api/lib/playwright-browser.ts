@@ -157,27 +157,78 @@ export async function renderPdfFromPageUrl(url: string, options?: RenderPdfFromP
     }
     await page.evaluate(() => document.fonts.ready);
     await page.evaluate(async () => {
-      const imgs = Array.from(document.images ?? []);
-      await Promise.all(
-        imgs.map(async (img) => {
-          if (!img.src) return;
-          if (!img.complete || img.naturalWidth === 0) {
-            await new Promise<void>((resolve) => {
-              let done = false;
-              const finish = () => {
-                if (done) return;
-                done = true;
+      // 이미지당 대기 상한 — 케이스 이미지가 많거나 스토리지가 느려도 깨지지 않도록 넉넉히.
+      const PER_IMG_TIMEOUT = 15_000;
+      // 로드 실패(error)·타임아웃 시 캐시 우회 재시도 횟수.
+      const MAX_ATTEMPTS = 3;
+      // 동시 로드 수 제한 — 대역폭 경쟁으로 개별 이미지가 타임아웃되는 것을 줄인다.
+      const CONCURRENCY = 6;
+
+      const imgs = Array.from(document.images ?? []).filter((img) => img.src);
+
+      const loadOne = (img: HTMLImageElement) =>
+        new Promise<void>((resolve) => {
+          if (img.complete && img.naturalWidth > 0) return resolve();
+          const original = img.src;
+          let attempt = 0;
+          let timer: ReturnType<typeof setTimeout> | undefined;
+
+          const cleanup = () => {
+            if (timer) clearTimeout(timer);
+            img.removeEventListener('load', onLoad);
+            img.removeEventListener('error', onError);
+          };
+          const onLoad = () => {
+            cleanup();
+            resolve();
+          };
+          const fail = () => {
+            cleanup();
+            if (attempt < MAX_ATTEMPTS) {
+              attempt += 1;
+              // 캐시 우회 재시도. Supabase 서명 URL 은 추가 쿼리 파라미터에 영향받지 않는다.
+              try {
+                const u = new URL(original, location.href);
+                u.searchParams.set('__retry', `${attempt}-${Date.now()}`);
+                img.src = u.toString();
+              } catch {
+                img.src = original;
+              }
+              arm();
+            } else {
+              // 최종 실패 — 한 장 때문에 전체 PDF 를 막지는 않는다(로그/검증은 별도).
+              resolve();
+            }
+          };
+          const onError = () => fail();
+          function arm() {
+            img.addEventListener('load', onLoad, { once: true });
+            img.addEventListener('error', onError, { once: true });
+            timer = setTimeout(() => {
+              if (img.naturalWidth > 0) {
+                cleanup();
                 resolve();
-              };
-              img.addEventListener('load', finish, { once: true });
-              img.addEventListener('error', finish, { once: true });
-              setTimeout(finish, 7000);
-            });
+              } else {
+                fail();
+              }
+            }, PER_IMG_TIMEOUT);
           }
-          if (typeof img.decode === 'function') {
-            await img.decode().catch(() => undefined);
-          }
-        }),
+          arm();
+        });
+
+      let cursor = 0;
+      const workers = Array.from({ length: Math.min(CONCURRENCY, imgs.length) }, async () => {
+        while (cursor < imgs.length) {
+          const img = imgs[cursor];
+          cursor += 1;
+          await loadOne(img);
+        }
+      });
+      await Promise.all(workers);
+
+      // 디코드까지 끝내 렌더 준비를 보장.
+      await Promise.all(
+        imgs.map((img) => (typeof img.decode === 'function' ? img.decode().catch(() => undefined) : undefined)),
       );
     });
     const t2 = Date.now();
