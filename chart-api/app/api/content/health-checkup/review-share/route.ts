@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { chartAppAuthMiddleware } from '@/lib/chart-app/auth';
 import { upsertGeneratedRunContent } from '@/lib/chart-app/generated-content';
-import { hashShareToken, randomShareToken } from '@/lib/chart-app/share-token';
+import { hashShareToken } from '@/lib/chart-app/share-token';
+import { ensureHealthCheckupReviewShareLink } from '@/lib/chart-app/review-share-link';
 import { isParseRunUuid } from '@/lib/chart-app/uuid';
 import { getChartPgPool } from '@/lib/db';
 import {
@@ -82,24 +83,12 @@ export async function POST(request: NextRequest) {
     if (ok.rows.length === 0)
       return applyPublicShareReviewCors(NextResponse.json({ error: 'run not found' }, { status: 404 }), request);
 
-    const token = randomShareToken();
-    const token_hash = hashShareToken(token);
-
-    const shareUrl = `${new URL(request.url).origin}/review/health-checkup/${encodeURIComponent(token)}`;
-
-    const ins = await pool.query<{ expires_at: Date }>(
-      `
-      INSERT INTO health_report.health_review_share_links (
-        parse_run_id, content_type, token_hash, expires_at, share_url
-      ) VALUES (
-        $1::uuid, $2, $3, now() + interval '7 days', $4
-      )
-      RETURNING expires_at
-      `,
-      [runId, LINK_CONTENT_TYPE, token_hash, shareUrl],
+    // (parse_run_id, content_type) 당 1행 upsert — 이미 있으면 만료만 7일 연장하고 기존 링크 유지.
+    const { shareUrl, expiresAt } = await ensureHealthCheckupReviewShareLink(
+      pool,
+      runId,
+      new URL(request.url).origin,
     );
-
-    const expiresAt = ins.rows[0].expires_at.toISOString();
     console.info('[review-share:issue] ok', {
       runId,
       expiresAt,
@@ -111,7 +100,6 @@ export async function POST(request: NextRequest) {
         ok: true,
         contentType: RESPONSE_CONTENT_TYPE,
         shareUrl,
-        token,
         expiresAt,
       }),
       request,
