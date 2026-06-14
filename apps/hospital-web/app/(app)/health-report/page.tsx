@@ -28,6 +28,7 @@ type RequestItem = {
   ownerName: string | null;
   shareUrl: string | null;
   expiresAt: string | null;
+  shareExpired?: boolean;
   status?: 'done' | 'processing' | 'error';
   errorText?: string;
 };
@@ -435,6 +436,10 @@ export default function HealthReportPage() {
                           style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '4px 10px', background: 'var(--accent)', color: '#fff', borderRadius: 'var(--radius)', fontSize: '12px', fontWeight: 600, textDecoration: 'none', whiteSpace: 'nowrap' }}>
                           리포트 확인
                         </a>
+                      ) : item.shareExpired ? (
+                        <span title={item.expiresAt ? `${formatDate(item.expiresAt)} 만료` : undefined} style={{ display: 'inline-block', padding: '3px 10px', background: 'var(--danger-subtle)', color: 'var(--danger)', borderRadius: '999px', fontSize: '11px', fontWeight: 600, whiteSpace: 'nowrap', cursor: item.expiresAt ? 'help' : 'default' }}>
+                          검토 링크 만료
+                        </span>
                       ) : (
                         <span style={{ display: 'inline-block', padding: '3px 10px', background: 'var(--bg-subtle)', color: 'var(--text-secondary)', borderRadius: '999px', fontSize: '11px', fontWeight: 500, whiteSpace: 'nowrap' }}>
                           요청 완료

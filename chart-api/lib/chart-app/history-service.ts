@@ -66,9 +66,11 @@ export type HospitalRunListItem = {
   friendlyId: string | null;
   patientName: string | null;
   ownerName: string | null;
-  /** null = 아직 링크 미발급 */
+  /** null = 유효 링크 없음(미발급 또는 만료). 만료 여부는 shareExpired 로 구분 */
   shareUrl: string | null;
   expiresAt: string | null;
+  /** true = 링크가 있었으나 만료됨(폐기 아님). shareUrl 은 null. */
+  shareExpired: boolean;
 };
 
 export async function listHospitalRuns(
@@ -84,6 +86,7 @@ export async function listHospitalRuns(
     owner_name: string | null;
     share_url: string | null;
     expires_at: Date | null;
+    share_active: boolean | null;
   }>(
     `
     SELECT
@@ -93,16 +96,17 @@ export async function listHospitalRuns(
       bi.patient_name,
       bi.owner_name,
       s.share_url,
-      s.expires_at
+      s.expires_at,
+      s.active AS share_active
     FROM chart_pdf.parse_runs pr
     LEFT JOIN chart_pdf.result_basic_info bi ON bi.parse_run_id = pr.id
     LEFT JOIN LATERAL (
-      SELECT share_url, expires_at
+      -- 폐기되지 않은 최신 링크 1건(만료 포함). 만료 여부는 active 로 구분해 hospital-ui 가 '만료' 표시.
+      SELECT share_url, expires_at, (expires_at > now()) AS active
       FROM health_report.health_review_share_links
       WHERE parse_run_id = pr.id
         AND content_type IN ('health_checkup', 'health-checkup')
         AND revoked_at IS NULL
-        AND expires_at > now()
       ORDER BY created_at DESC
       LIMIT 1
     ) s ON true
@@ -113,15 +117,20 @@ export async function listHospitalRuns(
     [hospitalId, limit],
   );
 
-  return rows.map((r) => ({
-    id: r.id,
-    createdAt: r.created_at.toISOString(),
-    friendlyId: r.friendly_id,
-    patientName: r.patient_name,
-    ownerName: r.owner_name,
-    shareUrl: r.share_url,
-    expiresAt: r.expires_at ? r.expires_at.toISOString() : null,
-  }));
+  return rows.map((r) => {
+    const active = r.share_active === true;
+    return {
+      id: r.id,
+      createdAt: r.created_at.toISOString(),
+      friendlyId: r.friendly_id,
+      patientName: r.patient_name,
+      ownerName: r.owner_name,
+      // 유효 링크만 URL 노출(만료 링크는 버튼으로 열지 않음).
+      shareUrl: active ? r.share_url : null,
+      expiresAt: r.expires_at ? r.expires_at.toISOString() : null,
+      shareExpired: r.share_url != null && !active,
+    };
+  });
 }
 
 /** `raw_item_name` 비었을 때 `item_name` 복사 — 응답에 원문 표시용 값 항상 제공 */
