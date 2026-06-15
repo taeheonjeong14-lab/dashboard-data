@@ -21,9 +21,23 @@ const KIND_LABEL: Record<string, string> = { charge: '사용', grant: '관리자
 const featLabel = (f: string) => FEATURE_LABEL[normFeature(f)] ?? f;
 const fmtTok = (v: number) => (Math.abs(v) >= 100 ? Math.round(v).toLocaleString() : v.toFixed(1));
 
+// 한 작업(run) 안의 기능들 → 대표 라벨. 진료케이스(블로그 4단계) > 건강검진 > 이미지 > 평가 > 추출 순.
+const CASE_FEATS = new Set(['blog_causal', 'blog_outline', 'blog_post', 'blog_images']);
+function groupLabel(feats: Set<string>): string {
+  const f = [...feats];
+  if (f.some((x) => CASE_FEATS.has(x))) return '진료케이스';
+  if (f.some((x) => x === 'health_checkup' || x === 'disease_intro')) return '건강검진';
+  if (f.some((x) => x === 'image_analysis' || x === 'image_placement')) return '이미지분석';
+  if (f.some((x) => x === 'assessment')) return 'AI평가';
+  if (f.some((x) => x === 'extract' || x === 'ocr')) return '추출';
+  return f[0] ? featLabel(f[0]) : '사용';
+}
+
 type OverviewDaily = { date: string; feature: string; costUsd: number };
-type OverviewLedger = { createdAt: string; kind: string; feature: string | null; tokens: number; balanceAfter: number | null };
+type OverviewLedger = { createdAt: string; kind: string; feature: string | null; tokens: number; balanceAfter: number | null; runId?: string | null; ownerName?: string | null; patientName?: string | null };
 type Overview = { balance: number | null; daily: OverviewDaily[]; ledger: OverviewLedger[] };
+// 내역을 작업(run) 단위로 묶은 행. charge 는 run_id 로 합산, grant/adjust·추출(run 없음)은 개별.
+type LedgerGroup = { key: string; kind: string; label: string; createdAt: string; tokens: number; balanceAfter: number | null; steps: number; ownerName: string | null; patientName: string | null };
 
 type HospitalSettings = {
   name: string;
@@ -158,6 +172,38 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
     return [...byDate.values()].sort((a, b) => (String(a.date) < String(b.date) ? -1 : 1));
   }, [overview]);
   const featureKeys = useMemo(() => [...new Set((overview?.daily ?? []).map((d) => normFeature(d.feature)))], [overview]);
+
+  // 사용·충전 내역을 작업(run) 단위로 그룹핑 — 건강검진/진료케이스 1건이 한 줄로 합쳐짐.
+  const groupedLedger = useMemo<LedgerGroup[]>(() => {
+    const out: LedgerGroup[] = [];
+    const byRun = new Map<string, { g: LedgerGroup; feats: Set<string> }>();
+    for (const r of overview?.ledger ?? []) {
+      const t = Number(r.tokens);
+      if (r.kind === 'charge' && r.runId) {
+        const hit = byRun.get(r.runId);
+        if (hit) {
+          // 행은 최신순 — 그룹의 날짜/잔액은 가장 최근(첫 등장) 값을 유지하고 토큰만 합산.
+          hit.g.tokens += t;
+          hit.g.steps += 1;
+          if (r.feature) hit.feats.add(r.feature);
+        } else {
+          const g: LedgerGroup = { key: `run:${r.runId}`, kind: 'charge', label: '', createdAt: r.createdAt, tokens: t, balanceAfter: r.balanceAfter, steps: 1, ownerName: r.ownerName ?? null, patientName: r.patientName ?? null };
+          byRun.set(r.runId, { g, feats: new Set(r.feature ? [r.feature] : []) });
+          out.push(g);
+        }
+      } else {
+        out.push({
+          key: `${r.kind}:${r.createdAt}:${out.length}`,
+          kind: r.kind,
+          label: r.kind === 'charge' ? featLabel(r.feature ?? '') : (KIND_LABEL[r.kind] ?? r.kind),
+          createdAt: r.createdAt, tokens: t, balanceAfter: r.balanceAfter, steps: 1,
+          ownerName: r.ownerName ?? null, patientName: r.patientName ?? null,
+        });
+      }
+    }
+    for (const { g, feats } of byRun.values()) g.label = groupLabel(feats);
+    return out.sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+  }, [overview]);
 
   if (!open) return null;
 
@@ -348,31 +394,34 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
                 <div>
                   <div style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 6 }}>사용·충전 내역</div>
                   <div style={{ border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
-                    {(overview?.ledger ?? []).length === 0 ? (
+                    {groupedLedger.length === 0 ? (
                       <div style={{ padding: 12, fontSize: 13, color: 'var(--text-muted)' }}>
                         {loadingOverview ? '불러오는 중…' : '내역이 없습니다.'}
                       </div>
                     ) : (
-                      overview!.ledger.map((l, i) => (
-                        <div key={i} style={{
+                      groupedLedger.map((g, i) => (
+                        <div key={g.key} style={{
                           display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
                           padding: '8px 12px', borderTop: i ? '1px solid var(--border)' : 'none', fontSize: 12.5,
                         }}>
                           <div style={{ minWidth: 0 }}>
-                            <span style={{ fontWeight: 700, color: l.kind === 'charge' ? 'var(--text)' : 'var(--success)' }}>
-                              {KIND_LABEL[l.kind] ?? l.kind}
+                            <span style={{ fontWeight: 700, color: g.kind === 'charge' ? 'var(--text)' : 'var(--success)' }}>
+                              {g.kind === 'charge' ? g.label : (KIND_LABEL[g.kind] ?? g.kind)}
                             </span>
-                            {l.feature ? <span style={{ color: 'var(--text-muted)' }}> · {featLabel(l.feature)}</span> : null}
+                            {g.patientName || g.ownerName ? (
+                              <span style={{ color: 'var(--text-secondary)' }}> · {[g.patientName, g.ownerName].filter(Boolean).join(' / ')}</span>
+                            ) : null}
+                            {g.kind === 'charge' && g.steps > 1 ? <span style={{ color: 'var(--text-muted)' }}> · {g.steps}단계</span> : null}
                             <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                              {new Date(l.createdAt).toLocaleString('ko-KR', { dateStyle: 'short', timeStyle: 'short' })}
+                              {new Date(g.createdAt).toLocaleString('ko-KR', { dateStyle: 'short', timeStyle: 'short' })}
                             </div>
                           </div>
                           <div style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
-                            <div style={{ fontWeight: 700, color: Number(l.tokens) < 0 ? 'var(--danger)' : 'var(--success)' }}>
-                              {Number(l.tokens) > 0 ? '+' : ''}{fmtTok(Number(l.tokens))}
+                            <div style={{ fontWeight: 700, color: g.tokens < 0 ? 'var(--danger)' : 'var(--success)' }}>
+                              {g.tokens > 0 ? '+' : ''}{fmtTok(g.tokens)}
                             </div>
-                            {l.balanceAfter != null ? (
-                              <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>잔액 {fmtTok(Number(l.balanceAfter))}</div>
+                            {g.balanceAfter != null ? (
+                              <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>잔액 {fmtTok(Number(g.balanceAfter))}</div>
                             ) : null}
                           </div>
                         </div>
