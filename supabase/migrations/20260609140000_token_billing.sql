@@ -1,5 +1,5 @@
 -- 과금 2단계: 사용량(USD) → 자체 토큰 환산 + 병원별 잔액 차감.
--- 1토큰 = $0.10 (원가 1:1). 작업(operation) 단위로 합산 후 정수 올림(최소 1토큰), 실시간 차감, 잔액 0이면 차단.
+-- 1토큰 = $0.01 (원가 1:1; 마진은 토큰 결제가에서 책정). 작업(operation) 단위로 합산 후 소수 토큰(round 2자리)으로 정밀 차감, 실시간 차감, 잔액 0이면 차단.
 
 -- 1) 병원별 토큰 잔액
 alter table core.hospitals add column if not exists token_balance numeric not null default 0;

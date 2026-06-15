@@ -10,7 +10,7 @@ export type UsageContext = {
   operationId?: string | null;
 };
 
-/** 1토큰 = $0.01 (원가 1:1, 소수 토큰 정밀 차감). 변경 시 env BILLING_TOKEN_VALUE_USD 로 오버라이드. */
+/** 1토큰 = $0.01 (원가 1:1). 작업 합산원가를 토큰으로 환산 후 정수 올림(ceil, 최소 1) 차감. 변경 시 env BILLING_TOKEN_VALUE_USD 로 오버라이드. */
 export const TOKEN_VALUE_USD = Number(process.env.BILLING_TOKEN_VALUE_USD) || 0.01;
 
 type RecordBase = UsageContext & {
