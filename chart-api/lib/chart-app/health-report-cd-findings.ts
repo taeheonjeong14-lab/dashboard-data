@@ -95,6 +95,89 @@ async function runModality(
   return { findings, imageIds };
 }
 
+/**
+ * a/b 섹션(치과·안과 / 피부·외이도)에서 이미지가 슬롯보다 많을 때만 호출:
+ * 섹션 생성 텍스트를 가장 잘 support 하는 이미지를 비전으로 골라 imageIds 반환(선택 전용).
+ */
+export async function selectSectionImages(params: {
+  sectionLabel: string;
+  sectionText: string;
+  images: PlacementImageInput[];
+  maxSlots: number;
+  usageContext?: UsageContext;
+}): Promise<string[]> {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) return params.images.slice(0, params.maxSlots).map((i) => i.id);
+  if (params.images.length <= params.maxSlots) return params.images.map((i) => i.id);
+
+  const model = process.env.OPENAI_VISION_MODEL?.trim() || 'gpt-4o';
+  const client = new OpenAI({ apiKey });
+
+  const signed = await signCaseImageStoragePaths(params.images.map((i) => i.storagePath));
+  const urled = params.images
+    .map((i) => ({ id: i.id, url: signed.get(i.storagePath) }))
+    .filter((i): i is { id: string; url: string } => Boolean(i.url));
+  if (urled.length === 0) return params.images.slice(0, params.maxSlots).map((i) => i.id);
+
+  const validIds = new Set(urled.map((i) => i.id));
+  const manifest = urled.map((i, idx) => `${idx}: id="${i.id}"`).join('\n');
+  const prompt = [
+    '너는 영상의학을 전공한 수의사다.',
+    `건강검진 보고서 "${params.sectionLabel}" 섹션에 넣을 이미지를 고른다.`,
+    `이 섹션 텍스트를 가장 잘 보여주는(support 하는) 이미지를 최대 ${params.maxSlots}장 골라 id 배열로 반환한다(중요도 높은 순).`,
+    '',
+    params.sectionText ? `섹션 텍스트:\n${params.sectionText.slice(0, 1500)}` : '(섹션 텍스트 없음 — 대표적인 이미지를 고른다)',
+    '',
+    '이미지 목록 (index: id):',
+    manifest,
+    '출력은 스키마에 맞는 JSON만.',
+  ].join('\n');
+
+  type Part = { type: 'text'; text: string } | { type: 'image_url'; image_url: { url: string } };
+  const content: Part[] = [{ type: 'text', text: prompt }];
+  for (const i of urled) content.push({ type: 'image_url', image_url: { url: i.url } });
+
+  const response = await client.chat.completions.create({
+    model,
+    messages: [{ role: 'user', content }],
+    response_format: {
+      type: 'json_schema',
+      json_schema: {
+        name: 'section_image_selection',
+        strict: true,
+        schema: {
+          type: 'object',
+          properties: { imageIds: { type: 'array', items: { type: 'string' } } },
+          required: ['imageIds'],
+          additionalProperties: false,
+        },
+      },
+    },
+  });
+  await recordTokenUsage({
+    provider: 'openai',
+    model,
+    feature: 'image_placement',
+    ...params.usageContext,
+    ...openaiChatUsage(response.usage),
+  });
+
+  const raw = response.choices[0]?.message?.content;
+  if (!raw) return params.images.slice(0, params.maxSlots).map((i) => i.id);
+  let parsed: { imageIds?: unknown };
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return params.images.slice(0, params.maxSlots).map((i) => i.id);
+  }
+  const out: string[] = [];
+  for (const id of Array.isArray(parsed.imageIds) ? parsed.imageIds : []) {
+    if (typeof id === 'string' && validIds.has(id) && !out.includes(id)) out.push(id);
+    if (out.length >= params.maxSlots) break;
+  }
+  return out.length ? out : params.images.slice(0, params.maxSlots).map((i) => i.id);
+}
+
 export async function generateCdFindings(
   images: PlacementImageInput[],
   overallSummary: string,

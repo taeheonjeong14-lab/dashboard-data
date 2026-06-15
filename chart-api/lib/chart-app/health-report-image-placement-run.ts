@@ -14,7 +14,7 @@ import {
   type PlacementImageInput,
 } from '@/lib/chart-app/health-report-image-placement-llm';
 import { parseHealthSystemsBlocksFromUnknown } from '@/lib/chart-app/health-report-systems-blocks-parse';
-import { generateCdFindings, type CdFindingsResult } from '@/lib/chart-app/health-report-cd-findings';
+import { generateCdFindings, selectSectionImages, type CdFindingsResult } from '@/lib/chart-app/health-report-cd-findings';
 import { simpleHealthReportImageCaption } from '@/lib/chart-app/health-report-image-caption';
 import type { UsageContext } from '@/lib/billing/usage-log';
 
@@ -55,41 +55,62 @@ async function loadCaseImagePlacement(
   return { placement, storagePathById, images };
 }
 
+function rowsTextOf(block: HealthSystemsReportBlock | undefined): string {
+  if (!block || block.variant !== 'rows') return '';
+  return block.rows.map((r) => r.content).filter(Boolean).join('\n');
+}
+function setRowsText(block: HealthSystemsReportBlock | undefined, content: string): void {
+  if (!content || !block || block.variant !== 'rows') return;
+  if (block.rows.length > 0) block.rows[0] = { label: block.rows[0].label ?? '', content };
+  else block.rows = [{ label: '', content }];
+}
+function fillImageBlock(
+  block: HealthSystemsReportBlock | undefined,
+  ids: string[],
+  imageById: Map<string, PlacementImageInput>,
+  storagePathById: Map<string, string>,
+): void {
+  if (!block || !('images' in block)) return;
+  const slots = block.images;
+  for (let i = 0; i < slots.length; i++) {
+    const slot = slots[i];
+    if (!slot) continue;
+    const id = ids[i];
+    const img = id ? imageById.get(id) : undefined;
+    const path = id ? storagePathById.get(id) : undefined;
+    slot.src = path;
+    slot.caption = img && path ? simpleHealthReportImageCaption(img) : undefined;
+  }
+}
+
+/** 이미지가 a(치과·안과) / b(피부·외이도) 섹션 후보인지 분류. 그 외는 null. */
+function sectionABofImage(img: PlacementImageInput): 'a' | 'b' | null {
+  const part = img.bodyPart || '';
+  if (img.examType === 'radiology' && img.radiologySub === 'dental') return 'a';
+  if (img.examType === 'slit_lamp') return 'a';
+  if (img.examType === 'microscopy' || img.examType === 'endoscopy') return 'b';
+  if (img.examType === 'other') {
+    if (/구강|치아|잇몸|안구|안과|각막|결막|눈/.test(part)) return 'a';
+    if (/피부|외이|귀|병변|털|발적/.test(part)) return 'b';
+  }
+  return null;
+}
+
 /** 방사선·초음파(c/d) 검사소견 비전 결과를 5p 블록에 반영 — rows 텍스트 + 이미지 슬롯. */
 function applyCdFindingsToPage5(
   page5: HealthSystemsReportBlock[],
   cd: CdFindingsResult,
-  images: PlacementImageInput[],
+  imageById: Map<string, PlacementImageInput>,
   storagePathById: Map<string, string>,
 ): void {
-  const imageById = new Map(images.map((i) => [i.id, i]));
-  const setRows = (block: HealthSystemsReportBlock | undefined, findings: string) => {
-    if (!findings || !block || block.variant !== 'rows') return;
-    if (block.rows.length > 0) block.rows[0] = { label: block.rows[0].label ?? '', content: findings };
-    else block.rows = [{ label: '', content: findings }];
-  };
-  const fillImages = (block: HealthSystemsReportBlock | undefined, ids: string[]) => {
-    if (!block || !('images' in block)) return;
-    const slots = block.images;
-    for (let i = 0; i < slots.length; i++) {
-      const slot = slots[i];
-      if (!slot) continue;
-      const id = ids[i];
-      const img = id ? imageById.get(id) : undefined;
-      const path = id ? storagePathById.get(id) : undefined;
-      slot.src = path;
-      slot.caption = img && path ? simpleHealthReportImageCaption(img) : undefined;
-    }
-  };
-
   // 방사선: rows=page5[0], images4=page5[1] / 초음파: rows=page5[2], imagesGrid3x3=page5[3]
   if (cd.radiology.findings || cd.radiology.imageIds.length) {
-    setRows(page5[0], cd.radiology.findings);
-    fillImages(page5[1], cd.radiology.imageIds);
+    setRowsText(page5[0], cd.radiology.findings);
+    fillImageBlock(page5[1], cd.radiology.imageIds, imageById, storagePathById);
   }
   if (cd.ultrasound.findings || cd.ultrasound.imageIds.length) {
-    setRows(page5[2], cd.ultrasound.findings);
-    fillImages(page5[3], cd.ultrasound.imageIds);
+    setRowsText(page5[2], cd.ultrasound.findings);
+    fillImageBlock(page5[3], cd.ultrasound.imageIds, imageById, storagePathById);
   }
 }
 
@@ -102,6 +123,7 @@ export async function runImagePlacementForRun(
   const loaded = await loadCaseImagePlacement(client, runId, usageContext);
   if (!loaded) return;
   const { placement, storagePathById, images } = loaded;
+  const imageById = new Map(images.map((i) => [i.id, i]));
 
   const page4 =
     parseHealthSystemsBlocksFromUnknown(payload.systemsPage4Blocks) ?? structuredClone(DEMO_HEALTH_DENTAL_SKIN_BLOCKS);
@@ -115,9 +137,25 @@ export async function runImagePlacementForRun(
   try {
     const overallSummary = (payload as { overallSummary?: string }).overallSummary ?? '';
     const cd = await generateCdFindings(images, overallSummary, usageContext);
-    applyCdFindingsToPage5(page5, cd, images, storagePathById);
+    applyCdFindingsToPage5(page5, cd, imageById, storagePathById);
   } catch (e) {
     console.error('[image-placement] c/d findings failed (non-blocking):', e);
+  }
+
+  // 치과·안과(a) / 피부·외이도(b)는 이미지가 슬롯보다 많을 때만 섹션 텍스트 기반 비전 선택으로 교체.
+  try {
+    const aImgs = images.filter((i) => sectionABofImage(i) === 'a');
+    const bImgs = images.filter((i) => sectionABofImage(i) === 'b');
+    if (aImgs.length > 6) {
+      const ids = await selectSectionImages({ sectionLabel: '치과 및 안과', sectionText: rowsTextOf(page4[0]), images: aImgs, maxSlots: 6, usageContext });
+      fillImageBlock(page4[1], ids, imageById, storagePathById);
+    }
+    if (bImgs.length > 3) {
+      const ids = await selectSectionImages({ sectionLabel: '피부와 외이도', sectionText: rowsTextOf(page4[2]), images: bImgs, maxSlots: 3, usageContext });
+      fillImageBlock(page4[3], ids, imageById, storagePathById);
+    }
+  } catch (e) {
+    console.error('[image-placement] a/b overflow failed (non-blocking):', e);
   }
 
   payload.systemsPage4Blocks = page4;
