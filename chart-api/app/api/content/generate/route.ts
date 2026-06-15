@@ -396,16 +396,6 @@ const SYS_BLOGPOST = `당신은 동물병원을 운영하는 수의사이자 병
 - 사진 위치는 [사진: 설명]으로 표시.
 - 공백 포함 2,500~3,500자. 진단 검사 등 담을 사실이 많으면 상한(3,500자)까지 충분히 활용한다(검사를 빠뜨리느니 길이를 늘린다).
 
-# 서식(꾸밈) — 네이버 블로그용. ★절제가 핵심(과용하면 저품질로 분류됨)
-다음 마커로 "의미가 있을 때만" 핵심을 표시한다. 색·스타일은 시스템이 정하니 마커만 쓴다.
-- **굵게**: 핵심 용어·질환명 등 짧은 강조. (한 문단에 1개 이내 권장)
-- ==형광펜==: 보호자가 꼭 기억할 핵심 문장/문구. **섹션당 최대 1개**(없어도 됨).
-- !!포인트!!: 주의·경고처럼 가장 중요한 한두 마디(즉시 내원 신호, 위험 증상 등). 글 전체에서 드물게.
-규칙:
-- 마커는 짧은 구절에만 감싼다(문단 전체·여러 문장을 통째로 감싸지 말 것). 줄바꿈을 마커 안에 넣지 말 것.
-- 같은 키워드를 반복해서 굵게 처리하지 말 것(처음 1회 정도).
-- 제목·소제목에는 마커를 쓰지 않는다.
-
 # 반드시 지킬 것
 - 없는 사실 창작 금지. OUTLINE·CASE_OVERVIEW·병원정보에 있는 것만.
 - "100% 완치·최고·유일" 등 과장·단정 금지, 치료 결과 보장 금지.
@@ -415,7 +405,7 @@ const SYS_BLOGPOST = `당신은 동물병원을 운영하는 수의사이자 병
 # 출력 형식 — JSON only
 {
   "title": "최종 제목",
-  "bodyMarkdown": "## 섹션명: 소제목\\n\\n본문에 **핵심용어**·==핵심문장==·!!주의!! 마커를 절제해 사용...\\n\\n[사진: 설명]\\n\\n...",
+  "bodyMarkdown": "## 섹션명: 소제목\\n\\n본문...\\n\\n[사진: 설명]\\n\\n...",
   "tags": ["키워드1", "키워드2"],
   "charCount": 글자수
 }`;
@@ -518,6 +508,40 @@ export async function POST(request: NextRequest) {
   // 사전 점검: 병원 토큰 잔액이 0 이하면 작업을 막는다(토큰 미설정이면 통과).
   if (!(await hospitalHasTokens(hospitalId))) {
     return NextResponse.json({ error: '토큰이 부족합니다. 충전 후 다시 시도해 주세요.' }, { status: 402 });
+  }
+
+  // 블로그 글 서식화 — 주어진 본문에 네이버용 서식 마커만 추가(텍스트 변경 금지). 추출 source 불필요.
+  if (contentType === 'blog_format') {
+    const text = typeof body.text === 'string' ? body.text : '';
+    if (!text.trim()) return NextResponse.json({ runId, contentType, generated: { text: '' } });
+    try {
+      const sys = [
+        '너는 네이버 블로그 글에 서식 마커만 입히는 도구다.',
+        '입력 본문의 글자·문장·줄바꿈은 절대 바꾸지 말고(추가·삭제·수정·재배열 금지) 마커만 감싼다.',
+        '마커(절제해서 핵심만):',
+        '- **굵게**: 핵심 용어·질환명 등 짧은 강조(문단당 1개 이내).',
+        '- ==형광==: 보호자가 꼭 기억할 핵심 문장/문구. 섹션당 최대 1개(없어도 됨).',
+        '- !!포인트!!: 주의·경고 등 가장 중요한 한두 마디. 글 전체에서 드물게.',
+        '- 마커는 짧은 구절에만. 줄바꿈을 마커 안에 넣지 말 것. 제목(## ...)에는 쓰지 말 것. 같은 키워드 반복 강조 금지.',
+        '출력: 마커가 들어간 동일 본문 텍스트만. JSON·코드펜스·설명 없이 본문만.',
+      ].join('\n');
+      const raw = await geminiGenerateText(text, {
+        systemInstruction: sys,
+        thinkingBudget: 0,
+        maxOutputTokens: 8192,
+        usageContext: usageCtx('blog_format'),
+      });
+      await chargeOperationTokens(hospitalId, operationId, 'blog_format');
+      const cleaned = raw.replace(/^```[a-z]*\n?/i, '').replace(/\n?```\s*$/i, '').trim();
+      return NextResponse.json({ runId, contentType, generated: { text: cleaned || text } });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      if (msg.includes('GEMINI_API_KEY')) {
+        return NextResponse.json({ error: 'LLM not configured (GEMINI_API_KEY)' }, { status: 503 });
+      }
+      console.error('[content/generate] blog_format error:', e);
+      return NextResponse.json({ error: msg }, { status: 500 });
+    }
   }
 
   try {

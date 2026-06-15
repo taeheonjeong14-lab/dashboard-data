@@ -462,6 +462,7 @@ export default function AdminCaseBlog() {
       </div>
       {pseudoOpen && selected ? (
         <PostProcessModal
+          runId={selected.runId}
           patientName={selected.patientName}
           body={selected.bodyMarkdown}
           onClose={() => setPseudoOpen(false)}
@@ -517,15 +518,42 @@ async function copyRichHtml(html: string, plain: string): Promise<void> {
   }
 }
 
-// 후처리 및 복사 모달 — 환자명 가명 치환 + 서식화(네이버용 HTML). 저장하지 않고 복사만 제공.
-function PostProcessModal({ patientName, body, onClose }: { patientName: string; body: string; onClose: () => void }) {
+// 후처리 및 복사 모달 — 환자명 가명 치환 + (AI) 서식화 → 네이버용 HTML 복사. 저장하지 않음.
+function PostProcessModal({ runId, patientName, body, onClose }: { runId: string; patientName: string; body: string; onClose: () => void }) {
   const [pseudo, setPseudo] = useState('');
   const [copied, setCopied] = useState(false);
+  const [formatting, setFormatting] = useState(false);
+  const [formattedMd, setFormattedMd] = useState<string | null>(null); // AI 서식 적용 결과(마커 포함). null = 미적용
+  const [formatError, setFormatError] = useState<string | null>(null);
+
   const occurrences = patientName ? body.split(patientName).length - 1 : 0;
-  // 가명 치환(환자명 있으면) → 서식화. 가명 비면 원문 환자명 유지.
+  // 가명 치환(환자명 있으면). 가명 비면 원문 환자명 유지.
   const pseudonymizedMd = patientName ? body.split(patientName).join(pseudo.trim() || patientName) : body;
-  const previewHtml = mdToNaverHtml(pseudonymizedMd);
-  const plainText = stripFormatMarkers(pseudonymizedMd);
+  // 표시·복사 대상: 서식 적용했으면 그 결과, 아니면 평문(치환본).
+  const displayMd = formattedMd ?? pseudonymizedMd;
+  const previewHtml = mdToNaverHtml(displayMd);
+  const plainText = stripFormatMarkers(displayMd);
+
+  // 가명이 바뀌면 이전 서식 결과는 무효(다른 텍스트 기준이므로).
+  const onPseudoChange = (v: string) => { setPseudo(v); setFormattedMd(null); };
+
+  const handleFormat = async () => {
+    setFormatting(true); setFormatError(null);
+    try {
+      const res = await fetch('/api/admin/health-report/generate', {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ runId, contentType: 'blog_format', text: pseudonymizedMd }),
+      });
+      const data = (await res.json()) as { error?: string; generated?: { text?: string } };
+      if (!res.ok) throw new Error(data.error ?? '서식 적용 실패');
+      setFormattedMd(data.generated?.text || pseudonymizedMd);
+    } catch (e) {
+      setFormatError(e instanceof Error ? e.message : '서식 적용 실패');
+    } finally {
+      setFormatting(false);
+    }
+  };
 
   const handleCopy = async () => {
     try {
@@ -562,15 +590,18 @@ function PostProcessModal({ patientName, body, onClose }: { patientName: string;
           <input
             autoFocus
             value={pseudo}
-            onChange={(e) => setPseudo(e.target.value)}
+            onChange={(e) => onPseudoChange(e.target.value)}
             placeholder="가명 입력 (예: OO)"
             style={{ width: '100%', padding: '9px 12px', fontSize: 14, border: '1px solid var(--border-strong)', borderRadius: 8, outline: 'none', boxSizing: 'border-box' }}
           />
+          {formatError ? (
+            <div style={{ marginTop: 8, fontSize: 12, color: 'var(--danger)' }}>{formatError}</div>
+          ) : null}
         </div>
 
         <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '14px 18px' }}>
           <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 8 }}>
-            미리보기 · 가명 적용 + 서식화 (복사되는 그대로)
+            미리보기 {formattedMd ? '· 서식 적용됨' : '· 평문 ("서식 적용"을 누르면 AI가 꾸밈)'} (복사되는 그대로)
           </div>
           <div
             style={{ fontSize: 14, lineHeight: 1.8, color: 'var(--text)', wordBreak: 'break-word' }}
@@ -584,7 +615,16 @@ function PostProcessModal({ patientName, body, onClose }: { patientName: string;
           </button>
           <button
             type="button"
+            onClick={() => void handleFormat()}
+            disabled={formatting}
+            style={{ ...btnSecondary, padding: '8px 14px', opacity: formatting ? 0.6 : 1, cursor: formatting ? 'not-allowed' : 'pointer' }}
+          >
+            {formatting ? '서식 적용 중…' : formattedMd ? '서식 다시 적용' : '서식 적용 (AI)'}
+          </button>
+          <button
+            type="button"
             onClick={() => void handleCopy()}
+            disabled={formatting}
             style={{
               padding: '8px 16px',
               fontSize: 13,
@@ -593,7 +633,8 @@ function PostProcessModal({ patientName, body, onClose }: { patientName: string;
               border: 'none',
               background: 'var(--accent)',
               color: '#fff',
-              cursor: 'pointer',
+              cursor: formatting ? 'not-allowed' : 'pointer',
+              opacity: formatting ? 0.6 : 1,
             }}
           >
             {copied ? '복사됨!' : '서식 포함 복사'}
