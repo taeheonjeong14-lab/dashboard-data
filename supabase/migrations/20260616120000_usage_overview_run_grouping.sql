@@ -7,7 +7,7 @@ returns jsonb
 language plpgsql
 security definer
 set search_path = core, billing, chart_pdf, public
-as $$
+as $func$
 declare
   v_hid     text;
   v_balance numeric;
@@ -64,6 +64,6 @@ begin
   end;
 
   return jsonb_build_object('balance', v_balance, 'daily', coalesce(v_daily, '[]'::jsonb), 'ledger', coalesce(v_ledger, '[]'::jsonb));
-end $$;
+end $func$;
 
 grant execute on function core.my_usage_overview(int) to authenticated;
