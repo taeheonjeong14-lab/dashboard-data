@@ -87,7 +87,7 @@ export function TopBar({ userName, hospitalName, tokenBalance }: TopBarProps) {
           }}
         >
           <Coins size={14} />
-          {(tokenBalance ?? 0).toLocaleString()} 토큰
+          {Math.round(tokenBalance ?? 0).toLocaleString()} 토큰
         </span>
         <span
           style={{
