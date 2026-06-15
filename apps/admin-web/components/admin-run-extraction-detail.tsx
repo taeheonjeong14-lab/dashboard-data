@@ -668,7 +668,18 @@ export function CaseImagesSection({ runId, onAddAnalysis }: { runId: string; onA
   );
 }
 
-type ChartTabKey = 'basic' | 'vaccination' | 'chart' | 'plan' | 'lab' | 'vitals' | 'exam' | 'images' | 'debug';
+type ChartTabKey = 'caseOverview' | 'emphasis' | 'basic' | 'vaccination' | 'chart' | 'plan' | 'lab' | 'vitals' | 'exam' | 'images' | 'debug';
+
+// 진료케이스(blog_case) 케이스개요 표시용 라벨 — hospital-ui 작성 순서.
+const CASE_OVERVIEW_LABELS: { key: string; label: string }[] = [
+  { key: 'final_diagnosis', label: '최종 진단명' },
+  { key: 'visit_background', label: '내원 배경' },
+  { key: 'patient_notes', label: '환자 특이사항' },
+  { key: 'diagnosis_method', label: '진단 방식' },
+  { key: 'treatment_process', label: '치료 과정' },
+  { key: 'aftercare_plan', label: '사후 관리 계획' },
+  { key: 'emphasis', label: '강조 희망 사항' },
+];
 const CHART_TABS: { key: ChartTabKey; label: string }[] = [
   { key: 'basic', label: '기본정보' },
   { key: 'vaccination', label: '접종·기생충' },
@@ -808,8 +819,40 @@ export function AdminRunExtractionDetail({
   const [imgModalDates, setImgModalDates] = useState<string[]>([]); // 이 run의 기존 날짜 그룹
   const [caseImagesRefreshKey, setCaseImagesRefreshKey] = useState(0);
   const [activeTab, setActiveTab] = useState<ChartTabKey>('basic');
+  // hospital-ui 에서 작성한 케이스개요(진료케이스) / 강조사항(건강검진).
+  const [caseOverview, setCaseOverview] = useState<Record<string, string> | null>(null);
+  const [emphasisText, setEmphasisText] = useState('');
   const imgModalRef = useRef<HTMLDialogElement>(null);
   const imgFileInputRef = useRef<HTMLInputElement>(null);
+
+  // 케이스개요(blog_case)·강조사항(hospital_notes) 조회 — run 별 hospital 작성 내용.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/admin/health-report/content?runId=${encodeURIComponent(runId)}`, { credentials: 'include' });
+        const data = (await res.json().catch(() => ({}))) as { items?: { contentType?: string; payload?: unknown }[] };
+        if (cancelled || !res.ok) return;
+        const items = data.items ?? [];
+        const blog = items.find((i) => i.contentType === 'blog_case')?.payload as { overview?: Record<string, unknown> } | undefined;
+        const notes = items.find((i) => i.contentType === 'hospital_notes')?.payload as { emphasis_text?: unknown } | undefined;
+        const rawOverview = blog?.overview;
+        const overview = rawOverview && typeof rawOverview === 'object'
+          ? Object.fromEntries(Object.entries(rawOverview).map(([k, v]) => [k, typeof v === 'string' ? v : '']))
+          : null;
+        const emphasis = typeof notes?.emphasis_text === 'string' ? notes.emphasis_text : '';
+        setCaseOverview(overview);
+        setEmphasisText(emphasis);
+        // 진료케이스/건강검진으로 들어온 케이스면 해당 탭을 기본으로.
+        const hasOverview = !!overview && CASE_OVERVIEW_LABELS.some(({ key }) => (overview[key] ?? '').trim());
+        if (hasOverview) setActiveTab('caseOverview');
+        else if (emphasis.trim()) setActiveTab('emphasis');
+      } catch {
+        /* ignore */
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [runId]);
 
   const labSpeciesProfile = useMemo(
     () => speciesProfileFromBasicSpecies(result?.basicInfo?.species ?? null),
@@ -1216,6 +1259,15 @@ export function AdminRunExtractionDetail({
   // 병원이 업로드한 원본 PDF — 헤더의 '건강검진 리포트 생성' 좌측에 배치(이미지는 이미지 분석 탭).
   const sourcePdfs = result.sourceFiles?.pdfs ?? [];
 
+  // 진료케이스면 케이스개요, 건강검진이면 강조사항 탭을 맨 앞에 추가.
+  const hasCaseOverview = !!caseOverview && CASE_OVERVIEW_LABELS.some(({ key }) => (caseOverview[key] ?? '').trim());
+  const hasEmphasis = emphasisText.trim().length > 0;
+  const tabs: { key: ChartTabKey; label: string }[] = [
+    ...(hasCaseOverview ? [{ key: 'caseOverview' as ChartTabKey, label: '케이스개요' }] : []),
+    ...(hasEmphasis ? [{ key: 'emphasis' as ChartTabKey, label: '강조사항' }] : []),
+    ...CHART_TABS,
+  ];
+
   return (
     <div style={{ paddingBottom: 24 }}>
       {!embedded ? (
@@ -1352,7 +1404,7 @@ export function AdminRunExtractionDetail({
         role="tablist"
         style={{ display: 'flex', gap: 4, borderBottom: '1px solid var(--border)', overflowX: 'auto', marginBottom: 12 }}
       >
-        {CHART_TABS.map((t) => {
+        {tabs.map((t) => {
           const active = activeTab === t.key;
           return (
             <button
@@ -1384,6 +1436,34 @@ export function AdminRunExtractionDetail({
       <div style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: 10, padding: '14px 16px' }}>
       {/* 섹션 그리드: 선택한 탭의 섹션만 표시 */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, alignItems: 'start' }}>
+
+      {/* 케이스개요 (진료케이스 · 병원 작성) — 전체 너비 */}
+      <details open style={{ ...sectionStyle, gridColumn: '1 / -1', display: activeTab === 'caseOverview' ? undefined : 'none' }}>
+        <summary style={summaryStyle} onClick={(e) => e.preventDefault()}>
+          <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>케이스개요 <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>(병원 작성)</span></span>
+        </summary>
+        <div style={{ display: 'grid', gap: 12, padding: '8px 2px' }}>
+          {CASE_OVERVIEW_LABELS.map(({ key, label }) => {
+            const val = (caseOverview?.[key] ?? '').trim();
+            return (
+              <div key={key} style={{ display: 'grid', gap: 3 }}>
+                <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)' }}>{label}</span>
+                <span style={{ fontSize: 13, color: val ? 'var(--text)' : 'var(--text-muted)', whiteSpace: 'pre-wrap', fontStyle: val ? 'normal' : 'italic' }}>{val || '미작성'}</span>
+              </div>
+            );
+          })}
+        </div>
+      </details>
+
+      {/* 강조사항 (건강검진 · 병원 작성) — 전체 너비 */}
+      <details open style={{ ...sectionStyle, gridColumn: '1 / -1', display: activeTab === 'emphasis' ? undefined : 'none' }}>
+        <summary style={summaryStyle} onClick={(e) => e.preventDefault()}>
+          <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>강조사항 <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>(병원 작성)</span></span>
+        </summary>
+        <div style={{ padding: '8px 2px', fontSize: 13, color: 'var(--text)', whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>
+          {emphasisText.trim() || '작성된 강조사항이 없습니다.'}
+        </div>
+      </details>
 
       {/* 기본 정보 — 전체 너비 */}
       <details open style={{ ...sectionStyle, gridColumn: '1 / -1', display: activeTab === 'basic' ? undefined : 'none' }}>
