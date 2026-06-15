@@ -368,7 +368,7 @@ export default function AdminCaseBlog() {
                   paddingRight: 8,
                 }}
               >
-                {selected.bodyMarkdown || '본문이 없습니다.'}
+                {stripFormatMarkers(selected.bodyMarkdown) || '본문이 없습니다.'}
               </div>
 
               <div style={{ marginTop: 14, borderTop: '1px solid var(--border)', paddingTop: 14 }}>
