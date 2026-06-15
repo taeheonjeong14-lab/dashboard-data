@@ -703,33 +703,6 @@ export async function POST(request: NextRequest) {
       return { caseOverview, caseOverviewText };
     };
 
-    // 이미 분석된 케이스 이미지(의심 질환 + 뒷받침 이미지) — 새 AI 호출 없이 저장된 결과를 텍스트로.
-    const loadImageAnalysisText = async (): Promise<string> => {
-      type Bullet = { text?: string; confidence?: number; fileNames?: string[]; imageConfidence?: Record<string, number> };
-      const { rows } = await pool.query<{ bullets: unknown }>(
-        `SELECT bullets FROM chart_pdf.parse_run_case_image_summaries WHERE parse_run_id = $1::uuid`,
-        [runId],
-      );
-      const bullets: Bullet[] = [];
-      for (const r of rows) {
-        const bs = r.bullets as Bullet[] | null;
-        if (Array.isArray(bs)) bullets.push(...bs);
-      }
-      if (bullets.length === 0) return '(분석된 이미지 없음)';
-      return bullets
-        .map((b) => {
-          const head = `- ${String(b.text ?? '').trim()}${typeof b.confidence === 'number' ? ` (질환 confidence ${b.confidence}%)` : ''}`;
-          const imgs = (Array.isArray(b.fileNames) ? b.fileNames : [])
-            .map((fn) => {
-              const c = b.imageConfidence?.[fn];
-              return `    · ${fn}${typeof c === 'number' ? ` (이미지 confidence ${c}%)` : ''}`;
-            })
-            .join('\n');
-          return imgs ? `${head}\n${imgs}` : head;
-        })
-        .join('\n');
-    };
-
     // 1단계 — 인과 흐름(causalFlow). thinking 켬, maxOutputTokens 넉넉히. 저장 안 함(모달에서 검수).
     if (contentType === BLOG_CAUSAL) {
       try {
@@ -785,8 +758,9 @@ export async function POST(request: NextRequest) {
           return NextResponse.json({ error: 'causalFlow is required for blog_outline' }, { status: 400 });
         }
         const { caseOverview, caseOverviewText } = await loadCaseOverviewForRun();
-        const imageAnalysisText = await loadImageAnalysisText();
         const sourceText = JSON.stringify(source).slice(0, 120_000);
+        // 이미지 배정은 블로그 글 확정 후 4단계(blog_images)에서 별도 비전 분석으로 한다.
+        // 여기서는 텍스트 아웃라인만 만든다(imageFileNames 는 빈 배열로 둔다).
         const userContent = [
           'CAUSAL_FLOW (1단계 검수 결과):',
           causalFlowJson,
@@ -794,15 +768,12 @@ export async function POST(request: NextRequest) {
           'CASE_OVERVIEW:',
           caseOverviewText,
           '',
-          'IMAGE_ANALYSIS (이미 분석된 케이스 이미지 — 의심 질환과 그 질환을 보여주는 이미지 파일명):',
-          imageAnalysisText,
-          '',
           'CHART_SOURCE:',
           sourceText,
           '',
           '---',
           '위 인과 흐름을 섹션 아웃라인으로 배치하여, 지정된 JSON 형식으로만 출력하세요.',
-          '각 섹션의 facts와 관련된 이미지가 IMAGE_ANALYSIS에 있으면 imageFileNames에 그 파일명을 넣으세요(목록에 있는 파일명만).',
+          '각 섹션의 imageFileNames 는 빈 배열([])로 두세요. (이미지는 이후 단계에서 따로 배정합니다.)',
           '마지막에 overviewCheck로 CASE_OVERVIEW 누락 여부를 점검하세요.',
         ].join('\n');
         const stageMaxTokens = 8192;
