@@ -41,6 +41,7 @@ import { PDF_UPLOAD_BUCKET } from "@/lib/supabase-storage-buckets";
 import { getPdfPageCount, mergePdfs } from "@/lib/pdf-slice-pages";
 import { hospitalsDbUsesCamelCase } from "@/lib/hospital-db";
 import { dbChartPdf, dbCore, getSupabaseCoreSchema } from "@/lib/supabase-db-schema";
+import { getChartPgPool } from "@/lib/db";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { canonicalizeLabItemName } from "@/lib/lab-item-normalize";
 import { refineLabFlag } from "@dashboard/lab-normalize";
@@ -3092,6 +3093,20 @@ export async function POST(request: NextRequest) {
     });
 
     console.log("[text-bucketing] saveParseRun 완료: runId=%s friendlyId=%s", saved.runId, saved.friendlyId);
+
+    // 추출/OCR usage 를 방금 만든 run 에 귀속 — 토큰 내역에서 추출이 해당 작업(run)에 묶이도록.
+    // (추출 시점엔 run 이 아직 없어 run_id 없이 기록됨 → 생성 후 backfill. best-effort)
+    if (saved.runId) {
+      try {
+        await getChartPgPool().query(
+          `UPDATE billing.llm_usage SET run_id = $1::uuid WHERE operation_id = $2::uuid AND run_id IS NULL`,
+          [saved.runId, extractOperationId],
+        );
+      } catch (e) {
+        console.warn("[text-bucketing] extract usage run_id backfill 실패(무시):", e instanceof Error ? e.message : String(e));
+      }
+    }
+
     // fire-and-forget: AI Assessment generation (does not block response)
     generateAndSaveAssessment(saved.runId, {
       chartBodyByDate: responsePayload.chartBodyByDate.map((g) => ({
