@@ -18,11 +18,16 @@ const CASE_IMAGES_BUCKET = 'chart-case-images'; // 분류 결과 저장 버킷
 // 병원(hospital-ui)이 제출한 이미지를 기존 분류 파이프라인(analyzeCaseImages)에 태워
 // chart_pdf.parse_run_case_images 에 분류 결과와 함께 저장한다. 멱등(이미 분류돼 있으면 스킵).
 export async function POST(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ runId: string }> },
 ) {
-  const gate = await requireAdminApi();
-  if (!gate.ok) return gate.response;
+  // 서버-투-서버(추출 워커) 호출은 service role key 로 인증, 그 외는 admin 세션.
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+  const isService = serviceKey.length > 0 && request.headers.get('authorization') === `Bearer ${serviceKey}`;
+  if (!isService) {
+    const gate = await requireAdminApi();
+    if (!gate.ok) return gate.response;
+  }
 
   const { runId } = await params;
   const pool = getAdminWebPgPool();

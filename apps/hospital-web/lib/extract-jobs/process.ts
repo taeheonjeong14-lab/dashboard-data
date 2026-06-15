@@ -138,6 +138,21 @@ export async function processExtractJob(jobId: string): Promise<void> {
       .update({ status: 'done', error_text: null, updated_at: new Date().toISOString() })
       .eq('id', job.id);
     console.log('[extract-job] done', jobId, 'runId=', runId);
+
+    // 케이스 이미지 자동 임포트·분석 — admin 이미지 탭을 안 열어도 백그라운드로 돌도록.
+    // admin from-hospital 을 service role key 로 server-to-server 호출(멱등). ADMIN_WEB_URL 미설정 시 스킵
+    // (그 경우 admin 이미지 탭 열람 시 기존 트리거가 폴백으로 동작).
+    const adminUrl = process.env.ADMIN_WEB_URL;
+    if (adminUrl) {
+      try {
+        await fetch(`${adminUrl}/api/admin/runs/${encodeURIComponent(runId)}/case-images/from-hospital`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY ?? ''}` },
+        });
+      } catch (e) {
+        console.error('[extract-job] case-image import trigger failed (non-blocking)', jobId, e);
+      }
+    }
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     const finalStatus = job.attempts >= MAX_ATTEMPTS ? 'error' : 'queued';
