@@ -113,19 +113,36 @@ function sectionABofImage(img: PlacementImageInput): 'a' | 'b' | null {
   return null;
 }
 
-/** 방사선·초음파(c/d) 검사소견 비전 결과를 5p 블록에 반영 — rows 텍스트 + 이미지 슬롯. */
+const CD_NOT_INCLUDED = '이번 검진 프로그램에는 포함되지 않은 영역입니다.';
+
+/**
+ * 방사선·초음파(c/d)는 "이미지를 보고 소견을 쓰는" 영역이라, 차트 텍스트로 소견을 쓰지 않는다.
+ * - 해당 모달리티 이미지가 있으면: 비전 검사소견 + 선택 이미지.
+ * - 이미지가 없으면: "포함되지 않은 영역" 문구 + 슬롯 비움.
+ * (rows=page5[0]/page5[2], images=page5[1]/page5[3])
+ */
 function applyCdFindingsToPage5(
   page5: HealthSystemsReportBlock[],
   cd: CdFindingsResult,
   imageById: Map<string, PlacementImageInput>,
   storagePathById: Map<string, string>,
 ): void {
-  // 방사선: rows=page5[0], images4=page5[1] / 초음파: rows=page5[2], imagesGrid3x3=page5[3]
-  if (cd.radiology.findings || cd.radiology.imageIds.length) {
+  const all = [...imageById.values()];
+  const radCount = all.filter((i) => i.examType === 'radiology' && i.radiologySub !== 'dental').length;
+  const usCount = all.filter((i) => i.examType === 'ultrasound').length;
+
+  if (radCount === 0) {
+    setRowsText(page5[0], CD_NOT_INCLUDED);
+    fillImageBlock(page5[1], [], imageById, storagePathById);
+  } else {
     setRowsText(page5[0], cd.radiology.findings);
     fillImageBlock(page5[1], cd.radiology.imageIds, imageById, storagePathById);
   }
-  if (cd.ultrasound.findings || cd.ultrasound.imageIds.length) {
+
+  if (usCount === 0) {
+    setRowsText(page5[2], CD_NOT_INCLUDED);
+    fillImageBlock(page5[3], [], imageById, storagePathById);
+  } else {
     setRowsText(page5[2], cd.ultrasound.findings);
     fillImageBlock(page5[3], cd.ultrasound.imageIds, imageById, storagePathById);
   }
@@ -137,9 +154,10 @@ export async function runImagePlacementForRun(
   payload: HealthCheckupValidatedPayload,
   usageContext?: UsageContext,
 ): Promise<void> {
+  // 이미지가 없어도 진행한다 — c/d(방사선·초음파)는 이미지 없으면 "포함되지 않은 영역" 문구를 넣어야 하므로.
   const loaded = await loadCaseImages(client, runId);
-  if (!loaded) return;
-  const { storagePathById, images } = loaded;
+  const images = loaded?.images ?? [];
+  const storagePathById = loaded?.storagePathById ?? new Map<string, string>();
   const imageById = new Map(images.map((i) => [i.id, i]));
 
   const page4 =
@@ -202,11 +220,12 @@ export async function applyImagePlacementForSection(
     );
 
   const loaded = await loadCaseImages(client, runId);
-  if (!loaded) return blocks;
-  const { storagePathById, images } = loaded;
+  const images = loaded?.images ?? [];
+  const storagePathById = loaded?.storagePathById ?? new Map<string, string>();
   const imageById = new Map(images.map((i) => [i.id, i]));
 
   // 재생성한 페이지에만 라벨 기반 코드 배치를 한 뒤, 전체 생성과 동일한 비전 단계를 적용한다.
+  // (이미지가 없어도 c/d 는 "포함되지 않은 영역" 문구를 넣어야 하므로 그대로 진행.)
   if (section === 'systems4') {
     placePage4ByLabel(blocks, images, imageById, storagePathById);
     // a/b: 이미지가 슬롯보다 많을 때만 섹션 텍스트 기반 비전 선택.
