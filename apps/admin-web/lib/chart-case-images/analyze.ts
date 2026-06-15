@@ -291,3 +291,119 @@ export async function analyzeImageGroup(params: {
 }
 
 // per-image 정밀 분석(analyzeCaseImages / InBatches)은 그룹 분석으로 대체되어 제거됨.
+
+// ── 진료케이스 4단계: 진단 기반 섹션별 이미지 선택 (영상의학 전공 수의사) ──────────
+export type CaseBlogSectionInput = { id: string; label: string; keyText: string };
+export type CaseBlogPatientInput = { species?: string; breed?: string; age?: string; sex?: string; name?: string };
+export type CaseBlogImageAssignment = { sectionId: string; fileNames: string[] };
+
+export async function analyzeCaseBlogImages(params: {
+  patient: CaseBlogPatientInput;
+  finalDiagnosis: string;
+  contextText: string;
+  sections: CaseBlogSectionInput[];
+  images: ImageInputPart[];
+  usageContext?: UsageContext;
+}): Promise<{ assignments: CaseBlogImageAssignment[] }> {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) throw new Error('OPENAI_API_KEY is not configured.');
+  if (params.images.length === 0 || params.sections.length === 0) return { assignments: [] };
+
+  const model = process.env.OPENAI_VISION_MODEL?.trim() || 'gpt-4o';
+  const client = new OpenAI({ apiKey });
+  const validNames = new Set(params.images.map((i) => i.fileName));
+  const sectionIds = new Set(params.sections.map((s) => s.id));
+
+  const manifest = params.images.map((img, i) => `${i}: ${img.fileName}`).join('\n');
+  const sectionsText = params.sections
+    .map((s) => `- id="${s.id}" | ${s.label}\n    ${s.keyText.replace(/\s+/g, ' ').slice(0, 400)}`)
+    .join('\n');
+  const p = params.patient;
+  const patientText = [p.species, p.breed, p.age, p.sex].map((x) => (x ?? '').toString().trim()).filter(Boolean).join(' / ') || '(정보 없음)';
+
+  const prompt = [
+    '너는 영상의학을 전공한 수의사다.',
+    '아래 진료케이스의 이미지들을 보고, 각 블로그 섹션에 "그 섹션 내용(특히 최종 진단명·소견)을 가장 잘 보여주는" 이미지를 골라 배정한다.',
+    '확정 진단은 내리지 말고 이미지 관찰 근거로 고른다. 출력은 스키마에 맞는 JSON만.',
+    '',
+    `[환자] ${patientText}`,
+    `[최종 진단명] ${params.finalDiagnosis || '(미기재)'}`,
+    params.contextText ? `[내원 배경·진단 과정]\n${params.contextText.slice(0, 2000)}` : '',
+    '',
+    '[섹션 목록] (반드시 이 id 로만 배정)',
+    sectionsText,
+    '',
+    '[이미지 목록] (index: 파일명)',
+    manifest,
+    '',
+    '규칙:',
+    '- 최종 진단명에 여러 질환이 있으면 각 질환을 가장 잘 보여주는 이미지를 가장 관련 깊은 섹션에 배정한다.',
+    '- 한 이미지는 가장 관련 깊은 한 섹션에만 배정한다(여러 섹션 중복 금지).',
+    '- 섹션 내용과 맞는 이미지가 없으면 그 섹션의 fileNames 는 빈 배열로 둔다.',
+    '- fileNames 는 위 이미지 목록의 파일명만 사용한다(새 파일명 생성 금지).',
+  ].filter(Boolean).join('\n');
+
+  type MessageContentPart = { type: 'text'; text: string } | { type: 'image_url'; image_url: { url: string } };
+  const content: MessageContentPart[] = [{ type: 'text', text: prompt }];
+  for (const img of params.images) {
+    content.push({ type: 'image_url', image_url: { url: `data:${img.mimeType};base64,${img.buffer.toString('base64')}` } });
+  }
+
+  const response = await createChatWithRetry(client, {
+    model,
+    messages: [{ role: 'user', content }],
+    response_format: {
+      type: 'json_schema',
+      json_schema: {
+        name: 'case_blog_image_assignment',
+        strict: true,
+        schema: {
+          type: 'object',
+          properties: {
+            assignments: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  sectionId: { type: 'string' },
+                  fileNames: { type: 'array', items: { type: 'string' } },
+                },
+                required: ['sectionId', 'fileNames'],
+                additionalProperties: false,
+              },
+            },
+          },
+          required: ['assignments'],
+          additionalProperties: false,
+        },
+      },
+    },
+  });
+  await recordOpenAiChatUsage({ model, usage: response.usage, feature: 'blog_images', ...(params.usageContext ?? {}) });
+
+  const output = response.choices[0]?.message.content;
+  if (!output) throw new Error('이미지 배정에 실패했습니다.');
+  let parsed: { assignments?: unknown };
+  try {
+    parsed = JSON.parse(output);
+  } catch {
+    throw new Error('모델이 올바른 JSON 형식을 반환하지 않았습니다.');
+  }
+
+  // 후처리: 유효 섹션·파일명만, 한 이미지는 한 섹션에만(먼저 배정된 섹션 우선).
+  const used = new Set<string>();
+  const assignments: CaseBlogImageAssignment[] = [];
+  for (const row of Array.isArray(parsed.assignments) ? parsed.assignments : []) {
+    const o = (row ?? {}) as Record<string, unknown>;
+    const sectionId = typeof o.sectionId === 'string' ? o.sectionId : '';
+    if (!sectionIds.has(sectionId)) continue;
+    const fileNames: string[] = [];
+    for (const fn of Array.isArray(o.fileNames) ? o.fileNames : []) {
+      if (typeof fn !== 'string' || !validNames.has(fn) || used.has(fn)) continue;
+      used.add(fn);
+      fileNames.push(fn);
+    }
+    assignments.push({ sectionId, fileNames });
+  }
+  return { assignments };
+}

@@ -4,7 +4,7 @@ import { useState, type CSSProperties } from 'react';
 import Link from 'next/link';
 
 // ── 타입 ──────────────────────────────────────────────────────────────────
-type StepNum = 1 | 2 | 3;
+type StepNum = 1 | 2 | 3 | 4;
 type OverviewItem = { label: string; value: string };
 type Phase = { id: string; name: string; period: string; type: string; what: string[]; why: string[]; toNext: string[] };
 type CausalFlow = { axis: string; anesthesia: boolean; phases: Phase[] };
@@ -176,7 +176,8 @@ export function CaseBlogButton({
   const [outlineBasis, setOutlineBasis] = useState(''); // outline 을 만든 causal 의 서명
   const [blogBasis, setBlogBasis] = useState(''); // blog 를 만든 outline 의 서명
 
-  const [genLoading, setGenLoading] = useState<null | 1 | 2 | 3>(null);
+  const [genLoading, setGenLoading] = useState<null | 1 | 2 | 3 | 4>(null);
+  const [confirmed, setConfirmed] = useState(false); // 블로그 글 확정됨(AI 재생성 불가)
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [savedMsg, setSavedMsg] = useState('');
@@ -235,6 +236,7 @@ export function CaseBlogButton({
       if (normCausal) setCausal(normCausal);
       if (normOutline) setOutline(normOutline);
       if (normBlog) setBlog(normBlog);
+      setConfirmed(Boolean(bP?.confirmed));
       // 저장된 단계는 서로 일관됐다고 보고 서명을 맞춰둔다(불필요한 재생성 확인 방지).
       if (normCausal && normOutline) setOutlineBasis(JSON.stringify(normCausal));
       if (normOutline && normBlog) setBlogBasis(JSON.stringify(normOutline));
@@ -277,9 +279,55 @@ export function CaseBlogButton({
     finally { setGenLoading(null); }
   }
 
+  // 4단계 — 진단 기반 섹션별 이미지 배정(비전). 결과를 아웃라인 imageFileNames 에 반영·저장.
+  async function genImages() {
+    if (!outline) return;
+    setGenLoading(4); setError(null); setSavedMsg('');
+    try {
+      const sections = outline.sections.map((s) => ({
+        id: s.id,
+        label: s.label,
+        keyText: [...s.points, ...s.facts].join(' '),
+      }));
+      const finalDiagnosis = caseOverview.find((o) => o.label === '최종 진단명')?.value ?? '';
+      const contextText = caseOverview
+        .filter((o) => ['내원 배경', '진단 방식', '환자 특이사항'].includes(o.label) && o.value)
+        .map((o) => `${o.label}: ${o.value}`)
+        .join('\n');
+      const res = await fetch(`/api/admin/runs/${encodeURIComponent(runId)}/case-blog-images`, {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sections, finalDiagnosis, contextText }),
+      });
+      const data = (await res.json()) as { error?: string; assignments?: { sectionId: string; fileNames: string[] }[] };
+      if (!res.ok) throw new Error(data.error ?? '이미지 분석 실패');
+      const byId = new Map((data.assignments ?? []).map((a) => [a.sectionId, a.fileNames]));
+      const newOutline: Outline = { ...outline, sections: outline.sections.map((s) => ({ ...s, imageFileNames: byId.get(s.id) ?? [] })) };
+      setOutline(newOutline);
+      await callSave('blog_outline', { outline: newOutline, caseOverview });
+      setSavedMsg('이미지 배정 완료');
+    } catch (e) { setError(e instanceof Error ? e.message : '이미지 분석 실패'); }
+    finally { setGenLoading(null); }
+  }
+
+  // 블로그 글 확정 — 확인 후 잠금(AI 재생성 불가), 4단계로 이동하며 이미지 분석 1회 실행.
+  async function confirmBlog() {
+    if (!blog) return;
+    if (!window.confirm('블로그글 확정 이후에는 수기 수정만 가능하며 AI 재생성은 불가합니다.\n\n확정할까요?')) return;
+    setSaving(true); setError(null); setSavedMsg('');
+    try {
+      await callSave('blog_post', { ...blog, confirmed: true });
+      setConfirmed(true);
+      setStep(4);
+    } catch (e) { setError(e instanceof Error ? e.message : '확정 실패'); setSaving(false); return; }
+    setSaving(false);
+    void genImages();
+  }
+
   // 다음 단계로: 이미 생성된 게 있으면 유지(이동만), 이전 단계가 바뀐 경우에만 재생성 확인.
   function nextFromCausal() {
     if (!causal) return;
+    if (confirmed) { setStep(2); setSavedMsg(''); return; } // 확정 후엔 재생성 없이 이동만
     if (!outline) { void genOutline(); return; } // 처음이면 생성
     if (JSON.stringify(causal) === outlineBasis) { setStep(2); setSavedMsg(''); return; } // 안 바뀜 → 이동만
     let changes: string[] = [];
@@ -289,6 +337,7 @@ export function CaseBlogButton({
   }
   function nextFromOutline() {
     if (!outline) return;
+    if (confirmed) { setStep(3); setSavedMsg(''); return; } // 확정 후엔 재생성 없이 이동만
     if (!blog) { void genBlog(); return; }
     if (JSON.stringify(outline) === blogBasis) { setStep(3); setSavedMsg(''); return; }
     let changes: string[] = [];
@@ -302,7 +351,8 @@ export function CaseBlogButton({
     try {
       if (step === 1 && causal) await callSave('blog_causal', { causalFlow: causal, caseOverview });
       else if (step === 2 && outline) await callSave('blog_outline', { outline, caseOverview });
-      else if (step === 3 && blog) await callSave('blog_post', blog);
+      else if (step === 3 && blog) await callSave('blog_post', { ...blog, confirmed });
+      else if (step === 4 && outline) await callSave('blog_outline', { outline, caseOverview });
       setSavedMsg('저장됨');
     } catch (e) { setError(e instanceof Error ? e.message : '저장 실패'); }
     finally { setSaving(false); }
@@ -336,7 +386,7 @@ export function CaseBlogButton({
     setOpen(true); setError(null); setSavedMsg('');
     void loadCaseImages();
     if (loadedRunId !== runId) {
-      setStep(1); setCausal(null); setOutline(null); setBlog(null); setCaseOverview([]);
+      setStep(1); setCausal(null); setOutline(null); setBlog(null); setCaseOverview([]); setConfirmed(false);
       void loadAll();
     }
   }
@@ -408,7 +458,7 @@ export function CaseBlogButton({
                 <button type="button" className="adminLegacySmallBtn" onClick={closeModal}>닫기</button>
               </div>
               <div style={{ display: 'flex', gap: 6, marginTop: 12 }}>
-                {([[1, '인과 흐름'], [2, '아웃라인'], [3, '블로그 글']] as [StepNum, string][]).map(([n, label]) => {
+                {([[1, '인과 흐름'], [2, '아웃라인'], [3, '블로그 글'], [4, '이미지']] as [StepNum, string][]).map(([n, label]) => {
                   const active = step === n; const done = step > n;
                   return (
                     <div key={n} style={{
@@ -473,13 +523,21 @@ export function CaseBlogButton({
               <div style={{ flex: '6.5 1 0', minWidth: 0, display: 'flex', flexDirection: 'column' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 8 }}>
                   <span style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text)' }}>
-                    {step === 1 ? '1단계 — 인과 흐름 (검수·수정)' : step === 2 ? '2단계 — 섹션 아웃라인 (검수·수정)' : '3단계 — 블로그 글 (검수·수정)'}
+                    {step === 1 ? '1단계 — 인과 흐름 (검수·수정)' : step === 2 ? '2단계 — 섹션 아웃라인 (검수·수정)' : step === 3 ? '3단계 — 블로그 글 (검수·수정)' : '4단계 — 이미지 (배정·수정)'}
                   </span>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     {savedMsg ? <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--success)' }}>{savedMsg}</span> : null}
-                    <button type="button" style={btnSecondary} onClick={() => { if (step === 1) void genCausal(); else if (step === 2) void genOutline(); else void genBlog(); }} disabled={busy}>
-                      {genLoading === step ? '생성 중…' : '다시 생성'}
-                    </button>
+                    {step === 4 ? (
+                      <button type="button" style={btnSecondary} onClick={() => void genImages()} disabled={busy}>
+                        {genLoading === 4 ? '분석 중…' : '이미지 다시 분석'}
+                      </button>
+                    ) : confirmed ? (
+                      <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)' }}>확정됨 · 수기 수정만 가능</span>
+                    ) : (
+                      <button type="button" style={btnSecondary} onClick={() => { if (step === 1) void genCausal(); else if (step === 2) void genOutline(); else void genBlog(); }} disabled={busy}>
+                        {genLoading === step ? '생성 중…' : '다시 생성'}
+                      </button>
+                    )}
                   </div>
                 </div>
 
@@ -495,9 +553,13 @@ export function CaseBlogButton({
                     genLoading === 2 && !outline ? <Loading text="AI가 아웃라인을 배치하는 중…" /> : (
                       <OutlineEditor outline={outline} updateSection={updateSection} moveSection={moveSection} addSection={addSection} removeSection={removeSection} setOutline={(o) => { setOutline(o); dirty(); }} imageMeta={(fn) => imageMetaByName.get(fn) ?? null} />
                     )
-                  ) : (
+                  ) : step === 3 ? (
                     genLoading === 3 && !blog ? <Loading text="AI가 블로그 글을 작성하는 중…" /> : (
                       <BlogEditor blog={blog} setField={setBlogField} outline={outline} imageMeta={(fn) => imageMetaByName.get(fn) ?? null} />
+                    )
+                  ) : (
+                    genLoading === 4 ? <Loading text="AI가 진단 기반으로 이미지를 배정하는 중…" /> : (
+                      <Step4Editor outline={outline} caseImages={caseImages} imageMeta={(fn) => imageMetaByName.get(fn) ?? null} updateSection={updateSection} />
                     )
                   )}
                 </div>
@@ -519,6 +581,12 @@ export function CaseBlogButton({
                   <button type="button" style={btnPrimary} onClick={() => nextFromCausal()} disabled={busy || !causal}>{genLoading === 2 ? '생성 중…' : '다음: 아웃라인 →'}</button>
                 ) : step === 2 ? (
                   <button type="button" style={btnPrimary} onClick={() => nextFromOutline()} disabled={busy || !outline}>{genLoading === 3 ? '생성 중…' : '다음: 글 작성 →'}</button>
+                ) : step === 3 ? (
+                  confirmed ? (
+                    <button type="button" style={btnPrimary} onClick={() => { setStep(4); setSavedMsg(''); }} disabled={busy}>다음: 이미지 →</button>
+                  ) : (
+                    <button type="button" style={btnPrimary} onClick={() => void confirmBlog()} disabled={busy || !blog}>블로그 글 확정하기</button>
+                  )
                 ) : (
                   <Link href="/admin/case-blog" style={{ ...btnPrimary, textDecoration: 'none', display: 'inline-flex', alignItems: 'center' }}>진료케이스 보러가기</Link>
                 )}
@@ -727,6 +795,64 @@ function BlogEditor({ blog, setField, outline, imageMeta }: {
       ) : (
         <div style={{ fontSize: 13, color: 'var(--text-muted)', padding: 12 }}>블로그 글이 없습니다. “다시 생성”을 눌러 주세요.</div>
       )}
+    </div>
+  );
+}
+
+// ── 4단계 에디터 — 진단 기반 섹션별 이미지 배정(검수·수정) ──
+function Step4Editor({ outline, caseImages, imageMeta, updateSection }: {
+  outline: Outline | null;
+  caseImages: CaseImg[];
+  imageMeta: (fileName: string) => CaseImg | null;
+  updateSection: (i: number, patch: Partial<Section>) => void;
+}) {
+  if (!outline) return <div style={{ fontSize: 13, color: 'var(--text-muted)', padding: 12 }}>아웃라인이 없습니다.</div>;
+  const assigned = new Set(outline.sections.flatMap((s) => s.imageFileNames));
+  const unassigned = caseImages.filter((c) => !assigned.has(c.fileName));
+  const addTo = (sectionIdx: number, fn: string) => {
+    const s = outline.sections[sectionIdx];
+    if (!s || s.imageFileNames.includes(fn)) return;
+    updateSection(sectionIdx, { imageFileNames: [...s.imageFileNames, fn] });
+  };
+  return (
+    <div style={{ display: 'grid', gap: 12 }}>
+      <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+        진단 기반으로 섹션에 배정된 이미지입니다. ×로 제거하거나, 아래 미배정 이미지를 섹션에 추가할 수 있습니다. (“이미지 다시 분석”으로 재배정)
+      </div>
+      {outline.sections.map((s, i) => (
+        <div key={s.id} style={cardBox}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 8 }}>{s.label || `섹션 ${i + 1}`}</div>
+          {s.imageFileNames.length ? (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+              {s.imageFileNames.map((fn) => (
+                <CaseImageThumb key={fn} fileName={fn} meta={imageMeta(fn)} onRemove={() => updateSection(i, { imageFileNames: s.imageFileNames.filter((x) => x !== fn) })} />
+              ))}
+            </div>
+          ) : (
+            <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>배정된 이미지 없음</div>
+          )}
+        </div>
+      ))}
+      {unassigned.length ? (
+        <div style={cardBox}>
+          <div style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text)', marginBottom: 8 }}>미배정 이미지 ({unassigned.length}) — 섹션에 추가</div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
+            {unassigned.map((c) => (
+              <div key={c.fileName} style={{ display: 'grid', gap: 4, width: 110 }}>
+                <CaseImageThumb fileName={c.fileName} meta={c} />
+                <select
+                  defaultValue=""
+                  onChange={(e) => { const idx = Number(e.target.value); if (Number.isInteger(idx)) addTo(idx, c.fileName); e.currentTarget.value = ''; }}
+                  style={{ ...inputStyle, padding: '4px 6px', fontSize: 11 }}
+                >
+                  <option value="" disabled>섹션 선택…</option>
+                  {outline.sections.map((s, i) => <option key={s.id} value={i}>{s.label || `섹션 ${i + 1}`}</option>)}
+                </select>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
