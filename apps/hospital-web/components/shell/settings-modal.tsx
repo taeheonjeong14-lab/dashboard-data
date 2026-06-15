@@ -7,8 +7,8 @@ import { createClient } from '@/lib/supabase/client';
 
 type Tab = 'basic' | 'usage' | 'tokens' | 'payment' | 'password';
 
-// 1토큰=$0.01(원가 기준). 사용량 그래프는 원가를 토큰으로 환산해 표시.
-const TOKEN_VALUE_USD = 0.01;
+// 1토큰=$0.001. 사용량 그래프는 원가를 토큰으로 환산해 표시.
+const TOKEN_VALUE_USD = 0.001;
 const FEATURE_LABEL: Record<string, string> = {
   extract: '추출', ocr: 'OCR', case_blog: '진료케이스',
   health_checkup: '건강검진', disease_intro: '질환소개', image_placement: '이미지배치', image_analysis: '이미지분석', assessment: 'AI평가',

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 
-const TOKEN_VALUE_USD = 0.01; // 1토큰 = $0.01 (환산 표시)
+const TOKEN_VALUE_USD = 0.001; // 1토큰 = $0.001 (환산 표시)
 const KRW_PER_USD = 1380;
 
 type HospitalRow = {
