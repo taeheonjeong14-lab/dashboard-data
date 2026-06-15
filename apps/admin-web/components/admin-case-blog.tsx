@@ -1,6 +1,6 @@
 'use client';
 
-import { Fragment, useCallback, useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useState, type CSSProperties } from 'react';
 import { CaseBlogButton } from './admin-case-blog-modal';
 
 type CaseBlogItem = {
@@ -333,7 +333,7 @@ export default function AdminCaseBlog() {
                 <div style={{ display: 'flex', flexShrink: 0, gap: 6 }}>
                   {selected.patientName ? (
                     <button type="button" style={editBtnStyle} onClick={() => setPseudoOpen(true)}>
-                      가명 처리
+                      후처리 및 복사
                     </button>
                   ) : null}
                   <CaseBlogButton runId={selected.runId} label="수정" triggerStyle={editBtnStyle} onClose={() => void load()} />
@@ -461,7 +461,7 @@ export default function AdminCaseBlog() {
         </div>
       </div>
       {pseudoOpen && selected ? (
-        <PseudonymModal
+        <PostProcessModal
           patientName={selected.patientName}
           body={selected.bodyMarkdown}
           onClose={() => setPseudoOpen(false)}
@@ -471,39 +471,69 @@ export default function AdminCaseBlog() {
   );
 }
 
-// 본문에서 환자명(name)이 나오는 모든 위치를 가명(pseudo)으로 치환하면서, 치환된 자리를 하이라이트로 감싼다.
-// pseudo 가 비어 있으면 원래 환자명을 그대로 보여주되 위치만 하이라이트한다(무엇이 바뀔지 미리 보기).
-function highlightReplaced(body: string, name: string, pseudo: string): ReactNode {
-  if (!name) return body;
-  const parts = body.split(name);
-  if (parts.length === 1) return body; // 환자명이 본문에 없음
-  const replacement = pseudo.trim() || name;
-  return parts.map((part, i) => (
-    <Fragment key={i}>
-      {part}
-      {i < parts.length - 1 ? (
-        <mark style={{ background: 'var(--accent-subtle, #fde68a)', color: 'var(--accent)', fontWeight: 700, borderRadius: 3, padding: '0 2px' }}>
-          {replacement}
-        </mark>
-      ) : null}
-    </Fragment>
-  ));
+// 마크다운 서식(**볼드** / ==형광== / !!포인트!! / ## 소제목)을 네이버 붙여넣기용 HTML로 변환.
+// 색·배경은 여기서 고정(나중에 한 곳에서 변경). 인라인 스타일이라 네이버 에디터가 붙여넣기 시 유지한다.
+function inlineFormatToHtml(s: string): string {
+  const esc = s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  return esc
+    .replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>')
+    .replace(/==([^=\n]+)==/g, '<span style="background-color:#fff3a3">$1</span>')
+    .replace(/!!([^!\n]+)!!/g, '<span style="color:#d92d20">$1</span>');
+}
+function mdToNaverHtml(md: string): string {
+  return md
+    .split(/\n{2,}/)
+    .map((blk) => {
+      const t = blk.trim();
+      if (!t) return '';
+      if (!t.includes('\n') && /^#{1,6}\s+/.test(t)) {
+        return `<p><strong>${inlineFormatToHtml(t.replace(/^#{1,6}\s+/, ''))}</strong></p>`;
+      }
+      return `<p>${inlineFormatToHtml(t).replace(/\n/g, '<br>')}</p>`;
+    })
+    .filter(Boolean)
+    .join('\n');
+}
+// 서식 마커를 제거한 평문(text/plain 폴백·일반 붙여넣기용).
+function stripFormatMarkers(md: string): string {
+  return md
+    .replace(/\*\*([^*\n]+)\*\*/g, '$1')
+    .replace(/==([^=\n]+)==/g, '$1')
+    .replace(/!!([^!\n]+)!!/g, '$1')
+    .replace(/^#{1,6}\s+/gm, '');
+}
+// 클립보드에 HTML+평문 동시 write(네이버는 HTML을 읽어 서식 반영). 미지원 시 평문만.
+async function copyRichHtml(html: string, plain: string): Promise<void> {
+  const hasClipboardItem = typeof window !== 'undefined' && 'ClipboardItem' in window;
+  if (navigator.clipboard && hasClipboardItem) {
+    await navigator.clipboard.write([
+      new ClipboardItem({
+        'text/html': new Blob([html], { type: 'text/html' }),
+        'text/plain': new Blob([plain], { type: 'text/plain' }),
+      }),
+    ]);
+  } else {
+    await navigator.clipboard.writeText(plain);
+  }
 }
 
-// 가명 처리 모달 — AI 없이 환자명을 입력한 가명으로 단순 치환. 결과는 어디에도 저장하지 않고 복사만 제공한다.
-function PseudonymModal({ patientName, body, onClose }: { patientName: string; body: string; onClose: () => void }) {
+// 후처리 및 복사 모달 — 환자명 가명 치환 + 서식화(네이버용 HTML). 저장하지 않고 복사만 제공.
+function PostProcessModal({ patientName, body, onClose }: { patientName: string; body: string; onClose: () => void }) {
   const [pseudo, setPseudo] = useState('');
   const [copied, setCopied] = useState(false);
   const occurrences = patientName ? body.split(patientName).length - 1 : 0;
-  const pseudonymizedText = patientName ? body.split(patientName).join(pseudo.trim() || patientName) : body;
+  // 가명 치환(환자명 있으면) → 서식화. 가명 비면 원문 환자명 유지.
+  const pseudonymizedMd = patientName ? body.split(patientName).join(pseudo.trim() || patientName) : body;
+  const previewHtml = mdToNaverHtml(pseudonymizedMd);
+  const plainText = stripFormatMarkers(pseudonymizedMd);
 
   const handleCopy = async () => {
     try {
-      await navigator.clipboard.writeText(pseudonymizedText);
+      await copyRichHtml(previewHtml, plainText);
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     } catch {
-      alert('복사에 실패했습니다. 미리보기 텍스트를 직접 선택해 복사해주세요.');
+      alert('복사에 실패했습니다. 미리보기를 직접 선택해 복사해주세요.');
     }
   };
 
@@ -517,7 +547,7 @@ function PseudonymModal({ patientName, body, onClose }: { patientName: string; b
         style={{ width: 'min(92vw, 760px)', maxHeight: '90vh', display: 'flex', flexDirection: 'column', background: '#fff', borderRadius: 12, border: '1px solid var(--border)', overflow: 'hidden', boxShadow: '0 12px 40px rgba(0,0,0,0.18)' }}
       >
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 18px', borderBottom: '1px solid var(--border)' }}>
-          <h2 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: 'var(--text)' }}>가명 처리</h2>
+          <h2 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: 'var(--text)' }}>후처리 및 복사</h2>
           <button type="button" onClick={onClose} aria-label="닫기" style={{ border: 0, background: 'transparent', fontSize: 20, lineHeight: 1, cursor: 'pointer', color: 'var(--text-muted)' }}>
             ×
           </button>
@@ -526,7 +556,8 @@ function PseudonymModal({ patientName, body, onClose }: { patientName: string; b
         <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--border)' }}>
           <div style={{ fontSize: 12.5, color: 'var(--text-secondary)', marginBottom: 8 }}>
             실제 환자명 <b style={{ color: 'var(--text)' }}>{patientName || '—'}</b> 을(를) 본문에서{' '}
-            <b style={{ color: 'var(--text)' }}>{occurrences}곳</b> 찾았습니다. 블로그에 사용할 가명을 입력하세요.
+            <b style={{ color: 'var(--text)' }}>{occurrences}곳</b> 찾았습니다. 가명을 입력하면 치환되고(선택),
+            아래 미리보기처럼 <b style={{ color: 'var(--text)' }}>서식 포함</b>으로 복사되어 네이버에 그대로 붙여넣을 수 있습니다.
           </div>
           <input
             autoFocus
@@ -539,11 +570,12 @@ function PseudonymModal({ patientName, body, onClose }: { patientName: string; b
 
         <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '14px 18px' }}>
           <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 8 }}>
-            미리보기 · 가명 적용 (하이라이트 = 환자명 위치)
+            미리보기 · 가명 적용 + 서식화 (복사되는 그대로)
           </div>
-          <div style={{ fontSize: 14, lineHeight: 1.8, color: 'var(--text)', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-            {highlightReplaced(body, patientName, pseudo)}
-          </div>
+          <div
+            style={{ fontSize: 14, lineHeight: 1.8, color: 'var(--text)', wordBreak: 'break-word' }}
+            dangerouslySetInnerHTML={{ __html: previewHtml }}
+          />
         </div>
 
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, padding: '12px 18px', borderTop: '1px solid var(--border)' }}>
@@ -553,19 +585,18 @@ function PseudonymModal({ patientName, body, onClose }: { patientName: string; b
           <button
             type="button"
             onClick={() => void handleCopy()}
-            disabled={!pseudo.trim()}
             style={{
               padding: '8px 16px',
               fontSize: 13,
               fontWeight: 700,
               borderRadius: 6,
               border: 'none',
-              background: pseudo.trim() ? 'var(--accent)' : 'var(--bg-raised, #f1f5f9)',
-              color: pseudo.trim() ? '#fff' : 'var(--text-muted)',
-              cursor: pseudo.trim() ? 'pointer' : 'not-allowed',
+              background: 'var(--accent)',
+              color: '#fff',
+              cursor: 'pointer',
             }}
           >
-            {copied ? '복사됨!' : '가명 적용본 복사'}
+            {copied ? '복사됨!' : '서식 포함 복사'}
           </button>
         </div>
       </div>
