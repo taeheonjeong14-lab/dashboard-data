@@ -31,17 +31,18 @@ const DAY_OPTIONS = [7, 30, 90];
 const FEATURE_LABEL: Record<string, string> = {
   extract: '추출',
   ocr: 'OCR',
-  blog_causal: '블로그·인과',
-  blog_outline: '블로그·아웃라인',
-  blog_post: '블로그·글',
+  case_blog: '진료케이스',
   health_checkup: '건강검진',
   disease_intro: '질환소개',
   image_placement: '이미지배치',
   image_analysis: '이미지분석',
   assessment: 'AI평가',
 };
+// 진료케이스 블로그 3단계(인과·아웃라인·글)는 한 그룹 '진료케이스'로 합쳐 표시.
+const CASE_BLOG_FEATURES = new Set(['blog_causal', 'blog_outline', 'blog_post']);
+const normFeature = (f: string) => (CASE_BLOG_FEATURES.has(f) ? 'case_blog' : f);
 const PALETTE = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#3b82f6', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316', '#64748b'];
-const featureLabel = (f: string) => FEATURE_LABEL[f] ?? f;
+const featureLabel = (f: string) => FEATURE_LABEL[normFeature(f)] ?? f;
 
 const tok = (usd: number) => usd / TOKEN_VALUE_USD;
 const fmtTok = (v: number) => (v >= 100 ? Math.round(v).toLocaleString() : v.toFixed(1));
@@ -109,13 +110,14 @@ export default function AdminUsageDashboard() {
     const byDate = new Map<string, Record<string, number | string>>();
     for (const r of data?.daily ?? []) {
       const row = byDate.get(r.date) ?? { date: r.date };
-      row[r.feature] = ((row[r.feature] as number) ?? 0) + tok(r.costUsd);
+      const fk = normFeature(r.feature);
+      row[fk] = ((row[fk] as number) ?? 0) + tok(r.costUsd);
       byDate.set(r.date, row);
     }
     return [...byDate.values()].sort((a, b) => (String(a.date) < String(b.date) ? -1 : 1));
   }, [data]);
 
-  const featureKeys = data?.featureKeys ?? [];
+  const featureKeys = [...new Set((data?.featureKeys ?? []).map(normFeature))];
   const selectedHospital = (data?.hospitals ?? []).find((h) => h.hospitalId === selected) ?? null;
   const anyZero = (data?.hospitals ?? []).some((h) => h.tokenBalance <= 0);
 

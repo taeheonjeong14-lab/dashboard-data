@@ -10,12 +10,15 @@ type Tab = 'basic' | 'usage' | 'tokens' | 'payment' | 'password';
 // 1토큰=$0.01(원가 기준). 사용량 그래프는 원가를 토큰으로 환산해 표시.
 const TOKEN_VALUE_USD = 0.01;
 const FEATURE_LABEL: Record<string, string> = {
-  extract: '추출', ocr: 'OCR', blog_causal: '블로그·인과', blog_outline: '블로그·아웃라인', blog_post: '블로그·글',
+  extract: '추출', ocr: 'OCR', case_blog: '진료케이스',
   health_checkup: '건강검진', disease_intro: '질환소개', image_placement: '이미지배치', image_analysis: '이미지분석', assessment: 'AI평가',
 };
+// 진료케이스 블로그 3단계(인과·아웃라인·글)는 한 그룹 '진료케이스'로 합쳐 표시.
+const CASE_BLOG_FEATURES = new Set(['blog_causal', 'blog_outline', 'blog_post']);
+const normFeature = (f: string) => (CASE_BLOG_FEATURES.has(f) ? 'case_blog' : f);
 const PALETTE = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#3b82f6', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316', '#64748b'];
 const KIND_LABEL: Record<string, string> = { charge: '사용', grant: '관리자 지급', adjust: '조정' };
-const featLabel = (f: string) => FEATURE_LABEL[f] ?? f;
+const featLabel = (f: string) => FEATURE_LABEL[normFeature(f)] ?? f;
 const fmtTok = (v: number) => (Math.abs(v) >= 100 ? Math.round(v).toLocaleString() : v.toFixed(1));
 
 type OverviewDaily = { date: string; feature: string; costUsd: number };
@@ -148,12 +151,13 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
     const byDate = new Map<string, Record<string, number | string>>();
     for (const r of overview?.daily ?? []) {
       const row = byDate.get(r.date) ?? { date: r.date };
-      row[r.feature] = ((row[r.feature] as number) ?? 0) + r.costUsd / TOKEN_VALUE_USD;
+      const fk = normFeature(r.feature);
+      row[fk] = ((row[fk] as number) ?? 0) + r.costUsd / TOKEN_VALUE_USD;
       byDate.set(r.date, row);
     }
     return [...byDate.values()].sort((a, b) => (String(a.date) < String(b.date) ? -1 : 1));
   }, [overview]);
-  const featureKeys = useMemo(() => [...new Set((overview?.daily ?? []).map((d) => d.feature))], [overview]);
+  const featureKeys = useMemo(() => [...new Set((overview?.daily ?? []).map((d) => normFeature(d.feature)))], [overview]);
 
   if (!open) return null;
 
