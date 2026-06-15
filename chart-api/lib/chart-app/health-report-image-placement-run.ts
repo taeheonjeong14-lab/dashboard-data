@@ -14,6 +14,8 @@ import {
   type PlacementImageInput,
 } from '@/lib/chart-app/health-report-image-placement-llm';
 import { parseHealthSystemsBlocksFromUnknown } from '@/lib/chart-app/health-report-systems-blocks-parse';
+import { generateCdFindings, type CdFindingsResult } from '@/lib/chart-app/health-report-cd-findings';
+import { simpleHealthReportImageCaption } from '@/lib/chart-app/health-report-image-caption';
 import type { UsageContext } from '@/lib/billing/usage-log';
 
 type ImageRow = {
@@ -29,7 +31,7 @@ async function loadCaseImagePlacement(
   client: pg.Pool | pg.PoolClient,
   runId: string,
   usageContext?: UsageContext,
-): Promise<{ placement: ImagePlacementResult; storagePathById: Map<string, string> } | null> {
+): Promise<{ placement: ImagePlacementResult; storagePathById: Map<string, string>; images: PlacementImageInput[] } | null> {
   const q = await client.query<ImageRow>(
     `select id, exam_type, radiology_sub, body_part, storage_path
      from chart_pdf.parse_run_case_images
@@ -50,7 +52,45 @@ async function loadCaseImagePlacement(
 
   const storagePathById = new Map(images.map((i) => [i.id, i.storagePath]));
   const placement = await generateImagePlacement(images, usageContext);
-  return { placement, storagePathById };
+  return { placement, storagePathById, images };
+}
+
+/** 방사선·초음파(c/d) 검사소견 비전 결과를 5p 블록에 반영 — rows 텍스트 + 이미지 슬롯. */
+function applyCdFindingsToPage5(
+  page5: HealthSystemsReportBlock[],
+  cd: CdFindingsResult,
+  images: PlacementImageInput[],
+  storagePathById: Map<string, string>,
+): void {
+  const imageById = new Map(images.map((i) => [i.id, i]));
+  const setRows = (block: HealthSystemsReportBlock | undefined, findings: string) => {
+    if (!findings || !block || block.variant !== 'rows') return;
+    if (block.rows.length > 0) block.rows[0] = { label: block.rows[0].label ?? '', content: findings };
+    else block.rows = [{ label: '', content: findings }];
+  };
+  const fillImages = (block: HealthSystemsReportBlock | undefined, ids: string[]) => {
+    if (!block || !('images' in block)) return;
+    const slots = block.images;
+    for (let i = 0; i < slots.length; i++) {
+      const slot = slots[i];
+      if (!slot) continue;
+      const id = ids[i];
+      const img = id ? imageById.get(id) : undefined;
+      const path = id ? storagePathById.get(id) : undefined;
+      slot.src = path;
+      slot.caption = img && path ? simpleHealthReportImageCaption(img) : undefined;
+    }
+  };
+
+  // 방사선: rows=page5[0], images4=page5[1] / 초음파: rows=page5[2], imagesGrid3x3=page5[3]
+  if (cd.radiology.findings || cd.radiology.imageIds.length) {
+    setRows(page5[0], cd.radiology.findings);
+    fillImages(page5[1], cd.radiology.imageIds);
+  }
+  if (cd.ultrasound.findings || cd.ultrasound.imageIds.length) {
+    setRows(page5[2], cd.ultrasound.findings);
+    fillImages(page5[3], cd.ultrasound.imageIds);
+  }
 }
 
 export async function runImagePlacementForRun(
@@ -61,7 +101,7 @@ export async function runImagePlacementForRun(
 ): Promise<void> {
   const loaded = await loadCaseImagePlacement(client, runId, usageContext);
   if (!loaded) return;
-  const { placement, storagePathById } = loaded;
+  const { placement, storagePathById, images } = loaded;
 
   const page4 =
     parseHealthSystemsBlocksFromUnknown(payload.systemsPage4Blocks) ?? structuredClone(DEMO_HEALTH_DENTAL_SKIN_BLOCKS);
@@ -69,6 +109,16 @@ export async function runImagePlacementForRun(
     parseHealthSystemsBlocksFromUnknown(payload.systemsPage5Blocks) ?? structuredClone(DEMO_RADIOLOGY_ULTRASOUND_BLOCKS);
 
   applyImagePlacementToBlocks(page4, page5, placement, storagePathById);
+
+  // 방사선·초음파(c/d)는 항상 종합소견 맥락으로 이미지를 "보고" 검사소견 텍스트를 쓰고 이미지를 고른다.
+  // (라벨 배치 위에 덮어쓴다. 이미지가 없는 모달리티는 기존 배치 유지.)
+  try {
+    const overallSummary = (payload as { overallSummary?: string }).overallSummary ?? '';
+    const cd = await generateCdFindings(images, overallSummary, usageContext);
+    applyCdFindingsToPage5(page5, cd, images, storagePathById);
+  } catch (e) {
+    console.error('[image-placement] c/d findings failed (non-blocking):', e);
+  }
 
   payload.systemsPage4Blocks = page4;
   payload.systemsPage5Blocks = page5;
