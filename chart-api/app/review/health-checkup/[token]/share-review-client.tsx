@@ -502,6 +502,12 @@ export default function HealthCheckupShareReviewClient() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [downloading, setDownloading] = useState(false);
+  // 카카오 알림톡 전송
+  const [kakaoOpen, setKakaoOpen] = useState(false);
+  const [phone, setPhone] = useState('');
+  const [sending, setSending] = useState(false);
+  const [sentMsg, setSentMsg] = useState('');
+  const [kakaoError, setKakaoError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [runId, setRunId] = useState('');
   const [expiresAt, setExpiresAt] = useState<string | null>(null);
@@ -594,6 +600,28 @@ export default function HealthCheckupShareReviewClient() {
       setError(e instanceof Error ? e.message : '저장에 실패했습니다.');
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function sendKakao() {
+    if (!token) return;
+    setSending(true);
+    setKakaoError(null);
+    setSentMsg('');
+    try {
+      const res = await fetch('/api/report/health-checkup/send-kakao', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token, phone }),
+      });
+      const data = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
+      if (!res.ok || !data.ok) throw new Error(data.error ?? '발송에 실패했습니다.');
+      setSentMsg('전송되었습니다.');
+      setTimeout(() => { setKakaoOpen(false); setSentMsg(''); setPhone(''); }, 1200);
+    } catch (e) {
+      setKakaoError(e instanceof Error ? e.message : '발송에 실패했습니다.');
+    } finally {
+      setSending(false);
     }
   }
 
@@ -772,7 +800,36 @@ export default function HealthCheckupShareReviewClient() {
           <button type="button" onClick={() => downloadPdf()} disabled={downloading || loading} className="hcu-rv-btn-outline">
             {downloading ? 'PDF 생성 중…' : 'PDF 다운로드'}
           </button>
+          <button type="button" onClick={() => { setKakaoOpen(true); setKakaoError(null); setSentMsg(''); }} disabled={loading || !runId} className="hcu-rv-btn-save">
+            카카오톡으로 전송
+          </button>
         </div>
+
+        {kakaoOpen && (
+          <div role="presentation" onClick={() => !sending && setKakaoOpen(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+            <div role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()} style={{ width: 'min(92vw, 420px)', background: '#fff', borderRadius: 12, border: '1px solid #e4e4e7', padding: 20, boxShadow: '0 12px 40px rgba(0,0,0,0.18)' }}>
+              <h2 style={{ margin: '0 0 6px', fontSize: 16, fontWeight: 700, color: '#18181b' }}>카카오톡으로 리포트 전송</h2>
+              <p style={{ margin: '0 0 12px', fontSize: 13, color: '#52525b' }}>보호자 휴대폰 번호로 건강검진 결과 리포트(알림톡)를 보냅니다.</p>
+              <input
+                autoFocus
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                placeholder="010-1234-5678"
+                inputMode="numeric"
+                disabled={sending}
+                style={{ width: '100%', padding: '9px 12px', fontSize: 14, border: '1px solid #d4d4d8', borderRadius: 8, outline: 'none', boxSizing: 'border-box' }}
+              />
+              {kakaoError && <p style={{ margin: '8px 0 0', fontSize: 12, color: '#991b1b' }}>{kakaoError}</p>}
+              {sentMsg && <p style={{ margin: '8px 0 0', fontSize: 12, color: '#15803d', fontWeight: 600 }}>{sentMsg}</p>}
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
+                <button type="button" onClick={() => setKakaoOpen(false)} disabled={sending} className="hcu-rv-btn-outline">닫기</button>
+                <button type="button" onClick={() => void sendKakao()} disabled={sending || phone.replace(/\D/g, '').length < 10} className="hcu-rv-btn-save">
+                  {sending ? '전송 중…' : '전송'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {loading && <p style={{ fontSize: 14, color: '#71717a' }}>불러오는 중…</p>}
         {error && (
