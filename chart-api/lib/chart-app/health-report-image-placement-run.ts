@@ -174,6 +174,7 @@ export async function applyImagePlacementForSection(
   section: 'systems4' | 'systems5',
   blocksUnknown: unknown,
   usageContext?: UsageContext,
+  overallSummary = '',
 ): Promise<HealthSystemsReportBlock[]> {
   const blocks =
     parseHealthSystemsBlocksFromUnknown(blocksUnknown) ??
@@ -183,10 +184,11 @@ export async function applyImagePlacementForSection(
 
   const loaded = await loadCaseImagePlacement(client, runId, usageContext);
   if (!loaded) return blocks;
-  const { placement, storagePathById } = loaded;
+  const { placement, storagePathById, images } = loaded;
+  const imageById = new Map(images.map((i) => [i.id, i]));
 
   // applyImagePlacementToBlocks 는 page4·page5 둘 다 받으므로, 재생성한 페이지에만 배치를
-  // 반영하고 반대쪽은 버리는 데모 클론을 넘긴다.
+  // 반영하고 반대쪽은 버리는 데모 클론을 넘긴다. 이후 전체 생성과 동일한 비전 단계를 적용한다.
   if (section === 'systems4') {
     applyImagePlacementToBlocks(
       blocks,
@@ -194,6 +196,21 @@ export async function applyImagePlacementForSection(
       placement,
       storagePathById,
     );
+    // a/b: 이미지가 슬롯보다 많을 때만 섹션 텍스트 기반 비전 선택.
+    try {
+      const aImgs = images.filter((i) => sectionABofImage(i) === 'a');
+      const bImgs = images.filter((i) => sectionABofImage(i) === 'b');
+      if (aImgs.length > 6) {
+        const ids = await selectSectionImages({ sectionLabel: '치과 및 안과', sectionText: rowsTextOf(blocks[0]), images: aImgs, maxSlots: 6, usageContext });
+        fillImageBlock(blocks[1], ids, imageById, storagePathById);
+      }
+      if (bImgs.length > 3) {
+        const ids = await selectSectionImages({ sectionLabel: '피부와 외이도', sectionText: rowsTextOf(blocks[2]), images: bImgs, maxSlots: 3, usageContext });
+        fillImageBlock(blocks[3], ids, imageById, storagePathById);
+      }
+    } catch (e) {
+      console.error('[image-placement] a/b overflow (section) failed (non-blocking):', e);
+    }
   } else {
     applyImagePlacementToBlocks(
       structuredClone(DEMO_HEALTH_DENTAL_SKIN_BLOCKS),
@@ -201,6 +218,13 @@ export async function applyImagePlacementForSection(
       placement,
       storagePathById,
     );
+    // c/d(방사선·초음파): 전체 생성과 동일하게 종합소견 맥락 비전으로 검사소견·이미지 재선택.
+    try {
+      const cd = await generateCdFindings(images, overallSummary, usageContext);
+      applyCdFindingsToPage5(blocks, cd, imageById, storagePathById);
+    } catch (e) {
+      console.error('[image-placement] c/d findings (section) failed (non-blocking):', e);
+    }
   }
   return blocks;
 }

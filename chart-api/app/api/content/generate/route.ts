@@ -576,6 +576,7 @@ export async function POST(request: NextRequest) {
                 sectionRaw,
                 partialRecord[blocksKey],
                 usageCtx('image_placement'),
+                typeof priorPayload.overallSummary === 'string' ? priorPayload.overallSummary : '',
               );
             } catch (placementErr) {
               console.error('[content/generate] section image placement failed (non-blocking):', placementErr);
