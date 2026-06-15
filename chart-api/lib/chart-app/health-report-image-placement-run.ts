@@ -7,12 +7,7 @@ import {
   DEMO_RADIOLOGY_ULTRASOUND_BLOCKS,
   type HealthSystemsReportBlock,
 } from '@/lib/chart-app/health-systems-demo-blocks';
-import { applyImagePlacementToBlocks } from '@/lib/chart-app/health-report-image-placement-apply';
-import {
-  generateImagePlacement,
-  type ImagePlacementResult,
-  type PlacementImageInput,
-} from '@/lib/chart-app/health-report-image-placement-llm';
+import { type PlacementImageInput } from '@/lib/chart-app/health-report-image-placement-llm';
 import { parseHealthSystemsBlocksFromUnknown } from '@/lib/chart-app/health-report-systems-blocks-parse';
 import { generateCdFindings, selectSectionImages, type CdFindingsResult } from '@/lib/chart-app/health-report-cd-findings';
 import { simpleHealthReportImageCaption } from '@/lib/chart-app/health-report-image-caption';
@@ -26,12 +21,11 @@ type ImageRow = {
   storage_path: string;
 };
 
-/** run 의 케이스 이미지를 읽어 배치 결과를 만든다. 이미지가 없으면 null. */
-async function loadCaseImagePlacement(
+/** run 의 케이스 이미지(라벨)를 읽어온다. 이미지가 없으면 null. (LLM 호출 없음 — DB 라벨만) */
+async function loadCaseImages(
   client: pg.Pool | pg.PoolClient,
   runId: string,
-  usageContext?: UsageContext,
-): Promise<{ placement: ImagePlacementResult; storagePathById: Map<string, string>; images: PlacementImageInput[] } | null> {
+): Promise<{ storagePathById: Map<string, string>; images: PlacementImageInput[] } | null> {
   const q = await client.query<ImageRow>(
     `select id, exam_type, radiology_sub, body_part, storage_path
      from chart_pdf.parse_run_case_images
@@ -51,8 +45,31 @@ async function loadCaseImagePlacement(
   }));
 
   const storagePathById = new Map(images.map((i) => [i.id, i.storagePath]));
-  const placement = await generateImagePlacement(images, usageContext);
-  return { placement, storagePathById, images };
+  return { storagePathById, images };
+}
+
+/** 라벨 기반 코드 배치(LLM 없음): 각 섹션 슬롯에 해당 검사종류 이미지를 순서대로 채운다. */
+function placePage4ByLabel(
+  page4: HealthSystemsReportBlock[],
+  images: PlacementImageInput[],
+  imageById: Map<string, PlacementImageInput>,
+  storagePathById: Map<string, string>,
+): void {
+  const aIds = images.filter((i) => sectionABofImage(i) === 'a').map((i) => i.id);
+  const bIds = images.filter((i) => sectionABofImage(i) === 'b').map((i) => i.id);
+  fillImageBlock(page4[1], aIds, imageById, storagePathById); // 치과·안과(6)
+  fillImageBlock(page4[3], bIds, imageById, storagePathById); // 피부·외이도(3)
+}
+function placePage5ByLabel(
+  page5: HealthSystemsReportBlock[],
+  images: PlacementImageInput[],
+  imageById: Map<string, PlacementImageInput>,
+  storagePathById: Map<string, string>,
+): void {
+  const cIds = images.filter((i) => i.examType === 'radiology' && i.radiologySub !== 'dental').map((i) => i.id);
+  const dIds = images.filter((i) => i.examType === 'ultrasound').map((i) => i.id);
+  fillImageBlock(page5[1], cIds, imageById, storagePathById); // 방사선(4)
+  fillImageBlock(page5[3], dIds, imageById, storagePathById); // 초음파
 }
 
 function rowsTextOf(block: HealthSystemsReportBlock | undefined): string {
@@ -120,9 +137,9 @@ export async function runImagePlacementForRun(
   payload: HealthCheckupValidatedPayload,
   usageContext?: UsageContext,
 ): Promise<void> {
-  const loaded = await loadCaseImagePlacement(client, runId, usageContext);
+  const loaded = await loadCaseImages(client, runId);
   if (!loaded) return;
-  const { placement, storagePathById, images } = loaded;
+  const { storagePathById, images } = loaded;
   const imageById = new Map(images.map((i) => [i.id, i]));
 
   const page4 =
@@ -130,7 +147,9 @@ export async function runImagePlacementForRun(
   const page5 =
     parseHealthSystemsBlocksFromUnknown(payload.systemsPage5Blocks) ?? structuredClone(DEMO_RADIOLOGY_ULTRASOUND_BLOCKS);
 
-  applyImagePlacementToBlocks(page4, page5, placement, storagePathById);
+  // 1차: 라벨 기반 코드 배치(LLM 없음). 이후 c/d 비전·a/b 넘침이 덮어씀.
+  placePage4ByLabel(page4, images, imageById, storagePathById);
+  placePage5ByLabel(page5, images, imageById, storagePathById);
 
   // 방사선·초음파(c/d)는 항상 종합소견 맥락으로 이미지를 "보고" 검사소견 텍스트를 쓰고 이미지를 고른다.
   // (라벨 배치 위에 덮어쓴다. 이미지가 없는 모달리티는 기존 배치 유지.)
@@ -182,20 +201,14 @@ export async function applyImagePlacementForSection(
       section === 'systems4' ? DEMO_HEALTH_DENTAL_SKIN_BLOCKS : DEMO_RADIOLOGY_ULTRASOUND_BLOCKS,
     );
 
-  const loaded = await loadCaseImagePlacement(client, runId, usageContext);
+  const loaded = await loadCaseImages(client, runId);
   if (!loaded) return blocks;
-  const { placement, storagePathById, images } = loaded;
+  const { storagePathById, images } = loaded;
   const imageById = new Map(images.map((i) => [i.id, i]));
 
-  // applyImagePlacementToBlocks 는 page4·page5 둘 다 받으므로, 재생성한 페이지에만 배치를
-  // 반영하고 반대쪽은 버리는 데모 클론을 넘긴다. 이후 전체 생성과 동일한 비전 단계를 적용한다.
+  // 재생성한 페이지에만 라벨 기반 코드 배치를 한 뒤, 전체 생성과 동일한 비전 단계를 적용한다.
   if (section === 'systems4') {
-    applyImagePlacementToBlocks(
-      blocks,
-      structuredClone(DEMO_RADIOLOGY_ULTRASOUND_BLOCKS),
-      placement,
-      storagePathById,
-    );
+    placePage4ByLabel(blocks, images, imageById, storagePathById);
     // a/b: 이미지가 슬롯보다 많을 때만 섹션 텍스트 기반 비전 선택.
     try {
       const aImgs = images.filter((i) => sectionABofImage(i) === 'a');
@@ -212,12 +225,7 @@ export async function applyImagePlacementForSection(
       console.error('[image-placement] a/b overflow (section) failed (non-blocking):', e);
     }
   } else {
-    applyImagePlacementToBlocks(
-      structuredClone(DEMO_HEALTH_DENTAL_SKIN_BLOCKS),
-      blocks,
-      placement,
-      storagePathById,
-    );
+    placePage5ByLabel(blocks, images, imageById, storagePathById);
     // c/d(방사선·초음파): 전체 생성과 동일하게 종합소견 맥락 비전으로 검사소견·이미지 재선택.
     try {
       const cd = await generateCdFindings(images, overallSummary, usageContext);
