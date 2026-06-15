@@ -20,9 +20,7 @@ type ImageRow = {
   id: string;
   exam_type: string;
   radiology_sub: string | null;
-  brief_comment: string;
-  has_notable_finding: boolean;
-  related_assessment_condition: string | null;
+  body_part: string | null;
   storage_path: string;
 };
 
@@ -33,7 +31,7 @@ async function loadCaseImagePlacement(
   usageContext?: UsageContext,
 ): Promise<{ placement: ImagePlacementResult; storagePathById: Map<string, string> } | null> {
   const q = await client.query<ImageRow>(
-    `select id, exam_type, radiology_sub, brief_comment, has_notable_finding, related_assessment_condition, storage_path
+    `select id, exam_type, radiology_sub, body_part, storage_path
      from chart_pdf.parse_run_case_images
      where parse_run_id = $1::uuid
      order by idx`,
@@ -46,9 +44,7 @@ async function loadCaseImagePlacement(
     id: r.id,
     examType: r.exam_type as ExamType,
     radiologySub: (r.radiology_sub as RadiologySub) ?? null,
-    briefComment: r.brief_comment ?? '',
-    hasNotableFinding: Boolean(r.has_notable_finding),
-    relatedAssessmentCondition: r.related_assessment_condition ?? null,
+    bodyPart: r.body_part ?? '',
     storagePath: r.storage_path,
   }));
 
