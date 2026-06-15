@@ -73,8 +73,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       sex: bi?.sex ?? undefined,
     };
 
-    const { rows: imgRows } = await pool.query<{ file_name: string; storage_path: string }>(
-      `SELECT file_name, storage_path FROM chart_pdf.parse_run_case_images WHERE parse_run_id = $1::uuid ORDER BY idx`,
+    const { rows: imgRows } = await pool.query<{ file_name: string; storage_path: string; exam_date: string | null }>(
+      `SELECT file_name, storage_path, exam_date::text AS exam_date FROM chart_pdf.parse_run_case_images WHERE parse_run_id = $1::uuid ORDER BY exam_date NULLS LAST, idx`,
       [runId],
     );
     if (imgRows.length === 0) {
@@ -82,14 +82,14 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
 
     const supabase = createServiceRoleClient();
-    const images: ImageInputPart[] = [];
+    const images: (ImageInputPart & { examDate?: string | null })[] = [];
     for (const r of imgRows) {
       try {
         const { data: blob, error } = await supabase.storage.from(CASE_IMAGES_BUCKET).download(r.storage_path);
         if (error || !blob) continue;
         const buf = Buffer.from(await blob.arrayBuffer());
         const c = await prepareImageForAnalysis(buf);
-        images.push({ buffer: c.buffer, fileName: r.file_name, mimeType: c.mimeType });
+        images.push({ buffer: c.buffer, fileName: r.file_name, mimeType: c.mimeType, examDate: r.exam_date });
       } catch {
         /* 개별 이미지 다운로드 실패는 건너뛴다 */
       }

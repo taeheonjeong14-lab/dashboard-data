@@ -268,7 +268,7 @@ export async function analyzeCaseBlogImages(params: {
   finalDiagnosis: string;
   contextText: string;
   sections: CaseBlogSectionInput[];
-  images: ImageInputPart[];
+  images: (ImageInputPart & { examDate?: string | null })[];
   usageContext?: UsageContext;
 }): Promise<{ assignments: CaseBlogImageAssignment[] }> {
   const apiKey = process.env.OPENAI_API_KEY;
@@ -279,8 +279,14 @@ export async function analyzeCaseBlogImages(params: {
   const client = new OpenAI({ apiKey });
   const validNames = new Set(params.images.map((i) => i.fileName));
   const sectionIds = new Set(params.sections.map((s) => s.id));
+  // 이미지는 진단 과정/치료 과정 섹션에만 배정. 그런 섹션이 있으면 그 id 로 제한(없으면 전체 허용=폴백).
+  const isDiagOrTreat = (label: string) => label.includes('진단 과정') || label.includes('치료 과정');
+  const scopedIds = new Set(params.sections.filter((s) => isDiagOrTreat(s.label)).map((s) => s.id));
+  const allowedIds = scopedIds.size > 0 ? scopedIds : sectionIds;
 
-  const manifest = params.images.map((img, i) => `${i}: ${img.fileName}`).join('\n');
+  const manifest = params.images
+    .map((img, i) => `${i}: ${img.fileName} | 날짜:${(img.examDate ?? '').toString().trim() || '미상'}`)
+    .join('\n');
   const sectionsText = params.sections
     .map((s) => `- id="${s.id}" | ${s.label}\n    ${s.keyText.replace(/\s+/g, ' ').slice(0, 400)}`)
     .join('\n');
@@ -289,7 +295,7 @@ export async function analyzeCaseBlogImages(params: {
 
   const prompt = [
     '너는 영상의학을 전공한 수의사다.',
-    '아래 진료케이스의 이미지들을 보고, 각 블로그 섹션에 "그 섹션 내용(특히 최종 진단명·소견)을 가장 잘 보여주는" 이미지를 골라 배정한다.',
+    '아래 진료케이스의 이미지들을 "진단 과정 / 치료 과정" 섹션에만 골라 배정한다.',
     '확정 진단은 내리지 말고 이미지 관찰 근거로 고른다. 출력은 스키마에 맞는 JSON만.',
     '',
     `[환자] ${patientText}`,
@@ -299,13 +305,17 @@ export async function analyzeCaseBlogImages(params: {
     '[섹션 목록] (반드시 이 id 로만 배정)',
     sectionsText,
     '',
-    '[이미지 목록] (index: 파일명)',
+    '[이미지 목록] (index: 파일명 | 날짜)',
     manifest,
     '',
     '규칙:',
-    '- 최종 진단명에 여러 질환이 있으면 각 질환을 가장 잘 보여주는 이미지를 가장 관련 깊은 섹션에 배정한다.',
-    '- 한 이미지는 가장 관련 깊은 한 섹션에만 배정한다(여러 섹션 중복 금지).',
-    '- 섹션 내용과 맞는 이미지가 없으면 그 섹션의 fileNames 는 빈 배열로 둔다.',
+    '- 이미지는 "진단 과정" 섹션과 "치료 과정"(하위 섹션 포함) 섹션에만 배정한다. 그 외 섹션(인트로·질환 소개·내원 배경·사후 관리·원장님 한마디·아웃트로 등)에는 배정하지 않는다(빈 배열).',
+    '- 진단 과정: 치료 전, 질환·이상 소견을 보여주는 이미지를 배정한다.',
+    '- 치료 과정: 치료·수술 장면이나 치료된(호전된) 모습을 보여주는 이미지를 배정한다.',
+    '- 치료 과정이 여러 하위 섹션으로 나뉘어 있으면, 각 이미지의 "날짜"를 보고 시간 흐름에 맞는 하위 섹션에 배정한다(예: 술 전 검사 → 수술 당일 → 수술 후 회복).',
+    '- 특히 내과(약물·반복검사) 케이스는 치료 과정에서 호전 흐름을 보여주므로, 날짜 순서대로 중간중간 그 시점의 이미지를 배정한다.',
+    '- 최종 진단명에 여러 질환이 있으면 각 질환을 가장 잘 보여주는 이미지를 해당 섹션에 배정한다.',
+    '- 한 이미지는 가장 관련 깊은 한 섹션에만 배정한다(중복 금지). 맞는 이미지 없으면 그 섹션은 빈 배열.',
     '- fileNames 는 위 이미지 목록의 파일명만 사용한다(새 파일명 생성 금지).',
   ].filter(Boolean).join('\n');
 
@@ -362,7 +372,8 @@ export async function analyzeCaseBlogImages(params: {
   for (const row of Array.isArray(parsed.assignments) ? parsed.assignments : []) {
     const o = (row ?? {}) as Record<string, unknown>;
     const sectionId = typeof o.sectionId === 'string' ? o.sectionId : '';
-    if (!sectionIds.has(sectionId)) continue;
+    // 유효 섹션이면서 진단/치료(허용) 섹션에만 배정(그 외 섹션은 LLM이 넣었어도 버린다).
+    if (!sectionIds.has(sectionId) || !allowedIds.has(sectionId)) continue;
     const fileNames: string[] = [];
     for (const fn of Array.isArray(o.fileNames) ? o.fileNames : []) {
       if (typeof fn !== 'string' || !validNames.has(fn) || used.has(fn)) continue;
