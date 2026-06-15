@@ -843,10 +843,6 @@ export function AdminRunExtractionDetail({
         const emphasis = typeof notes?.emphasis_text === 'string' ? notes.emphasis_text : '';
         setCaseOverview(overview);
         setEmphasisText(emphasis);
-        // 진료케이스/건강검진으로 들어온 케이스면 해당 탭을 기본으로.
-        const hasOverview = !!overview && CASE_OVERVIEW_LABELS.some(({ key }) => (overview[key] ?? '').trim());
-        if (hasOverview) setActiveTab('caseOverview');
-        else if (emphasis.trim()) setActiveTab('emphasis');
       } catch {
         /* ignore */
       }
@@ -1259,13 +1255,14 @@ export function AdminRunExtractionDetail({
   // 병원이 업로드한 원본 PDF — 헤더의 '건강검진 리포트 생성' 좌측에 배치(이미지는 이미지 분석 탭).
   const sourcePdfs = result.sourceFiles?.pdfs ?? [];
 
-  // 진료케이스면 케이스개요, 건강검진이면 강조사항 탭을 맨 앞에 추가.
+  // 진료케이스면 케이스개요, 건강검진이면 강조사항 탭을 맨 끝(디버그 좌측)에 추가.
   const hasCaseOverview = !!caseOverview && CASE_OVERVIEW_LABELS.some(({ key }) => (caseOverview[key] ?? '').trim());
   const hasEmphasis = emphasisText.trim().length > 0;
   const tabs: { key: ChartTabKey; label: string }[] = [
+    ...CHART_TABS.filter((t) => t.key !== 'debug'),
     ...(hasCaseOverview ? [{ key: 'caseOverview' as ChartTabKey, label: '케이스개요' }] : []),
     ...(hasEmphasis ? [{ key: 'emphasis' as ChartTabKey, label: '강조사항' }] : []),
-    ...CHART_TABS,
+    ...CHART_TABS.filter((t) => t.key === 'debug'),
   ];
 
   return (
