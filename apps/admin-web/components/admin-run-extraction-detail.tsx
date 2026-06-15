@@ -216,11 +216,6 @@ type CaseImage = {
   bodyPart: string | null;
 };
 
-type GroupSummary = {
-  examDate: string | null;
-  bullets: { text: string; confidence?: number | null; fileNames: string[]; imageConfidence?: Record<string, number> }[];
-};
-
 function FindingOverlay({ spots, imageRef }: { spots: FindingSpot[]; imageRef: React.RefObject<HTMLImageElement | null> }) {
   const [dims, setDims] = useState<{ w: number; h: number } | null>(null);
 
@@ -478,7 +473,6 @@ function groupImagesByDate(images: CaseImage[]): Array<{ date: string | null; im
 
 export function CaseImagesSection({ runId, onAddAnalysis }: { runId: string; onAddAnalysis?: () => void }) {
   const [images, setImages] = useState<CaseImage[]>([]);
-  const [summaries, setSummaries] = useState<GroupSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [editMode, setEditMode] = useState(false);
@@ -501,24 +495,22 @@ export function CaseImagesSection({ runId, onAddAnalysis }: { runId: string; onA
     setLoading(true);
     setError(null);
 
-    const fetchOnce = async (): Promise<{ images: CaseImage[]; summaries: GroupSummary[] }> => {
+    const fetchOnce = async (): Promise<{ images: CaseImage[] }> => {
       const res = await fetch(`/api/admin/runs/${encodeURIComponent(runId)}/case-images`, {
         credentials: 'include',
       });
       const data = (await res.json().catch(() => ({}))) as {
         images?: CaseImage[];
-        summaries?: GroupSummary[];
         error?: string;
       };
       if (!res.ok) throw new Error(data.error ?? '이미지 조회 실패');
-      return { images: data.images ?? [], summaries: data.summaries ?? [] };
+      return { images: data.images ?? [] };
     };
 
     try {
       const first = await fetchOnce();
       if (stale()) return;
       setImages(first.images);
-      setSummaries(first.summaries);
       setLoading(false); // 초기 조회 끝 — 이후 임포트 진행은 autoRetrying(분석 중)으로 표시
 
       // 병원 제출 이미지가 아직 없으면 자동 import·분석 트리거 후, 이미지가 뜰 때까지 폴링.
@@ -539,7 +531,6 @@ export function CaseImagesSection({ runId, onAddAnalysis }: { runId: string; onA
             if (stale()) return;
             if (r.images.length > 0) {
               setImages(r.images);
-              setSummaries(r.summaries);
               break;
             }
           } catch {
@@ -636,26 +627,6 @@ export function CaseImagesSection({ runId, onAddAnalysis }: { runId: string; onA
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column' }}>
             {groupImagesByDate(images).map(({ date, images: dateImages }) => {
-              const summary = summaries.find((s) => (s.examDate ?? null) === (date ?? null));
-              // confidence 높은 순 정렬 후 1·2·3 넘버링, 파일명→번호 매핑(이미지 배지용)
-              const bullets = [...(summary?.bullets ?? [])].sort(
-                (a, b) => (b.confidence ?? 0) - (a.confidence ?? 0),
-              );
-              const numberByFile = new Map<string, number[]>();
-              const confidenceByFile = new Map<string, number>();
-              bullets.forEach((b, bi) => {
-                const n = bi + 1;
-                for (const fn of new Set(b.fileNames)) {
-                  const arr = numberByFile.get(fn) ?? [];
-                  if (!arr.includes(n)) arr.push(n);
-                  numberByFile.set(fn, arr);
-                  const c = b.imageConfidence?.[fn];
-                  if (typeof c === 'number') {
-                    const prev = confidenceByFile.get(fn);
-                    if (prev == null || c > prev) confidenceByFile.set(fn, c);
-                  }
-                }
-              });
               return (
                 <details key={date ?? 'no-date'} open style={{ borderBottom: '1px solid var(--border)', padding: '12px 0' }}>
                   <summary
@@ -682,55 +653,9 @@ export function CaseImagesSection({ runId, onAddAnalysis }: { runId: string; onA
                     <span style={{ fontWeight: 400, color: 'var(--text-muted)', fontSize: 11, letterSpacing: 0 }}>{dateImages.length}장</span>
                   </summary>
 
-                  {bullets.length > 0 && (
-                    <div style={{ marginBottom: 12, padding: '10px 12px', background: 'var(--bg-subtle)', border: '1px solid var(--border)', borderRadius: 8 }}>
-                      <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 6 }}>의심 질환</div>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                        {bullets.map((b, bi) => (
-                          <div key={bi} style={{ display: 'flex', gap: 8, fontSize: 12.5, color: 'var(--text)', lineHeight: 1.5 }}>
-                            <span
-                              style={{
-                                flexShrink: 0,
-                                width: 18,
-                                height: 18,
-                                borderRadius: '50%',
-                                background: 'var(--accent)',
-                                color: '#fff',
-                                fontSize: 11,
-                                fontWeight: 800,
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                marginTop: 1,
-                              }}
-                            >
-                              {bi + 1}
-                            </span>
-                            <div>
-                              <span>{b.text}</span>
-                              {typeof b.confidence === 'number' && (
-                                <span style={{ marginLeft: 4, fontSize: 11, fontWeight: 700, color: 'var(--accent)' }}>({b.confidence}%)</span>
-                              )}
-                              {b.fileNames.length > 0 && (
-                                <span style={{ display: 'block', fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
-                                  관련 이미지: {b.fileNames
-                                    .map((fn) => {
-                                      const c = b.imageConfidence?.[fn];
-                                      return typeof c === 'number' ? `${fn} (${c}%)` : fn;
-                                    })
-                                    .join(', ')}
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 12 }}>
                     {dateImages.map((img) => (
-                      <CaseImageCard key={img.id} img={img} numbers={numberByFile.get(img.fileName) ?? []} confidence={confidenceByFile.get(img.fileName)} editMode={editMode} onDelete={() => deleteImage(img.id)} />
+                      <CaseImageCard key={img.id} img={img} numbers={[]} confidence={undefined} editMode={editMode} onDelete={() => deleteImage(img.id)} />
                     ))}
                   </div>
                 </details>
