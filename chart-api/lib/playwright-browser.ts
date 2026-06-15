@@ -9,6 +9,8 @@ const KOREAN_FONT_URLS = [
 let koreanFontsRegistered: Promise<void> | null = null;
 let browserInstancePromise: Promise<import('playwright-core').Browser> | null = null;
 let browserIdleTimer: NodeJS.Timeout | null = null;
+// 진행 중인 PDF 렌더 수. >0 이면 공유 브라우저를 닫지 않는다(렌더 도중 닫혀 'target closed' 나는 것 방지).
+let activeRenders = 0;
 
 const BROWSER_IDLE_CLOSE_MS = 45_000;
 
@@ -97,9 +99,10 @@ function scheduleBrowserIdleClose() {
     clearTimeout(browserIdleTimer);
   }
   browserIdleTimer = setTimeout(async () => {
+    browserIdleTimer = null;
+    if (activeRenders > 0) return; // 렌더 진행 중이면 닫지 않는다.
     const current = browserInstancePromise;
     browserInstancePromise = null;
-    browserIdleTimer = null;
     if (!current) return;
     try {
       const browser = await current;
@@ -118,7 +121,6 @@ export async function getSharedPlaywrightBrowser() {
     browserInstancePromise = launchPlaywrightChromium();
   }
   const browser = await browserInstancePromise;
-  scheduleBrowserIdleClose();
   if (!browser.isConnected()) {
     browserInstancePromise = launchPlaywrightChromium();
     return browserInstancePromise;
@@ -142,6 +144,12 @@ export type RenderPdfFromPageUrlOptions = {
 export async function renderPdfFromPageUrl(url: string, options?: RenderPdfFromPageUrlOptions) {
   const rid = options?.requestId?.trim() ? `[rid=${options.requestId}] ` : '';
   const t0 = Date.now();
+  // 렌더 시작: 유휴 종료 타이머를 멈춰 렌더 도중 브라우저가 닫히지 않게 한다.
+  activeRenders += 1;
+  if (browserIdleTimer) {
+    clearTimeout(browserIdleTimer);
+    browserIdleTimer = null;
+  }
   const browser = await getSharedPlaywrightBrowser();
   const t1 = Date.now();
   const page = await browser.newPage();
@@ -244,6 +252,9 @@ export async function renderPdfFromPageUrl(url: string, options?: RenderPdfFromP
     return pdf;
   } finally {
     await page.close().catch(() => undefined);
+    activeRenders = Math.max(0, activeRenders - 1);
+    // 마지막 렌더가 끝나면 그때부터 유휴 종료 타이머를 건다(진행 중이면 안 닫힘).
+    if (activeRenders === 0) scheduleBrowserIdleClose();
   }
 }
 
