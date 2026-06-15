@@ -293,9 +293,13 @@ const SYS_BLOGPOST = `당신은 동물병원을 운영하는 수의사이자 병
   · 예시의 사실·문장·표현을 그대로 가져오지 말 것(내용 복붙 금지).
   · 글의 내용·사실은 오직 OUTLINE·CASE_OVERVIEW·병원정보에서만 가져온다.
 
-# 인트로 — 실제 사례 명시 (항상)
-- 인트로에는 이 글이 "실제 치료 사례"임을 항상 언급한다(지어낸 이야기가 아니라 본원에서 실제로 진료·치료한 사례라는 의미).
-  · 예: "이번 글에서는 저희 OO동물병원에서 실제로 진료·치료한 OO이의 사례를 소개해 드리려 합니다."
+# 인트로 — 짧게 (★최대 2문장)
+- 인트로는 길게 늘이지 말고 **최대 2문장**으로 끝낸다. 구성:
+  1) (위치 + 병원명) 어디에 위치한 어느 병원인지 — 병원위치가 주어지면 "OO(지역)에 위치한 OO동물병원" 식으로, 없으면 병원명만.
+  2) 오늘 소개할 사례 — "어떤 질환을 잘 치료받은 OO(환자명)의 (실제) 사례를 소개한다". 지어낸 이야기가 아닌 실제 사례임이 드러나게.
+- 덧붙인다면 그 케이스에서 "가장 특징적인 점"을 한 구절 정도 자연스럽게 녹이는 정도까지만(없으면 생략).
+  · 예) "OO에 위치한 △△동물병원입니다. 오늘은 OOO으로 내원해 잘 치료받은 □□의 사례를 소개해 드리려 합니다."
+- 환자의 나이·품종은 **그 케이스에서 중요한 역할(호발 품종·노령 위험 등)을 할 때만** 넣고, 아니면 인트로에 굳이 넣지 않는다.
 
 # 병원 이름 노출 — 중요 (홍보색 억제)
 - 병원 이름(병원정보의 병원명)을 본문에 직접 쓰는 것은 다음 섹션에서만 허용한다:
@@ -888,8 +892,27 @@ export async function POST(request: NextRequest) {
         const goodExample = (goodExampleInput || GOOD_EXAMPLE_DEFAULT).slice(0, 20_000);
         const hospitalName = (source.basicInfo?.hospitalName ?? '').trim();
         const patientName = (source.basicInfo?.patientName ?? '').trim();
+        // 인트로 "어디에 위치한" 용 지역 — core.hospitals.address 앞부분(시도+시군구). 없으면 빈값.
+        let hospitalRegion = '';
+        try {
+          const { rows: prRows } = await pool.query<{ hospital_id: string | null }>(
+            `SELECT hospital_id FROM chart_pdf.parse_runs WHERE id = $1::uuid LIMIT 1`,
+            [runId],
+          );
+          const hid = prRows[0]?.hospital_id;
+          if (hid) {
+            const { rows: hRows } = await pool.query<{ address: string | null }>(
+              `SELECT address FROM core.hospitals WHERE id::text = $1 LIMIT 1`,
+              [String(hid)],
+            );
+            const addr = (hRows[0]?.address ?? '').trim();
+            if (addr) hospitalRegion = addr.split(/\s+/).slice(0, 2).join(' ');
+          }
+        } catch {
+          /* 지역 조회 실패 시 위치 생략 */
+        }
         const userContent = [
-          `병원정보: 병원명 ${hospitalName || '(미상)'} / 환자명 ${patientName || '(미상)'}`,
+          `병원정보: 병원명 ${hospitalName || '(미상)'} / 병원위치 ${hospitalRegion || '(미상)'} / 환자명 ${patientName || '(미상)'}`,
           '',
           'OUTLINE (2단계 검수 결과):',
           outlineJson,
