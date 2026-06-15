@@ -136,11 +136,11 @@ export async function POST(
         const r = analysis.images[i];
         await pool.query(
           `INSERT INTO chart_pdf.parse_run_case_images
-            (parse_run_id, idx, file_name, storage_path, exam_type, body_part, content_hash, exam_date)
-           VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8)`,
+            (parse_run_id, idx, file_name, storage_path, exam_type, radiology_sub, body_part, content_hash, exam_date)
+           VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8, $9)`,
           [
             runId, globalIdx, img.fileName, storagePath,
-            r?.examType ?? 'other', r?.bodyPart ?? '', img.hash, group.date,
+            r?.examType ?? 'other', r?.radiologySub ?? null, r?.bodyPart ?? '', img.hash, group.date,
           ],
         );
         globalIdx++;

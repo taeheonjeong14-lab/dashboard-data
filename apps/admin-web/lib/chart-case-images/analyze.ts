@@ -3,10 +3,7 @@ import { recordOpenAiChatUsage, type UsageContext } from '@/lib/billing/usage-lo
 import {
   EXAM_TYPES,
   RADIOLOGY_SUBS,
-  type CaseImageAnalysis,
-  type CaseImageItem,
   type ExamType,
-  type FindingSpot,
   type RadiologySub,
 } from './types';
 
@@ -43,215 +40,14 @@ async function createChatWithRetry(
   }
 }
 
-function normalizeAnalysis(
-  raw: unknown,
-  expected: { index: number; fileName: string }[],
-): CaseImageAnalysis {
-  if (!raw || typeof raw !== 'object') throw new Error('Invalid model response shape.');
-  const root = raw as { images?: unknown };
-  if (!Array.isArray(root.images)) throw new Error('Missing images array in model response.');
-
-  const byIndex = new Map<number, CaseImageItem>();
-  for (const row of root.images) {
-    if (!row || typeof row !== 'object') continue;
-    const o = row as Record<string, unknown>;
-    const index = typeof o.index === 'number' ? o.index : Number(o.index);
-    if (!Number.isInteger(index) || index < 0) continue;
-
-    const fileName = typeof o.fileName === 'string' ? o.fileName : '';
-    const examType = o.examType as string;
-    const radiologySub = o.radiologySub as string | null | undefined;
-    const hasNotableFinding = Boolean(o.hasNotableFinding);
-    let briefComment = '';
-    if (typeof o.briefComment === 'string') briefComment = o.briefComment.trim();
-
-    if (!EXAM_TYPES.includes(examType as ExamType)) continue;
-    let sub: RadiologySub | null = null;
-    if (radiologySub != null && radiologySub !== '' && RADIOLOGY_SUBS.includes(radiologySub as RadiologySub)) {
-      sub = radiologySub as RadiologySub;
-    }
-    if (examType !== 'radiology') sub = null;
-
-    const isClearFinding = hasNotableFinding && Boolean(o.isClearFinding);
-
-    let findingSpots: FindingSpot[] | undefined;
-    if (hasNotableFinding && typeof o.findingSpotsStr === 'string' && o.findingSpotsStr.trim()) {
-      const spots: FindingSpot[] = [];
-      for (const pair of o.findingSpotsStr.split(';')) {
-        const [cxRaw, cyRaw, rRaw] = pair.trim().split(',');
-        const cx = Number(cxRaw?.trim());
-        const cy = Number(cyRaw?.trim());
-        const r = Math.max(2, Math.min(15, Number(rRaw?.trim()) || 6));
-        if (Number.isFinite(cx) && Number.isFinite(cy) && cx >= 0 && cx <= 100 && cy >= 0 && cy <= 100) {
-          spots.push({ cx, cy, r });
-          if (spots.length >= 2) break;
-        }
-      }
-      if (spots.length > 0) findingSpots = spots;
-    }
-
-    let relatedAssessmentCondition: string | null = null;
-    const relRaw = typeof o.relatedConditionName === 'string' ? o.relatedConditionName.trim() : '';
-    if (relRaw) relatedAssessmentCondition = relRaw;
-
-    byIndex.set(index, {
-      index,
-      fileName,
-      examType: examType as ExamType,
-      radiologySub: sub,
-      hasNotableFinding,
-      isClearFinding,
-      briefComment,
-      findingSpots,
-      relatedAssessmentCondition,
-    });
-  }
-
-  const images: CaseImageItem[] = expected.map((exp) => {
-    const found = byIndex.get(exp.index);
-    if (found) return { ...found, fileName: exp.fileName };
-    return {
-      index: exp.index,
-      fileName: exp.fileName,
-      examType: 'other',
-      radiologySub: null,
-      hasNotableFinding: false,
-      isClearFinding: false,
-      briefComment: '',
-      findingSpots: undefined,
-      relatedAssessmentCondition: null,
-    };
-  });
-
-  return { images };
-}
-
-export async function analyzeCaseImages(params: {
-  examDate: string;
-  images: ImageInputPart[];
-  usageContext?: UsageContext;
-}): Promise<CaseImageAnalysis> {
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) throw new Error('OPENAI_API_KEY is not configured.');
-  if (params.images.length === 0) throw new Error('No images to analyze.');
-
-  const model = process.env.OPENAI_VISION_MODEL?.trim() || 'gpt-4o-mini';
-  const client = new OpenAI({ apiKey });
-
-  const manifest = params.images.map((img, i) => `${i}: ${img.fileName}`).join('\n');
-
-  const prompt = [
-    '역할: 수의 임상에서 영상·검사 사진을 1차로 나누어 보는 보조만 한다. 출력은 스키마에 맞는 JSON만.',
-    '사용자가 한 번에 여러 이미지를 올렸다. 이미지마다 서로 다른 검사 유형일 수 있으니 각각 독립적으로 분류한다.',
-    '확정 진단을 내리지 말 것. 관찰·가능성으로 표현하고, 최종 판단은 수의사가 한다.',
-    '검사일(사용자가 지정함, 추론·변경 금지): ' + params.examDate,
-    '',
-    '아래 각 이미지에 대해 examType을 정확히 하나만 고른다:',
-    '- radiology: X-ray, CT 출력, 방사선 사진. radiology면 radiologySub는 thorax·abdomen·joint·dental 중 가장 맞는 하나.',
-    '- ultrasound: 초음파.',
-    '- microscopy: 세포검사, 혈액도말, 현미경.',
-    '- endoscopy: 내시경.',
-    '- slit_lamp: 슬릿램프·안과 램프 검사 사진.',
-    '- other: 위에 해당하지 않으면.',
-    'examType이 radiology가 아니면 radiologySub는 null.',
-    '',
-    'hasNotableFinding: 눈에 띄는 이상·의심 소견이 있을 때만 true.',
-    'isClearFinding: hasNotableFinding이 true이고 이상 소견이 매우 뚜렷하고 명확할 때만 true.',
-    'findingSpotsStr: hasNotableFinding이 true이고 소견 위치가 명확히 특정될 때만 작성. 최대 2개. 형식: cx,cy,r을 세미콜론으로 구분. r은 2~15.',
-    'briefComment: 한국어, 이미지당 짧은 문장 정확히 한 줄. 관찰 위주로 작성.',
-    'relatedConditionName: 빈 문자열 ""로 고정.',
-    '',
-    'images 배열은 아래 목록과 동일하게 이미지마다 한 행, index는 0부터 n-1:',
-    manifest,
-  ]
-    .filter(Boolean)
-    .join('\n');
-
-  type MessageContentPart =
-    | { type: 'text'; text: string }
-    | { type: 'image_url'; image_url: { url: string } };
-
-  const content: MessageContentPart[] = [{ type: 'text', text: prompt }];
-  for (const img of params.images) {
-    content.push({
-      type: 'image_url',
-      image_url: { url: `data:${img.mimeType};base64,${img.buffer.toString('base64')}` },
-    });
-  }
-
-  const response = await createChatWithRetry(client, {
-    model,
-    messages: [{ role: 'user', content }],
-    response_format: {
-      type: 'json_schema',
-      json_schema: {
-        name: 'case_image_analysis',
-        strict: true,
-        schema: {
-          type: 'object',
-          properties: {
-            images: {
-              type: 'array',
-              items: {
-                type: 'object',
-                properties: {
-                  index: { type: 'integer' },
-                  fileName: { type: 'string' },
-                  examType: { type: 'string', enum: [...EXAM_TYPES] },
-                  radiologySub: {
-                    anyOf: [{ type: 'string', enum: [...RADIOLOGY_SUBS] }, { type: 'null' }],
-                  },
-                  hasNotableFinding: { type: 'boolean' },
-                  isClearFinding: { type: 'boolean' },
-                  briefComment: { type: 'string' },
-                  findingSpotsStr: { type: 'string' },
-                  relatedConditionName: { type: 'string', enum: [''] },
-                },
-                required: [
-                  'index', 'fileName', 'examType', 'radiologySub',
-                  'hasNotableFinding', 'isClearFinding', 'briefComment',
-                  'findingSpotsStr', 'relatedConditionName',
-                ],
-                additionalProperties: false,
-              },
-            },
-          },
-          required: ['images'],
-          additionalProperties: false,
-        },
-      },
-    },
-  });
-  await recordOpenAiChatUsage({ model, usage: response.usage, feature: 'image_analysis', ...(params.usageContext ?? {}) });
-
-  const output = response.choices[0]?.message.content;
-  if (!output) {
-    const finishReason = response.choices[0]?.finish_reason ?? 'unknown';
-    if (finishReason === 'content_filter') {
-      throw new Error('이미지 메타데이터로 인해 분석이 차단되었습니다. 스크린샷 후 다시 업로드해 주세요.');
-    }
-    throw new Error(`이미지 분석에 실패했습니다. (finishReason: ${finishReason})`);
-  }
-
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(output);
-  } catch {
-    throw new Error('모델이 올바른 JSON 형식을 반환하지 않았습니다.');
-  }
-
-  return normalizeAnalysis(
-    parsed,
-    params.images.map((img, index) => ({ index, fileName: img.fileName })),
-  );
-}
-
 // ── 날짜 그룹 단위 분석: 이미지 라벨(검사+부위) + 그룹 시사점(불렛+뒷받침 파일명) ──
 export type GroupImageLabel = {
   index: number;
   fileName: string;
   examType: ExamType;
   bodyPart: string;
+  /** examType이 radiology일 때만 세부 부위(흉부/복부/관절/치아). 아니면 null. */
+  radiologySub: RadiologySub | null;
 };
 export type GroupBullet = {
   text: string;
@@ -271,7 +67,10 @@ async function runImageGroupRequest(
   examDate: string,
   images: ImageInputPart[],
   usageContext?: UsageContext,
-): Promise<{ labelByFile: Map<string, { examType: ExamType; bodyPart: string }>; rawBullets: RawGroupBullet[] }> {
+): Promise<{
+  labelByFile: Map<string, { examType: ExamType; bodyPart: string; radiologySub: RadiologySub | null }>;
+  rawBullets: RawGroupBullet[];
+}> {
   const manifest = images.map((img, i) => `${i}: ${img.fileName}`).join('\n');
 
   const prompt = [
@@ -283,6 +82,7 @@ async function runImageGroupRequest(
     '[이미지 라벨] 각 이미지에 대해 딱 두 가지만 적는다(자세한 해석 금지):',
     '- examType: radiology / ultrasound / microscopy / endoscopy / slit_lamp / other 중 하나.',
     '- bodyPart: 검사 부위를 한국어로 짧게 (예: 흉부, 복부, 좌측 무릎, 구강, 우안). 불명확하면 "".',
+    '- radiologySub: examType이 radiology일 때만 thorax(흉부)/abdomen(복부)/joint(관절)/dental(치아·구강) 중 가장 맞는 하나. radiology가 아니면 null. (치아·구강 X-ray는 반드시 dental)',
     '',
     '[의심 질환] 이 검사일의 이미지들로부터 "의심되는 질환"만 뽑아 bullets 에 담는다.',
     '- 각 불렛(text) = 의심 질환 하나 + 근거. 형식 예: "OOO 의심 — 이미지에서 △△, □□ 소견이 관찰되기 때문." 어떤 질환이 왜(이미지의 어떤 소견 때문에) 의심되는지를 한 문장으로.',
@@ -328,8 +128,11 @@ async function runImageGroupRequest(
                   fileName: { type: 'string' },
                   examType: { type: 'string', enum: [...EXAM_TYPES] },
                   bodyPart: { type: 'string' },
+                  radiologySub: {
+                    anyOf: [{ type: 'string', enum: [...RADIOLOGY_SUBS] }, { type: 'null' }],
+                  },
                 },
-                required: ['index', 'fileName', 'examType', 'bodyPart'],
+                required: ['index', 'fileName', 'examType', 'bodyPart', 'radiologySub'],
                 additionalProperties: false,
               },
             },
@@ -382,14 +185,18 @@ async function runImageGroupRequest(
   }
 
   // 라벨: 청크 내 index → fileName 으로 매핑(전역 순서는 호출부에서 fileName 기준으로 재구성).
-  const labelByFile = new Map<string, { examType: ExamType; bodyPart: string }>();
+  const labelByFile = new Map<string, { examType: ExamType; bodyPart: string; radiologySub: RadiologySub | null }>();
   for (const row of Array.isArray(parsed.images) ? parsed.images : []) {
     const o = row as Record<string, unknown>;
     const idx = typeof o.index === 'number' ? o.index : Number(o.index);
     if (!Number.isInteger(idx) || idx < 0 || idx >= images.length) continue;
     const examType = EXAM_TYPES.includes(o.examType as ExamType) ? (o.examType as ExamType) : 'other';
     const bodyPart = typeof o.bodyPart === 'string' ? o.bodyPart.trim() : '';
-    labelByFile.set(images[idx].fileName, { examType, bodyPart });
+    const radiologySub =
+      examType === 'radiology' && RADIOLOGY_SUBS.includes(o.radiologySub as RadiologySub)
+        ? (o.radiologySub as RadiologySub)
+        : null;
+    labelByFile.set(images[idx].fileName, { examType, bodyPart, radiologySub });
   }
 
   // 불렛: 원시 형태로만 반환(임계값·유효 파일명·상한·청크 간 병합은 analyzeImageGroup 에서).
@@ -435,7 +242,7 @@ export async function analyzeImageGroup(params: {
     chunks.push(params.images.slice(i, i + maxPerReq));
   }
 
-  const labelByFile = new Map<string, { examType: ExamType; bodyPart: string }>();
+  const labelByFile = new Map<string, { examType: ExamType; bodyPart: string; radiologySub: RadiologySub | null }>();
   const allRawBullets: RawGroupBullet[] = [];
   for (const chunk of chunks) {
     const r = await runImageGroupRequest(client, model, params.examDate, chunk, params.usageContext);
@@ -445,7 +252,13 @@ export async function analyzeImageGroup(params: {
 
   const images: GroupImageLabel[] = params.images.map((img, index) => {
     const found = labelByFile.get(img.fileName);
-    return { index, fileName: img.fileName, examType: found?.examType ?? 'other', bodyPart: found?.bodyPart ?? '' };
+    return {
+      index,
+      fileName: img.fileName,
+      examType: found?.examType ?? 'other',
+      bodyPart: found?.bodyPart ?? '',
+      radiologySub: found?.radiologySub ?? null,
+    };
   });
 
   // 불렛: 청크 간 동일 질환(text) 병합 → confidence 임계값 + 유효 파일명 + 질환당 이미지 상한.
@@ -477,38 +290,4 @@ export async function analyzeImageGroup(params: {
   return { images, bullets };
 }
 
-/**
- * 이미지가 많을 때 한 번의 비전 호출에 전부 보내면 요청 크기·함수 타임아웃에 걸린다.
- * batchSize 장씩 나눠 concurrency 개씩 병렬 호출한 뒤 순서를 보존해 합친다.
- * (장수가 batchSize 이하면 단일 호출과 동일.)
- */
-export async function analyzeCaseImagesInBatches(params: {
-  examDate: string;
-  images: ImageInputPart[];
-  batchSize?: number;
-  concurrency?: number;
-}): Promise<CaseImageAnalysis> {
-  const batchSize = Math.max(1, params.batchSize ?? 8);
-  const concurrency = Math.max(1, params.concurrency ?? 4);
-  const imgs = params.images;
-  if (imgs.length <= batchSize) {
-    return analyzeCaseImages({ examDate: params.examDate, images: imgs });
-  }
-
-  const chunks: ImageInputPart[][] = [];
-  for (let i = 0; i < imgs.length; i += batchSize) {
-    chunks.push(imgs.slice(i, i + batchSize));
-  }
-
-  const merged: CaseImageItem[] = [];
-  for (let i = 0; i < chunks.length; i += concurrency) {
-    const group = chunks.slice(i, i + concurrency);
-    const results = await Promise.all(
-      group.map((chunk) => analyzeCaseImages({ examDate: params.examDate, images: chunk })),
-    );
-    for (const r of results) merged.push(...r.images);
-  }
-
-  // 배치별 index(0..chunkLen-1)를 전역 0..n-1 로 재부여(순서 보존).
-  return { images: merged.map((img, index) => ({ ...img, index })) };
-}
+// per-image 정밀 분석(analyzeCaseImages / InBatches)은 그룹 분석으로 대체되어 제거됨.

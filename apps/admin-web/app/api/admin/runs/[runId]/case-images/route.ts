@@ -433,6 +433,7 @@ export async function POST(
           storagePath,
           contentHash: img.hash,
           examType: result?.examType ?? 'other',
+          radiologySub: result?.radiologySub ?? null,
           bodyPart: result?.bodyPart ?? '',
         };
       }),
@@ -442,14 +443,15 @@ export async function POST(
     for (const img of savedImages) {
       await pool.query(
         `INSERT INTO chart_pdf.parse_run_case_images
-          (parse_run_id, idx, file_name, storage_path, exam_type, body_part, content_hash, exam_date)
-         VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8)`,
+          (parse_run_id, idx, file_name, storage_path, exam_type, radiology_sub, body_part, content_hash, exam_date)
+         VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8, $9)`,
         [
           runId,
           img.idx,
           img.fileName,
           img.storagePath,
           img.examType,
+          img.radiologySub,
           img.bodyPart,
           img.contentHash,
           examDate || null,
