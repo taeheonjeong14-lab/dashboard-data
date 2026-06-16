@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
 import type { HealthCheckupGeneratedContent } from '@/lib/chart-app/health-checkup-content-shared';
 import type { HealthReportPreviewModel } from '@/lib/chart-app/health-report-preview-model';
@@ -501,6 +501,162 @@ function resolveApiErrorMessage(payloadError: string | undefined, rawText: strin
   return (payloadError ?? rawText) || fallback;
 }
 
+// ——— 사진 편집(이미지 슬롯) ———
+
+type SlotCandidate = { id: string; storagePath: string; previewUrl: string | null; examType: string; fileName: string };
+type ImgSlot = { src?: string; caption?: string; rotationDeg?: number };
+const IMAGE_VARIANTS = new Set(['images', 'images4', 'imagesGrid2x3', 'imagesGrid3x3']);
+
+function isImgBlock(b: unknown): b is { variant: string; images: ImgSlot[] } {
+  return (
+    !!b &&
+    typeof b === 'object' &&
+    IMAGE_VARIANTS.has((b as { variant?: string }).variant ?? '') &&
+    Array.isArray((b as { images?: unknown }).images)
+  );
+}
+function parseSystemsBlocks(raw: unknown): HealthSystemsReportBlock[] | null {
+  if (!Array.isArray(raw)) return null;
+  return parseHealthSystemsBlocksFromUnknown(raw) ?? null;
+}
+function updateImgSlot(blocks: HealthSystemsReportBlock[], bi: number, si: number, patch: ImgSlot): HealthSystemsReportBlock[] {
+  const out = JSON.parse(JSON.stringify(blocks)) as HealthSystemsReportBlock[];
+  const b = out[bi] as unknown;
+  if (!isImgBlock(b)) return out;
+  const img = b.images[si];
+  if (!img) return out;
+  if ('src' in patch) img.src = patch.src;
+  if ('caption' in patch) img.caption = patch.caption;
+  if ('rotationDeg' in patch) img.rotationDeg = patch.rotationDeg;
+  return out;
+}
+
+function ReviewImageSlotsEditor({
+  token,
+  draft,
+  onChange,
+}: {
+  token: string;
+  draft: HealthCheckupGeneratedContent;
+  onChange: (d: HealthCheckupGeneratedContent) => void;
+}) {
+  const [cands, setCands] = useState<SlotCandidate[]>([]);
+  const [signed, setSigned] = useState<Record<string, string | null>>({});
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setErr(null);
+    try {
+      const res = await fetch(`/api/content/health-checkup/review-share/case-images?token=${encodeURIComponent(token)}`);
+      const data = (await res.json()) as { candidates?: SlotCandidate[]; signed?: Record<string, string | null>; error?: string };
+      if (!res.ok || data.error) throw new Error(data.error ?? '이미지 후보를 불러오지 못했습니다.');
+      setCands(data.candidates ?? []);
+      setSigned(data.signed ?? {});
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : '이미지 후보를 불러오지 못했습니다.');
+    } finally {
+      setLoading(false);
+    }
+  }, [token]);
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const pathById = useMemo(() => new Map(cands.map((c) => [c.id, c.storagePath])), [cands]);
+  const previewFor = (src: string | undefined): string | undefined => {
+    if (!src) return undefined;
+    if (src.startsWith('http') || src.startsWith('blob:')) return src;
+    return signed[src] ?? cands.find((c) => c.storagePath === src)?.previewUrl ?? undefined;
+  };
+
+  function renderPage(key: 'systemsPage4Blocks' | 'systemsPage5Blocks', label: string) {
+    const blocks = parseSystemsBlocks(draft[key]);
+    if (!blocks) return null;
+    const imgBlocks = blocks.map((b, bi) => ({ b, bi })).filter((x) => isImgBlock(x.b));
+    if (imgBlocks.length === 0) return null;
+    const setBlocks = (nb: HealthSystemsReportBlock[]) => onChange({ ...draft, [key]: nb });
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <div style={{ fontSize: 12, fontWeight: 700, color: '#3f3f46' }}>{label}</div>
+        <div style={{ display: 'grid', gap: 10, gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))' }}>
+          {imgBlocks.flatMap(({ b, bi }) =>
+            (isImgBlock(b) ? b.images : []).map((slot, si) => {
+              const src = slot?.src ?? '';
+              const rot = slot?.rotationDeg ?? 0;
+              const prev = previewFor(src);
+              return (
+                <div key={`${key}-${bi}-${si}`} style={{ border: '1px dashed #d4d4d8', borderRadius: 8, padding: 8, background: '#fff' }}>
+                  <div style={{ height: 80, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', borderRadius: 4, background: '#fafafa' }}>
+                    {prev ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img alt="" src={prev} style={{ maxWidth: '100%', maxHeight: 80, objectFit: 'contain', transform: `rotate(${rot}deg)`, transition: 'transform 0.2s' }} />
+                    ) : (
+                      <span style={{ fontSize: 11, color: '#a1a1aa' }}>이미지 없음</span>
+                    )}
+                  </div>
+                  <select
+                    style={{ width: '100%', marginTop: 6, fontSize: 11, padding: 4 }}
+                    value={cands.find((c) => c.storagePath === src)?.id ?? ''}
+                    onChange={(e) => {
+                      const id = e.target.value;
+                      const path = id ? pathById.get(id) ?? '' : '';
+                      setBlocks(updateImgSlot(blocks, bi, si, { src: path || undefined }));
+                    }}
+                  >
+                    <option value="">비움</option>
+                    {cands.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {(c.examType ? c.examType + ' · ' : '') + (c.fileName ?? c.id).slice(0, 22)}
+                      </option>
+                    ))}
+                  </select>
+                  <input
+                    style={{ width: '100%', marginTop: 6, fontSize: 11, padding: 4, boxSizing: 'border-box' }}
+                    placeholder="캡션"
+                    value={slot?.caption ?? ''}
+                    onChange={(e) => setBlocks(updateImgSlot(blocks, bi, si, { caption: e.target.value }))}
+                  />
+                  <div style={{ display: 'flex', gap: 4, marginTop: 6 }}>
+                    <button type="button" className="hcu-rv-btn-outline" style={{ flex: 1, padding: '4px 0', fontSize: 11 }} disabled={!src}
+                      onClick={() => setBlocks(updateImgSlot(blocks, bi, si, { rotationDeg: (rot + 90) % 360 }))}>
+                      90° 회전
+                    </button>
+                    {src ? (
+                      <button type="button" className="hcu-rv-btn-outline" style={{ flex: 1, padding: '4px 0', fontSize: 11 }}
+                        onClick={() => setBlocks(updateImgSlot(blocks, bi, si, { src: undefined, caption: '', rotationDeg: 0 }))}>
+                        비우기
+                      </button>
+                    ) : null}
+                  </div>
+                </div>
+              );
+            }),
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  const hasAnySlots = parseSystemsBlocks(draft.systemsPage4Blocks)?.some(isImgBlock) || parseSystemsBlocks(draft.systemsPage5Blocks)?.some(isImgBlock);
+  if (!hasAnySlots) return null;
+
+  return (
+    <div style={{ marginTop: 20, paddingTop: 16, borderTop: '1px solid #f4f4f5', display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <span style={{ fontSize: 14, fontWeight: 700, color: '#18181b' }}>사진 편집</span>
+        <button type="button" className="hcu-rv-btn-outline" disabled={loading} onClick={() => void load()}>새로고침</button>
+      </div>
+      <p style={{ margin: 0, fontSize: 11, color: '#71717a' }}>사진 교체·캡션·90° 회전·비우기 후 위의 「검토 내용 저장」을 누르면 반영됩니다.</p>
+      {loading ? <p style={{ fontSize: 12, color: '#71717a' }}>이미지 불러오는 중…</p> : null}
+      {err ? <p style={{ fontSize: 12, color: '#991b1b' }}>{err}</p> : null}
+      {renderPage('systemsPage4Blocks', '치과·피부 등 (5p)')}
+      {renderPage('systemsPage5Blocks', '방사선·초음파 등 (6p)')}
+    </div>
+  );
+}
+
 // ——— main client component ———
 
 export default function HealthCheckupShareReviewClient() {
@@ -877,6 +1033,7 @@ export default function HealthCheckupShareReviewClient() {
                 saving={saving}
                 activeSection={activeSection}
               />
+              <ReviewImageSlotsEditor token={token} draft={draft} onChange={setDraft} />
             </section>
           </div>
         )}
