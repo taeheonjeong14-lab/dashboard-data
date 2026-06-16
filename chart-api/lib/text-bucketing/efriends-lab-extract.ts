@@ -1161,6 +1161,12 @@ export function parseEfriendsLabItemsFromBucketLines(lines: EfriendsBucketLine[]
       i += 1;
       continue;
     }
+    // Gemini 전사 중복/깨짐 줄: 정상은 "RBC(idexx)"처럼 붙어 있는데, 깨진 중복본은
+    // "LYM ( idexx ) K / μL"처럼 괄호 안에 공백이 낀다. 이런 노이즈 줄은 건너뛴다.
+    if (/\(\s+(?:idexx|v200)\b|\b(?:idexx|v200)\s+\)/i.test(t)) {
+      i += 1;
+      continue;
+    }
 
     if (i + 1 < lines.length) {
       const deferred = tryParseEfriendsAnalyteRefWithFollowingTableHeader(lines, i, rowY);
