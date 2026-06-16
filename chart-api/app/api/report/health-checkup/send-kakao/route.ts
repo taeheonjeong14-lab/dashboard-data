@@ -104,8 +104,16 @@ export async function POST(request: NextRequest) {
     });
 
     if (!result.ok) {
-      console.error('[send-kakao] aligo 실패', result.code, result.message, result.raw);
-      return NextResponse.json({ error: `발송 실패 (${result.code}: ${result.message})` }, { status: 502 });
+      // 실패 시(특히 -99 IP 인증) 이 발송 함수가 실제로 외부로 나갈 때 쓰는 공인 IP 를 같이 알려준다.
+      // (디버그 라우트와 다른 함수/NAT IP 일 수 있어, 알리고에 등록할 "정확한" IP 를 화면에서 바로 확인)
+      let egressIp: string | null = null;
+      try {
+        const j = (await (await fetch('https://api.ipify.org?format=json', { cache: 'no-store' })).json()) as { ip?: string };
+        egressIp = j.ip ?? null;
+      } catch { /* noop */ }
+      console.error('[send-kakao] aligo 실패', result.code, result.message, result.raw, 'egressIp=', egressIp);
+      const ipNote = egressIp ? ` [호출 IP: ${egressIp} — 알리고에 이 IP 등록 필요]` : '';
+      return NextResponse.json({ error: `발송 실패 (${result.code}: ${result.message})${ipNote}`, egressIp }, { status: 502 });
     }
     return NextResponse.json({ ok: true });
   } catch (e) {
