@@ -111,6 +111,18 @@ export async function listHospitalRuns(
       LIMIT 1
     ) s ON true
     WHERE pr.hospital_id = $1::uuid
+      -- 진료케이스(blog_case) 전용 run 은 건강검진 목록에서 제외한다.
+      -- (한 run 이 blog_case 이면서 동시에 건강검진(hospital_notes/health_checkup)이기도 하면 그대로 노출)
+      AND NOT (
+        EXISTS (
+          SELECT 1 FROM health_report.generated_run_content g
+          WHERE g.parse_run_id = pr.id AND g.content_type = 'blog_case'
+        )
+        AND NOT EXISTS (
+          SELECT 1 FROM health_report.generated_run_content g
+          WHERE g.parse_run_id = pr.id AND g.content_type IN ('hospital_notes', 'health_checkup')
+        )
+      )
     ORDER BY pr.created_at DESC
     LIMIT $2
     `,
