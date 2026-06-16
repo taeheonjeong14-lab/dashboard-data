@@ -94,9 +94,9 @@ export async function POST(request: NextRequest) {
 
     const pdfUrl = `${new URL(request.url).origin}/review/health-checkup/${encodeURIComponent(token)}/pdf`;
     const templateCode = process.env.ALIGO_TPL_CODE || 'UI_6805';
-    // 채널추가(AC) 버튼·안내문구는 카카오가 자동으로 붙이므로 우리는 보내지 않는다(보내면 템플릿 불일치).
-    // 우리가 채우는 동적 버튼은 웹링크(리포트 확인하기)뿐.
+    // 템플릿(UI_6805)에 등록된 버튼 순서와 정확히 일치해야 함: ① 채널 추가(AC) ② 리포트 확인하기(WL).
     const buttons = [
+      { type: 'AC', name: '채널 추가' },
       { type: 'WL', name: '리포트 확인하기', linkMo: pdfUrl, linkPc: pdfUrl },
     ];
 
