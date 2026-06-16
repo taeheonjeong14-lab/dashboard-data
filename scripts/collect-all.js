@@ -387,6 +387,10 @@ async function main() {
         }),
   };
 
+  // 순위 수집(블로그/플레이스)은 로그인이 불필요 → 병원별(로그인) Chrome 포트를 쓰지 않고
+  // 항상 비로그인 전용 포트(기본 9222)로 보낸다. 계정/봇 탐지 리스크를 낮춘다.
+  const rankEnv = { ...baseEnv, RANK_CHROME_DEBUGGING_PORT: process.env.RANK_CHROME_DEBUGGING_PORT || "9222" };
+
   const allSteps = [
     {
       key: "blog_metrics",
@@ -407,7 +411,7 @@ async function main() {
       name: "블로그/플레이스 키워드 순위 수집",
       command: "python",
       args: [path.join(ROOT_DIR, "scripts", "naver-rank-main.py")],
-      options: { env: baseEnv },
+      options: { env: rankEnv },
     },
     {
       key: "searchad",

@@ -2131,12 +2131,12 @@ def main():
     export_excel = False
     upload_db = True
     metric_date = None
-    # 순위 수집 전용 Chrome 포트(RANK_CHROME_DEBUGGING_PORT)가 있으면 우선.
-    # 없으면 기존 CHROME_DEBUGGING_PORT, 둘 다 없으면 9222 기본.
-    # 의도: 순위 수집은 로그인이 필요 없으므로, 로그인된 일반 디버그 Chrome 과
-    # 분리된 '비로그인 프로필' Chrome 으로 보내 계정 탐지 리스크를 없앤다.
+    # 순위 수집(블로그/플레이스)은 로그인이 필요 없다 → 병원별(로그인) Chrome 포트
+    # (CHROME_DEBUGGING_PORT)는 절대 쓰지 않고, 항상 비로그인 전용 포트로 간다.
+    # 기본 9222. 다른 비로그인 포트를 쓰고 싶을 때만 RANK_CHROME_DEBUGGING_PORT 로 override.
+    # (계정/봇 탐지 리스크를 없애기 위함 — 병원 포트로 폴백하던 동작을 의도적으로 제거.)
     rank_port_raw = os.getenv("RANK_CHROME_DEBUGGING_PORT")
-    raw_debug_port = rank_port_raw or os.getenv("CHROME_DEBUGGING_PORT", "9222")
+    raw_debug_port = rank_port_raw or "9222"
     input_source = os.getenv("RANK_INPUT_SOURCE", "db").strip().lower()
     try:
         debug_port = int(raw_debug_port)
