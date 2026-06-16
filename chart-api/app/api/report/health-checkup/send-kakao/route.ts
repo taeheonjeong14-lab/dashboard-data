@@ -25,6 +25,8 @@ function buildMessage(patientName: string, checkupDate: string, hospitalName: st
     `궁금하신 점 있으시면 언제든지 편하게 ${hospitalName}으로 연락 주시면 친절하게 상담 드릴 수 있도록 하겠습니다.`,
     '',
     '감사합니다.',
+    // 알리고 템플릿 본문 마지막 줄(채널추가 버튼 안내문구)까지 포함해야 "템플릿 일치"가 됨.
+    '채널 추가하고 이 채널의 광고와 마케팅 메시지를 카카오톡으로 받기',
   ].join('\n');
 }
 
