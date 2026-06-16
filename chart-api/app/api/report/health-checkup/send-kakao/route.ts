@@ -5,7 +5,7 @@ import { getHealthCheckupGeneratedContentForRun } from '@/lib/generated-run-cont
 import { loadRunBasicsForPdfBasename } from '@/lib/report-source-pdf-basename';
 import { buildHealthCheckupSharePrintUrlForRequest } from '@/lib/chart-app/health-checkup-export-print-url';
 import { renderAndStoreReportPdf } from '@/lib/chart-app/report-pdf-store';
-import { sendAligoAlimtalk, normalizePhone } from '@/lib/chart-app/aligo';
+import { normalizePhone } from '@/lib/chart-app/aligo';
 import { getChartPgPool } from '@/lib/db';
 
 // POST /api/report/health-checkup/send-kakao — 보호자에게 건강검진 리포트를 카카오 알림톡으로 발송.
@@ -94,32 +94,49 @@ export async function POST(request: NextRequest) {
 
     const pdfUrl = `${new URL(request.url).origin}/review/health-checkup/${encodeURIComponent(token)}/pdf`;
     const templateCode = process.env.ALIGO_TPL_CODE || 'UI_6805';
+    const buttons = [
+      { type: 'WL', name: '리포트 확인하기', linkMo: pdfUrl, linkPc: pdfUrl },
+      { type: 'AC', name: '채널 추가' },
+    ];
 
-    const result = await sendAligoAlimtalk({
-      receiver: phone,
-      templateCode,
-      emphasisTitle: `${patientName} 건강검진 리포트`,
-      message: buildMessage(patientName, checkupDate, hospitalName),
-      subject: '우리아이 건강검진',
-      buttons: [
-        { type: 'WL', name: '리포트 확인하기', linkMo: pdfUrl, linkPc: pdfUrl },
-        { type: 'AC', name: '채널 추가' },
+    // 알리고는 고정 발신 IP 를 요구하나 chart-api(Vercel) egress IP 는 유동적 → 사무실 고정 IP 뒤의
+    // 워커(collect-worker)가 발송하도록 outbox 에 적재한다. 워커가 꺼내 알리고로 보냄.
+    const ins = await pool.query<{ id: string }>(
+      `INSERT INTO health_report.alimtalk_outbox
+         (status, run_id, hospital_id, receiver, template_code, subject, emphasis_title, message, buttons, pdf_url)
+       VALUES ('queued', $1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8::jsonb, $9)
+       RETURNING id`,
+      [
+        runId,
+        hospitalId,
+        phone,
+        templateCode,
+        '우리아이 건강검진',
+        `${patientName} 건강검진 리포트`,
+        buildMessage(patientName, checkupDate, hospitalName),
+        JSON.stringify(buttons),
+        pdfUrl,
       ],
-    });
+    );
+    const outboxId = ins.rows[0]?.id;
 
-    if (!result.ok) {
-      // 실패 시(특히 -99 IP 인증) 이 발송 함수가 실제로 외부로 나갈 때 쓰는 공인 IP 를 같이 알려준다.
-      // (디버그 라우트와 다른 함수/NAT IP 일 수 있어, 알리고에 등록할 "정확한" IP 를 화면에서 바로 확인)
-      let egressIp: string | null = null;
-      try {
-        const j = (await (await fetch('https://api.ipify.org?format=json', { cache: 'no-store' })).json()) as { ip?: string };
-        egressIp = j.ip ?? null;
-      } catch { /* noop */ }
-      console.error('[send-kakao] aligo 실패', result.code, result.message, result.raw, 'egressIp=', egressIp);
-      const ipNote = egressIp ? ` [호출 IP: ${egressIp} — 알리고에 이 IP 등록 필요]` : '';
-      return NextResponse.json({ error: `발송 실패 (${result.code}: ${result.message})${ipNote}`, egressIp }, { status: 502 });
+    // 워커가 보낼 때까지 잠깐 폴링해 결과를 즉시 돌려준다(최대 ~24초). 시간 초과면 "요청됨"으로 응답.
+    const deadline = Date.now() + 24_000;
+    while (outboxId && Date.now() < deadline) {
+      await new Promise((r) => setTimeout(r, 1500));
+      const { rows } = await pool.query<{ status: string; result_code: number | null; error: string | null }>(
+        `SELECT status, result_code, error FROM health_report.alimtalk_outbox WHERE id = $1::uuid`,
+        [outboxId],
+      );
+      const st = rows[0];
+      if (!st) break;
+      if (st.status === 'sent') return NextResponse.json({ ok: true });
+      if (st.status === 'failed') {
+        return NextResponse.json({ error: `발송 실패 (${st.result_code ?? ''}: ${st.error ?? ''})` }, { status: 502 });
+      }
     }
-    return NextResponse.json({ ok: true });
+    // 아직 처리 중 — 큐에는 들어갔으니 곧 발송됨(워커가 처리)
+    return NextResponse.json({ ok: true, queued: true, message: '발송이 요청되었습니다. 곧 전송됩니다.' });
   } catch (e) {
     console.error('POST send-kakao:', e);
     return NextResponse.json({ error: e instanceof Error ? e.message : '발송 실패' }, { status: 500 });

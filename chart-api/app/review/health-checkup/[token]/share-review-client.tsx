@@ -622,9 +622,9 @@ export default function HealthCheckupShareReviewClient() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token, phone }),
       });
-      const data = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
+      const data = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string; queued?: boolean; message?: string };
       if (!res.ok || !data.ok) throw new Error(data.error ?? '발송에 실패했습니다.');
-      setSentMsg('전송되었습니다.');
+      setSentMsg(data.queued ? (data.message ?? '발송이 요청되었습니다. 곧 전송됩니다.') : '전송되었습니다.');
       setTimeout(() => { setKakaoOpen(false); setSentMsg(''); setPhone(''); }, 1200);
     } catch (e) {
       setKakaoError(e instanceof Error ? e.message : '발송에 실패했습니다.');

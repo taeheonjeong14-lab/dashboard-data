@@ -471,7 +471,104 @@ async function pollAndRun() {
   }
 }
 
-console.log(`[collect-worker] 시작 — Supabase 폴링 간격: ${POLL_INTERVAL_MS / 1000}초 · 고아 잡 임계값: ${STALE_JOB_TIMEOUT_MS / 60_000}분`);
+// ───────────────────────── 알림톡 발송 대기열(outbox) 처리 ─────────────────────────
+// chart-api 가 health_report.alimtalk_outbox 에 적은 발송 건을, 이 워커(사무실 고정 IP)에서 꺼내 알리고로 보낸다.
+// 알리고가 보는 발신 IP = 이 PC 의 공인 IP(사무실 고정 IP) → 알리고엔 그 IP 만 등록하면 됨.
+const ALIMTALK_POLL_INTERVAL_MS = 7_000;
+const ALIGO_ALIMTALK_URL = "https://kakaoapi.aligo.in/akv10/alimtalk/send/";
+let alimtalkBusy = false;
+
+function aligoButtonsToJson(buttons) {
+  const arr = Array.isArray(buttons) ? buttons : [];
+  return JSON.stringify({
+    button: arr.map((b) =>
+      b && b.type === "AC"
+        ? { name: b.name, linkType: "AC", linkTypeName: "채널 추가" }
+        : { name: b.name, linkType: "WL", linkTypeName: "웹링크", linkMo: b.linkMo, linkPc: b.linkPc || b.linkMo }
+    ),
+  });
+}
+
+async function sendOneAlimtalk(row) {
+  const apikey = process.env.ALIGO_API_KEY;
+  const userid = process.env.ALIGO_USER_ID;
+  const senderkey = process.env.ALIGO_SENDER_KEY;
+  const sender = process.env.ALIGO_SENDER;
+  if (!apikey || !userid || !senderkey || !sender) {
+    return { ok: false, code: -1, message: "워커에 ALIGO_* 환경변수가 없습니다(.env 확인)" };
+  }
+  const form = new URLSearchParams();
+  form.set("apikey", apikey);
+  form.set("userid", userid);
+  form.set("senderkey", senderkey);
+  form.set("tpl_code", row.template_code);
+  form.set("sender", sender);
+  form.set("receiver_1", row.receiver);
+  form.set("subject_1", row.subject || "건강검진 결과 리포트");
+  form.set("message_1", row.message);
+  if (row.emphasis_title) form.set("emtitle_1", row.emphasis_title);
+  if (row.buttons) form.set("button_1", aligoButtonsToJson(row.buttons));
+  if ((process.env.ALIGO_TEST_MODE || "").toLowerCase() === "y") form.set("testMode", "Y");
+
+  const res = await fetch(ALIGO_ALIMTALK_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: form.toString(),
+  });
+  const raw = await res.json().catch(() => ({}));
+  const code = Number(raw && raw.code);
+  return { ok: code === 0, code: Number.isFinite(code) ? code : -1, message: String((raw && raw.message) || "") };
+}
+
+async function processAlimtalkOutbox() {
+  if (alimtalkBusy) return;
+  alimtalkBusy = true;
+  try {
+    const { data: rows, error } = await supabase
+      .schema("health_report")
+      .from("alimtalk_outbox")
+      .select("id, receiver, template_code, subject, emphasis_title, message, buttons, attempts")
+      .eq("status", "queued")
+      .order("created_at", { ascending: true })
+      .limit(5);
+    if (error) return; // 네트워크 등 — 다음 틱에 재시도
+    for (const row of rows || []) {
+      // 동시 중복 발송 방지: queued → sending 으로 선점한 행만 처리
+      const { data: claimed } = await supabase
+        .schema("health_report")
+        .from("alimtalk_outbox")
+        .update({ status: "sending", attempts: (row.attempts || 0) + 1, updated_at: new Date().toISOString() })
+        .eq("id", row.id)
+        .eq("status", "queued")
+        .select("id");
+      if (!claimed || claimed.length === 0) continue;
+      let result;
+      try {
+        result = await sendOneAlimtalk(row);
+      } catch (e) {
+        result = { ok: false, code: -1, message: describeError(e) };
+      }
+      await supabase
+        .schema("health_report")
+        .from("alimtalk_outbox")
+        .update({
+          status: result.ok ? "sent" : "failed",
+          result_code: result.code,
+          error: result.ok ? null : result.message,
+          sent_at: result.ok ? new Date().toISOString() : null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", row.id);
+      console.log(`[collect-worker] 알림톡 ${result.ok ? "발송" : "실패"}: ${row.id} (code=${result.code}${result.ok ? "" : " " + result.message})`);
+    }
+  } catch (e) {
+    console.error("[collect-worker] 알림톡 outbox 처리 오류:", describeError(e));
+  } finally {
+    alimtalkBusy = false;
+  }
+}
+
+console.log(`[collect-worker] 시작 — Supabase 폴링 간격: ${POLL_INTERVAL_MS / 1000}초 · 고아 잡 임계값: ${STALE_JOB_TIMEOUT_MS / 60_000}분 · 알림톡 폴링: ${ALIMTALK_POLL_INTERVAL_MS / 1000}초`);
 
 void reapStaleJobs();
 void pollAndRun();
@@ -479,3 +576,8 @@ setInterval(() => {
   void reapStaleJobs();
   void pollAndRun();
 }, POLL_INTERVAL_MS);
+
+void processAlimtalkOutbox();
+setInterval(() => {
+  void processAlimtalkOutbox();
+}, ALIMTALK_POLL_INTERVAL_MS);
