@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-// GET /api/_debug/egress-ip
+// GET /api/debug/egress-ip
 // chart-api 함수가 외부(알리고 등)로 호출할 때 쓰는 공인 아웃바운드 IP 확인용 진단 라우트.
 // Vercel 함수의 egress IP는 유동적이라 호출마다 다를 수 있다 → 여러 번 새로고침해 확인.
 export async function GET() {
