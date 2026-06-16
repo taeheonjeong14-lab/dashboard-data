@@ -54,6 +54,19 @@ function isEfriendsLabByItemResultSectionLine(t: string): boolean {
 }
 
 /**
+ * 검사 패널 제목 줄(데이터 아님): "혈액검사 - Procyte One CBC", "Catalyst_DX", "Procyte One CBC",
+ * "화학검사 …" 등. 실제 분석항목은 (idexx)/(v200) 가 붙으므로 그건 제외.
+ */
+function isEfriendsLabPanelTitleLine(t: string): boolean {
+  const s = t.replace(/\s+/g, " ").trim();
+  if (!s) return false;
+  if (/\(\s*idexx\s*\)|\(\s*v200\s*\)/i.test(s)) return false; // 분석항목 라인은 제외
+  if (/\b(?:procyte|catalyst)\b/i.test(s)) return true;
+  if (/^(?:혈액검사|화학검사|혈구검사|전혈구검사|일반화학검사|전해질검사)\b/.test(s)) return true;
+  return false;
+}
+
+/**
  * 날짜 비교표(중복) 섹션 시작 신호.
  * 우리가 쓰는 날짜별 표는 헤더가 `Name · Reference · Result · Unit` 순이고 참고구간 칸엔 날짜가 없다.
  * 반면 같은 데이터를 여러 날짜로 나란히 비교하는 표는 헤더의 참고구간 칸에 날짜가 붙어
@@ -1046,7 +1059,10 @@ export function extractEfriendsLabAndPhysicalExamBuckets(
 
     if (pendingDate && !isLikelyHeaderFragmentLine(t)) {
       sectionContextLine = t;
-      pendingPreHeaderLines.push({ page, text: t, corrected: false });
+      // 패널 제목(예: "혈액검사 - Procyte One CBC")은 데이터가 아니므로 버킷에 넣지 않는다.
+      if (!isEfriendsLabPanelTitleLine(t)) {
+        pendingPreHeaderLines.push({ page, text: t, corrected: false });
+      }
     }
 
     i += 1;
@@ -1137,6 +1153,11 @@ export function parseEfriendsLabItemsFromBucketLines(lines: EfriendsBucketLine[]
     }
     // 환자 문서 헤더 메타(Client:/Patient:)는 검사 행이 아님 — 비교표 앞머리에서 새어들어와도 무시.
     if (/^(client|patient)\s*:/i.test(t)) {
+      i += 1;
+      continue;
+    }
+    // 패널 제목(혈액검사 - Procyte One CBC / Catalyst_DX 등)은 분석항목이 아님.
+    if (isEfriendsLabPanelTitleLine(t)) {
       i += 1;
       continue;
     }
