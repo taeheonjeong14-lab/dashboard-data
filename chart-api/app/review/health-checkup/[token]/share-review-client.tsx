@@ -590,13 +590,29 @@ function ReviewImageSlotsEditor({
     const src = slot?.src ?? '';
     const rot = slot?.rotationDeg ?? 0;
     const prev = previewFor(src);
+    const clearSlot = () => {
+      const blocks = parseSystemsBlocks(draft[key]);
+      if (blocks) setBlocksFor(key, updateImgSlot(blocks, bi, si, { src: undefined, caption: '', rotationDeg: 0 }));
+    };
     return (
-      <button
-        type="button"
+      <div
         key={`${key}-${bi}-${si}`}
+        role="button"
+        tabIndex={0}
         onClick={() => setPicker({ key, bi, si })}
-        style={{ border: '1px solid #e4e4e7', borderRadius: 8, padding: 6, background: '#fff', cursor: 'pointer', display: 'block', textAlign: 'center', width: '100%' }}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setPicker({ key, bi, si }); }}
+        style={{ position: 'relative', border: '1px solid #e4e4e7', borderRadius: 8, padding: 6, background: '#fff', cursor: 'pointer', textAlign: 'center' }}
       >
+        {src ? (
+          <button
+            type="button"
+            aria-label="이미지 빼기"
+            onClick={(e) => { e.stopPropagation(); clearSlot(); }}
+            style={{ position: 'absolute', top: -8, right: -8, width: 22, height: 22, borderRadius: '50%', border: 'none', background: '#ef4444', color: '#fff', fontSize: 14, lineHeight: '22px', cursor: 'pointer', padding: 0, boxShadow: '0 1px 3px rgba(0,0,0,0.3)', zIndex: 2 }}
+          >
+            ×
+          </button>
+        ) : null}
         <div style={{ height: 84, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', borderRadius: 4, background: '#fafafa' }}>
           {prev ? (
             // eslint-disable-next-line @next/next/no-img-element
@@ -608,7 +624,7 @@ function ReviewImageSlotsEditor({
         {slot?.caption ? (
           <div style={{ fontSize: 10, color: '#71717a', marginTop: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{slot.caption}</div>
         ) : null}
-      </button>
+      </div>
     );
   }
 
