@@ -44,6 +44,16 @@ function isEfriendsRadiologyResultSectionLine(t: string): boolean {
 }
 
 /**
+ * "Laboratory Result (by Item)" 항목별 재정리 표 — 앞의 혈액검사 결과를 항목별(알파벳순)로
+ * 다시 나열하는 섹션(추이/그래프용이라 값이 0으로 채워짐). 같은 결과의 중복이라 lab 수집을 여기서 종료한다.
+ * (laboratory/labratory 오타 모두 허용)
+ */
+function isEfriendsLabByItemResultSectionLine(t: string): boolean {
+  const s = t.replace(/\s+/g, " ").trim();
+  return /(?:laboratory|labratory)\s+result/i.test(s) && /\(\s*by\s*item\s*\)/i.test(s);
+}
+
+/**
  * 날짜 비교표(중복) 섹션 시작 신호.
  * 우리가 쓰는 날짜별 표는 헤더가 `Name · Reference · Result · Unit` 순이고 참고구간 칸엔 날짜가 없다.
  * 반면 같은 데이터를 여러 날짜로 나란히 비교하는 표는 헤더의 참고구간 칸에 날짜가 붙어
@@ -777,6 +787,9 @@ export function extractEfriendsLabAndPhysicalExamBuckets(
       continue;
     }
 
+    // "Laboratory Result (by Item)" 항목별 재정리 표부터는 앞 결과의 중복이므로 lab 수집 종료.
+    if (isEfriendsLabByItemResultSectionLine(t)) break;
+
     const sameLine = t.match(LABORATORY_DATE_SAME_LINE_RE);
     if (sameLine) {
       pendingDate = normalizeLabSessionDate(sameLine[1] ?? "", sameLine[2] ?? "", sameLine[3] ?? "");
@@ -861,6 +874,13 @@ export function extractEfriendsLabAndPhysicalExamBuckets(
             sectionContextLine = null;
             break;
           }
+          if (isEfriendsLabByItemResultSectionLine(innerText)) {
+            collectingPhysicalExam = false;
+            pendingDate = null;
+            pendingLabDateLines = [];
+            sectionContextLine = null;
+            break;
+          }
           if (EFRIENDS_CHART_VISIT_DATE_LINE_RE.test(innerText)) {
             collectingPhysicalExam = false;
             pendingDate = null;
@@ -927,6 +947,13 @@ export function extractEfriendsLabAndPhysicalExamBuckets(
         }
 
         if (isEfriendsRadiologyResultSectionLine(innerText)) {
+          pendingDate = null;
+          pendingLabDateLines = [];
+          sectionContextLine = null;
+          break;
+        }
+
+        if (isEfriendsLabByItemResultSectionLine(innerText)) {
           pendingDate = null;
           pendingLabDateLines = [];
           sectionContextLine = null;
@@ -1084,6 +1111,10 @@ export function parseEfriendsLabItemsFromBucketLines(lines: EfriendsBucketLine[]
       // 날짜 비교표(중복) 시작 — 이후 줄은 파싱하지 않는다(방어적).
       break;
     }
+    if (isEfriendsLabByItemResultSectionLine(t)) {
+      // 항목별 재정리(by Item) 표 — 앞 결과의 중복이라 이후는 파싱하지 않는다(방어적).
+      break;
+    }
     if (extractLabDateTime(t)) {
       i += 1;
       continue;
@@ -1113,8 +1144,13 @@ export function parseEfriendsLabItemsFromBucketLines(lines: EfriendsBucketLine[]
     if (i + 1 < lines.length) {
       const deferred = tryParseEfriendsAnalyteRefWithFollowingTableHeader(lines, i, rowY);
       if (deferred) {
-        items.push(deferred.item);
-        rowY += 1;
+        // 이 특수 경로는 "항목+참고구간 다음에 곧바로 새 표 헤더"인 경우(예: PL(idexx))로,
+        // 결과값이 없는 항목이다. 다음 표 첫 행 값을 잘못 가져가지 않도록 헤더 뒤로 건너뛰되,
+        // 값이 비어 있으면 표에는 넣지 않는다(빈 행 노이즈 제거).
+        if (deferred.item.valueText && deferred.item.valueText.trim()) {
+          items.push(deferred.item);
+          rowY += 1;
+        }
         i = deferred.nextIndexExclusive;
         continue;
       }
