@@ -17,19 +17,23 @@ export function TopBar({ userName, hospitalName, tokenBalance }: TopBarProps) {
   const router = useRouter();
   const [logoOk, setLogoOk] = useState(true);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  // 데모용 마스킹: URL ?demo=1 로 켜고 ?demo=0 로 끔(localStorage 에 기억 → 페이지 이동에도 유지).
-  // 다른 병원에 데모할 때 상단바의 사용자 이름·병원명만 잠깐 흐리게 가린다.
+  // 데모용 마스킹: 다른 병원에 데모할 때 상단바의 사용자 이름·병원명만 흐리게 가린다.
+  // 1순위) 환경변수 NEXT_PUBLIC_DEMO_MASK=1 이면 서버 렌더부터 "항상" 마스킹(로그아웃/리다이렉트/새로고침 무관).
+  // 2순위) URL ?demo=1 로 켜고 ?demo=0 로 끔(localStorage 기억). env 가 켜져 있으면 토글은 무시.
+  const envMask = process.env.NEXT_PUBLIC_DEMO_MASK === '1';
   const [mask, setMask] = useState<boolean>(() => {
+    if (envMask) return true;
     if (typeof window === 'undefined') return false;
     try { return localStorage.getItem('demoMask') === '1'; } catch { return false; }
   });
   useEffect(() => {
+    if (envMask) return; // env 강제 시 토글 무시
     try {
       const q = new URLSearchParams(window.location.search).get('demo');
       if (q === '1') { localStorage.setItem('demoMask', '1'); setMask(true); }
       else if (q === '0') { localStorage.removeItem('demoMask'); setMask(false); }
     } catch { /* noop */ }
-  }, []);
+  }, [envMask]);
 
   const handleSignOut = async () => {
     const supabase = createClient();
