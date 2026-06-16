@@ -11,7 +11,7 @@ type Tab = 'basic' | 'usage' | 'tokens' | 'payment' | 'password';
 const TOKEN_VALUE_USD = 0.001;
 const FEATURE_LABEL: Record<string, string> = {
   extract: '추출', ocr: 'OCR', case_blog: '진료케이스',
-  health_checkup: '건강검진', disease_intro: '질환소개', image_placement: '이미지배치', image_analysis: '이미지분석', assessment: 'AI평가',
+  health_checkup: '건강검진', disease_intro: '질환소개', image_placement: '이미지배치', image_analysis: '이미지분석', assessment: 'AI평가', kakao_alimtalk: '알림톡',
 };
 // 진료케이스 블로그 3단계(인과·아웃라인·글)는 한 그룹 '진료케이스'로 합쳐 표시.
 const CASE_BLOG_FEATURES = new Set(['blog_causal', 'blog_outline', 'blog_post']);

@@ -476,6 +476,7 @@ async function pollAndRun() {
 // 알리고가 보는 발신 IP = 이 PC 의 공인 IP(사무실 고정 IP) → 알리고엔 그 IP 만 등록하면 됨.
 const ALIMTALK_POLL_INTERVAL_MS = 7_000;
 const ALIGO_ALIMTALK_URL = "https://kakaoapi.aligo.in/akv10/alimtalk/send/";
+const TOKEN_VALUE_USD = Number(process.env.BILLING_TOKEN_VALUE_USD) || 0.001; // 1토큰=$0.001 (chart-api 와 동일)
 let alimtalkBusy = false;
 
 function aligoButtonsToJson(buttons) {
@@ -517,7 +518,12 @@ async function sendOneAlimtalk(row) {
   });
   const raw = await res.json().catch(() => ({}));
   const code = Number(raw && raw.code);
-  return { ok: code === 0, code: Number.isFinite(code) ? code : -1, message: String((raw && raw.message) || "") };
+  return {
+    ok: code === 0,
+    code: Number.isFinite(code) ? code : -1,
+    message: String((raw && raw.message) || ""),
+    info: (raw && raw.info) || null, // { unitCost, totalCost } (원)
+  };
 }
 
 async function processAlimtalkOutbox() {
@@ -527,7 +533,7 @@ async function processAlimtalkOutbox() {
     const { data: rows, error } = await supabase
       .schema("health_report")
       .from("alimtalk_outbox")
-      .select("id, receiver, template_code, subject, emphasis_title, message, buttons, attempts")
+      .select("id, hospital_id, run_id, receiver, template_code, subject, emphasis_title, message, buttons, attempts")
       .eq("status", "queued")
       .order("created_at", { ascending: true })
       .limit(5);
@@ -546,8 +552,31 @@ async function processAlimtalkOutbox() {
       try {
         result = await sendOneAlimtalk(row);
       } catch (e) {
-        result = { ok: false, code: -1, message: describeError(e) };
+        result = { ok: false, code: -1, message: describeError(e), info: null };
       }
+
+      // 발송 응답의 비용(원) 파싱
+      let unitCost = null;
+      let totalCost = null;
+      if (result.ok && result.info) {
+        const u = Number(result.info.unitCost);
+        const t = Number(result.info.totalCost);
+        unitCost = Number.isFinite(u) ? u : null;
+        totalCost = Number.isFinite(t) ? t : unitCost;
+      }
+
+      // 비용 → 토큰 차감(1원=1토큰), 건강검진 리포트 run 에 귀속. best-effort.
+      if (result.ok && row.hospital_id && totalCost != null && totalCost > 0) {
+        const { error: chargeErr } = await supabase.schema("core").rpc("charge_alimtalk_cost", {
+          p_hospital_id: row.hospital_id,
+          p_operation_id: row.id,
+          p_cost_krw: totalCost,
+          p_run_id: row.run_id || null,
+          p_token_value_usd: TOKEN_VALUE_USD,
+        });
+        if (chargeErr) console.warn("[collect-worker] 알림톡 비용 과금 실패(무시):", chargeErr.message);
+      }
+
       await supabase
         .schema("health_report")
         .from("alimtalk_outbox")
@@ -555,11 +584,16 @@ async function processAlimtalkOutbox() {
           status: result.ok ? "sent" : "failed",
           result_code: result.code,
           error: result.ok ? null : result.message,
+          unit_cost: unitCost,
+          total_cost: totalCost,
           sent_at: result.ok ? new Date().toISOString() : null,
           updated_at: new Date().toISOString(),
         })
         .eq("id", row.id);
-      console.log(`[collect-worker] 알림톡 ${result.ok ? "발송" : "실패"}: ${row.id} (code=${result.code}${result.ok ? "" : " " + result.message})`);
+      console.log(
+        `[collect-worker] 알림톡 ${result.ok ? "발송" : "실패"}: ${row.id} (code=${result.code}` +
+          `${totalCost != null ? `, ${totalCost}원` : ""}${result.ok ? "" : " " + result.message})`
+      );
     }
   } catch (e) {
     console.error("[collect-worker] 알림톡 outbox 처리 오류:", describeError(e));
