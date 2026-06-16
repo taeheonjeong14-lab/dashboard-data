@@ -20,6 +20,7 @@ async function runModality(
   overallSummary: string,
   maxSlots: number,
   usageContext?: UsageContext,
+  opts?: { fillAll?: boolean; orderHint?: string },
 ): Promise<CdModalityResult> {
   if (images.length === 0) return { findings: '', imageIds: [] };
 
@@ -39,7 +40,9 @@ async function runModality(
     overallSummary ? `종합소견(맥락, 참고용):\n${overallSummary.slice(0, 1500)}` : '',
     '',
     'findings: 위 종합소견 맥락과 이미지 관찰을 반영한 검사 소견 텍스트(2~5문장).',
-    `imageIds: 그 소견을 가장 잘 보여주는 이미지를 최대 ${maxSlots}장 골라 id 배열로(아래 목록의 id 만, 중요도 높은 순).`,
+    opts?.orderHint
+      ? `imageIds: 이미지를 빼지 말고 **전부** id 배열에 담되, ${opts.orderHint} 순서로 정렬한다(최대 ${maxSlots}장, 아래 목록의 id 만). 방향(VD/lateral)과 부위(흉부/복부)는 이미지를 직접 보고 판단한다.`
+      : `imageIds: 그 소견을 가장 잘 보여주는 이미지를 최대 ${maxSlots}장 골라 id 배열로(아래 목록의 id 만, 중요도 높은 순).`,
     '',
     '이미지 목록 (index: id):',
     manifest,
@@ -91,6 +94,13 @@ async function runModality(
   for (const id of Array.isArray(parsed.imageIds) ? parsed.imageIds : []) {
     if (typeof id === 'string' && validIds.has(id) && !imageIds.includes(id)) imageIds.push(id);
     if (imageIds.length >= maxSlots) break;
+  }
+  // fillAll: LLM 이 일부만 골라도(흔함) 빠진 이미지를 순서대로 채워 "전부 배치" 보장.
+  if (opts?.fillAll) {
+    for (const i of urled) {
+      if (imageIds.length >= maxSlots) break;
+      if (!imageIds.includes(i.id)) imageIds.push(i.id);
+    }
   }
   return { findings, imageIds };
 }
@@ -193,7 +203,10 @@ export async function generateCdFindings(
   const usImgs = images.filter((i) => i.examType === 'ultrasound');
 
   const [radiology, ultrasound] = await Promise.all([
-    runModality(client, model, '방사선', radImgs, overallSummary, 4, usageContext),
+    runModality(client, model, '방사선', radImgs, overallSummary, 4, usageContext, {
+      fillAll: true,
+      orderHint: 'VD 흉부 → lateral 흉부 → VD 복부 → lateral 복부',
+    }),
     runModality(client, model, '초음파', usImgs, overallSummary, 9, usageContext),
   ]);
   return { radiology, ultrasound };
