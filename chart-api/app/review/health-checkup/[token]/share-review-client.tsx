@@ -535,10 +535,12 @@ function ReviewImageSlotsEditor({
   token,
   draft,
   onChange,
+  activeSection,
 }: {
   token: string;
   draft: HealthCheckupGeneratedContent;
   onChange: (d: HealthCheckupGeneratedContent) => void;
+  activeSection?: HealthPreviewEditableSection;
 }) {
   const [cands, setCands] = useState<SlotCandidate[]>([]);
   const [signed, setSigned] = useState<Record<string, string | null>>({});
@@ -571,7 +573,7 @@ function ReviewImageSlotsEditor({
     return signed[src] ?? cands.find((c) => c.storagePath === src)?.previewUrl ?? undefined;
   };
 
-  function renderPage(key: 'systemsPage4Blocks' | 'systemsPage5Blocks', label: string) {
+  function renderPage(key: PageBlocksKey, label: string) {
     const blocks = parseSystemsBlocks(draft[key]);
     if (!blocks) return null;
     const imgBlocks = blocks.map((b, bi) => ({ b, bi })).filter((x) => isImgBlock(x.b));
@@ -639,8 +641,27 @@ function ReviewImageSlotsEditor({
     );
   }
 
-  const hasAnySlots = parseSystemsBlocks(draft.systemsPage4Blocks)?.some(isImgBlock) || parseSystemsBlocks(draft.systemsPage5Blocks)?.some(isImgBlock);
-  if (!hasAnySlots) return null;
+  // 활성 섹션(지금 보고 있는 페이지)에 해당하는 이미지 슬롯만 보여준다. (activeSection 없으면 이미지 있는 페이지 전체 — 폴백)
+  const ACTIVE_TO_KEY: Partial<Record<HealthPreviewEditableSection, PageBlocksKey>> = {
+    systemsPage3: 'systemsPage3Blocks',
+    systemsPage3b: 'systemsPage3bBlocks',
+    systemsPage4: 'systemsPage4Blocks',
+    systemsPage5: 'systemsPage5Blocks',
+  };
+  const LABELS: Record<PageBlocksKey, string> = {
+    systemsPage3Blocks: '이미지',
+    systemsPage3bBlocks: '이미지',
+    systemsPage4Blocks: '치과·피부 등',
+    systemsPage5Blocks: '방사선·초음파 등',
+  };
+  const activeKey = activeSection ? ACTIVE_TO_KEY[activeSection] : undefined;
+  const candidateKeys: PageBlocksKey[] = activeKey
+    ? [activeKey]
+    : activeSection
+      ? [] // 이미지 페이지가 아닌 섹션(표지·소견 등)에서는 사진 편집창을 띄우지 않음
+      : (['systemsPage3Blocks', 'systemsPage3bBlocks', 'systemsPage4Blocks', 'systemsPage5Blocks'] as PageBlocksKey[]);
+  const keysToShow = candidateKeys.filter((k) => parseSystemsBlocks(draft[k])?.some(isImgBlock));
+  if (keysToShow.length === 0) return null;
 
   return (
     <div style={{ marginTop: 20, paddingTop: 16, borderTop: '1px solid #f4f4f5', display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -651,8 +672,9 @@ function ReviewImageSlotsEditor({
       <p style={{ margin: 0, fontSize: 11, color: '#71717a' }}>사진 교체·캡션·90° 회전·비우기 후 위의 「검토 내용 저장」을 누르면 반영됩니다.</p>
       {loading ? <p style={{ fontSize: 12, color: '#71717a' }}>이미지 불러오는 중…</p> : null}
       {err ? <p style={{ fontSize: 12, color: '#991b1b' }}>{err}</p> : null}
-      {renderPage('systemsPage4Blocks', '치과·피부 등 (5p)')}
-      {renderPage('systemsPage5Blocks', '방사선·초음파 등 (6p)')}
+      {keysToShow.map((k) => (
+        <div key={k}>{renderPage(k, LABELS[k])}</div>
+      ))}
     </div>
   );
 }
@@ -1033,7 +1055,7 @@ export default function HealthCheckupShareReviewClient() {
                 saving={saving}
                 activeSection={activeSection}
               />
-              <ReviewImageSlotsEditor token={token} draft={draft} onChange={setDraft} />
+              <ReviewImageSlotsEditor token={token} draft={draft} onChange={setDraft} activeSection={activeSection} />
             </section>
           </div>
         )}
