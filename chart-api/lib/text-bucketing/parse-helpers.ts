@@ -1460,18 +1460,21 @@ export function findPlanStartIndex(lines: string[], chartKind: ChartKind): numbe
 
       if (/^plan:?$/i.test(cur)) {
         let score = 0;
-        // 헤더 토큰 윈도우를 넉넉히(컬럼이 한 줄에 하나씩 쪼개진 PDF는 Plan~Doctor 사이가 길다)
+        // 헤더 토큰 윈도우를 넉넉히(컬럼이 한 줄에 하나씩 쪼개진 PDF는 Plan~Doctor 사이가 길다).
+        // 헤더가 "Date Description" / "Kg Dose t/d Qty Unit"(day 없음) / "Amount Doctor" 처럼
+        // 합쳐지거나 day 가 빠진 변형도 잡도록, 토큰을 부분일치(substring)로 누적 채점한다.
         for (let j = i + 1; j < Math.min(lines.length, i + 16); j += 1) {
-          const raw = (lines[j] ?? '').trim().replace(/\s+/g, ' ');
-          const t = raw.toLowerCase();
-          // 헤더가 한 줄에 합쳐진 경우
-          if (/^kg dose t\/d day qty unit$/.test(t)) score += 2;
-          else if (/kg/.test(t) && /dose/.test(t) && /day/.test(t) && /qty/.test(t) && /unit/.test(t)) score += 2;
-          if (/^amount doctor$/.test(t)) score += 2;
-          // 헤더 컬럼이 한 줄에 하나씩 쪼개진 경우(이 PDF처럼): 단독 토큰도 인정
-          if (t === 'date' || t === 'description' || t === 'doctor') score += 1;
-          if (t === 'amount') score += 2;
-          if (/^(kg|dose|t\/d|day|qty|unit)$/.test(t)) score += 1;
+          const t = (lines[j] ?? '').trim().replace(/\s+/g, ' ').toLowerCase();
+          if (!t) continue;
+          if (/\bdate\b/.test(t)) score += 1;
+          if (/\bdescription\b/.test(t)) score += 1;
+          if (/\bamount\b/.test(t)) score += 2;
+          if (/\bdoctor\b/.test(t)) score += 1;
+          if (/\bkg\b/.test(t)) score += 1;
+          if (/\bdose\b/.test(t)) score += 1;
+          if (/\bqty\b/.test(t)) score += 1;
+          if (/\bunit\b/.test(t)) score += 1;
+          if (/\bday\b|t\/d/.test(t)) score += 1;
         }
         if (score >= 3) return i;
         continue;
