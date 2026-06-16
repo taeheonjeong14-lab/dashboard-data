@@ -1116,6 +1116,17 @@ export function parseEfriendsLabItemsFromBucketLines(lines: EfriendsBucketLine[]
   const items: LabItem[] = [];
   let rowY = 0;
   let i = 0;
+  // 같은 Laboratory date 안에서 이미 나온 항목이 또 나오면(추이/재정리/중복 전사 잔재) 버린다.
+  // 첫 등장(실제 값이 있는 본 표)만 남긴다. 항목명은 같은 날짜에 한 번만 나오므로 안전.
+  let currentDate = '';
+  const seenInDate = new Set<string>();
+  const pushItem = (it: LabItem) => {
+    const key = `${currentDate}|${it.itemName.replace(/\s+/g, '').toLowerCase()}`;
+    if (seenInDate.has(key)) return;
+    seenInDate.add(key);
+    items.push(it);
+    rowY += 1;
+  };
   while (i < lines.length) {
     const line = lines[i];
     const t = line.text.trim();
@@ -1132,6 +1143,8 @@ export function parseEfriendsLabItemsFromBucketLines(lines: EfriendsBucketLine[]
       break;
     }
     if (extractLabDateTime(t)) {
+      currentDate = t.trim();
+      seenInDate.clear();
       i += 1;
       continue;
     }
@@ -1190,8 +1203,7 @@ export function parseEfriendsLabItemsFromBucketLines(lines: EfriendsBucketLine[]
       const d = lines[i + 3].text.trim();
       const quad = tryParseVerticalFourLines(a, b, c, d, lines[i].page, rowY);
       if (quad) {
-        items.push(quad);
-        rowY += 1;
+        pushItem(quad);
         i += 4;
         continue;
       }
@@ -1203,8 +1215,7 @@ export function parseEfriendsLabItemsFromBucketLines(lines: EfriendsBucketLine[]
       const c = lines[i + 2].text.trim();
       const triple = tryParseVerticalThreeLines(a, b, c, lines[i].page, rowY);
       if (triple) {
-        items.push(triple);
-        rowY += 1;
+        pushItem(triple);
         i += 3;
         continue;
       }
@@ -1215,8 +1226,7 @@ export function parseEfriendsLabItemsFromBucketLines(lines: EfriendsBucketLine[]
       const b = lines[i + 1].text.trim();
       const pair = tryParseVerticalTwoLines(a, b, lines[i].page, rowY);
       if (pair) {
-        items.push(pair);
-        rowY += 1;
+        pushItem(pair);
         i += 2;
         continue;
       }
@@ -1224,8 +1234,7 @@ export function parseEfriendsLabItemsFromBucketLines(lines: EfriendsBucketLine[]
 
     const row = parseEfriendsFourColumnRow(t, line.page, rowY);
     if (row) {
-      items.push(row);
-      rowY += 1;
+      pushItem(row);
     }
     i += 1;
   }
