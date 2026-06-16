@@ -123,6 +123,14 @@ function normalizeCoverAgeForDisplay(raw: string | undefined): string {
   return `${t}세`;
 }
 
+/** 숫자만 입력해도 휴대폰 번호 형식(010-1234-5678)으로 보이게 한다. 최대 11자리. */
+function formatPhone(raw: string): string {
+  const d = raw.replace(/\D/g, '').slice(0, 11);
+  if (d.length <= 3) return d;
+  if (d.length <= 7) return `${d.slice(0, 3)}-${d.slice(3)}`;
+  return `${d.slice(0, 3)}-${d.slice(3, 7)}-${d.slice(7)}`;
+}
+
 function CharCountLine({ current, max, min }: { current: number; max: number; min?: number }) {
   const overMax = current > max;
   const belowMin = !overMax && min !== undefined && current < min;
@@ -813,7 +821,7 @@ export default function HealthCheckupShareReviewClient() {
               <input
                 autoFocus
                 value={phone}
-                onChange={(e) => setPhone(e.target.value)}
+                onChange={(e) => setPhone(formatPhone(e.target.value))}
                 placeholder="010-1234-5678"
                 inputMode="numeric"
                 disabled={sending}
