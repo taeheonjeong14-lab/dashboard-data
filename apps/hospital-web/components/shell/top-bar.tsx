@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Settings, LogOut, Coins } from 'lucide-react';
@@ -17,6 +17,19 @@ export function TopBar({ userName, hospitalName, tokenBalance }: TopBarProps) {
   const router = useRouter();
   const [logoOk, setLogoOk] = useState(true);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  // 데모용 마스킹: URL ?demo=1 로 켜고 ?demo=0 로 끔(localStorage 에 기억 → 페이지 이동에도 유지).
+  // 다른 병원에 데모할 때 상단바의 사용자 이름·병원명만 잠깐 흐리게 가린다.
+  const [mask, setMask] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    try { return localStorage.getItem('demoMask') === '1'; } catch { return false; }
+  });
+  useEffect(() => {
+    try {
+      const q = new URLSearchParams(window.location.search).get('demo');
+      if (q === '1') { localStorage.setItem('demoMask', '1'); setMask(true); }
+      else if (q === '0') { localStorage.removeItem('demoMask'); setMask(false); }
+    } catch { /* noop */ }
+  }, []);
 
   const handleSignOut = async () => {
     const supabase = createClient();
@@ -90,6 +103,7 @@ export function TopBar({ userName, hospitalName, tokenBalance }: TopBarProps) {
           {Math.round(tokenBalance ?? 0).toLocaleString()} 토큰
         </span>
         <span
+          title={mask ? '데모 마스킹 중 (URL 에 ?demo=0 으로 해제)' : undefined}
           style={{
             fontSize: 13,
             color: 'var(--text-secondary)',
@@ -97,6 +111,8 @@ export function TopBar({ userName, hospitalName, tokenBalance }: TopBarProps) {
             overflow: 'hidden',
             textOverflow: 'ellipsis',
             whiteSpace: 'nowrap',
+            filter: mask ? 'blur(6px)' : undefined,
+            userSelect: mask ? 'none' : undefined,
           }}
         >
           <span style={{ fontWeight: 600, color: 'var(--text)' }}>{userName ?? '사용자'}</span>
