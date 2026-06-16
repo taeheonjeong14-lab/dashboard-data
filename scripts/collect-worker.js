@@ -477,6 +477,8 @@ async function pollAndRun() {
 const ALIMTALK_POLL_INTERVAL_MS = 7_000;
 const ALIGO_ALIMTALK_URL = "https://kakaoapi.aligo.in/akv10/alimtalk/send/";
 const TOKEN_VALUE_USD = Number(process.env.BILLING_TOKEN_VALUE_USD) || 0.001; // 1토큰=$0.001 (chart-api 와 동일)
+// 알리고 응답에 단가가 없을 때 쓸 건당 고정 원가(원). 1원=1토큰이므로 곧 건당 토큰 수.
+const ALIMTALK_FALLBACK_KRW = Number(process.env.ALIMTALK_UNIT_KRW) || 0;
 let alimtalkBusy = false;
 
 function aligoButtonsToJson(buttons) {
@@ -555,14 +557,21 @@ async function processAlimtalkOutbox() {
         result = { ok: false, code: -1, message: describeError(e), info: null };
       }
 
-      // 발송 응답의 비용(원) 파싱
+      // 발송 응답의 비용(원) 파싱 — 알리고 응답 info 의 필드명이 버전/계정마다 다를 수 있어 여러 후보를 시도.
       let unitCost = null;
       let totalCost = null;
-      if (result.ok && result.info) {
-        const u = Number(result.info.unitCost);
-        const t = Number(result.info.totalCost);
+      if (result.ok) {
+        const info = result.info || {};
+        if (result.info) console.log("[collect-worker] 알림톡 응답 info:", JSON.stringify(result.info));
+        const u = Number(info.unit ?? info.unitCost ?? info.UNIT ?? info.unit_cost);
+        const t = Number(info.total ?? info.totalCost ?? info.TOTAL ?? info.total_cost);
         unitCost = Number.isFinite(u) ? u : null;
         totalCost = Number.isFinite(t) ? t : unitCost;
+        // 응답에 단가가 없으면 고정 단가(env ALIMTALK_UNIT_KRW) 사용.
+        if ((totalCost == null || totalCost <= 0) && ALIMTALK_FALLBACK_KRW > 0) {
+          unitCost = ALIMTALK_FALLBACK_KRW;
+          totalCost = ALIMTALK_FALLBACK_KRW;
+        }
       }
 
       // 비용 → 토큰 차감(1원=1토큰), 건강검진 리포트 run 에 귀속. best-effort.
