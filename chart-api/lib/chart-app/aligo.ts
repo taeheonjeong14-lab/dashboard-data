@@ -12,6 +12,21 @@ export function normalizePhone(raw: string): string {
   return /^01[0-9]{8,9}$/.test(local) ? local : '';
 }
 
+// 알리고가 "고정 발신 IP"를 요구하는데 Vercel egress IP 는 유동적 → ALIGO_PROXY_URL(정적 IP 프록시)이
+// 설정돼 있으면 그 프록시를 거쳐 호출한다(프록시의 고정 IP 를 알리고에 등록). 미설정이면 기존대로 직접 호출.
+// undici 의 fetch 와 ProxyAgent 를 같은 모듈에서 가져와 dispatcher 호환성 문제를 피한다.
+async function postFormUrlEncoded(url: string, body: string): Promise<unknown> {
+  const proxyUrl = (process.env.ALIGO_PROXY_URL || '').trim();
+  const headers = { 'Content-Type': 'application/x-www-form-urlencoded' };
+  if (proxyUrl) {
+    const { fetch: undiciFetch, ProxyAgent } = await import('undici');
+    const res = await undiciFetch(url, { method: 'POST', headers, body, dispatcher: new ProxyAgent(proxyUrl) });
+    return res.json().catch(() => ({}));
+  }
+  const res = await fetch(url, { method: 'POST', headers, body });
+  return res.json().catch(() => ({}));
+}
+
 export type AligoButton = { name: string; linkMo: string; linkPc?: string };
 
 export type AligoAlimtalkResult = { ok: boolean; code: number; message: string; raw: unknown };
@@ -58,12 +73,7 @@ export async function sendAligoAlimtalk(params: {
   }
   if ((process.env.ALIGO_TEST_MODE || '').toLowerCase() === 'y') form.set('testMode', 'Y');
 
-  const res = await fetch(ALIGO_ALIMTALK_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: form.toString(),
-  });
-  const raw = (await res.json().catch(() => ({}))) as { code?: unknown; message?: unknown };
+  const raw = (await postFormUrlEncoded(ALIGO_ALIMTALK_URL, form.toString())) as { code?: unknown; message?: unknown };
   const code = Number(raw?.code);
   return { ok: code === 0, code: Number.isFinite(code) ? code : -1, message: String(raw?.message ?? ''), raw };
 }
