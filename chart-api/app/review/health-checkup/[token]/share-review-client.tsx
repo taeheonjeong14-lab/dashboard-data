@@ -1078,7 +1078,32 @@ export default function HealthCheckupShareReviewClient() {
           <button type="button" onClick={() => downloadPdf()} disabled={downloading || loading} className="hcu-rv-btn-outline">
             {downloading ? 'PDF 생성 중…' : 'PDF 다운로드'}
           </button>
-          <button type="button" onClick={() => { setKakaoOpen(true); setKakaoError(null); setSentMsg(''); }} disabled={loading || !runId} className="hcu-rv-btn-save">
+          <button
+            type="button"
+            onClick={() => { setKakaoOpen(true); setKakaoError(null); setSentMsg(''); }}
+            disabled={loading || !runId}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              padding: '7px 14px',
+              borderRadius: 6,
+              border: 'none',
+              background: '#FEE500',
+              color: '#191600',
+              fontSize: 14,
+              fontWeight: 700,
+              fontFamily: 'inherit',
+              cursor: loading || !runId ? 'not-allowed' : 'pointer',
+              opacity: loading || !runId ? 0.5 : 1,
+            }}
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" style={{ display: 'block' }}>
+              <path
+                fill="#3C1E1E"
+                d="M12 3C6.477 3 2 6.486 2 10.79c0 2.79 1.86 5.236 4.65 6.61-.205.73-.74 2.64-.847 3.05-.133.51.187.503.394.366.163-.108 2.6-1.766 3.65-2.48.51.075 1.034.114 1.553.114 5.523 0 10-3.486 10-7.79C22 6.486 17.523 3 12 3z"
+              />
+            </svg>
             카카오톡으로 전송
           </button>
         </div>
