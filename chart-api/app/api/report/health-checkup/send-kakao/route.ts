@@ -25,8 +25,6 @@ function buildMessage(patientName: string, checkupDate: string, hospitalName: st
     `궁금하신 점 있으시면 언제든지 편하게 ${hospitalName}으로 연락 주시면 친절하게 상담 드릴 수 있도록 하겠습니다.`,
     '',
     '감사합니다.',
-    // 알리고 템플릿 본문 마지막 줄(채널추가 버튼 안내문구)까지 포함해야 "템플릿 일치"가 됨.
-    '채널 추가하고 이 채널의 광고와 마케팅 메시지를 카카오톡으로 받기',
   ].join('\n');
 }
 
@@ -96,9 +94,10 @@ export async function POST(request: NextRequest) {
 
     const pdfUrl = `${new URL(request.url).origin}/review/health-checkup/${encodeURIComponent(token)}/pdf`;
     const templateCode = process.env.ALIGO_TPL_CODE || 'UI_6805';
+    // 채널추가(AC) 버튼·안내문구는 카카오가 자동으로 붙이므로 우리는 보내지 않는다(보내면 템플릿 불일치).
+    // 우리가 채우는 동적 버튼은 웹링크(리포트 확인하기)뿐.
     const buttons = [
       { type: 'WL', name: '리포트 확인하기', linkMo: pdfUrl, linkPc: pdfUrl },
-      { type: 'AC', name: '채널 추가' },
     ];
 
     // 알리고는 고정 발신 IP 를 요구하나 chart-api(Vercel) egress IP 는 유동적 → 사무실 고정 IP 뒤의
