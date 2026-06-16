@@ -93,14 +93,18 @@ export async function POST(request: NextRequest) {
     }
 
     const pdfUrl = `${new URL(request.url).origin}/review/health-checkup/${encodeURIComponent(token)}/pdf`;
-    const templateCode = process.env.ALIGO_TPL_CODE || 'UI_3996';
+    const templateCode = process.env.ALIGO_TPL_CODE || 'UI_6805';
 
     const result = await sendAligoAlimtalk({
       receiver: phone,
       templateCode,
+      emphasisTitle: `${patientName} 건강검진 리포트`,
       message: buildMessage(patientName, checkupDate, hospitalName),
-      subject: '건강검진 결과 리포트',
-      button: { name: '리포트 보러가기', linkMo: pdfUrl, linkPc: pdfUrl },
+      subject: '우리아이 건강검진',
+      buttons: [
+        { type: 'WL', name: '리포트 확인하기', linkMo: pdfUrl, linkPc: pdfUrl },
+        { type: 'AC', name: '채널 추가' },
+      ],
     });
 
     if (!result.ok) {

@@ -27,7 +27,10 @@ async function postFormUrlEncoded(url: string, body: string): Promise<unknown> {
   return res.json().catch(() => ({}));
 }
 
-export type AligoButton = { name: string; linkMo: string; linkPc?: string };
+// WL=웹링크, AC=채널 추가. 템플릿에 등록된 버튼과 종류·이름·순서가 일치해야 함.
+export type AligoButton =
+  | { type: 'WL'; name: string; linkMo: string; linkPc?: string }
+  | { type: 'AC'; name: string };
 
 export type AligoAlimtalkResult = { ok: boolean; code: number; message: string; raw: unknown };
 
@@ -36,7 +39,8 @@ export async function sendAligoAlimtalk(params: {
   templateCode: string;
   message: string; // 승인된 템플릿 본문에 변수 치환한 전체 텍스트(정확히 일치해야 발송됨)
   subject?: string;
-  button?: AligoButton; // 웹링크 버튼(템플릿에 등록돼 있어야 함)
+  emphasisTitle?: string; // 강조표기형 주제목(emtitle_1). 변수 치환 후 텍스트.
+  buttons?: AligoButton[]; // 템플릿에 등록된 버튼들(순서 일치)
 }): Promise<AligoAlimtalkResult> {
   const apikey = process.env.ALIGO_API_KEY;
   const userid = process.env.ALIGO_USER_ID;
@@ -55,19 +59,16 @@ export async function sendAligoAlimtalk(params: {
   form.set('receiver_1', params.receiver);
   form.set('subject_1', params.subject || '건강검진 결과 리포트');
   form.set('message_1', params.message);
-  if (params.button) {
+  if (params.emphasisTitle) form.set('emtitle_1', params.emphasisTitle);
+  if (params.buttons && params.buttons.length > 0) {
     form.set(
       'button_1',
       JSON.stringify({
-        button: [
-          {
-            name: params.button.name,
-            linkType: 'WL',
-            linkTypeName: '웹링크',
-            linkMo: params.button.linkMo,
-            linkPc: params.button.linkPc || params.button.linkMo,
-          },
-        ],
+        button: params.buttons.map((b) =>
+          b.type === 'AC'
+            ? { name: b.name, linkType: 'AC', linkTypeName: '채널 추가' }
+            : { name: b.name, linkType: 'WL', linkTypeName: '웹링크', linkMo: b.linkMo, linkPc: b.linkPc || b.linkMo },
+        ),
       }),
     );
   }
