@@ -546,6 +546,7 @@ function ReviewImageSlotsEditor({
   const [signed, setSigned] = useState<Record<string, string | null>>({});
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
+  const [picker, setPicker] = useState<{ key: PageBlocksKey; bi: number; si: number } | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -566,77 +567,59 @@ function ReviewImageSlotsEditor({
     void load();
   }, [load]);
 
-  const pathById = useMemo(() => new Map(cands.map((c) => [c.id, c.storagePath])), [cands]);
   const previewFor = (src: string | undefined): string | undefined => {
     if (!src) return undefined;
     if (src.startsWith('http') || src.startsWith('blob:')) return src;
     return signed[src] ?? cands.find((c) => c.storagePath === src)?.previewUrl ?? undefined;
   };
+  // 후보를 검사종류별로 묶어 모달에서 카테고리로 보여준다.
+  const grouped = useMemo(() => {
+    const m = new Map<string, SlotCandidate[]>();
+    for (const c of cands) {
+      const cat = c.examType || '기타';
+      const arr = m.get(cat) ?? [];
+      arr.push(c);
+      m.set(cat, arr);
+    }
+    return [...m.entries()];
+  }, [cands]);
 
-  function renderPage(key: PageBlocksKey, label: string) {
+  const setBlocksFor = (key: PageBlocksKey, nb: HealthSystemsReportBlock[]) => onChange({ ...draft, [key]: nb });
+
+  function slotTiles(key: PageBlocksKey) {
     const blocks = parseSystemsBlocks(draft[key]);
     if (!blocks) return null;
     const imgBlocks = blocks.map((b, bi) => ({ b, bi })).filter((x) => isImgBlock(x.b));
     if (imgBlocks.length === 0) return null;
-    const setBlocks = (nb: HealthSystemsReportBlock[]) => onChange({ ...draft, [key]: nb });
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        <div style={{ fontSize: 12, fontWeight: 700, color: '#3f3f46' }}>{label}</div>
-        <div style={{ display: 'grid', gap: 10, gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))' }}>
-          {imgBlocks.flatMap(({ b, bi }) =>
-            (isImgBlock(b) ? b.images : []).map((slot, si) => {
-              const src = slot?.src ?? '';
-              const rot = slot?.rotationDeg ?? 0;
-              const prev = previewFor(src);
-              return (
-                <div key={`${key}-${bi}-${si}`} style={{ border: '1px dashed #d4d4d8', borderRadius: 8, padding: 8, background: '#fff' }}>
-                  <div style={{ height: 80, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', borderRadius: 4, background: '#fafafa' }}>
-                    {prev ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img alt="" src={prev} style={{ maxWidth: '100%', maxHeight: 80, objectFit: 'contain', transform: `rotate(${rot}deg)`, transition: 'transform 0.2s' }} />
-                    ) : (
-                      <span style={{ fontSize: 11, color: '#a1a1aa' }}>이미지 없음</span>
-                    )}
-                  </div>
-                  <select
-                    style={{ width: '100%', marginTop: 6, fontSize: 11, padding: 4 }}
-                    value={cands.find((c) => c.storagePath === src)?.id ?? ''}
-                    onChange={(e) => {
-                      const id = e.target.value;
-                      const path = id ? pathById.get(id) ?? '' : '';
-                      setBlocks(updateImgSlot(blocks, bi, si, { src: path || undefined }));
-                    }}
-                  >
-                    <option value="">비움</option>
-                    {cands.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {(c.examType ? c.examType + ' · ' : '') + (c.fileName ?? c.id).slice(0, 22)}
-                      </option>
-                    ))}
-                  </select>
-                  <input
-                    style={{ width: '100%', marginTop: 6, fontSize: 11, padding: 4, boxSizing: 'border-box' }}
-                    placeholder="캡션"
-                    value={slot?.caption ?? ''}
-                    onChange={(e) => setBlocks(updateImgSlot(blocks, bi, si, { caption: e.target.value }))}
-                  />
-                  <div style={{ display: 'flex', gap: 4, marginTop: 6 }}>
-                    <button type="button" className="hcu-rv-btn-outline" style={{ flex: 1, padding: '4px 0', fontSize: 11 }} disabled={!src}
-                      onClick={() => setBlocks(updateImgSlot(blocks, bi, si, { rotationDeg: (rot + 90) % 360 }))}>
-                      90° 회전
-                    </button>
-                    {src ? (
-                      <button type="button" className="hcu-rv-btn-outline" style={{ flex: 1, padding: '4px 0', fontSize: 11 }}
-                        onClick={() => setBlocks(updateImgSlot(blocks, bi, si, { src: undefined, caption: '', rotationDeg: 0 }))}>
-                        비우기
-                      </button>
-                    ) : null}
-                  </div>
+      <div style={{ display: 'grid', gap: 10, gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))' }}>
+        {imgBlocks.flatMap(({ b, bi }) =>
+          (isImgBlock(b) ? b.images : []).map((slot, si) => {
+            const src = slot?.src ?? '';
+            const rot = slot?.rotationDeg ?? 0;
+            const prev = previewFor(src);
+            return (
+              <button
+                type="button"
+                key={`${key}-${bi}-${si}`}
+                onClick={() => setPicker({ key, bi, si })}
+                style={{ border: '1px solid #e4e4e7', borderRadius: 8, padding: 6, background: '#fff', cursor: 'pointer', display: 'block', textAlign: 'center', width: '100%' }}
+              >
+                <div style={{ height: 84, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', borderRadius: 4, background: '#fafafa' }}>
+                  {prev ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img alt="" src={prev} style={{ maxWidth: '100%', maxHeight: 84, objectFit: 'contain', transform: `rotate(${rot}deg)` }} />
+                  ) : (
+                    <span style={{ fontSize: 30, color: '#a1a1aa', lineHeight: 1 }}>＋</span>
+                  )}
                 </div>
-              );
-            }),
-          )}
-        </div>
+                {slot?.caption ? (
+                  <div style={{ fontSize: 10, color: '#71717a', marginTop: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{slot.caption}</div>
+                ) : null}
+              </button>
+            );
+          }),
+        )}
       </div>
     );
   }
@@ -663,18 +646,110 @@ function ReviewImageSlotsEditor({
   const keysToShow = candidateKeys.filter((k) => parseSystemsBlocks(draft[k])?.some(isImgBlock));
   if (keysToShow.length === 0) return null;
 
+  // 피커 모달 대상 슬롯
+  const pickerBlocks = picker ? parseSystemsBlocks(draft[picker.key]) : null;
+  const pickerSlotObj = picker && pickerBlocks
+    ? (() => { const bb = pickerBlocks[picker.bi] as unknown; return isImgBlock(bb) ? bb.images[picker.si] : undefined; })()
+    : undefined;
+  const pickerSrc = pickerSlotObj?.src ?? '';
+  const pickerRot = pickerSlotObj?.rotationDeg ?? 0;
+  const pickerCaption = pickerSlotObj?.caption ?? '';
+  const patchPicker = (patch: ImgSlot) => {
+    if (picker && pickerBlocks) setBlocksFor(picker.key, updateImgSlot(pickerBlocks, picker.bi, picker.si, patch));
+  };
+
   return (
     <div style={{ marginTop: 20, paddingTop: 16, borderTop: '1px solid #f4f4f5', display: 'flex', flexDirection: 'column', gap: 14 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <span style={{ fontSize: 14, fontWeight: 700, color: '#18181b' }}>사진 편집</span>
         <button type="button" className="hcu-rv-btn-outline" disabled={loading} onClick={() => void load()}>새로고침</button>
       </div>
-      <p style={{ margin: 0, fontSize: 11, color: '#71717a' }}>사진 교체·캡션·90° 회전·비우기 후 위의 「검토 내용 저장」을 누르면 반영됩니다.</p>
+      <p style={{ margin: 0, fontSize: 11, color: '#71717a' }}>슬롯을 눌러 사진을 고르고(캡션·90° 회전·삭제) 위의 「검토 내용 저장」을 누르면 반영됩니다.</p>
       {loading ? <p style={{ fontSize: 12, color: '#71717a' }}>이미지 불러오는 중…</p> : null}
       {err ? <p style={{ fontSize: 12, color: '#991b1b' }}>{err}</p> : null}
       {keysToShow.map((k) => (
-        <div key={k}>{renderPage(k, LABELS[k])}</div>
+        <div key={k} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: '#3f3f46' }}>{LABELS[k]}</div>
+          {slotTiles(k)}
+        </div>
       ))}
+
+      {picker && pickerBlocks ? (
+        <div
+          onClick={() => setPicker(null)}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{ background: '#fff', borderRadius: 12, padding: 20, width: 'min(92vw, 820px)', maxHeight: '88vh', overflowY: 'auto', display: 'grid', gap: 16 }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontWeight: 700, fontSize: 15 }}>이미지 선택</span>
+              <button type="button" className="hcu-rv-btn-save" onClick={() => setPicker(null)}>완료</button>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, paddingBottom: 16, borderBottom: '1px solid #e4e4e7' }}>
+              <div style={{ background: '#fafafa', borderRadius: 8, minHeight: 180, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                {previewFor(pickerSrc) ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img alt="" src={previewFor(pickerSrc)} style={{ maxWidth: '100%', maxHeight: 220, objectFit: 'contain', transform: `rotate(${pickerRot}deg)`, transition: 'transform 0.2s' }} />
+                ) : (
+                  <div style={{ textAlign: 'center', color: '#a1a1aa' }}>
+                    <div style={{ fontSize: 32, lineHeight: 1, marginBottom: 6 }}>＋</div>
+                    <div style={{ fontSize: 13 }}>아래에서 사진을 고르세요</div>
+                  </div>
+                )}
+              </div>
+              <div style={{ display: 'grid', gap: 10, alignContent: 'start' }}>
+                <label style={{ fontSize: 12, display: 'grid', gap: 4 }}>
+                  <span style={{ color: '#52525b', fontWeight: 600 }}>캡션</span>
+                  <textarea
+                    rows={3}
+                    maxLength={10}
+                    placeholder="이미지 캡션"
+                    value={pickerCaption}
+                    onChange={(e) => patchPicker({ caption: e.target.value })}
+                    style={{ width: '100%', padding: 8, fontSize: 13, borderRadius: 6, border: '1px solid #e4e4e7', resize: 'vertical', boxSizing: 'border-box' }}
+                  />
+                  <span style={{ fontSize: 11, color: pickerCaption.length >= 10 ? '#991b1b' : '#a1a1aa', textAlign: 'right' }}>{pickerCaption.length} / 10</span>
+                </label>
+                <button type="button" className="hcu-rv-btn-outline" disabled={!pickerSrc} onClick={() => patchPicker({ rotationDeg: (pickerRot + 90) % 360 })}>90° 회전</button>
+                {pickerSrc ? (
+                  <button type="button" className="hcu-rv-btn-outline" onClick={() => patchPicker({ src: undefined, caption: '', rotationDeg: 0 })}>이미지 삭제</button>
+                ) : null}
+              </div>
+            </div>
+            {cands.length === 0 ? (
+              <p style={{ fontSize: 13, color: '#71717a', margin: 0 }}>후보 이미지가 없습니다.</p>
+            ) : (
+              grouped.map(([category, items]) => (
+                <div key={category}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: '#52525b', marginBottom: 8 }}>{category}</div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+                    {items.map((c) => {
+                      const sel = !!c.storagePath && c.storagePath === pickerSrc;
+                      return (
+                        <button
+                          type="button"
+                          key={c.id}
+                          onClick={() => patchPicker({ src: c.storagePath })}
+                          style={{ width: 96, padding: 0, border: sel ? '2px solid #0369a1' : '1px solid #e4e4e7', borderRadius: 6, overflow: 'hidden', background: '#fff', cursor: 'pointer' }}
+                        >
+                          {c.previewUrl ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img alt="" src={c.previewUrl} style={{ width: '100%', height: 72, objectFit: 'cover', display: 'block' }} />
+                          ) : (
+                            <div style={{ height: 72, fontSize: 10, color: '#a1a1aa', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>미리보기 없음</div>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
