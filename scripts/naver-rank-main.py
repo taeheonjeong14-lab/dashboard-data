@@ -1941,6 +1941,12 @@ _print_lock = threading.Lock()
 _progress_lock = threading.Lock()
 _rank_progress = {"done": 0, "total": 0}
 
+# 부분 결과 보존(증분 적재): 워커가 키워드 배치마다 즉시 DB 업서트할지 + 그날 metric_date + 배치 크기.
+# 워커 타임아웃/네이버 차단/프로세스 강제종료가 나도 그때까지 수집한 순위는 DB에 남는다.
+_PERSIST_INCREMENTAL = False
+_PERSIST_METRIC_DATE: "str | None" = None
+_PERSIST_BATCH = max(1, int(os.getenv("RANK_PERSIST_BATCH", "5")))
+
 
 def _bump_rank_progress(label: str | None = None) -> None:
     with _progress_lock:
@@ -1952,6 +1958,42 @@ def _bump_rank_progress(label: str | None = None) -> None:
         + json.dumps({"step": "keyword_rank", "done": done, "total": total, "label": label}, separators=(",", ":")),
         flush=True,
     )
+
+
+def _persist_blog_batch(rows: list[dict]) -> bool:
+    """블로그 결과 배치를 즉시 업서트(부분 결과 보존). 성공 시 True(버퍼 비움), 실패 시 False(버퍼 유지→재시도)."""
+    if not rows:
+        return True
+    try:
+        upload_blog_ranks_to_supabase(rows, metric_date=_PERSIST_METRIC_DATE)
+    except Exception as e:
+        with _print_lock:
+            print(f"⚠️ 블로그 부분 적재 실패(다음 배치에서 재시도): {e}")
+        return False
+    try:
+        upload_competitor_ranks_to_supabase(rows, "blog", metric_date=_PERSIST_METRIC_DATE)
+    except Exception as e:
+        with _print_lock:
+            print(f"⚠️ 경쟁사(블로그) 부분 적재 실패(무시): {e}")
+    return True
+
+
+def _persist_place_batch(rows: list[dict]) -> bool:
+    """플레이스 결과 배치를 즉시 업서트(부분 결과 보존)."""
+    if not rows:
+        return True
+    try:
+        upload_place_ranks_to_supabase(rows, metric_date=_PERSIST_METRIC_DATE)
+    except Exception as e:
+        with _print_lock:
+            print(f"⚠️ 플레이스 부분 적재 실패(다음 배치에서 재시도): {e}")
+        return False
+    try:
+        upload_competitor_ranks_to_supabase(rows, "place", metric_date=_PERSIST_METRIC_DATE)
+    except Exception as e:
+        with _print_lock:
+            print(f"⚠️ 경쟁사(플레이스) 부분 적재 실패(무시): {e}")
+    return True
 
 
 def _worker_blog_chunk(worker_id: int, pairs_chunk: list, use_debug_chrome: bool, debug_port: int) -> list[dict]:
@@ -1971,6 +2013,7 @@ def _worker_blog_chunk(worker_id: int, pairs_chunk: list, use_debug_chrome: bool
             debug_port=debug_port,
         )
         page = context.new_page()
+        pending: list[dict] = []
         try:
             for blog_id, kw in pairs_chunk:
                 if _blocked_event.is_set():
@@ -2001,6 +2044,10 @@ def _worker_blog_chunk(worker_id: int, pairs_chunk: list, use_debug_chrome: bool
                         print(f"   🏁 경쟁사 블로그(탭): {comp_txt}")
                 chunk_results.append(row)
                 _bump_rank_progress(kw)
+                if _PERSIST_INCREMENTAL:
+                    pending.append(row)
+                    if len(pending) >= _PERSIST_BATCH and _persist_blog_batch(pending):
+                        pending = []
                 if _detect_block(page):
                     _blocked_event.set()
                     with _print_lock:
@@ -2008,6 +2055,8 @@ def _worker_blog_chunk(worker_id: int, pairs_chunk: list, use_debug_chrome: bool
                     break
                 _human_delay()
         finally:
+            if _PERSIST_INCREMENTAL and pending:
+                _persist_blog_batch(pending)
             with suppress(Exception):
                 page.close()
             if not use_debug_chrome:
@@ -2032,6 +2081,7 @@ def _worker_place_chunk(worker_id: int, place_chunk: list, use_debug_chrome: boo
             debug_port=debug_port,
         )
         page = context.new_page()
+        pending: list[dict] = []
         try:
             for kw, store, hospital_id in place_chunk:
                 if _blocked_event.is_set():
@@ -2053,6 +2103,10 @@ def _worker_place_chunk(worker_id: int, place_chunk: list, use_debug_chrome: boo
                         print(f"📌 [{kw} / {store}] 플레이스: {data.get('rank')}위" + (f" | 경쟁사 {comp_txt}" if comp_txt else ""))
                 chunk_results.append(data)
                 _bump_rank_progress(f"{kw} / {store}")
+                if _PERSIST_INCREMENTAL:
+                    pending.append(data)
+                    if len(pending) >= _PERSIST_BATCH and _persist_place_batch(pending):
+                        pending = []
                 if _detect_block(page):
                     _blocked_event.set()
                     with _print_lock:
@@ -2060,6 +2114,8 @@ def _worker_place_chunk(worker_id: int, place_chunk: list, use_debug_chrome: boo
                     break
                 _human_delay()
         finally:
+            if _PERSIST_INCREMENTAL and pending:
+                _persist_place_batch(pending)
             with suppress(Exception):
                 page.close()
             if not use_debug_chrome:
@@ -2213,6 +2269,13 @@ def main():
         _rank_progress["done"] = 0
         _rank_progress["total"] = _blog_valid_count + (len(place_pairs) if place_pairs else 0)
 
+    # 부분 결과 보존: 워커가 키워드 배치마다 즉시 DB 적재(타임아웃/차단/강제종료에도 수집분 유지).
+    global _PERSIST_INCREMENTAL, _PERSIST_METRIC_DATE
+    _PERSIST_INCREMENTAL = bool(upload_db)
+    _PERSIST_METRIC_DATE = metric_date
+    if _PERSIST_INCREMENTAL:
+        print(f"ℹ️ 부분 결과 보존 ON — {_PERSIST_BATCH}개 단위로 즉시 적재")
+
     # 블로그 키워드: 병렬 처리 (워커별 독립 playwright 세션 + 페이지)
     if pairs:
         valid_pairs = [(b, k) for b, k in pairs if b and b != "your_blog_id"]
@@ -2221,7 +2284,7 @@ def main():
             print(f"⚠️ 블로그 ID 없는 {skipped}개 키워드 스킵")
         chunks = _split_roundrobin(valid_pairs, num_workers)
         actual_workers = len(chunks)
-        worker_timeout_sec = int(os.getenv("RANK_WORKER_TIMEOUT_SEC", "300"))
+        worker_timeout_sec = int(os.getenv("RANK_WORKER_TIMEOUT_SEC", "3000"))
         print(f"🚀 네이버 블로그 순위 확인 — {len(valid_pairs)}개 조합 / {actual_workers}개 병렬 워커 (워커 타임아웃: {worker_timeout_sec}s)\n")
         with ThreadPoolExecutor(max_workers=actual_workers) as executor:
             futures = [
@@ -2240,7 +2303,7 @@ def main():
     if place_pairs:
         place_chunks = _split_roundrobin(place_pairs, num_workers)
         actual_place_workers = len(place_chunks)
-        worker_timeout_sec = int(os.getenv("RANK_WORKER_TIMEOUT_SEC", "300"))
+        worker_timeout_sec = int(os.getenv("RANK_WORKER_TIMEOUT_SEC", "3000"))
         print(f"\n🏪 플레이스 순위 확인 — {len(place_pairs)}개 조합 / {actual_place_workers}개 병렬 워커 (광고 제외)\n")
         with ThreadPoolExecutor(max_workers=actual_place_workers) as executor:
             futures = [

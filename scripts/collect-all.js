@@ -17,11 +17,12 @@ require("dotenv").config({ path: path.resolve(__dirname, "..", ".env") });
 
 const ROOT_DIR = path.resolve(__dirname, "..");
 const HOSPITAL_ID = (process.argv[2] || "").trim();
-// 단계당 최대 시간. 기본 60분. 대량 백필(예: SearchAd 수백일) 시 .env 의
-// COLLECT_STEP_TIMEOUT_MIN 으로 넉넉하게 늘릴 수 있음 (분 단위).
+// 단계당 최대 시간. 기본 120분. 키워드 순위 수집은 워커 타임아웃(RANK_WORKER_TIMEOUT_SEC,
+// 기본 3000초=50분)이 blog·place 단계에 각각 적용될 수 있어 step 한도를 넉넉히 둔다.
+// 대량 백필(예: SearchAd 수백일) 시 .env 의 COLLECT_STEP_TIMEOUT_MIN 으로 더 늘릴 수 있음 (분 단위).
 const STEP_TIMEOUT_MS = (() => {
   const raw = Number(process.env.COLLECT_STEP_TIMEOUT_MIN || "");
-  const minutes = Number.isFinite(raw) && raw > 0 ? raw : 60;
+  const minutes = Number.isFinite(raw) && raw > 0 ? raw : 120;
   return minutes * 60 * 1000;
 })();
 // 스톨 감지: 단계가 이 시간 동안 출력(진행 신호)이 전혀 없으면 hang으로 보고 강제 종료.
