@@ -586,40 +586,60 @@ function ReviewImageSlotsEditor({
 
   const setBlocksFor = (key: PageBlocksKey, nb: HealthSystemsReportBlock[]) => onChange({ ...draft, [key]: nb });
 
+  function slotTile(key: PageBlocksKey, bi: number, slot: ImgSlot, si: number) {
+    const src = slot?.src ?? '';
+    const rot = slot?.rotationDeg ?? 0;
+    const prev = previewFor(src);
+    return (
+      <button
+        type="button"
+        key={`${key}-${bi}-${si}`}
+        onClick={() => setPicker({ key, bi, si })}
+        style={{ border: '1px solid #e4e4e7', borderRadius: 8, padding: 6, background: '#fff', cursor: 'pointer', display: 'block', textAlign: 'center', width: '100%' }}
+      >
+        <div style={{ height: 84, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', borderRadius: 4, background: '#fafafa' }}>
+          {prev ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img alt="" src={prev} style={{ maxWidth: '100%', maxHeight: 84, objectFit: 'contain', transform: `rotate(${rot}deg)` }} />
+          ) : (
+            <span style={{ fontSize: 30, color: '#a1a1aa', lineHeight: 1 }}>＋</span>
+          )}
+        </div>
+        {slot?.caption ? (
+          <div style={{ fontSize: 10, color: '#71717a', marginTop: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{slot.caption}</div>
+        ) : null}
+      </button>
+    );
+  }
+
   function slotTiles(key: PageBlocksKey) {
     const blocks = parseSystemsBlocks(draft[key]);
     if (!blocks) return null;
-    const imgBlocks = blocks.map((b, bi) => ({ b, bi })).filter((x) => isImgBlock(x.b));
-    if (imgBlocks.length === 0) return null;
+    // 이미지 블록을 직전 rows 블록의 제목(섹션)별로 묶는다 — 미리보기와 동일 구분.
+    const sections: { title: string; bi: number }[] = [];
+    let lastTitle = '';
+    blocks.forEach((b, bi) => {
+      const ab = b as { variant?: string; titleKo?: string; titleEn?: string };
+      if (ab.variant === 'rows') lastTitle = ab.titleKo || ab.titleEn || lastTitle;
+      else if (isImgBlock(b)) sections.push({ title: lastTitle, bi });
+    });
+    if (sections.length === 0) return null;
     return (
-      <div style={{ display: 'grid', gap: 10, gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))' }}>
-        {imgBlocks.flatMap(({ b, bi }) =>
-          (isImgBlock(b) ? b.images : []).map((slot, si) => {
-            const src = slot?.src ?? '';
-            const rot = slot?.rotationDeg ?? 0;
-            const prev = previewFor(src);
-            return (
-              <button
-                type="button"
-                key={`${key}-${bi}-${si}`}
-                onClick={() => setPicker({ key, bi, si })}
-                style={{ border: '1px solid #e4e4e7', borderRadius: 8, padding: 6, background: '#fff', cursor: 'pointer', display: 'block', textAlign: 'center', width: '100%' }}
-              >
-                <div style={{ height: 84, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', borderRadius: 4, background: '#fafafa' }}>
-                  {prev ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img alt="" src={prev} style={{ maxWidth: '100%', maxHeight: 84, objectFit: 'contain', transform: `rotate(${rot}deg)` }} />
-                  ) : (
-                    <span style={{ fontSize: 30, color: '#a1a1aa', lineHeight: 1 }}>＋</span>
-                  )}
-                </div>
-                {slot?.caption ? (
-                  <div style={{ fontSize: 10, color: '#71717a', marginTop: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{slot.caption}</div>
-                ) : null}
-              </button>
-            );
-          }),
-        )}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        {sections.map(({ title, bi }) => {
+          const b = blocks[bi];
+          const slots = isImgBlock(b) ? b.images : [];
+          return (
+            <div key={`${key}-sec-${bi}`}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: '#3f3f46', marginBottom: 6 }}>
+                {title || LABELS[key]} <span style={{ fontWeight: 400, color: '#a1a1aa' }}>· {slots.length}장</span>
+              </div>
+              <div style={{ display: 'grid', gap: 10, gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))' }}>
+                {slots.map((slot, si) => slotTile(key, bi, slot, si))}
+              </div>
+            </div>
+          );
+        })}
       </div>
     );
   }
@@ -668,10 +688,7 @@ function ReviewImageSlotsEditor({
       {loading ? <p style={{ fontSize: 12, color: '#71717a' }}>이미지 불러오는 중…</p> : null}
       {err ? <p style={{ fontSize: 12, color: '#991b1b' }}>{err}</p> : null}
       {keysToShow.map((k) => (
-        <div key={k} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: '#3f3f46' }}>{LABELS[k]}</div>
-          {slotTiles(k)}
-        </div>
+        <div key={k} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>{slotTiles(k)}</div>
       ))}
 
       {picker && pickerBlocks ? (
