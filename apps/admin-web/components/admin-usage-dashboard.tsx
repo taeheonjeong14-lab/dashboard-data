@@ -16,7 +16,7 @@ type HospitalRow = {
 type UsageItem = { feature: string; provider: string; costUsd: number; calls: number };
 type UsageRun = {
   runId: string | null; friendlyId: string | null; patientName: string | null; ownerName: string | null;
-  lastUsed: string | null; costUsd: number; calls: number; items: UsageItem[];
+  lastUsed: string | null; costUsd: number; calls: number; refunded: boolean; items: UsageItem[];
 };
 type UsageResponse = {
   days: number;
@@ -267,6 +267,7 @@ export default function AdminUsageDashboard() {
                         <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>
                           <span style={{ color: 'var(--text-muted)', fontWeight: 600, marginRight: 4 }}>{open ? '▼' : '▶'}</span>
                           {label}
+                          {run.refunded ? <span style={{ marginLeft: 6, fontSize: 10.5, fontWeight: 700, color: 'var(--accent)', background: 'var(--accent-subtle)', padding: '1px 6px', borderRadius: 999 }}>바른플랜 환불</span> : null}
                           {run.friendlyId ? <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}> · #{run.friendlyId}</span> : null}
                           {who ? <span style={{ color: 'var(--text-secondary)', fontWeight: 500 }}> · {who}</span> : null}
                           {run.runId == null ? <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}> · (건 미귀속)</span> : null}

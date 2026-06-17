@@ -87,7 +87,7 @@ export async function GET(request: NextRequest) {
     type UsageItem = { feature: string; provider: string; costUsd: number; calls: number };
     type UsageRun = {
       runId: string | null; friendlyId: string | null; patientName: string | null; ownerName: string | null;
-      lastUsed: string | null; costUsd: number; calls: number; items: UsageItem[];
+      lastUsed: string | null; costUsd: number; calls: number; refunded: boolean; items: UsageItem[];
     };
     const hospitalIdParam = request.nextUrl.searchParams.get('hospitalId');
     let runs: UsageRun[] = [];
@@ -116,6 +116,17 @@ export async function GET(request: NextRequest) {
         );
         for (const m of metaRes.rows) metaMap.set(m.run_id, { friendlyId: m.friendly_id, patientName: m.patient_name, ownerName: m.owner_name });
       }
+      // 바른플랜 환불된 run(진료케이스 차감 후 즉시 환불) — token_ledger note 로 판별
+      const refundedRes = await pool.query<{ run_id: string }>(
+        `SELECT DISTINCT u.run_id
+           FROM billing.token_ledger l
+           JOIN billing.llm_usage u ON u.operation_id = l.operation_id
+          WHERE u.hospital_id = $1::uuid AND u.run_id IS NOT NULL
+            AND l.kind = 'adjust' AND l.note = 'barun_plan_refund'`,
+        [hospitalIdParam],
+      );
+      const refundedRuns = new Set(refundedRes.rows.map((r) => r.run_id));
+
       const byRun = new Map<string, UsageRun>();
       for (const r of rowsRes.rows) {
         const key = r.run_id ?? 'none';
@@ -124,7 +135,8 @@ export async function GET(request: NextRequest) {
           const meta = r.run_id ? metaMap.get(r.run_id) : null;
           g = {
             runId: r.run_id, friendlyId: meta?.friendlyId ?? null, patientName: meta?.patientName ?? null,
-            ownerName: meta?.ownerName ?? null, lastUsed: r.last_used, costUsd: 0, calls: 0, items: [],
+            ownerName: meta?.ownerName ?? null, lastUsed: r.last_used, costUsd: 0, calls: 0,
+            refunded: r.run_id ? refundedRuns.has(r.run_id) : false, items: [],
           };
           byRun.set(key, g);
         }
