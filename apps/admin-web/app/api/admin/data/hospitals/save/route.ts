@@ -54,6 +54,9 @@ type FormBody = {
     googleads_customer_id?: string;
     googleads_refresh_token_encrypted?: string;
     intake_survey_enabled?: boolean;
+    barun_plan_enabled?: boolean;
+    barun_plan_start?: string;
+    barun_plan_end?: string;
     competitors?: { slot?: number; name?: string; naver_blog_id?: string; smartplace_review_url?: string }[];
   };
 };
@@ -156,6 +159,20 @@ export async function POST(request: Request) {
         .update({ intake_survey_enabled: !!hospitalForm.intake_survey_enabled })
         .eq('id', resolvedHospitalId);
       if (flagErr) console.warn('intake_survey_enabled 저장 생략(컬럼 미존재 가능):', flagErr.message);
+    }
+
+    // 바른반려연구소 플랜 — 컬럼이 아직 없을 수 있어 분리해 방어적으로 저장
+    {
+      const { error: barunErr } = await supabase
+        .schema('core')
+        .from('hospitals')
+        .update({
+          barun_plan_enabled: !!hospitalForm.barun_plan_enabled,
+          barun_plan_start: (hospitalForm.barun_plan_start || '').trim() || null,
+          barun_plan_end: (hospitalForm.barun_plan_end || '').trim() || null,
+        })
+        .eq('id', resolvedHospitalId);
+      if (barunErr) console.warn('barun_plan 저장 생략(컬럼 미존재 가능):', barunErr.message);
     }
 
     const { error: blogDeactivateErr } = await supabase

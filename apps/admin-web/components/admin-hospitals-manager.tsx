@@ -51,6 +51,9 @@ const EMPTY_FORM = {
   googleads_customer_id: '',
   googleads_refresh_token_encrypted: '',
   intake_survey_enabled: false,
+  barun_plan_enabled: false,
+  barun_plan_start: '',
+  barun_plan_end: '',
   competitors: [
     { slot: 1, name: '', naver_blog_id: '', smartplace_review_url: '' },
     { slot: 2, name: '', naver_blog_id: '', smartplace_review_url: '' },
@@ -793,6 +796,26 @@ export default function AdminHospitalsManager() {
             <LabeledField label="병원 코드" hint="시스템 내부에서 병원을 식별·관리하기 위한 코드">
               <input value={form.code} onChange={(e) => setForm((f) => ({ ...f, code: e.target.value }))} style={fieldStyle} />
             </LabeledField>
+
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--text-secondary)', cursor: 'pointer', marginTop: 14 }}>
+              <input
+                type="checkbox"
+                checked={form.barun_plan_enabled}
+                onChange={(e) => setForm((f) => ({ ...f, barun_plan_enabled: e.target.checked }))}
+                style={{ width: 16, height: 16, flexShrink: 0 }}
+              />
+              바른반려연구소 플랜 고객 (플랜 기간 동안 진료케이스 토큰 차감 면제 · 종료일 이후 정상 차감)
+            </label>
+            {form.barun_plan_enabled ? (
+              <div style={{ display: 'flex', gap: 12, marginTop: 10 }}>
+                <LabeledField label="플랜 시작일">
+                  <input type="date" value={form.barun_plan_start} onChange={(e) => setForm((f) => ({ ...f, barun_plan_start: e.target.value }))} style={fieldStyle} />
+                </LabeledField>
+                <LabeledField label="플랜 종료일" hint="이 날짜까지 면제, 다음날부터 차감">
+                  <input type="date" value={form.barun_plan_end} onChange={(e) => setForm((f) => ({ ...f, barun_plan_end: e.target.value }))} style={fieldStyle} />
+                </LabeledField>
+              </div>
+            ) : null}
           </TabPanel>
 
           <div className="adminLegacyModalActions">

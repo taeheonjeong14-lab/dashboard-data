@@ -1,7 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { useCallback, useEffect, useState } from 'react';
 
 const TOKEN_VALUE_USD = 0.001; // 1토큰 = $0.001 (환산 표시)
 const KRW_PER_USD = 1380;
@@ -14,13 +13,16 @@ type HospitalRow = {
   calls: number;
   lastUsed: string | null;
 };
-type DailyRow = { date: string; feature: string; costUsd: number };
+type UsageItem = { feature: string; provider: string; costUsd: number; calls: number };
+type UsageRun = {
+  runId: string | null; friendlyId: string | null; patientName: string | null; ownerName: string | null;
+  lastUsed: string | null; costUsd: number; calls: number; items: UsageItem[];
+};
 type UsageResponse = {
   days: number;
   totalUsd: number;
   hospitals: HospitalRow[];
-  daily: DailyRow[];
-  featureKeys: string[];
+  runs: UsageRun[];
   note?: string;
   error?: string;
 };
@@ -42,9 +44,29 @@ const FEATURE_LABEL: Record<string, string> = {
 // 진료케이스 블로그 단계(인과·진단치료세부·아웃라인·글)는 한 그룹 '진료케이스'로 합쳐 표시.
 const CASE_BLOG_FEATURES = new Set(['blog_causal', 'blog_detail', 'blog_outline', 'blog_post']);
 const normFeature = (f: string) => (CASE_BLOG_FEATURES.has(f) ? 'case_blog' : f);
-const PALETTE = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#3b82f6', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316', '#64748b'];
 const featureLabel = (f: string) => FEATURE_LABEL[normFeature(f)] ?? f;
+// 세부 항목용 — blog 단계를 합치지 않고 단계명 그대로 보여준다(그룹 헤더만 '진료케이스'로 합침).
+const ITEM_LABEL: Record<string, string> = {
+  ...FEATURE_LABEL,
+  blog_causal: '인과 흐름', blog_detail: '진단·치료 세부', blog_outline: '아웃라인', blog_post: '블로그 글', blog_images: '이미지 배정',
+};
+const itemLabel = (f: string) => ITEM_LABEL[f] ?? f;
+// 한 건(run)의 기능들 → 대표 라벨.
+const CASE_FEATS = new Set(['blog_causal', 'blog_detail', 'blog_outline', 'blog_post', 'blog_images']);
+function groupLabel(feats: string[]): string {
+  if (feats.some((x) => CASE_FEATS.has(x))) return '진료케이스';
+  if (feats.some((x) => x === 'health_checkup' || x === 'disease_intro')) return '건강검진';
+  if (feats.some((x) => x === 'image_analysis' || x === 'image_placement')) return '이미지분석';
+  if (feats.some((x) => x === 'assessment')) return 'AI평가';
+  if (feats.some((x) => x === 'extract' || x === 'ocr')) return '추출';
+  return feats[0] ? featureLabel(feats[0]) : '사용';
+}
 
+// 진료케이스 작성 단계는 인건비 반영해 20배 과금(DB billing.token_charge_operation 와 동일).
+// 사용내역 토큰 표시도 '청구 기준'으로 맞추기 위해 같은 배율을 적용한다(cost_usd 자체는 원가 그대로).
+const CASE_BLOG_CHARGE_MULT = 20;
+const CHARGE_MULT_FEATS = new Set(['blog_causal', 'blog_detail', 'blog_outline', 'blog_post']);
+const chargeMult = (f: string) => (CHARGE_MULT_FEATS.has(f) ? CASE_BLOG_CHARGE_MULT : 1);
 const tok = (usd: number) => usd / TOKEN_VALUE_USD;
 const fmtTok = (v: number) => (v >= 100 ? Math.round(v).toLocaleString() : v.toFixed(1));
 const usd = (v: number) => `$${v.toFixed(v < 1 ? 4 : 2)}`;
@@ -57,6 +79,7 @@ export default function AdminUsageDashboard() {
   const [data, setData] = useState<UsageResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
   const load = useCallback(async (d: number, hospitalId: string | null) => {
     setLoading(true);
@@ -106,21 +129,16 @@ export default function AdminUsageDashboard() {
     [days, selected, load],
   );
 
-  // daily → 날짜별 스택 데이터(기능별 토큰)
-  const chartData = useMemo(() => {
-    const byDate = new Map<string, Record<string, number | string>>();
-    for (const r of data?.daily ?? []) {
-      const row = byDate.get(r.date) ?? { date: r.date };
-      const fk = normFeature(r.feature);
-      row[fk] = ((row[fk] as number) ?? 0) + tok(r.costUsd);
-      byDate.set(r.date, row);
-    }
-    return [...byDate.values()].sort((a, b) => (String(a.date) < String(b.date) ? -1 : 1));
-  }, [data]);
-
-  const featureKeys = [...new Set((data?.featureKeys ?? []).map(normFeature))];
+  const runs = data?.runs ?? [];
   const selectedHospital = (data?.hospitals ?? []).find((h) => h.hospitalId === selected) ?? null;
   const anyZero = (data?.hospitals ?? []).some((h) => h.tokenBalance <= 0);
+  const toggleRun = (key: string) =>
+    setExpanded((prev) => {
+      const n = new Set(prev);
+      if (n.has(key)) n.delete(key);
+      else n.add(key);
+      return n;
+    });
 
   return (
     <div style={{ padding: '4px 2px' }}>
@@ -128,7 +146,7 @@ export default function AdminUsageDashboard() {
         <div>
           <h1 style={{ fontSize: 20, fontWeight: 800, margin: 0 }}>사용량</h1>
           <p style={{ fontSize: 12.5, color: 'var(--text-muted)', margin: '4px 0 0' }}>
-            병원을 고르면 날짜별·기능별 토큰 사용량을 막대그래프로 봅니다. (출처 무관, 그 병원 작업이면 합산)
+            병원을 고르면 작업(건)별 토큰 사용 내역을 목록으로 봅니다. 각 건을 누르면 세부 항목이 펼쳐집니다.
           </p>
         </div>
         <div style={{ display: 'flex', gap: 6 }}>
@@ -227,26 +245,60 @@ export default function AdminUsageDashboard() {
             ) : null}
           </div>
 
-          {chartData.length === 0 ? (
-            <div style={{ height: 360, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', fontSize: 13 }}>
-              {loading ? '불러오는 중…' : '이 기간 사용 내역이 없습니다.'}
+          {runs.length === 0 ? (
+            <div style={{ minHeight: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', fontSize: 13 }}>
+              {loading ? '불러오는 중…' : selectedHospital ? '이 기간 사용 내역이 없습니다.' : '병원을 선택하세요.'}
             </div>
           ) : (
-            <ResponsiveContainer width="100%" height={380}>
-              <BarChart data={chartData} margin={{ top: 8, right: 12, bottom: 4, left: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
-                <XAxis dataKey="date" tick={{ fontSize: 11 }} tickFormatter={(d: string) => d.slice(5)} />
-                <YAxis tick={{ fontSize: 11 }} width={44} label={{ value: '토큰', angle: -90, position: 'insideLeft', fontSize: 11 }} />
-                <Tooltip
-                  formatter={(value) => `${fmtTok(Number(value))} 토큰`}
-                  contentStyle={{ fontSize: 12 }}
-                />
-                <Legend wrapperStyle={{ fontSize: 11 }} />
-                {featureKeys.map((fk, i) => (
-                  <Bar key={fk} dataKey={fk} stackId="u" fill={PALETTE[i % PALETTE.length]} name={featureLabel(fk)} />
-                ))}
-              </BarChart>
-            </ResponsiveContainer>
+            <div style={{ border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
+              {runs.map((run, ri) => {
+                const key = run.runId ?? 'none';
+                const open = expanded.has(key);
+                const label = groupLabel(run.items.map((i) => i.feature));
+                const chargedTok = run.items.reduce((s, it) => s + tok(it.costUsd) * chargeMult(it.feature), 0);
+                const who = [run.patientName, run.ownerName].filter(Boolean).join(' / ');
+                return (
+                  <div key={key} style={{ borderTop: ri ? '1px solid var(--border)' : 'none' }}>
+                    <div
+                      onClick={() => toggleRun(key)}
+                      style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '9px 12px', cursor: 'pointer', background: open ? 'var(--bg-subtle, #f8fafc)' : '#fff' }}
+                    >
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>
+                          <span style={{ color: 'var(--text-muted)', fontWeight: 600, marginRight: 4 }}>{open ? '▼' : '▶'}</span>
+                          {label}
+                          {run.friendlyId ? <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}> · #{run.friendlyId}</span> : null}
+                          {who ? <span style={{ color: 'var(--text-secondary)', fontWeight: 500 }}> · {who}</span> : null}
+                          {run.runId == null ? <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}> · (건 미귀속)</span> : null}
+                        </div>
+                        <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                          {run.lastUsed ? new Date(run.lastUsed).toLocaleString('ko-KR', { dateStyle: 'short', timeStyle: 'short' }) : ''} · {run.items.length}개 항목 · {run.calls}회 호출
+                        </div>
+                      </div>
+                      <div style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                        <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--text)' }}>{fmtTok(chargedTok)} 토큰</div>
+                        <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{usd(run.costUsd)}</div>
+                      </div>
+                    </div>
+                    {open ? (
+                      <div style={{ padding: '4px 12px 10px 28px', background: 'var(--bg-subtle, #f8fafc)' }}>
+                        {run.items.map((it, ii) => (
+                          <div key={ii} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '4px 0', fontSize: 12.5, borderTop: ii ? '1px dashed var(--border)' : 'none' }}>
+                            <div style={{ color: 'var(--text-secondary)' }}>
+                              {itemLabel(it.feature)}
+                              <span style={{ color: 'var(--text-muted)' }}> · {it.provider} · {it.calls}회</span>
+                            </div>
+                            <div style={{ whiteSpace: 'nowrap', color: 'var(--text)' }}>
+                              {fmtTok(tok(it.costUsd) * chargeMult(it.feature))} 토큰 <span style={{ color: 'var(--text-muted)' }}>({usd(it.costUsd)})</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : null}
+                  </div>
+                );
+              })}
+            </div>
           )}
         </div>
       </div>

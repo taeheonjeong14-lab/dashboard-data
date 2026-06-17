@@ -518,7 +518,7 @@ export function AdminHealthCheckupWorkspace({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ diseaseName: name, species: draft.coverPatientSpecies ?? '' }),
+        body: JSON.stringify({ runId, diseaseName: name, species: draft.coverPatientSpecies ?? '' }),
       });
       const data = (await res.json()) as { body?: string; error?: string };
       if (!res.ok || !data.body) throw new Error(data.error ?? '질환 소개 생성 실패');

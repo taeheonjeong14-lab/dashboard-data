@@ -84,6 +84,25 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
       }
     }
 
+    // 바른반려연구소 플랜 — 컬럼 미존재 가능성 대비 방어적 조회
+    let barunEnabled = false;
+    let barunStart = '';
+    let barunEnd = '';
+    {
+      const r = await supabase
+        .schema('core')
+        .from('hospitals')
+        .select('barun_plan_enabled, barun_plan_start, barun_plan_end')
+        .eq('id', hospitalId)
+        .maybeSingle();
+      if (!r.error && r.data) {
+        const d = r.data as { barun_plan_enabled?: boolean; barun_plan_start?: string | null; barun_plan_end?: string | null };
+        barunEnabled = d.barun_plan_enabled === true;
+        barunStart = d.barun_plan_start ? String(d.barun_plan_start).slice(0, 10) : '';
+        barunEnd = d.barun_plan_end ? String(d.barun_plan_end).slice(0, 10) : '';
+      }
+    }
+
     const base = {
       id: String(row.id || ''),
       name: String(row.name || ''),
@@ -123,6 +142,9 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
           ? String(ads.googleads_refresh_token_encrypted || '')
           : '',
       intake_survey_enabled: intakeSurveyEnabled,
+      barun_plan_enabled: barunEnabled,
+      barun_plan_start: barunStart,
+      barun_plan_end: barunEnd,
     };
 
     // 경쟁병원(최대 3) — 테이블 미생성 가능성 대비 방어적으로 조회

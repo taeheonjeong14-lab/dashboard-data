@@ -83,26 +83,62 @@ export async function GET(request: NextRequest) {
     const totalCalls = hospitals.reduce((s, h) => s + h.calls, 0) + (Number(sys.rows[0]?.calls) || 0);
     const systemUsd = Number(sys.rows[0]?.cost_usd) || 0;
 
-    // 선택 병원: 날짜×기능 일별 사용량(그래프용)
+    // 선택 병원: 건(run)별 사용 내역 + 건별 세부 항목(기능별)
+    type UsageItem = { feature: string; provider: string; costUsd: number; calls: number };
+    type UsageRun = {
+      runId: string | null; friendlyId: string | null; patientName: string | null; ownerName: string | null;
+      lastUsed: string | null; costUsd: number; calls: number; items: UsageItem[];
+    };
     const hospitalIdParam = request.nextUrl.searchParams.get('hospitalId');
-    let daily: { date: string; feature: string; costUsd: number }[] = [];
-    let featureKeys: string[] = [];
+    let runs: UsageRun[] = [];
     if (hospitalIdParam && /^[0-9a-fA-F-]{36}$/.test(hospitalIdParam)) {
-      const d = await pool.query<{ date: string; feature: string; cost_usd: number }>(
-        `SELECT to_char(date_trunc('day', created_at), 'YYYY-MM-DD') AS date,
-                COALESCE(feature, '(기타)') AS feature,
-                SUM(cost_usd)::float8 AS cost_usd
-           FROM billing.llm_usage
-          WHERE hospital_id = $1::uuid AND created_at >= now() - make_interval(days => $2::int)
-          GROUP BY 1, 2
-          ORDER BY 1`,
+      const rowsRes = await pool.query<{
+        run_id: string | null; feature: string; provider: string; cost_usd: number; calls: string; last_used: string;
+      }>(
+        `SELECT u.run_id, COALESCE(u.feature, '(기타)') AS feature, u.provider,
+                SUM(u.cost_usd)::float8 AS cost_usd, COUNT(*)::bigint AS calls, MAX(u.created_at) AS last_used
+           FROM billing.llm_usage u
+          WHERE u.hospital_id = $1::uuid AND u.created_at >= now() - make_interval(days => $2::int)
+          GROUP BY u.run_id, u.feature, u.provider`,
         [hospitalIdParam, days],
       );
-      daily = d.rows.map((r) => ({ date: r.date, feature: r.feature, costUsd: Number(r.cost_usd) || 0 }));
-      featureKeys = [...new Set(daily.map((x) => x.feature))];
+      // run 메타(친화번호·환자/보호자명) — run_id 당 1행
+      const runIds = [...new Set(rowsRes.rows.map((r) => r.run_id).filter((x): x is string => !!x))];
+      const metaMap = new Map<string, { friendlyId: string | null; patientName: string | null; ownerName: string | null }>();
+      if (runIds.length) {
+        const metaRes = await pool.query<{ run_id: string; friendly_id: string | null; patient_name: string | null; owner_name: string | null }>(
+          `SELECT DISTINCT ON (pr.id) pr.id::text AS run_id, pr.friendly_id, bi.patient_name, bi.owner_name
+             FROM chart_pdf.parse_runs pr
+             LEFT JOIN chart_pdf.result_basic_info bi ON bi.parse_run_id = pr.id
+            WHERE pr.id = ANY($1::uuid[])
+            ORDER BY pr.id`,
+          [runIds],
+        );
+        for (const m of metaRes.rows) metaMap.set(m.run_id, { friendlyId: m.friendly_id, patientName: m.patient_name, ownerName: m.owner_name });
+      }
+      const byRun = new Map<string, UsageRun>();
+      for (const r of rowsRes.rows) {
+        const key = r.run_id ?? 'none';
+        let g = byRun.get(key);
+        if (!g) {
+          const meta = r.run_id ? metaMap.get(r.run_id) : null;
+          g = {
+            runId: r.run_id, friendlyId: meta?.friendlyId ?? null, patientName: meta?.patientName ?? null,
+            ownerName: meta?.ownerName ?? null, lastUsed: r.last_used, costUsd: 0, calls: 0, items: [],
+          };
+          byRun.set(key, g);
+        }
+        g.items.push({ feature: r.feature, provider: r.provider, costUsd: Number(r.cost_usd) || 0, calls: Number(r.calls) || 0 });
+        g.costUsd += Number(r.cost_usd) || 0;
+        g.calls += Number(r.calls) || 0;
+        if ((r.last_used ?? '') > (g.lastUsed ?? '')) g.lastUsed = r.last_used;
+      }
+      runs = [...byRun.values()]
+        .map((g) => ({ ...g, items: g.items.sort((a, b) => b.costUsd - a.costUsd) }))
+        .sort((a, b) => ((a.lastUsed ?? '') < (b.lastUsed ?? '') ? 1 : -1));
     }
 
-    return NextResponse.json({ days, totalUsd, totalCalls, systemUsd, hospitals, features, daily, featureKeys });
+    return NextResponse.json({ days, totalUsd, totalCalls, systemUsd, hospitals, features, runs });
   } catch (e) {
     if ((e as { code?: string }).code === '42P01' || (e as { code?: string }).code === '42703') {
       return NextResponse.json({
