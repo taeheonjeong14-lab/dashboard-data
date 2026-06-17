@@ -21,15 +21,32 @@ const { createClient } = require("@supabase/supabase-js");
 
 const ROOT_DIR = path.resolve(__dirname, "..");
 const POLL_INTERVAL_MS = 30_000;
-// 같은 사무실 IP 로 동시에 네이버를 때리는 잡 수. 차단이 잦으면 COLLECT_MAX_CONCURRENT_JOBS=1~2 로 낮춘다.
+// 전체 잡 동시 실행 캡(스크래핑+API 합산). API 잡은 이 캡까지 병렬로 돈다.
 const MAX_CONCURRENT_JOBS = Number(process.env.COLLECT_MAX_CONCURRENT_JOBS) || 3;
+// 스크래핑(브라우저로 네이버를 긁는) 잡만 따로 제한하는 캡. 같은 IP 동시 타격을 막아 차단을 줄인다.
+// searchad 같은 공식 API 잡은 이 캡과 무관(차단 위험 없음). 차단이 잦으면 1 유지.
+const SCRAPE_MAX_CONCURRENT = Number(process.env.SCRAPE_MAX_CONCURRENT) || 1;
+// 공식 API 로만 수집하는 step(동시 호출해도 안전). 그 외 step 은 전부 '스크래핑'으로 본다(보수적).
+const API_ONLY_STEPS = new Set(["searchad"]);
 // running 상태인데 이 시간 이상 updated_at 갱신이 없으면 워커가 죽은 고아 잡으로 보고 failed 처리.
 // 정상 잡은 진행률을 1.5초마다 기록하므로 이 임계값을 한참 밑돈다.
 const STALE_JOB_TIMEOUT_MS = 15 * 60_000;
 
 let runningJobs = 0;
+let runningScrapeJobs = 0; // 그중 스크래핑 잡 수(SCRAPE_MAX_CONCURRENT 캡 대상)
 // 이 워커 프로세스가 실행 중인 잡 id — reaper가 자기 잡을 회수하지 않도록 제외한다.
 const activeJobIds = new Set();
+
+// 잡이 네이버를 브라우저로 긁는 '스크래핑 잡'인지 판별. steps_filter 가 전부 API 전용일 때만 false(병렬 허용).
+// - hospital_id 없음(배치=전체 병원·전체 step) → 스크래핑
+// - steps_filter 없음/빈 배열(전체 step 실행) → 스크래핑
+// - 미지의 step 은 보수적으로 스크래핑 취급(실수로 스크래퍼를 병렬화하지 않도록)
+function isScrapeJob(job) {
+  if (!job.hospital_id) return true;
+  const f = job.steps_filter;
+  if (!Array.isArray(f) || f.length === 0) return true;
+  return !f.every((s) => API_ONLY_STEPS.has(String(s)));
+}
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
@@ -304,16 +321,22 @@ async function reapStaleJobs() {
 async function pollAndRun() {
   if (runningJobs >= MAX_CONCURRENT_JOBS) return;
 
+  // 오래된 pending 잡을 넉넉히 받아, 현재 캡으로 '처리 가능한' 가장 오래된 잡을 고른다.
+  // (맨 앞이 스크래핑인데 스크래핑 레인이 차 있어도, 뒤의 API 잡은 먼저 돌릴 수 있게)
   const { data: jobs } = await supabase
     .from("collect_jobs")
     .select("*")
     .eq("status", "pending")
     .order("created_at", { ascending: true })
-    .limit(1);
+    .limit(20);
 
   if (!jobs || jobs.length === 0) return;
 
-  const job = jobs[0];
+  const scrapeFull = runningScrapeJobs >= SCRAPE_MAX_CONCURRENT;
+  const job = jobs.find((j) => !(isScrapeJob(j) && scrapeFull));
+  if (!job) return; // 처리 가능한 잡 없음(남은 게 전부 스크래핑인데 스크래핑 레인이 참)
+
+  const scrape = isScrapeJob(job);
 
   // 원자적 클레임 — 이미 다른 Worker가 가져갔으면 0건 업데이트
   const { data: claimed } = await supabase
@@ -327,8 +350,12 @@ async function pollAndRun() {
   if (!claimed) return;
 
   runningJobs++;
+  if (scrape) runningScrapeJobs++;
   activeJobIds.add(job.id);
-  console.log(`[collect-worker] Job 시작: ${job.id} | hospital_id=${job.hospital_id ?? "전체"} (동시 실행: ${runningJobs}/${MAX_CONCURRENT_JOBS})`);
+  console.log(
+    `[collect-worker] Job 시작: ${job.id} | hospital_id=${job.hospital_id ?? "전체"} | ${scrape ? "스크래핑" : "API"} ` +
+      `(전체 ${runningJobs}/${MAX_CONCURRENT_JOBS}, 스크래핑 ${runningScrapeJobs}/${SCRAPE_MAX_CONCURRENT})`,
+  );
 
   const isBatch = !job.hospital_id;
   const scriptName = isBatch ? "collect-all-batch.js" : "collect-all.js";
@@ -468,6 +495,7 @@ async function pollAndRun() {
   } finally {
     clearInterval(progressTimer);
     runningJobs--;
+    if (scrape) runningScrapeJobs--;
     activeJobIds.delete(job.id);
   }
 }
