@@ -1923,16 +1923,28 @@ _BLOCK_TEXT_MARKERS = (
 
 
 def _detect_block(page) -> bool:
-    """현재 페이지가 네이버 차단/캡차 페이지인지 빠르게 판별."""
+    """현재 페이지가 네이버 차단/캡차 페이지인지 판별.
+    오탐 방지: URL 마커(captcha 리다이렉트 등)를 우선 신뢰하고, 본문 텍스트 마커는
+    '정상 검색결과(#main_pack)가 없을 때'만 본다 — 검색결과 스니펫에 '비정상적'·'접근이 제한'
+    같은 단어가 섞여 정상 페이지를 차단으로 오인하던 문제를 막는다."""
     try:
         url = (page.url or "").lower()
-        if any(m in url for m in _BLOCK_URL_MARKERS):
-            return True
+        for m in _BLOCK_URL_MARKERS:
+            if m in url:
+                print(f"🛑 차단 감지(URL 마커 '{m}'): {url[:120]}")
+                return True
     except Exception:
         pass
     try:
-        body = (page.inner_text("body", timeout=1500) or "").lower()
-        return any(m.lower() in body for m in _BLOCK_TEXT_MARKERS)
+        # 정상 검색결과/블로그탭 컨테이너(#main_pack)가 있으면 차단 페이지가 아니다.
+        if page.query_selector("#main_pack"):
+            return False
+        low = (page.inner_text("body", timeout=1500) or "").lower()
+        for m in _BLOCK_TEXT_MARKERS:
+            if m.lower() in low:
+                print(f"🛑 차단 감지(본문 마커 '{m}') — #main_pack 없음")
+                return True
+        return False
     except Exception:
         return False
 
