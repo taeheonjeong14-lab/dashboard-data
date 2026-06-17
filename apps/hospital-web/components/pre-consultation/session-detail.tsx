@@ -138,10 +138,18 @@ export function SessionDetailView({ detail, origin, hideShareLink = false }: {
   return (
     <div style={{ display: 'grid', gap: 14 }}>
       {!hideShareLink && shareUrl && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: 'var(--bg-subtle)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)' }}>
-          <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', flexShrink: 0 }}>작성 링크</span>
-          <span style={{ flex: 1, minWidth: 0, fontSize: 12.5, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{shareUrl}</span>
-          <CopyBtn text={shareUrl} label="링크 복사" />
+        <div style={{ display: 'grid', gap: 10, padding: '12px 14px', background: 'var(--bg-subtle)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', flexShrink: 0 }}>작성 링크</span>
+            <span style={{ flex: 1, minWidth: 0, fontSize: 12.5, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{shareUrl}</span>
+            <CopyBtn text={shareUrl} label="링크 복사" />
+          </div>
+          <SurveyKakaoSend
+            token={detail.token}
+            defaultPhone={detail.contact ?? ''}
+            patientName={detail.patientName ?? ''}
+            guardianName={detail.guardianName ?? ''}
+          />
         </div>
       )}
 
@@ -374,6 +382,68 @@ export function CopyBtn({ text, label }: { text: string; label: string }) {
       {copied ? '복사됨' : label}
     </button>
   );
+}
+
+// 사전문진 작성 링크를 보호자에게 카카오 알림톡으로 발송. 작성 링크(/survey/[token])는 매번 바뀌지만
+// 템플릿 WL 버튼은 도메인만 고정 등록 → 발송 시 전체 URL 을 linkMo 로 넣어도 통과한다.
+export function SurveyKakaoSend({ token, defaultPhone, patientName, guardianName }: {
+  token: string; defaultPhone: string; patientName: string; guardianName: string;
+}) {
+  const [phone, setPhone] = useState(formatPhone(defaultPhone));
+  const [sending, setSending] = useState(false);
+  const [msg, setMsg] = useState('');
+  const [err, setErr] = useState('');
+
+  const send = async () => {
+    setErr(''); setMsg('');
+    if (!phone.replace(/\D/g, '')) { setErr('연락처를 입력해 주세요.'); return; }
+    setSending(true);
+    try {
+      const res = await fetch('/api/surveys/send-kakao', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token, phone, patientName, guardianName }),
+      });
+      const data = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string; queued?: boolean; message?: string };
+      if (!res.ok || !data.ok) throw new Error(data.error ?? '발송에 실패했습니다.');
+      setMsg(data.queued ? (data.message ?? '발송이 요청되었습니다. 곧 전송됩니다.') : '전송되었습니다.');
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : '발송에 실패했습니다.');
+    } finally {
+      setSending(false);
+    }
+  };
+
+  return (
+    <div style={{ display: 'grid', gap: 6 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', flexShrink: 0 }}>알림톡</span>
+        <input
+          value={phone}
+          onChange={(e) => setPhone(formatPhone(e.target.value))}
+          placeholder="010-0000-0000"
+          type="tel"
+          inputMode="numeric"
+          style={{ flex: 1, minWidth: 0, padding: '7px 10px', fontSize: 12.5, color: 'var(--text)', background: 'var(--bg)', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }}
+        />
+        <button type="button" onClick={send} disabled={sending}
+          style={{ flexShrink: 0, padding: '7px 14px', fontSize: 12.5, fontWeight: 600, cursor: sending ? 'not-allowed' : 'pointer', borderRadius: 'var(--radius)', border: 'none', background: sending ? 'var(--bg-raised)' : '#fae100', color: sending ? 'var(--text-muted)' : '#3c1e1e' }}>
+          {sending ? '발송 중…' : '카카오 발송'}
+        </button>
+      </div>
+      {msg && <p style={{ margin: 0, fontSize: 11.5, color: 'var(--success)' }}>{msg}</p>}
+      {err && <p style={{ margin: 0, fontSize: 11.5, color: 'var(--danger)' }}>{err}</p>}
+    </div>
+  );
+}
+
+// 숫자만 입력해도 휴대폰 번호 형식(010-1234-5678)으로 보이게 한다. 최대 11자리.
+function formatPhone(raw: string): string {
+  const d = (raw ?? '').replace(/\D/g, '').slice(0, 11);
+  if (d.length < 4) return d;
+  if (d.length < 7) return `${d.slice(0, 3)}-${d.slice(3)}`;
+  if (d.length < 11) return `${d.slice(0, 3)}-${d.slice(3, 6)}-${d.slice(6)}`;
+  return `${d.slice(0, 3)}-${d.slice(3, 7)}-${d.slice(7)}`;
 }
 
 export function StatusBadge({ status, label, variant = 'default' }: { status: string; label: string; variant?: 'default' | 'analysis' }) {

@@ -8,7 +8,7 @@ import { StickyHeader } from '@/components/ui/sticky-header';
 import { ddxGet, ddxPost, DdxApiForbiddenError } from '@/lib/ddx-api';
 import {
   SessionDetailView,
-  Section, Row, CopyBtn, StatusBadge,
+  Section, Row, CopyBtn, StatusBadge, SurveyKakaoSend,
   STATUS_LABEL,
   fmtDateTime,
   type SessionDetail,
@@ -312,6 +312,11 @@ function SendModal({ userId, origin, onClose, onCreated }: {
               <span style={{ flex: 1, minWidth: 0, fontSize: 12.5, color: 'var(--text)', wordBreak: 'break-all', lineHeight: 1.6 }}>{shareUrl || '링크 생성 실패'}</span>
               {shareUrl && <CopyBtn text={shareUrl} label="복사" />}
             </div>
+            {created.token && (
+              <div style={{ padding: '12px 14px', background: 'var(--bg-subtle)', border: '1px solid var(--border)', borderRadius: 'var(--radius)' }}>
+                <SurveyKakaoSend token={created.token} defaultPhone={contact} patientName={patientName} guardianName={guardianName} />
+              </div>
+            )}
             <button type="button" onClick={onClose}
               style={{ padding: '11px', border: 'none', borderRadius: 'var(--radius)', background: 'var(--accent)', color: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>
               완료
