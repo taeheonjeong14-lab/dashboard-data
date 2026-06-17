@@ -21,7 +21,8 @@ const { createClient } = require("@supabase/supabase-js");
 
 const ROOT_DIR = path.resolve(__dirname, "..");
 const POLL_INTERVAL_MS = 30_000;
-const MAX_CONCURRENT_JOBS = 3;
+// 같은 사무실 IP 로 동시에 네이버를 때리는 잡 수. 차단이 잦으면 COLLECT_MAX_CONCURRENT_JOBS=1~2 로 낮춘다.
+const MAX_CONCURRENT_JOBS = Number(process.env.COLLECT_MAX_CONCURRENT_JOBS) || 3;
 // running 상태인데 이 시간 이상 updated_at 갱신이 없으면 워커가 죽은 고아 잡으로 보고 failed 처리.
 // 정상 잡은 진행률을 1.5초마다 기록하므로 이 임계값을 한참 밑돈다.
 const STALE_JOB_TIMEOUT_MS = 15 * 60_000;

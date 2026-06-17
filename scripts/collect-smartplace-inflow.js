@@ -20,6 +20,15 @@ function loadConfig() {
   return JSON.parse(fs.readFileSync(CONFIG_PATH, "utf8"));
 }
 
+// 사람처럼 보이는 랜덤 대기(고정 간격은 봇 신호). 로그인 세션이라 균일한 패턴이 계정 보안체크를 부를 수 있어
+// 일자별 페이지 이동 사이를 랜덤화한다. LOGIN_COLLECT_DELAY_MIN_MS/MAX_MS 로 전역 조정.
+function jitter(minMs, maxMs) {
+  const lo = Number(process.env.LOGIN_COLLECT_DELAY_MIN_MS) || minMs;
+  const hi = Number(process.env.LOGIN_COLLECT_DELAY_MAX_MS) || maxMs;
+  const ms = Math.floor(lo + Math.random() * Math.max(0, hi - lo));
+  return new Promise((r) => setTimeout(r, ms));
+}
+
 function resolveChromePort(config, hospitalId) {
   const envPort = Number(process.env.COLLECT_CHROME_DEBUGGING_PORT || "");
   if (Number.isFinite(envPort) && envPort > 0) return envPort;
@@ -125,7 +134,7 @@ async function scrapeSmartPlaceInflow(page, statUrl, startDate, endDate) {
     const day = daysToFetch[i];
     const url = setUrlDateParams(statUrl.trim(), day, day);
     await page.goto(url, { waitUntil: "domcontentloaded", timeout: 45000 });
-    await new Promise((r) => setTimeout(r, 2000));
+    await jitter(1800, 3200);
     const body = await getPageBody(page);
     const inflow = parsePlaceInflowSingle(body);
     rows.push({ metric_date: day, smartplace_inflow: inflow !== null ? inflow : null });

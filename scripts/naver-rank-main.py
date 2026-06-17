@@ -647,10 +647,21 @@ def create_browser_session(playwright, *, headless: bool = True, use_debug_chrom
 
         return browser, context, cleanup
 
-    browser = playwright.chromium.launch(headless=headless, timeout=30000)
-    context = browser.new_context(
-        user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    # 자동화 신호(--enable-automation, navigator.webdriver) 제거로 봇 탐지 회피.
+    browser = playwright.chromium.launch(
+        headless=headless,
+        timeout=30000,
+        args=["--disable-blink-features=AutomationControlled"],
     )
+    # UA 가 실제 설치 Chrome 버전과 어긋나면 핑거프린트 불일치 신호가 된다. 최신값을 기본으로 두되,
+    # 워커 PC 의 실제 Chrome 버전에 맞추고 싶으면 RANK_USER_AGENT 로 override.
+    ua = os.getenv("RANK_USER_AGENT") or (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+    )
+    context = browser.new_context(user_agent=ua)
+    # launch 모드에서 true 로 노출되는 navigator.webdriver 흔적 제거(CDP 모드는 원래 false).
+    context.add_init_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined});")
     context.route("**/*.{png,jpg,jpeg,gif,webp,svg,ico,woff,woff2,ttf,otf,eot}", lambda route: route.abort())
 
     def cleanup():
