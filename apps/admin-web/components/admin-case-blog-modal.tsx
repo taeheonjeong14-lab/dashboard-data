@@ -356,7 +356,7 @@ export function CaseBlogButton({
         label: s.label,
         keyText: [...s.points, ...s.facts].join(' '),
       }));
-      const finalDiagnosis = caseOverview.find((o) => o.label === '최종 진단명')?.value ?? '';
+      const finalDiagnosis = caseOverview.find((o) => o.label === '주질환명')?.value ?? '';
       const contextText = caseOverview
         .filter((o) => ['내원 배경', '진단 방식', '환자 특이사항'].includes(o.label) && o.value)
         .map((o) => `${o.label}: ${o.value}`)

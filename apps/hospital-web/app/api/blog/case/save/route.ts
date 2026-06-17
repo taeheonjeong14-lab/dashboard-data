@@ -11,7 +11,8 @@ import { createServiceRoleClient } from '@/lib/supabase/service-role';
 // admin 진료케이스 메뉴가 건강검진 run 과 구분해 목록화할 수 있다.
 
 type Overview = {
-  finalDiagnosis?: string;
+  mainDisease?: string;
+  comorbidities?: string;
   visitBackground?: string;
   patientNotes?: string;
   diagnosisMethod?: string;
@@ -46,7 +47,8 @@ export async function POST(request: NextRequest) {
 
   const o = body.overview ?? {};
   const overview = {
-    final_diagnosis: str(o.finalDiagnosis),
+    main_disease: str(o.mainDisease),
+    comorbidities: str(o.comorbidities),
     visit_background: str(o.visitBackground),
     patient_notes: str(o.patientNotes),
     diagnosis_method: str(o.diagnosisMethod),

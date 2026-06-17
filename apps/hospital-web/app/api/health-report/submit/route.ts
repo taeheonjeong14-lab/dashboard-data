@@ -10,7 +10,8 @@ export const maxDuration = 800; // after() 백그라운드 작업이 이 안에�
 const TOKEN_COST = 50;
 
 type Overview = {
-  finalDiagnosis?: string;
+  mainDisease?: string;
+  comorbidities?: string;
   visitBackground?: string;
   patientNotes?: string;
   diagnosisMethod?: string;
@@ -95,7 +96,8 @@ export async function POST(request: NextRequest) {
     const imagePaths = imageGroups.flatMap((g) => g.paths);
     jobPayload = {
       overview: {
-        final_diagnosis: str(o.finalDiagnosis),
+        main_disease: str(o.mainDisease),
+        comorbidities: str(o.comorbidities),
         visit_background: str(o.visitBackground),
         patient_notes: str(o.patientNotes),
         diagnosis_method: str(o.diagnosisMethod),

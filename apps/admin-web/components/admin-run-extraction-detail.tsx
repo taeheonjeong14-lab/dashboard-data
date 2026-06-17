@@ -672,7 +672,8 @@ type ChartTabKey = 'caseOverview' | 'emphasis' | 'basic' | 'vaccination' | 'char
 
 // 진료케이스(blog_case) 케이스개요 표시용 라벨 — hospital-ui 작성 순서.
 const CASE_OVERVIEW_LABELS: { key: string; label: string }[] = [
-  { key: 'final_diagnosis', label: '최종 진단명' },
+  { key: 'main_disease', label: '주질환명' },
+  { key: 'comorbidities', label: '동반 질환명' },
   { key: 'visit_background', label: '내원 배경' },
   { key: 'patient_notes', label: '환자 특이사항' },
   { key: 'diagnosis_method', label: '진단 방식' },

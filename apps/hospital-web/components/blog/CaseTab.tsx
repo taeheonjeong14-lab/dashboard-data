@@ -24,7 +24,7 @@ type CaseItem = {
   friendlyId: string | null;
   patientName: string;
   ownerName: string;
-  finalDiagnosis: string;
+  mainDisease: string;
   imageCount: number;
   createdAt: string;
   status?: 'done' | 'processing' | 'error';
@@ -32,7 +32,8 @@ type CaseItem = {
 };
 
 type Overview = {
-  finalDiagnosis: string;
+  mainDisease: string;
+  comorbidities: string;
   visitBackground: string;
   patientNotes: string;
   diagnosisMethod: string;
@@ -53,7 +54,7 @@ const CHART_TYPE_LABELS: Record<ChartType, string> = {
   other: '기타',
 };
 
-// 케이스 개요 — 차트에 나와있지 않은 내용을 한 줄씩 채운다. finalDiagnosis 만 숏필드.
+// 케이스 개요 — 차트에 나와있지 않은 내용을 한 줄씩 채운다. 주질환명·동반질환명은 숏필드.
 const LONG_FIELDS: { key: keyof Overview; label: string; placeholder: string }[] = [
   { key: 'visitBackground', label: '내원 배경', placeholder: '보호자가 내원하게 된 배경 (차트에 없는 맥락)' },
   { key: 'patientNotes', label: '환자 특이사항', placeholder: '성격·기왕력 등 차트에 없는 환자 정보' },
@@ -63,9 +64,9 @@ const LONG_FIELDS: { key: keyof Overview; label: string; placeholder: string }[]
   { key: 'emphasis', label: '강조 희망 사항', placeholder: '블로그에서 강조하고 싶은 점' },
 ];
 
-// 강조 희망 사항을 제외한 개요 항목은 필수.
+// 강조 희망 사항·동반 질환명을 제외한 개요 항목은 필수.
 const REQUIRED_OVERVIEW_KEYS: (keyof Overview)[] = [
-  'finalDiagnosis',
+  'mainDisease',
   'visitBackground',
   'patientNotes',
   'diagnosisMethod',
@@ -74,7 +75,8 @@ const REQUIRED_OVERVIEW_KEYS: (keyof Overview)[] = [
 ];
 
 const EMPTY_OVERVIEW: Overview = {
-  finalDiagnosis: '',
+  mainDisease: '',
+  comorbidities: '',
   visitBackground: '',
   patientNotes: '',
   diagnosisMethod: '',
@@ -453,7 +455,7 @@ export function CaseTab() {
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
               <tr style={{ background: 'var(--bg-subtle)' }}>
-                {['등록일', '환자 이름', '보호자 이름', '최종진단명', '사진'].map((h) => (
+                {['등록일', '환자 이름', '보호자 이름', '주질환명', '사진'].map((h) => (
                   <th
                     key={h}
                     style={{ padding: '9px 14px', textAlign: 'left', fontWeight: 600, color: 'var(--text-muted)', fontSize: 11, borderBottom: '1px solid var(--border)', whiteSpace: 'nowrap', textTransform: 'uppercase', letterSpacing: '0.04em' }}
@@ -484,7 +486,7 @@ export function CaseTab() {
                     )}
                   </td>
                   <td style={{ padding: '11px 14px', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>{item.ownerName || '—'}</td>
-                  <td style={{ padding: '11px 14px', color: 'var(--text)' }}>{item.finalDiagnosis || '—'}</td>
+                  <td style={{ padding: '11px 14px', color: 'var(--text)' }}>{item.mainDisease || '—'}</td>
                   <td style={{ padding: '11px 14px', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
                     {item.imageCount > 0 ? `${item.imageCount}장` : '—'}
                   </td>
@@ -592,13 +594,24 @@ export function CaseTab() {
             <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 10 }}>차트에 나와있지 않은 내용을 한 줄씩 채워 주세요.</div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              <FormField label="최종진단명" required>
+              <FormField label="주질환명" required hint="핵심 주제 1개">
                 <input
                   type="text"
-                  value={overview.finalDiagnosis}
-                  onChange={(e) => setField('finalDiagnosis', e.target.value)}
+                  value={overview.mainDisease}
+                  onChange={(e) => setField('mainDisease', e.target.value)}
                   disabled={isProcessing}
-                  placeholder="예: 만성 신부전 2기"
+                  placeholder="이번 블로그 포스팅에서 핵심 주제로 다루고자 하는 한 개의 질환 기재"
+                  style={inputStyle}
+                />
+              </FormField>
+
+              <FormField label="동반 질환명" hint="선택 · 다수 가능">
+                <input
+                  type="text"
+                  value={overview.comorbidities}
+                  onChange={(e) => setField('comorbidities', e.target.value)}
+                  disabled={isProcessing}
+                  placeholder="주질환의 진단 또는 치료과정 중 직/간접적으로 관련있는 질환이 있었을 경우 기재 (다수 기재 가능)"
                   style={inputStyle}
                 />
               </FormField>

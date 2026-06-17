@@ -38,7 +38,7 @@ export async function GET() {
       .in('id', runIds);
     if (rErr) throw new Error(rErr.message);
 
-    // 최종 진단명 — blog_case(케이스 개요) overview.final_diagnosis
+    // 주질환명 — blog_case(케이스 개요) overview.main_disease (구 데이터는 final_diagnosis 폴백)
     const { data: caseRows } = await srvc
       .schema('health_report')
       .from('generated_run_content')
@@ -47,8 +47,8 @@ export async function GET() {
       .in('parse_run_id', runIds);
     const finalDxByRun = new Map<string, string>();
     for (const cr of caseRows ?? []) {
-      const r = cr as { parse_run_id?: string; payload?: { overview?: { final_diagnosis?: string } } };
-      const dx = r.payload?.overview?.final_diagnosis;
+      const r = cr as { parse_run_id?: string; payload?: { overview?: { main_disease?: string; final_diagnosis?: string } } };
+      const dx = r.payload?.overview?.main_disease ?? r.payload?.overview?.final_diagnosis;
       if (r.parse_run_id && typeof dx === 'string' && dx.trim()) finalDxByRun.set(r.parse_run_id, dx.trim());
     }
 
