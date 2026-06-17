@@ -4,10 +4,15 @@ import { useState, type CSSProperties } from 'react';
 import Link from 'next/link';
 
 // ── 타입 ──────────────────────────────────────────────────────────────────
-type StepNum = 1 | 2 | 3 | 4;
+type StepNum = 1 | 2 | 3 | 4 | 5;
 type OverviewItem = { label: string; value: string };
 type Phase = { id: string; name: string; period: string; type: string; what: string[]; why: string[]; toNext: string[] };
 type CausalFlow = { axis: string; anesthesia: boolean; phases: Phase[] };
+// 2단계 — 진단·치료 세부 흐름
+type DiagStep = { name: string; why: string; what: string; result: string; fromChart: boolean };
+type TreatStep = { step: string; why: string; detail: string; fromChart: boolean };
+type TreatProcedure = { id: string; name: string; steps: TreatStep[] };
+type DetailFlow = { diagnosis: { steps: DiagStep[] }; treatment: { type: string; procedures: TreatProcedure[] } };
 type Section = { id: string; label: string; period: string; points: string[]; facts: string[]; imageFileNames: string[] };
 type CaseImg = { fileName: string; signedUrl: string | null; caption: string };
 type OverviewCheck = { item: string; reflectedIn: string };
@@ -91,7 +96,46 @@ function asBlog(raw: unknown): BlogPost {
     tags: toLines(o.tags), charCount: typeof o.charCount === 'number' ? o.charCount : 0,
   };
 }
+function asDetail(raw: unknown): DetailFlow {
+  const o = (raw ?? {}) as Record<string, unknown>;
+  const diag = (o.diagnosis ?? {}) as Record<string, unknown>;
+  const treat = (o.treatment ?? {}) as Record<string, unknown>;
+  const dSteps = Array.isArray(diag.steps) ? diag.steps : [];
+  const procs = Array.isArray(treat.procedures) ? treat.procedures : [];
+  const tt = str(treat.type);
+  return {
+    diagnosis: {
+      steps: dSteps.map((s) => {
+        const x = (s ?? {}) as Record<string, unknown>;
+        return { name: str(x.name), why: str(x.why), what: str(x.what), result: str(x.result), fromChart: x.fromChart === true };
+      }),
+    },
+    treatment: {
+      type: tt === 'surgical' || tt === 'medical' || tt === 'complex' ? tt : 'medical',
+      procedures: procs.map((p) => {
+        const x = (p ?? {}) as Record<string, unknown>;
+        const steps = Array.isArray(x.steps) ? x.steps : [];
+        return {
+          id: str(x.id) || `proc_${uid()}`,
+          name: str(x.name),
+          steps: steps.map((st) => {
+            const y = (st ?? {}) as Record<string, unknown>;
+            return { step: str(y.step), why: str(y.why), detail: str(y.detail), fromChart: y.fromChart === true };
+          }),
+        };
+      }),
+    },
+  };
+}
+function diffDetail(prev: DetailFlow, next: DetailFlow): string[] {
+  const changes: string[] = [];
+  if (JSON.stringify(prev.diagnosis) !== JSON.stringify(next.diagnosis)) changes.push('진단 과정 세부');
+  if (prev.treatment.type !== next.treatment.type) changes.push('치료 유형');
+  if (JSON.stringify(prev.treatment.procedures) !== JSON.stringify(next.treatment.procedures)) changes.push('치료 과정 세부');
+  return changes;
+}
 const PHASE_TYPE_LABEL: Record<string, string> = { surgical: '수술/처치', medical: '내과 치료', diagnostic: '검사' };
+const TREAT_TYPE_LABEL: Record<string, string> = { surgical: '수술형', medical: '내과형', complex: '복합형' };
 
 // 변경된 부분을 사람이 읽을 수 있는 목록으로 — 재생성 확인창에 표시.
 const arrEq = (a: string[], b: string[]): boolean => a.join('') === b.join('');
@@ -168,15 +212,17 @@ export function CaseBlogButton({
   const [step, setStep] = useState<StepNum>(1);
   const [caseOverview, setCaseOverview] = useState<OverviewItem[]>([]);
   const [causal, setCausal] = useState<CausalFlow | null>(null);
+  const [detail, setDetail] = useState<DetailFlow | null>(null);
   const [outline, setOutline] = useState<Outline | null>(null);
   const [blog, setBlog] = useState<BlogPost | null>(null);
   const [caseImages, setCaseImages] = useState<CaseImg[]>([]); // 파일명→signedUrl (섹션 썸네일용)
   const [loadedRunId, setLoadedRunId] = useState<string | null>(null);
   // 하위 단계가 "어떤 입력으로" 생성됐는지 서명(JSON). 입력이 바뀌면 재생성 확인을 띄운다.
-  const [outlineBasis, setOutlineBasis] = useState(''); // outline 을 만든 causal 의 서명
+  const [detailBasis, setDetailBasis] = useState(''); // detail 을 만든 causal 의 서명
+  const [outlineBasis, setOutlineBasis] = useState(''); // outline 을 만든 {causal, detail} 의 서명
   const [blogBasis, setBlogBasis] = useState(''); // blog 를 만든 outline 의 서명
 
-  const [genLoading, setGenLoading] = useState<null | 1 | 2 | 3 | 4>(null);
+  const [genLoading, setGenLoading] = useState<null | 1 | 2 | 3 | 4 | 5>(null);
   const [confirmed, setConfirmed] = useState(false); // 블로그 글 확정됨(AI 재생성 불가)
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -223,27 +269,32 @@ export function CaseBlogButton({
       const data = (await res.json()) as { items?: { contentType?: string; payload?: unknown }[] };
       const items = res.ok ? data.items ?? [] : [];
       const find = (t: string) => items.find((i) => i.contentType === t)?.payload as Record<string, unknown> | undefined;
-      const cP = find('blog_causal'); const oP = find('blog_outline'); const bP = find('blog_post');
+      const cP = find('blog_causal'); const dP = find('blog_detail'); const oP = find('blog_outline'); const bP = find('blog_post');
       let ov: OverviewItem[] = [];
       if (cP && Array.isArray(cP.caseOverview)) ov = cP.caseOverview as OverviewItem[];
+      else if (dP && Array.isArray(dP.caseOverview)) ov = dP.caseOverview as OverviewItem[];
       else if (oP && Array.isArray(oP.caseOverview)) ov = oP.caseOverview as OverviewItem[];
       if (ov.length) setCaseOverview(ov);
 
       const hasCausal = cP && cP.causalFlow;
       const normCausal = hasCausal ? asCausal(cP!.causalFlow) : null;
+      const normDetail = dP && dP.detailFlow ? asDetail(dP.detailFlow) : null;
       const normOutline = oP && oP.outline ? asOutline(oP.outline) : null;
       const normBlog = bP && (bP.bodyMarkdown || bP.title) ? asBlog(bP) : null;
       if (normCausal) setCausal(normCausal);
+      if (normDetail) setDetail(normDetail);
       if (normOutline) setOutline(normOutline);
       if (normBlog) setBlog(normBlog);
       setConfirmed(Boolean(bP?.confirmed));
       // 저장된 단계는 서로 일관됐다고 보고 서명을 맞춰둔다(불필요한 재생성 확인 방지).
-      if (normCausal && normOutline) setOutlineBasis(JSON.stringify(normCausal));
+      if (normCausal && normDetail) setDetailBasis(JSON.stringify(normCausal));
+      if (normCausal && normOutline) setOutlineBasis(JSON.stringify({ causal: normCausal, detail: normDetail }));
       if (normOutline && normBlog) setBlogBasis(JSON.stringify(normOutline));
       setLoadedRunId(runId);
 
-      if (bP && (bP.bodyMarkdown || bP.title)) setStep(3);
-      else if (oP && oP.outline) setStep(2);
+      if (bP && (bP.bodyMarkdown || bP.title)) setStep(4);
+      else if (oP && oP.outline) setStep(3);
+      else if (normDetail) setStep(2);
       else if (hasCausal) setStep(1);
       else { await genCausal(); return; } // 저장된 게 없으면 1단계 생성
       setGenLoading(null);
@@ -253,36 +304,52 @@ export function CaseBlogButton({
     }
   }
 
-  async function genOutline() {
+  // 2단계 — 진단·치료 세부 흐름. 입력=검수된 causalFlow.
+  async function genDetail() {
     if (!causal) return;
     setGenLoading(2); setError(null); setSavedMsg('');
     try {
       await callSave('blog_causal', { causalFlow: causal, caseOverview }); // 검수본 저장 후 다음 단계 입력
-      const g = await callGenerate({ contentType: 'blog_outline', causalFlow: causal });
-      setOutline(asOutline(g.outline));
-      setOutlineBasis(JSON.stringify(causal));
+      const g = await callGenerate({ contentType: 'blog_detail', causalFlow: causal });
+      setDetail(asDetail(g.detailFlow));
+      setDetailBasis(JSON.stringify(causal));
       setStep(2);
+    } catch (e) { setError(e instanceof Error ? e.message : '진단·치료 세부 흐름 생성 실패'); }
+    finally { setGenLoading(null); }
+  }
+
+  // 3단계 — 섹션 아웃라인. 입력=검수된 causalFlow + detailFlow(둘 다).
+  async function genOutline() {
+    if (!causal) return;
+    setGenLoading(3); setError(null); setSavedMsg('');
+    try {
+      if (detail) await callSave('blog_detail', { detailFlow: detail, caseOverview });
+      const g = await callGenerate({ contentType: 'blog_outline', causalFlow: causal, detailFlow: detail });
+      setOutline(asOutline(g.outline));
+      setOutlineBasis(JSON.stringify({ causal, detail }));
+      setStep(3);
     } catch (e) { setError(e instanceof Error ? e.message : '아웃라인 생성 실패'); }
     finally { setGenLoading(null); }
   }
 
+  // 4단계 — 블로그 글. 입력=검수된 outline.
   async function genBlog() {
     if (!outline) return;
-    setGenLoading(3); setError(null); setSavedMsg('');
+    setGenLoading(4); setError(null); setSavedMsg('');
     try {
       await callSave('blog_outline', { outline, caseOverview });
       const g = await callGenerate({ contentType: 'blog_post', outline });
       setBlog(asBlog(g));
       setBlogBasis(JSON.stringify(outline));
-      setStep(3);
+      setStep(4);
     } catch (e) { setError(e instanceof Error ? e.message : '블로그 글 작성 실패'); }
     finally { setGenLoading(null); }
   }
 
-  // 4단계 — 진단 기반 섹션별 이미지 배정(비전). 결과를 아웃라인 imageFileNames 에 반영·저장.
+  // 5단계 — 진단 기반 섹션별 이미지 배정(비전). 결과를 아웃라인 imageFileNames 에 반영·저장.
   async function genImages() {
     if (!outline) return;
-    setGenLoading(4); setError(null); setSavedMsg('');
+    setGenLoading(5); setError(null); setSavedMsg('');
     try {
       const sections = outline.sections.map((s) => ({
         id: s.id,
@@ -318,7 +385,7 @@ export function CaseBlogButton({
     try {
       await callSave('blog_post', { ...blog, confirmed: true });
       setConfirmed(true);
-      setStep(4);
+      setStep(5);
     } catch (e) { setError(e instanceof Error ? e.message : '확정 실패'); setSaving(false); return; }
     setSaving(false);
     void genImages();
@@ -328,31 +395,48 @@ export function CaseBlogButton({
   function nextFromCausal() {
     if (!causal) return;
     if (confirmed) { setStep(2); setSavedMsg(''); return; } // 확정 후엔 재생성 없이 이동만
-    if (!outline) { void genOutline(); return; } // 처음이면 생성
-    if (JSON.stringify(causal) === outlineBasis) { setStep(2); setSavedMsg(''); return; } // 안 바뀜 → 이동만
+    if (!detail) { void genDetail(); return; } // 처음이면 생성
+    if (JSON.stringify(causal) === detailBasis) { setStep(2); setSavedMsg(''); return; } // 안 바뀜 → 이동만
     let changes: string[] = [];
-    try { if (outlineBasis) changes = diffCausal(JSON.parse(outlineBasis) as CausalFlow, causal); } catch { /* noop */ }
-    if (confirmRegen('인과 흐름이 변경되었습니다.', changes, '아웃라인을 다시 생성할까요?')) void genOutline();
+    try { if (detailBasis) changes = diffCausal(JSON.parse(detailBasis) as CausalFlow, causal); } catch { /* noop */ }
+    if (confirmRegen('인과 흐름이 변경되었습니다.', changes, '진단·치료 세부 흐름을 다시 생성할까요?')) void genDetail();
     else { setStep(2); setSavedMsg(''); }
+  }
+  function nextFromDetail() {
+    if (!detail) return;
+    if (confirmed) { setStep(3); setSavedMsg(''); return; }
+    if (!outline) { void genOutline(); return; }
+    if (JSON.stringify({ causal, detail }) === outlineBasis) { setStep(3); setSavedMsg(''); return; }
+    let changes: string[] = [];
+    try {
+      if (outlineBasis) {
+        const b = JSON.parse(outlineBasis) as { causal: CausalFlow | null; detail: DetailFlow | null };
+        if (b.causal && causal) changes.push(...diffCausal(b.causal, causal));
+        if (b.detail && detail) changes.push(...diffDetail(b.detail, detail));
+      }
+    } catch { /* noop */ }
+    if (confirmRegen('인과 흐름 또는 진단·치료 세부가 변경되었습니다.', changes, '아웃라인을 다시 생성할까요?')) void genOutline();
+    else { setStep(3); setSavedMsg(''); }
   }
   function nextFromOutline() {
     if (!outline) return;
-    if (confirmed) { setStep(3); setSavedMsg(''); return; } // 확정 후엔 재생성 없이 이동만
+    if (confirmed) { setStep(4); setSavedMsg(''); return; } // 확정 후엔 재생성 없이 이동만
     if (!blog) { void genBlog(); return; }
-    if (JSON.stringify(outline) === blogBasis) { setStep(3); setSavedMsg(''); return; }
+    if (JSON.stringify(outline) === blogBasis) { setStep(4); setSavedMsg(''); return; }
     let changes: string[] = [];
     try { if (blogBasis) changes = diffOutline(JSON.parse(blogBasis) as Outline, outline); } catch { /* noop */ }
     if (confirmRegen('아웃라인이 변경되었습니다.', changes, '블로그 글을 다시 생성할까요?')) void genBlog();
-    else { setStep(3); setSavedMsg(''); }
+    else { setStep(4); setSavedMsg(''); }
   }
 
   async function saveCurrent() {
     setSaving(true); setError(null); setSavedMsg('');
     try {
       if (step === 1 && causal) await callSave('blog_causal', { causalFlow: causal, caseOverview });
-      else if (step === 2 && outline) await callSave('blog_outline', { outline, caseOverview });
-      else if (step === 3 && blog) await callSave('blog_post', { ...blog, confirmed });
-      else if (step === 4 && outline) await callSave('blog_outline', { outline, caseOverview });
+      else if (step === 2 && detail) await callSave('blog_detail', { detailFlow: detail, caseOverview });
+      else if (step === 3 && outline) await callSave('blog_outline', { outline, caseOverview });
+      else if (step === 4 && blog) await callSave('blog_post', { ...blog, confirmed });
+      else if (step === 5 && outline) await callSave('blog_outline', { outline, caseOverview });
       setSavedMsg('저장됨');
     } catch (e) { setError(e instanceof Error ? e.message : '저장 실패'); }
     finally { setSaving(false); }
@@ -386,7 +470,7 @@ export function CaseBlogButton({
     setOpen(true); setError(null); setSavedMsg('');
     void loadCaseImages();
     if (loadedRunId !== runId) {
-      setStep(1); setCausal(null); setOutline(null); setBlog(null); setCaseOverview([]); setConfirmed(false);
+      setStep(1); setCausal(null); setDetail(null); setOutline(null); setBlog(null); setCaseOverview([]); setConfirmed(false);
       void loadAll();
     }
   }
@@ -432,6 +516,7 @@ export function CaseBlogButton({
   function setBlogField<K extends keyof BlogPost>(k: K, v: BlogPost[K]) {
     setBlog((b) => (b ? { ...b, [k]: v } : b)); dirty();
   }
+  const updateDetail = (d: DetailFlow) => { setDetail(d); dirty(); };
 
   const missingOverview = caseOverview.filter((o) => !o.value).length;
   const imageMetaByName = new Map(caseImages.map((c) => [c.fileName, c] as const));
@@ -458,7 +543,7 @@ export function CaseBlogButton({
                 <button type="button" className="adminLegacySmallBtn" onClick={closeModal}>닫기</button>
               </div>
               <div style={{ display: 'flex', gap: 6, marginTop: 12 }}>
-                {([[1, '인과 흐름'], [2, '아웃라인'], [3, '블로그 글'], [4, '이미지']] as [StepNum, string][]).map(([n, label]) => {
+                {([[1, '인과 흐름'], [2, '진단·치료 세부'], [3, '아웃라인'], [4, '블로그 글'], [5, '이미지']] as [StepNum, string][]).map(([n, label]) => {
                   const active = step === n; const done = step > n;
                   return (
                     <div key={n} style={{
@@ -502,8 +587,8 @@ export function CaseBlogButton({
                     )}
                   </div>
 
-                  {/* 개요 누락 점검 — 2단계 아웃라인 기준, 케이스 개요 아래에 표시 */}
-                  {step === 2 && outline && outline.overviewCheck.length ? (
+                  {/* 개요 누락 점검 — 3단계 아웃라인 기준, 케이스 개요 아래에 표시 */}
+                  {step === 3 && outline && outline.overviewCheck.length ? (
                     <div style={cardBox}>
                       <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)', marginBottom: 8 }}>개요 누락 점검</div>
                       <div style={{ display: 'grid', gap: 5 }}>
@@ -523,18 +608,22 @@ export function CaseBlogButton({
               <div style={{ flex: '6.5 1 0', minWidth: 0, display: 'flex', flexDirection: 'column' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 8 }}>
                   <span style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text)' }}>
-                    {step === 1 ? '1단계 — 인과 흐름 (검수·수정)' : step === 2 ? '2단계 — 섹션 아웃라인 (검수·수정)' : step === 3 ? '3단계 — 블로그 글 (검수·수정)' : '4단계 — 이미지 (배정·수정)'}
+                    {step === 1 ? '1단계 — 인과 흐름 (검수·수정)'
+                      : step === 2 ? '2단계 — 진단·치료 세부 흐름 (검수·수정)'
+                      : step === 3 ? '3단계 — 섹션 아웃라인 (검수·수정)'
+                      : step === 4 ? '4단계 — 블로그 글 (검수·수정)'
+                      : '5단계 — 이미지 (배정·수정)'}
                   </span>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     {savedMsg ? <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--success)' }}>{savedMsg}</span> : null}
-                    {step === 4 ? (
+                    {step === 5 ? (
                       <button type="button" style={btnSecondary} onClick={() => void genImages()} disabled={busy}>
-                        {genLoading === 4 ? '분석 중…' : '이미지 다시 분석'}
+                        {genLoading === 5 ? '분석 중…' : '이미지 다시 분석'}
                       </button>
                     ) : confirmed ? (
                       <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)' }}>확정됨 · 수기 수정만 가능</span>
                     ) : (
-                      <button type="button" style={btnSecondary} onClick={() => { if (step === 1) void genCausal(); else if (step === 2) void genOutline(); else void genBlog(); }} disabled={busy}>
+                      <button type="button" style={btnSecondary} onClick={() => { if (step === 1) void genCausal(); else if (step === 2) void genDetail(); else if (step === 3) void genOutline(); else void genBlog(); }} disabled={busy}>
                         {genLoading === step ? '생성 중…' : '다시 생성'}
                       </button>
                     )}
@@ -550,15 +639,19 @@ export function CaseBlogButton({
                       setField={setCausalField} updatePhase={updatePhase} movePhase={movePhase} addPhase={addPhase} removePhase={removePhase}
                     />
                   ) : step === 2 ? (
-                    genLoading === 2 && !outline ? <Loading text="AI가 아웃라인을 배치하는 중…" /> : (
-                      <OutlineEditor outline={outline} updateSection={updateSection} moveSection={moveSection} addSection={addSection} removeSection={removeSection} setOutline={(o) => { setOutline(o); dirty(); }} imageMeta={(fn) => imageMetaByName.get(fn) ?? null} />
+                    genLoading === 2 && !detail ? <Loading text="AI가 진단·치료 세부 흐름을 전개하는 중…" /> : (
+                      <DetailEditor detail={detail} onChange={updateDetail} />
                     )
                   ) : step === 3 ? (
-                    genLoading === 3 && !blog ? <Loading text="AI가 블로그 글을 작성하는 중…" /> : (
+                    genLoading === 3 && !outline ? <Loading text="AI가 아웃라인을 배치하는 중…" /> : (
+                      <OutlineEditor outline={outline} updateSection={updateSection} moveSection={moveSection} addSection={addSection} removeSection={removeSection} setOutline={(o) => { setOutline(o); dirty(); }} imageMeta={(fn) => imageMetaByName.get(fn) ?? null} />
+                    )
+                  ) : step === 4 ? (
+                    genLoading === 4 && !blog ? <Loading text="AI가 블로그 글을 작성하는 중…" /> : (
                       <BlogEditor blog={blog} setField={setBlogField} outline={outline} imageMeta={(fn) => imageMetaByName.get(fn) ?? null} />
                     )
                   ) : (
-                    genLoading === 4 ? <Loading text="AI가 진단 기반으로 이미지를 배정하는 중…" /> : (
+                    genLoading === 5 ? <Loading text="AI가 진단 기반으로 이미지를 배정하는 중…" /> : (
                       <Step4Editor outline={outline} caseImages={caseImages} imageMeta={(fn) => imageMetaByName.get(fn) ?? null} updateSection={updateSection} />
                     )
                   )}
@@ -574,16 +667,18 @@ export function CaseBlogButton({
                 ) : null}
               </div>
               <div style={{ display: 'flex', gap: 8 }}>
-                <button type="button" style={btnSecondary} onClick={() => void saveCurrent()} disabled={busy || (step === 1 ? !causal : step === 2 ? !outline : !blog)}>
+                <button type="button" style={btnSecondary} onClick={() => void saveCurrent()} disabled={busy || (step === 1 ? !causal : step === 2 ? !detail : step === 3 ? !outline : step === 4 ? !blog : !outline)}>
                   {saving ? '저장 중…' : '저장'}
                 </button>
                 {step === 1 ? (
-                  <button type="button" style={btnPrimary} onClick={() => nextFromCausal()} disabled={busy || !causal}>{genLoading === 2 ? '생성 중…' : '다음: 아웃라인 →'}</button>
+                  <button type="button" style={btnPrimary} onClick={() => nextFromCausal()} disabled={busy || !causal}>{genLoading === 2 ? '생성 중…' : '다음: 진단·치료 세부 →'}</button>
                 ) : step === 2 ? (
-                  <button type="button" style={btnPrimary} onClick={() => nextFromOutline()} disabled={busy || !outline}>{genLoading === 3 ? '생성 중…' : '다음: 글 작성 →'}</button>
+                  <button type="button" style={btnPrimary} onClick={() => nextFromDetail()} disabled={busy || !detail}>{genLoading === 3 ? '생성 중…' : '다음: 아웃라인 →'}</button>
                 ) : step === 3 ? (
+                  <button type="button" style={btnPrimary} onClick={() => nextFromOutline()} disabled={busy || !outline}>{genLoading === 4 ? '생성 중…' : '다음: 글 작성 →'}</button>
+                ) : step === 4 ? (
                   confirmed ? (
-                    <button type="button" style={btnPrimary} onClick={() => { setStep(4); setSavedMsg(''); }} disabled={busy}>다음: 이미지 →</button>
+                    <button type="button" style={btnPrimary} onClick={() => { setStep(5); setSavedMsg(''); }} disabled={busy}>다음: 이미지 →</button>
                   ) : (
                     <button type="button" style={btnPrimary} onClick={() => void confirmBlog()} disabled={busy || !blog}>블로그 글 확정하기</button>
                   )
@@ -662,6 +757,93 @@ function CausalEditor({ causal, busy, setField, updatePhase, movePhase, addPhase
         </div>
       ))}
       <button type="button" style={{ ...btnSecondary, width: '100%' }} onClick={addPhase} disabled={busy}>+ 단계 추가</button>
+    </div>
+  );
+}
+
+// ── 2단계 에디터 — 진단/치료 세부 흐름 ──
+function DetailEditor({ detail, onChange }: { detail: DetailFlow | null; onChange: (d: DetailFlow) => void }) {
+  if (!detail) return <div style={{ fontSize: 13, color: 'var(--text-muted)', padding: 12 }}>진단·치료 세부 흐름이 없습니다. “다시 생성”을 눌러 주세요.</div>;
+
+  // 진단
+  const setDiag = (steps: DiagStep[]) => onChange({ ...detail, diagnosis: { steps } });
+  const updDiag = (i: number, patch: Partial<DiagStep>) => setDiag(detail.diagnosis.steps.map((s, j) => (j === i ? { ...s, ...patch } : s)));
+  const moveDiag = (i: number, dir: -1 | 1) => { const j = i + dir; if (j < 0 || j >= detail.diagnosis.steps.length) return; const a = [...detail.diagnosis.steps]; [a[i], a[j]] = [a[j]!, a[i]!]; setDiag(a); };
+  const addDiag = () => setDiag([...detail.diagnosis.steps, { name: '', why: '', what: '', result: '', fromChart: false }]);
+  const rmDiag = (i: number) => setDiag(detail.diagnosis.steps.filter((_, j) => j !== i));
+
+  // 치료
+  const setProcs = (procedures: TreatProcedure[]) => onChange({ ...detail, treatment: { ...detail.treatment, procedures } });
+  const updProc = (pi: number, patch: Partial<TreatProcedure>) => setProcs(detail.treatment.procedures.map((p, j) => (j === pi ? { ...p, ...patch } : p)));
+  const moveProc = (pi: number, dir: -1 | 1) => { const j = pi + dir; if (j < 0 || j >= detail.treatment.procedures.length) return; const a = [...detail.treatment.procedures]; [a[pi], a[j]] = [a[j]!, a[pi]!]; setProcs(a); };
+  const addProc = () => setProcs([...detail.treatment.procedures, { id: `proc_${uid()}`, name: '', steps: [] }]);
+  const rmProc = (pi: number) => setProcs(detail.treatment.procedures.filter((_, j) => j !== pi));
+  const setSteps = (pi: number, steps: TreatStep[]) => updProc(pi, { steps });
+  const updStep = (pi: number, si: number, patch: Partial<TreatStep>) => setSteps(pi, (detail.treatment.procedures[pi]?.steps ?? []).map((s, j) => (j === si ? { ...s, ...patch } : s)));
+  const moveStep = (pi: number, si: number, dir: -1 | 1) => { const steps = detail.treatment.procedures[pi]?.steps ?? []; const j = si + dir; if (j < 0 || j >= steps.length) return; const a = [...steps]; [a[si], a[j]] = [a[j]!, a[si]!]; setSteps(pi, a); };
+  const addStep = (pi: number) => setSteps(pi, [...(detail.treatment.procedures[pi]?.steps ?? []), { step: '', why: '', detail: '', fromChart: false }]);
+  const rmStep = (pi: number, si: number) => setSteps(pi, (detail.treatment.procedures[pi]?.steps ?? []).filter((_, j) => j !== si));
+
+  const fromChartBox = (checked: boolean, on: (v: boolean) => void) => (
+    <label style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: 'var(--text-muted)', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+      <input type="checkbox" checked={checked} onChange={(e) => on(e.target.checked)} style={{ width: 13, height: 13 }} /> 차트 근거
+    </label>
+  );
+
+  return (
+    <div style={{ display: 'grid', gap: 12 }}>
+      {/* 진단 과정 */}
+      <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent)' }}>진단 과정 (검사 순서)</div>
+      {detail.diagnosis.steps.map((s, i) => (
+        <div key={i} style={cardBox}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 10 }}>
+            <input value={s.name} onChange={(e) => updDiag(i, { name: e.target.value })} placeholder="검사명" style={{ ...inputStyle, fontWeight: 700, maxWidth: 280 }} />
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              {fromChartBox(s.fromChart, (v) => updDiag(i, { fromChart: v }))}
+              <RowTools onUp={() => moveDiag(i, -1)} onDown={() => moveDiag(i, 1)} onRemove={() => rmDiag(i)} />
+            </div>
+          </div>
+          <div style={{ display: 'grid', gap: 10 }}>
+            <LabeledTextarea label="왜 (무엇을 확인하려고)" value={s.why} onChange={(v) => updDiag(i, { why: v })} rows={2} />
+            <LabeledTextarea label="어떻게 (검사 방법 · 표준)" value={s.what} onChange={(v) => updDiag(i, { what: v })} rows={2} />
+            <LabeledTextarea label="결과/소견 (차트 기록 · 없으면 비움)" value={s.result} onChange={(v) => updDiag(i, { result: v })} rows={2} />
+          </div>
+        </div>
+      ))}
+      <button type="button" style={{ ...btnSecondary, width: '100%' }} onClick={addDiag}>+ 진단 검사 추가</button>
+
+      {/* 치료 과정 */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 6 }}>
+        <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent)' }}>치료 과정</span>
+        <select value={detail.treatment.type} onChange={(e) => onChange({ ...detail, treatment: { ...detail.treatment, type: e.target.value } })} style={{ ...inputStyle, width: 'auto', padding: '4px 8px', fontSize: 12 }}>
+          {Object.entries(TREAT_TYPE_LABEL).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+        </select>
+      </div>
+      {detail.treatment.procedures.map((p, pi) => (
+        <div key={p.id} style={{ ...cardBox, borderColor: 'var(--accent-subtle)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 10 }}>
+            <input value={p.name} onChange={(e) => updProc(pi, { name: e.target.value })} placeholder="처치명 (예: 치과 스케일링·발치)" style={{ ...inputStyle, fontWeight: 700 }} />
+            <RowTools onUp={() => moveProc(pi, -1)} onDown={() => moveProc(pi, 1)} onRemove={() => rmProc(pi)} />
+          </div>
+          <div style={{ display: 'grid', gap: 8 }}>
+            {p.steps.map((st, si) => (
+              <div key={si} style={{ border: '1px solid var(--border)', borderRadius: 8, padding: '8px 10px', display: 'grid', gap: 8 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                  <input value={st.step} onChange={(e) => updStep(pi, si, { step: e.target.value })} placeholder={`단계 ${si + 1} (예: 전신마취)`} style={{ ...inputStyle, fontWeight: 600, maxWidth: 240 }} />
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    {fromChartBox(st.fromChart, (v) => updStep(pi, si, { fromChart: v }))}
+                    <RowTools onUp={() => moveStep(pi, si, -1)} onDown={() => moveStep(pi, si, 1)} onRemove={() => rmStep(pi, si)} />
+                  </div>
+                </div>
+                <LabeledTextarea label="왜 (목적)" value={st.why} onChange={(v) => updStep(pi, si, { why: v })} rows={2} />
+                <LabeledTextarea label="어떻게 (표준 방법)" value={st.detail} onChange={(v) => updStep(pi, si, { detail: v })} rows={2} />
+              </div>
+            ))}
+            <button type="button" style={{ ...btnTiny, width: 'fit-content' }} onClick={() => addStep(pi)}>+ 세부 단계 추가</button>
+          </div>
+        </div>
+      ))}
+      <button type="button" style={{ ...btnSecondary, width: '100%' }} onClick={addProc}>+ 처치 추가</button>
     </div>
   );
 }

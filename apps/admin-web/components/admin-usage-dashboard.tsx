@@ -39,8 +39,8 @@ const FEATURE_LABEL: Record<string, string> = {
   assessment: 'AI평가',
   kakao_alimtalk: '알림톡',
 };
-// 진료케이스 블로그 3단계(인과·아웃라인·글)는 한 그룹 '진료케이스'로 합쳐 표시.
-const CASE_BLOG_FEATURES = new Set(['blog_causal', 'blog_outline', 'blog_post']);
+// 진료케이스 블로그 단계(인과·진단치료세부·아웃라인·글)는 한 그룹 '진료케이스'로 합쳐 표시.
+const CASE_BLOG_FEATURES = new Set(['blog_causal', 'blog_detail', 'blog_outline', 'blog_post']);
 const normFeature = (f: string) => (CASE_BLOG_FEATURES.has(f) ? 'case_blog' : f);
 const PALETTE = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#3b82f6', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316', '#64748b'];
 const featureLabel = (f: string) => FEATURE_LABEL[normFeature(f)] ?? f;
