@@ -2157,18 +2157,24 @@ def main():
     if rank_port_raw:
         print(f"ℹ️ 순위 전용 Chrome 포트 사용: RANK_CHROME_DEBUGGING_PORT={debug_port}")
 
-    # CDP(실 Chrome) 가 가장 탐지에 안전 → 디버그 Chrome 이 떠 있으면 자동으로 사용.
-    # RANK_USE_DEBUG_CHROME 를 명시하면 그 값을 우선(강제 on/off).
+    # CDP(실 Chrome) 가 가장 탐지에 안전 → 기본은 'CDP 전용'. 헤드리스 자동 폴백은 하지 않는다.
+    # (조용히 더 잘 들키는 모드로 떨어지거나, 좋은 데이터를 not_found 로 덮어쓰는 사고를 막기 위함.)
+    # 로컬 개발 등에서 독립 Chromium 으로 돌리려면 RANK_USE_DEBUG_CHROME=0 으로 명시적으로 끈다.
     _explicit_cdp = os.getenv("RANK_USE_DEBUG_CHROME")
     if _explicit_cdp is not None:
         use_debug_chrome = _is_truthy_env("RANK_USE_DEBUG_CHROME")
     else:
-        use_debug_chrome = _probe_cdp(debug_port)
+        use_debug_chrome = True  # 기본 CDP 전용(폴백 없음)
     if use_debug_chrome:
+        # 디버그 Chrome 이 안 떠 있으면 headless 로 떨어지지 않고 '시끄럽게' 실패(잡 failed)한다.
+        if not _probe_cdp(debug_port):
+            print(f"❌ 디버그 Chrome(CDP)이 port={debug_port} 에 없습니다. "
+                  f"Chrome 을 --remote-debugging-port={debug_port} 로 실행한 뒤 다시 시도하세요. "
+                  f"(headless 폴백 비활성화 — 독립 Chromium 으로 강제하려면 RANK_USE_DEBUG_CHROME=0)")
+            sys.exit(1)
         print(f"ℹ️ CDP 모드(실 Chrome, port={debug_port}) 사용 — 탐지 위험 최소")
     else:
-        print("ℹ️ 독립 Chromium launch 모드 (디버그 Chrome 미감지). CDP를 쓰려면 "
-              f"Chrome 을 --remote-debugging-port={debug_port} 로 실행하세요.")
+        print("ℹ️ 독립 Chromium launch 모드 (RANK_USE_DEBUG_CHROME=0 명시).")
 
     positional = []
     args = sys.argv[1:]
