@@ -13,9 +13,23 @@ type CaseBlogItem = {
   title: string;
   bodyMarkdown: string;
   tags: string[];
+  stage: 'writing' | 'done';
   createdAt: string;
   updatedAt: string;
 };
+
+function StageSticker({ stage }: { stage: 'writing' | 'done' }) {
+  const done = stage === 'done';
+  return (
+    <span style={{
+      marginLeft: 6, display: 'inline-block', padding: '1px 6px', borderRadius: 4, fontSize: 10, fontWeight: 700, verticalAlign: 'middle',
+      background: done ? 'var(--success-subtle)' : 'var(--accent-subtle)',
+      color: done ? 'var(--success)' : 'var(--accent)',
+    }}>
+      {done ? '블로그 완료' : '블로그 작성중'}
+    </span>
+  );
+}
 
 const btnSecondary: CSSProperties = {
   padding: '5px 10px',
@@ -25,6 +39,16 @@ const btnSecondary: CSSProperties = {
   background: '#fff',
   color: 'var(--text-secondary)',
   border: '1px solid var(--border-strong)',
+  cursor: 'pointer',
+};
+const ctaBtnStyle: CSSProperties = {
+  padding: '10px 22px',
+  fontSize: 14,
+  fontWeight: 700,
+  borderRadius: 8,
+  background: 'var(--accent)',
+  color: '#fff',
+  border: '1px solid var(--accent)',
   cursor: 'pointer',
 };
 const editBtnStyle: CSSProperties = {
@@ -315,6 +339,7 @@ export default function AdminCaseBlog() {
                 <span className="adminRailSub">
                   {it.patientName?.trim() ? `${it.patientName.trim()} · ` : ''}
                   {caseId(it.friendlyId) || it.runId.slice(0, 8)}
+                  <StageSticker stage={it.stage} />
                 </span>
               </button>
             ))
@@ -324,7 +349,18 @@ export default function AdminCaseBlog() {
 
       <div className="adminLayoutMainPane">
         <div className="adminLayoutMainColumnInset">
-          {selected ? (
+          {selected && selected.stage === 'writing' ? (
+            <div style={{ padding: '64px 18px', textAlign: 'center', color: 'var(--text-muted)' }}>
+              <div style={{ fontSize: 11.5, color: 'var(--text-muted)', marginBottom: 8, fontFamily: 'ui-monospace, monospace' }}>
+                {selected.friendlyId ? `진료케이스 ID · ${caseId(selected.friendlyId)}` : ''}
+              </div>
+              <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)', marginBottom: 4 }}>
+                {[selected.hospitalName, selected.patientName].filter(Boolean).join(' · ') || '진료케이스'}
+              </div>
+              <div style={{ fontSize: 13, marginBottom: 20 }}>아직 작성 중인 진료케이스입니다.</div>
+              <CaseBlogButton runId={selected.runId} label="작성 이어가기" triggerStyle={ctaBtnStyle} onClose={() => void load()} />
+            </div>
+          ) : selected ? (
             <article>
               <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: 6 }}>
                 <div style={{ minWidth: 0, fontSize: 11.5, color: 'var(--text-muted)', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace' }}>

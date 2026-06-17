@@ -2,6 +2,7 @@ import { createServiceRoleClient } from '@/lib/supabase/service-role';
 import { parseChartKind, type ChartKind } from '@/lib/chart-extraction/chart-kind';
 import { refineLabFlag } from '@dashboard/lab-normalize';
 import type { PlanRow, RunDetailResponse } from '@/lib/admin-run-detail-types';
+import { computeBlogStage, computeHealthStage } from '@/lib/case-status';
 
 function lineCount(text: string): number {
   return String(text || '')
@@ -186,19 +187,21 @@ export async function loadAdminRunDetail(runId: string): Promise<RunDetailRespon
     sb
       .schema('health_report')
       .from('generated_run_content')
-      .select('content_type')
+      .select('content_type, payload')
       .eq('parse_run_id', runId)
-      .in('content_type', ['hospital_notes', 'blog_case']),
+      .in('content_type', ['hospital_notes', 'blog_case', 'health_checkup', 'blog_causal', 'blog_detail', 'blog_outline', 'blog_post']),
   ]);
 
   for (const r of [docRes, basicRes, chartsRes, labsRes, plansRes, vacRes, vitalsRes, physicalRes]) {
     if (r.error) throw new Error(r.error.message);
   }
-  const hospitalContentTypes = new Set(
-    (((hospitalWebRes.data ?? []) as { content_type?: unknown }[]) ?? []).map((r) => String(r.content_type ?? '')),
-  );
-  const isHealthCheckup = hospitalContentTypes.has('hospital_notes');
-  const isBlog = hospitalContentTypes.has('blog_case');
+  const hospitalWebRows = ((hospitalWebRes.data ?? []) as { content_type?: unknown; payload?: { confirmed?: unknown } }[]) ?? [];
+  const hospitalContentTypes = new Set(hospitalWebRows.map((r) => String(r.content_type ?? '')));
+  const blogConfirmed = hospitalWebRows.some((r) => String(r.content_type ?? '') === 'blog_post' && r.payload?.confirmed === true);
+  const blogStage = computeBlogStage(hospitalContentTypes, blogConfirmed);
+  const healthStage = computeHealthStage(hospitalContentTypes);
+  const isHealthCheckup = healthStage !== 'none';
+  const isBlog = blogStage !== 'none';
 
   const doc = docRes.data as Record<string, unknown> | null;
   const chartTypeRaw = doc?.chart_type;
@@ -341,6 +344,8 @@ export async function loadAdminRunDetail(runId: string): Promise<RunDetailRespon
       chartType,
       isHealthCheckup,
       isBlog,
+      blogStage,
+      healthStage,
     },
     basicInfo,
     chartTypeNotice: chartTypeNoticeFor(chartType),

@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { useChartExtraction } from '@/components/chart-extraction-provider';
 import { AdminRunExtractionDetail } from '@/components/admin-run-extraction-detail';
 import AdminDataUpload from '@/components/admin-data-upload';
@@ -11,8 +11,48 @@ import {
   normalizeHistoryApiItem,
   type HistoryItem,
 } from '@/lib/chart-history-normalize';
+import {
+  BLOG_STAGE_LABEL, HEALTH_STAGE_LABEL, stageTone,
+  TYPE_FILTERS, STAGE_FILTERS, runTypes, runStages,
+  type BadgeTone,
+} from '@/lib/case-status';
 
 const divider = 'var(--border)';
+
+function chipStyle(on: boolean): CSSProperties {
+  return {
+    padding: '3px 9px', fontSize: 11, fontWeight: 700, borderRadius: 999, cursor: 'pointer',
+    border: `1px solid ${on ? 'var(--accent)' : 'var(--border-strong)'}`,
+    background: on ? 'var(--accent-subtle)' : '#fff',
+    color: on ? 'var(--accent)' : 'var(--text-secondary)',
+  };
+}
+
+function toneStyle(tone: BadgeTone): { background: string; color: string } {
+  if (tone === 'success') return { background: 'var(--success-subtle)', color: 'var(--success)' };
+  if (tone === 'accent') return { background: 'var(--accent-subtle)', color: 'var(--accent)' };
+  return { background: 'var(--bg-raised)', color: 'var(--text-muted)' };
+}
+
+// 차트 목록/레일 공용 상태 배지 (블로그 요청/작성중/완료, 검진리포트 요청/완료)
+function StatusBadges({ blogStage, healthStage }: { blogStage: HistoryItem['blogStage']; healthStage: HistoryItem['healthStage'] }) {
+  const badges: { key: string; label: string; tone: BadgeTone }[] = [];
+  if (healthStage !== 'none') badges.push({ key: 'h', label: HEALTH_STAGE_LABEL[healthStage], tone: stageTone(healthStage) });
+  if (blogStage !== 'none') badges.push({ key: 'b', label: BLOG_STAGE_LABEL[blogStage], tone: stageTone(blogStage) });
+  if (badges.length === 0) return null;
+  return (
+    <>
+      {badges.map((b) => {
+        const t = toneStyle(b.tone);
+        return (
+          <span key={b.key} style={{ marginLeft: 6, display: 'inline-block', padding: '1px 6px', borderRadius: 4, background: t.background, color: t.color, fontSize: 10, fontWeight: 700, verticalAlign: 'middle' }}>
+            {b.label}
+          </span>
+        );
+      })}
+    </>
+  );
+}
 
 function formatRunRailDateShort(iso: string): string {
   if (!iso) return '—';
@@ -34,6 +74,10 @@ export default function AdminChartData() {
   const [search, setSearch] = useState('');
   const [filterHospital, setFilterHospital] = useState('');
   const [filterMonth, setFilterMonth] = useState('');
+  const [filterTypes, setFilterTypes] = useState<string[]>([]);   // 블로그 / 검진리포트 (다중)
+  const [filterStages, setFilterStages] = useState<string[]>([]); // 요청 / 작성중 / 완료 (다중)
+  const toggleIn = (arr: string[], set: (v: string[]) => void, v: string) =>
+    set(arr.includes(v) ? arr.filter((x) => x !== v) : [...arr, v]);
   const [serverMeta, setServerMeta] = useState<{ totalParseRuns: number; limit: number } | null>(null);
   const [selectedId, setSelectedId] = useState('');
 
@@ -132,6 +176,8 @@ export default function AdminChartData() {
     let items = history;
     if (filterHospital) items = items.filter((h) => (h.hospitalName?.trim() ?? '') === filterHospital);
     if (filterMonth) items = items.filter((h) => h.createdAt.startsWith(filterMonth));
+    if (filterTypes.length) items = items.filter((h) => runTypes(h.blogStage, h.healthStage).some((t) => filterTypes.includes(t)));
+    if (filterStages.length) items = items.filter((h) => runStages(h.blogStage, h.healthStage).some((s) => filterStages.includes(s)));
     const q = search.trim().toLowerCase();
     if (!q) return items;
     return items.filter((item) => {
@@ -147,7 +193,7 @@ export default function AdminChartData() {
         .toLowerCase();
       return hay.includes(q);
     });
-  }, [history, filterHospital, filterMonth, search]);
+  }, [history, filterHospital, filterMonth, filterTypes, filterStages, search]);
 
   useEffect(() => {
     if (filteredHistory.length === 0) {
@@ -223,7 +269,7 @@ export default function AdminChartData() {
           />
           {!historyLoading && history.length > 0 && (
             <span style={{ fontSize: 11.5, color: 'var(--text-muted)', flexShrink: 0 }}>
-              {search.trim() || filterHospital || filterMonth
+              {search.trim() || filterHospital || filterMonth || filterTypes.length || filterStages.length
                 ? `${filteredHistory.length} / ${history.length}`
                 : history.length}건
             </span>
@@ -255,6 +301,19 @@ export default function AdminChartData() {
                 </option>
               ))}
             </select>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, width: '100%', marginTop: 2 }}>
+              {TYPE_FILTERS.map((t) => (
+                <button key={t} type="button" onClick={() => toggleIn(filterTypes, setFilterTypes, t)} style={chipStyle(filterTypes.includes(t))}>
+                  {t}
+                </button>
+              ))}
+              <span style={{ width: 1, alignSelf: 'stretch', background: 'var(--border)', margin: '0 2px' }} />
+              {STAGE_FILTERS.map((s) => (
+                <button key={s} type="button" onClick={() => toggleIn(filterStages, setFilterStages, s)} style={chipStyle(filterStages.includes(s))}>
+                  {s}
+                </button>
+              ))}
+            </div>
           </div>
         )}
         <div style={{ maxHeight: 'min(66vh, calc(100vh - 260px))', overflow: 'auto' }}>
@@ -286,40 +345,7 @@ export default function AdminChartData() {
                 <span className="adminRailSub">
                   {item.patientName?.trim() ? `${item.patientName.trim()} · ` : ''}
                   {item.friendlyId?.trim() ?? '—'}
-                  {item.isHealthCheckup && (
-                    <span
-                      style={{
-                        marginLeft: 6,
-                        display: 'inline-block',
-                        padding: '1px 6px',
-                        borderRadius: 4,
-                        background: 'var(--accent-subtle)',
-                        color: 'var(--accent)',
-                        fontSize: 10,
-                        fontWeight: 700,
-                        verticalAlign: 'middle',
-                      }}
-                    >
-                      건강검진
-                    </span>
-                  )}
-                  {item.isBlog && (
-                    <span
-                      style={{
-                        marginLeft: 6,
-                        display: 'inline-block',
-                        padding: '1px 6px',
-                        borderRadius: 4,
-                        background: 'var(--success-subtle)',
-                        color: 'var(--success)',
-                        fontSize: 10,
-                        fontWeight: 700,
-                        verticalAlign: 'middle',
-                      }}
-                    >
-                      블로그
-                    </span>
-                  )}
+                  <StatusBadges blogStage={item.blogStage} healthStage={item.healthStage} />
                 </span>
               </button>
             ))

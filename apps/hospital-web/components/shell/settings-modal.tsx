@@ -63,7 +63,7 @@ type Profile = {
 const MENU: { key: Tab; label: string; icon: typeof User }[] = [
   { key: 'basic', label: '기본 정보', icon: User },
   { key: 'usage', label: '토큰 사용량', icon: Coins },
-  { key: 'payment', label: '결제수단', icon: CreditCard },
+  { key: 'payment', label: '청구 및 결제', icon: CreditCard },
   { key: 'password', label: '비밀번호 변경', icon: KeyRound },
 ];
 
@@ -450,6 +450,18 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
 
             {tab === 'payment' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                {/* 플랜 결제 */}
+                <div>
+                  <div style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 8 }}>플랜</div>
+                  <div style={{
+                    border: '1px dashed var(--border)', borderRadius: 10,
+                    padding: '22px 16px', textAlign: 'center', background: 'var(--bg-raised)',
+                  }}>
+                    <p style={{ margin: '0 0 14px', fontSize: 13, color: 'var(--text-muted)' }}>플랜 선택·결제는 준비 중입니다.</p>
+                    <button disabled style={primaryBtn(true)}>플랜 결제 (준비 중)</button>
+                  </div>
+                </div>
+
                 <div>
                   <div style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 8 }}>등록된 결제수단</div>
                   <div style={{

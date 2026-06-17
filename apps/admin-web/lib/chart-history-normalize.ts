@@ -1,4 +1,5 @@
 import { parseChartAdminHospitalsResponse } from '@/lib/chart-extraction/chart-admin-hospitals';
+import type { BlogStage, HealthStage } from '@/lib/case-status';
 
 export type HistoryItem = {
   id: string;
@@ -9,7 +10,12 @@ export type HistoryItem = {
   patientName: string | null;
   isHealthCheckup: boolean;
   isBlog: boolean;
+  blogStage: BlogStage;
+  healthStage: HealthStage;
 };
+
+const BLOG_STAGES = new Set(['none', 'requested', 'writing', 'done']);
+const HEALTH_STAGES = new Set(['none', 'requested', 'done']);
 
 export function pickNonEmptyString(...vals: unknown[]): string | null {
   for (const v of vals) {
@@ -79,7 +85,9 @@ export function normalizeHistoryApiItem(raw: unknown): HistoryItem | null {
   const patientName = pickNonEmptyString(o.patientName, o.patient_name, basic?.patient_name, basic?.patientName);
   const isHealthCheckup = o.isHealthCheckup === true;
   const isBlog = o.isBlog === true;
-  return { id, createdAt, friendlyId, hospitalName, ownerName, patientName, isHealthCheckup, isBlog };
+  const blogStage = (typeof o.blogStage === 'string' && BLOG_STAGES.has(o.blogStage) ? o.blogStage : 'none') as BlogStage;
+  const healthStage = (typeof o.healthStage === 'string' && HEALTH_STAGES.has(o.healthStage) ? o.healthStage : 'none') as HealthStage;
+  return { id, createdAt, friendlyId, hospitalName, ownerName, patientName, isHealthCheckup, isBlog, blogStage, healthStage };
 }
 
 export function extractHospitalId(raw: unknown): string | null {

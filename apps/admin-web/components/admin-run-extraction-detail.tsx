@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, 
 import type { ExamType, FindingSpot, RadiologySub } from '@/lib/chart-case-images/types';
 import { EXAM_TYPE_LABEL_KO, RADIOLOGY_SUB_LABEL_KO } from '@/lib/chart-case-images/types';
 import type { PlanRow, RunDetailResponse } from '@/lib/admin-run-detail-types';
+import { BLOG_STAGE_LABEL, HEALTH_STAGE_LABEL } from '@/lib/case-status';
 import { HEALTH_CHECKUP_MAX_COVER_FIELD_CHARS, HEALTH_CHECKUP_MUST_INCLUDE_MAX_CHARS } from '@/lib/health-report-admin/limits';
 import { canonicalizeLabItemName, isRecognizedLabItem, type LabCanonicalizeSpecies } from '@/lib/chart-extraction/lab-item-normalize';
 import { labItemCategory } from '@dashboard/lab-normalize';
@@ -1276,14 +1277,14 @@ export function AdminRunExtractionDetail({
               {result.run.chartType}
             </span>
           )}
-          {result.run.isHealthCheckup && (
+          {result.run.healthStage !== 'none' && (
             <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--accent)', background: 'var(--accent-subtle)', padding: '3px 8px', borderRadius: 4, border: '1px solid var(--accent-subtle)' }}>
-              건강검진
+              {HEALTH_STAGE_LABEL[result.run.healthStage]}
             </span>
           )}
-          {result.run.isBlog && (
+          {result.run.blogStage !== 'none' && (
             <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--success)', background: 'var(--success-subtle)', padding: '3px 8px', borderRadius: 4, border: '1px solid var(--success-subtle)' }}>
-              블로그
+              {BLOG_STAGE_LABEL[result.run.blogStage]}
             </span>
           )}
           {sourcePdfs.length > 0 ? (
@@ -1343,7 +1344,7 @@ export function AdminRunExtractionDetail({
               {result.run.chartType}
             </span>
           )}
-          {result.run.isHealthCheckup && (
+          {result.run.healthStage !== 'none' && (
             <span style={{
               fontSize: 11,
               fontWeight: 700,
@@ -1354,10 +1355,10 @@ export function AdminRunExtractionDetail({
               border: '1px solid var(--accent-subtle)',
               letterSpacing: '0.02em',
             }}>
-              건강검진
+              {HEALTH_STAGE_LABEL[result.run.healthStage]}
             </span>
           )}
-          {result.run.isBlog && (
+          {result.run.blogStage !== 'none' && (
             <span style={{
               fontSize: 11,
               fontWeight: 700,
@@ -1368,7 +1369,7 @@ export function AdminRunExtractionDetail({
               border: '1px solid var(--success-subtle)',
               letterSpacing: '0.02em',
             }}>
-              블로그
+              {BLOG_STAGE_LABEL[result.run.blogStage]}
             </span>
           )}
           <span style={{ marginLeft: 'auto', display: 'inline-flex', gap: 6, alignItems: 'center', marginRight: 14 }}>

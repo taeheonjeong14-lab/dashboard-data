@@ -1,4 +1,5 @@
 import type { ChartKind } from '@/lib/chart-extraction/chart-kind';
+import type { BlogStage, HealthStage } from '@/lib/case-status';
 
 export type RunDetailChartKind = ChartKind;
 
@@ -26,6 +27,8 @@ export type RunDetailResponse = {
     isHealthCheckup: boolean;
     /** hospital-ui 블로그 컨텐츠 제출(blog_case 존재) */
     isBlog: boolean;
+    blogStage: BlogStage;
+    healthStage: HealthStage;
   };
   basicInfo: {
     id: string;
