@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState, type CSSProperties } from 'react';
 import { CaseBlogButton } from './admin-case-blog-modal';
+import { BLOG_STAGE_LABEL, badgeStyle } from '@/lib/case-status';
 
 type CaseBlogItem = {
   runId: string;
@@ -19,14 +20,12 @@ type CaseBlogItem = {
 };
 
 function StageSticker({ stage }: { stage: 'writing' | 'done' }) {
-  const done = stage === 'done';
   return (
     <span style={{
       marginLeft: 6, display: 'inline-block', padding: '1px 6px', borderRadius: 4, fontSize: 10, fontWeight: 700, verticalAlign: 'middle',
-      background: done ? 'var(--success-subtle)' : 'var(--accent-subtle)',
-      color: done ? 'var(--success)' : 'var(--accent)',
+      ...badgeStyle('blog', stage),
     }}>
-      {done ? '블로그 완료' : '블로그 작성중'}
+      {BLOG_STAGE_LABEL[stage]}
     </span>
   );
 }

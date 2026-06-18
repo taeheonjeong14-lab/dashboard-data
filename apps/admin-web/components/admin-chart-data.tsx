@@ -12,9 +12,8 @@ import {
   type HistoryItem,
 } from '@/lib/chart-history-normalize';
 import {
-  BLOG_STAGE_LABEL, HEALTH_STAGE_LABEL, stageTone,
+  BLOG_STAGE_LABEL, HEALTH_STAGE_LABEL, badgeStyle,
   TYPE_FILTERS, STAGE_FILTERS, runTypes, runStages,
-  type BadgeTone,
 } from '@/lib/case-status';
 
 const divider = 'var(--border)';
@@ -28,28 +27,19 @@ function chipStyle(on: boolean): CSSProperties {
   };
 }
 
-function toneStyle(tone: BadgeTone): { background: string; color: string } {
-  if (tone === 'success') return { background: 'var(--success-subtle)', color: 'var(--success)' };
-  if (tone === 'accent') return { background: 'var(--accent-subtle)', color: 'var(--accent)' };
-  return { background: 'var(--bg-raised)', color: 'var(--text-muted)' };
-}
-
-// 차트 목록/레일 공용 상태 배지 (블로그 요청/작성중/완료, 검진리포트 요청/완료)
+// 차트 목록/레일 공용 상태 배지 (배경=카테고리, 글자=단계 — case-status.badgeStyle)
 function StatusBadges({ blogStage, healthStage }: { blogStage: HistoryItem['blogStage']; healthStage: HistoryItem['healthStage'] }) {
-  const badges: { key: string; label: string; tone: BadgeTone }[] = [];
-  if (healthStage !== 'none') badges.push({ key: 'h', label: HEALTH_STAGE_LABEL[healthStage], tone: stageTone(healthStage) });
-  if (blogStage !== 'none') badges.push({ key: 'b', label: BLOG_STAGE_LABEL[blogStage], tone: stageTone(blogStage) });
+  const badges: { key: string; label: string; style: { background: string; color: string } }[] = [];
+  if (healthStage !== 'none') badges.push({ key: 'h', label: HEALTH_STAGE_LABEL[healthStage], style: badgeStyle('health', healthStage) });
+  if (blogStage !== 'none') badges.push({ key: 'b', label: BLOG_STAGE_LABEL[blogStage], style: badgeStyle('blog', blogStage) });
   if (badges.length === 0) return null;
   return (
     <>
-      {badges.map((b) => {
-        const t = toneStyle(b.tone);
-        return (
-          <span key={b.key} style={{ marginLeft: 6, display: 'inline-block', padding: '1px 6px', borderRadius: 4, background: t.background, color: t.color, fontSize: 10, fontWeight: 700, verticalAlign: 'middle' }}>
-            {b.label}
-          </span>
-        );
-      })}
+      {badges.map((b) => (
+        <span key={b.key} style={{ marginLeft: 6, display: 'inline-block', padding: '1px 6px', borderRadius: 4, background: b.style.background, color: b.style.color, fontSize: 10, fontWeight: 700, verticalAlign: 'middle' }}>
+          {b.label}
+        </span>
+      ))}
     </>
   );
 }

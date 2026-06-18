@@ -29,10 +29,21 @@ export const HEALTH_STAGE_LABEL: Record<Exclude<HealthStage, 'none'>, string> = 
   done: '검진리포트 완료',
 };
 
-// 배지 색 — 요청=중립, 작성중=accent, 완료=success
-export type BadgeTone = 'neutral' | 'accent' | 'success';
-export function stageTone(stage: 'requested' | 'writing' | 'done'): BadgeTone {
-  return stage === 'done' ? 'success' : stage === 'writing' ? 'accent' : 'neutral';
+// 배지 색 규칙 (모든 화면 공통):
+//  배경 = 카테고리 (블로그 초록 / 검진리포트 파랑), 글자 = 단계 (요청 빨강 / 작성중 주황 / 완료 파랑)
+export type BadgeCategory = 'blog' | 'health';
+type StageKey = 'requested' | 'writing' | 'done';
+const CATEGORY_BG: Record<BadgeCategory, string> = {
+  blog: 'rgba(16,185,129,0.16)',   // 초록 배경
+  health: 'rgba(59,130,246,0.16)', // 파랑 배경
+};
+const STAGE_COLOR: Record<StageKey, string> = {
+  requested: '#dc2626', // 빨강
+  writing: '#ea580c',   // 주황
+  done: '#2563eb',      // 파랑
+};
+export function badgeStyle(category: BadgeCategory, stage: StageKey): { background: string; color: string } {
+  return { background: CATEGORY_BG[category], color: STAGE_COLOR[stage] };
 }
 
 // 필터용 — 타입(블로그/검진리포트), 단계(요청/작성중/완료)
