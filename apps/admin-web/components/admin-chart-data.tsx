@@ -233,6 +233,7 @@ export default function AdminChartData() {
   return (
     <div className="adminLayout2WithMain">
       <aside className="adminLayoutSecondaryRail" aria-label="차트 추출 이력 목록">
+        <div style={{ position: 'relative', zIndex: 5 }}>
         <div className="adminRailToolbar">
           <input
             type="search"
@@ -282,8 +283,8 @@ export default function AdminChartData() {
           )}
         </div>
         {!historyLoading && history.length > 0 && filtersOpen && (
-          <div style={{ padding: '0 10px 8px' }}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: 10, border: '1px solid var(--border)', borderRadius: 8, background: 'var(--bg-subtle)' }}>
+          <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 20, padding: '4px 10px 8px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: 10, border: '1px solid var(--border)', borderRadius: 8, background: 'var(--bg)', boxShadow: '0 8px 24px rgba(0,0,0,0.16)' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)' }}>필터</span>
                 {activeFilterCount > 0 && (
@@ -319,6 +320,7 @@ export default function AdminChartData() {
             </div>
           </div>
         )}
+        </div>
         <div style={{ maxHeight: 'min(66vh, calc(100vh - 260px))', overflow: 'auto' }}>
           {historyLoading ? (
             <p style={{ margin: '10px 10px', fontSize: 12, color: 'var(--text-muted)' }}>불러오는 중…</p>
