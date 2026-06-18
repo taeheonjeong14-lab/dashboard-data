@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { Filter } from 'lucide-react';
 import { useChartExtraction } from '@/components/chart-extraction-provider';
 import { AdminRunExtractionDetail } from '@/components/admin-run-extraction-detail';
 import AdminDataUpload from '@/components/admin-data-upload';
@@ -259,58 +260,63 @@ export default function AdminChartData() {
                 : history.length}건
             </span>
           )}
-        </div>
-        {!historyLoading && history.length > 0 && (
-          <div style={{ padding: '0 10px 8px', display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <button
-                type="button"
-                onClick={() => setFiltersOpen((o) => !o)}
-                style={{
-                  display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 12px', fontSize: 12.5, fontWeight: 700,
-                  borderRadius: 8, cursor: 'pointer',
-                  border: `1px solid ${activeFilterCount > 0 ? 'var(--accent)' : 'var(--border-strong)'}`,
-                  background: activeFilterCount > 0 ? 'var(--accent-subtle)' : '#fff',
-                  color: activeFilterCount > 0 ? 'var(--accent)' : 'var(--text-secondary)',
-                }}
-              >
-                필터{activeFilterCount > 0 ? ` ${activeFilterCount}` : ''}
-                <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{filtersOpen ? '▴' : '▾'}</span>
-              </button>
+          {!historyLoading && history.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setFiltersOpen((o) => !o)}
+              aria-label="필터"
+              title="필터"
+              style={{
+                position: 'relative', flexShrink: 0, border: 0, background: 'transparent', cursor: 'pointer',
+                padding: '2px 4px', display: 'inline-flex', alignItems: 'center',
+                color: activeFilterCount > 0 || filtersOpen ? 'var(--accent)' : 'var(--text-muted)',
+              }}
+            >
+              <Filter size={16} fill={activeFilterCount > 0 ? 'currentColor' : 'none'} />
               {activeFilterCount > 0 && (
-                <button type="button" onClick={resetFilters} style={{ border: 0, background: 'transparent', fontSize: 12, color: 'var(--text-muted)', cursor: 'pointer', padding: '2px 4px' }}>
-                  초기화
-                </button>
+                <span style={{ position: 'absolute', top: -3, right: -3, minWidth: 14, height: 14, padding: '0 3px', borderRadius: 999, background: 'var(--accent)', color: '#fff', fontSize: 9, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1 }}>
+                  {activeFilterCount}
+                </span>
               )}
-            </div>
-            {filtersOpen && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: 10, border: '1px solid var(--border)', borderRadius: 8, background: 'var(--bg-subtle)' }}>
-                <select className="adminRailFilterSelect" value={filterHospital} onChange={(e) => setFilterHospital(e.target.value)} aria-label="병원 필터" style={{ width: '100%' }}>
-                  <option value="">병원 전체</option>
-                  {hospitalOptions.map((h) => (<option key={h} value={h}>{h}</option>))}
-                </select>
-                <select className="adminRailFilterSelect" value={filterMonth} onChange={(e) => setFilterMonth(e.target.value)} aria-label="추출 날짜 필터" style={{ width: '100%' }}>
-                  <option value="">추출월 전체</option>
-                  {monthOptions.map((m) => (<option key={m} value={m}>{`${m.slice(2, 4)}년 ${String(Number(m.slice(5, 7)))}월`}</option>))}
-                </select>
-                <div>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 5 }}>종류</div>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                    {TYPE_FILTERS.map((t) => (
-                      <button key={t} type="button" onClick={() => toggleIn(filterTypes, setFilterTypes, t)} style={chipStyle(filterTypes.includes(t))}>{t}</button>
-                    ))}
-                  </div>
-                </div>
-                <div>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 5 }}>진행 단계</div>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                    {STAGE_FILTERS.map((s) => (
-                      <button key={s} type="button" onClick={() => toggleIn(filterStages, setFilterStages, s)} style={chipStyle(filterStages.includes(s))}>{s}</button>
-                    ))}
-                  </div>
+            </button>
+          )}
+        </div>
+        {!historyLoading && history.length > 0 && filtersOpen && (
+          <div style={{ padding: '0 10px 8px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: 10, border: '1px solid var(--border)', borderRadius: 8, background: 'var(--bg-subtle)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)' }}>필터</span>
+                {activeFilterCount > 0 && (
+                  <button type="button" onClick={resetFilters} style={{ border: 0, background: 'transparent', fontSize: 11.5, color: 'var(--text-muted)', cursor: 'pointer', padding: '2px 4px' }}>
+                    초기화
+                  </button>
+                )}
+              </div>
+              <select className="adminRailFilterSelect" value={filterHospital} onChange={(e) => setFilterHospital(e.target.value)} aria-label="병원 필터" style={{ width: '100%' }}>
+                <option value="">병원 전체</option>
+                {hospitalOptions.map((h) => (<option key={h} value={h}>{h}</option>))}
+              </select>
+              <select className="adminRailFilterSelect" value={filterMonth} onChange={(e) => setFilterMonth(e.target.value)} aria-label="추출 날짜 필터" style={{ width: '100%' }}>
+                <option value="">추출월 전체</option>
+                {monthOptions.map((m) => (<option key={m} value={m}>{`${m.slice(2, 4)}년 ${String(Number(m.slice(5, 7)))}월`}</option>))}
+              </select>
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 5 }}>종류</div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                  {TYPE_FILTERS.map((t) => (
+                    <button key={t} type="button" onClick={() => toggleIn(filterTypes, setFilterTypes, t)} style={chipStyle(filterTypes.includes(t))}>{t}</button>
+                  ))}
                 </div>
               </div>
-            )}
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 5 }}>진행 단계</div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                  {STAGE_FILTERS.map((s) => (
+                    <button key={s} type="button" onClick={() => toggleIn(filterStages, setFilterStages, s)} style={chipStyle(filterStages.includes(s))}>{s}</button>
+                  ))}
+                </div>
+              </div>
+            </div>
           </div>
         )}
         <div style={{ maxHeight: 'min(66vh, calc(100vh - 260px))', overflow: 'auto' }}>
