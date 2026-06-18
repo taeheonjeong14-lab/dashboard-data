@@ -7,8 +7,6 @@ import { createClient } from '@/lib/supabase/client';
 
 type Tab = 'basic' | 'usage' | 'payment' | 'password';
 
-// 1토큰=$0.001. 사용량 그래프는 원가를 토큰으로 환산해 표시.
-const TOKEN_VALUE_USD = 0.001;
 const FEATURE_LABEL: Record<string, string> = {
   extract: '추출', ocr: 'OCR', case_blog: '진료케이스',
   health_checkup: '건강검진', disease_intro: '질환소개', image_placement: '이미지배치', image_analysis: '이미지분석', assessment: 'AI평가', kakao_alimtalk: '알림톡',
@@ -16,15 +14,11 @@ const FEATURE_LABEL: Record<string, string> = {
 // 진료케이스 블로그 단계(인과·진단치료세부·아웃라인·글)는 한 그룹 '진료케이스'로 합쳐 표시.
 const CASE_BLOG_FEATURES = new Set(['blog_causal', 'blog_detail', 'blog_outline', 'blog_post']);
 const normFeature = (f: string) => (CASE_BLOG_FEATURES.has(f) ? 'case_blog' : f);
-// 진료케이스 작성 단계는 인건비 반영해 20배 과금(DB token_charge_operation 와 동일).
-// 차트도 '청구 기준'으로 맞추기 위해 같은 배율 적용(상세 내역은 token_ledger 기반이라 이미 반영됨).
-const CASE_BLOG_CHARGE_MULT = 20;
-const CHARGE_MULT_FEATS = new Set(['blog_causal', 'blog_detail', 'blog_outline', 'blog_post']);
-const chargeMult = (f: string) => (CHARGE_MULT_FEATS.has(f) ? CASE_BLOG_CHARGE_MULT : 1);
 const PALETTE = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#3b82f6', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316', '#64748b'];
 const KIND_LABEL: Record<string, string> = { charge: '사용', grant: '관리자 지급', adjust: '조정' };
 const featLabel = (f: string) => FEATURE_LABEL[normFeature(f)] ?? f;
-const fmtTok = (v: number) => (Math.abs(v) >= 100 ? Math.round(v).toLocaleString() : v.toFixed(1));
+// 토큰은 ledger 의 실제 차감 정수값을 그대로 표시(잔액·사용량·내역 전부 정수).
+const fmtTok = (v: number) => Math.round(v).toLocaleString();
 
 // 한 작업(run) 안의 기능들 → 대표 라벨. 진료케이스(블로그 4단계) > 건강검진 > 이미지 > 평가 > 추출 순.
 const CASE_FEATS = new Set(['blog_causal', 'blog_detail', 'blog_outline', 'blog_post', 'blog_images']);
@@ -38,7 +32,7 @@ function groupLabel(feats: Set<string>): string {
   return f[0] ? featLabel(f[0]) : '사용';
 }
 
-type OverviewDaily = { date: string; feature: string; costUsd: number };
+type OverviewDaily = { date: string; feature: string; tokens: number };
 type OverviewLedger = { createdAt: string; kind: string; feature: string | null; tokens: number; balanceAfter: number | null; runId?: string | null; ownerName?: string | null; patientName?: string | null };
 type Overview = { balance: number | null; daily: OverviewDaily[]; ledger: OverviewLedger[] };
 // 내역을 작업(run) 단위로 묶은 행. charge 는 run_id 로 합산, grant/adjust·추출(run 없음)은 개별.
@@ -171,7 +165,7 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
     for (const r of overview?.daily ?? []) {
       const row = byDate.get(r.date) ?? { date: r.date };
       const fk = normFeature(r.feature);
-      row[fk] = ((row[fk] as number) ?? 0) + (r.costUsd / TOKEN_VALUE_USD) * chargeMult(r.feature);
+      row[fk] = ((row[fk] as number) ?? 0) + (Number(r.tokens) || 0);
       byDate.set(r.date, row);
     }
     return [...byDate.values()].sort((a, b) => (String(a.date) < String(b.date) ? -1 : 1));

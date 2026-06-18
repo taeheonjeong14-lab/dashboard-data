@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState, type CSSProperties } from 'react';
+import { Filter } from 'lucide-react';
 import { CaseBlogButton } from './admin-case-blog-modal';
 import { StatusBadge } from '@/components/status-badge';
 
@@ -92,6 +93,20 @@ export default function AdminCaseBlog() {
   const [query, setQuery] = useState('');
   const [filterHospital, setFilterHospital] = useState('');
   const [filterMonth, setFilterMonth] = useState('');
+  // 필터 패널: draft 로 고르고 '적용' 눌러야 목록에 반영.
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [draftHospital, setDraftHospital] = useState('');
+  const [draftMonth, setDraftMonth] = useState('');
+  const activeFilterCount = (filterHospital ? 1 : 0) + (filterMonth ? 1 : 0);
+  const openFilters = () => {
+    setDraftHospital(filterHospital); setDraftMonth(filterMonth);
+    setFiltersOpen(true);
+  };
+  const applyFilters = () => {
+    setFilterHospital(draftHospital); setFilterMonth(draftMonth);
+    setFiltersOpen(false);
+  };
+  const clearDraft = () => { setDraftHospital(''); setDraftMonth(''); };
   const [selectedId, setSelectedId] = useState('');
   const [pseudoOpen, setPseudoOpen] = useState(false);
 
@@ -256,6 +271,7 @@ export default function AdminCaseBlog() {
   return (
     <div className="adminLayout2WithMain">
       <aside className="adminLayoutSecondaryRail" aria-label="진료케이스 목록">
+        <div style={{ position: 'relative', zIndex: 5 }}>
         <div className="adminRailToolbar">
           <input
             type="search"
@@ -266,6 +282,26 @@ export default function AdminCaseBlog() {
             disabled={loading}
             style={{ flex: 1, minWidth: 0, padding: '8px 0', background: 'transparent', border: 0, borderRadius: 0, outline: 'none', font: 'inherit', fontSize: 13 }}
           />
+          {!loading && items.length > 0 && (
+            <button
+              type="button"
+              onClick={() => (filtersOpen ? setFiltersOpen(false) : openFilters())}
+              aria-label="필터"
+              title="필터"
+              style={{
+                position: 'relative', flexShrink: 0, border: 0, background: 'transparent', cursor: 'pointer',
+                padding: '2px 4px', display: 'inline-flex', alignItems: 'center',
+                color: activeFilterCount > 0 || filtersOpen ? 'var(--accent)' : 'var(--text-muted)',
+              }}
+            >
+              <Filter size={16} fill={activeFilterCount > 0 ? 'currentColor' : 'none'} />
+              {activeFilterCount > 0 && (
+                <span style={{ position: 'absolute', top: -3, right: -3, minWidth: 14, height: 14, padding: '0 3px', borderRadius: 999, background: 'var(--accent)', color: '#fff', fontSize: 9, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1 }}>
+                  {activeFilterCount}
+                </span>
+              )}
+            </button>
+          )}
           <button
             type="button"
             onClick={() => void load()}
@@ -277,33 +313,34 @@ export default function AdminCaseBlog() {
             ↻
           </button>
         </div>
-        {!loading && items.length > 0 && (
-          <div className="adminRailFilterBar">
-            <select
-              className="adminRailFilterSelect"
-              style={{ flexBasis: '100%' }}
-              value={filterHospital}
-              onChange={(e) => setFilterHospital(e.target.value)}
-              aria-label="병원 필터"
-            >
-              <option value="">병원 전체</option>
-              {hospitalOptions.map((h) => (
-                <option key={h} value={h}>{h}</option>
-              ))}
-            </select>
-            <select
-              className="adminRailFilterSelect"
-              value={filterMonth}
-              onChange={(e) => setFilterMonth(e.target.value)}
-              aria-label="작성월 필터"
-            >
-              <option value="">작성월 전체</option>
-              {monthOptions.map((m) => (
-                <option key={m} value={m}>{`${m.slice(2, 4)}년 ${String(Number(m.slice(5, 7)))}월`}</option>
-              ))}
-            </select>
+        {!loading && items.length > 0 && filtersOpen && (
+          <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 20, padding: '4px 10px 8px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: 10, border: '1px solid var(--border)', borderRadius: 8, background: 'var(--bg)', boxShadow: '0 8px 24px rgba(0,0,0,0.16)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)' }}>필터</span>
+                <button type="button" onClick={clearDraft} style={{ border: 0, background: 'transparent', fontSize: 11.5, color: 'var(--text-muted)', cursor: 'pointer', padding: '2px 4px' }}>
+                  초기화
+                </button>
+              </div>
+              <select className="adminRailFilterSelect" value={draftHospital} onChange={(e) => setDraftHospital(e.target.value)} aria-label="병원 필터" style={{ width: '100%' }}>
+                <option value="">병원 전체</option>
+                {hospitalOptions.map((h) => (<option key={h} value={h}>{h}</option>))}
+              </select>
+              <select className="adminRailFilterSelect" value={draftMonth} onChange={(e) => setDraftMonth(e.target.value)} aria-label="작성월 필터" style={{ width: '100%' }}>
+                <option value="">작성월 전체</option>
+                {monthOptions.map((m) => (<option key={m} value={m}>{`${m.slice(2, 4)}년 ${String(Number(m.slice(5, 7)))}월`}</option>))}
+              </select>
+              <button
+                type="button"
+                onClick={applyFilters}
+                style={{ marginTop: 2, padding: '8px 0', width: '100%', border: 'none', borderRadius: 8, background: 'var(--accent)', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
+              >
+                적용
+              </button>
+            </div>
           </div>
         )}
+        </div>
         <div style={{ maxHeight: 'min(72vh, calc(100vh - 200px))', overflow: 'auto' }}>
           {loading ? (
             <p style={{ margin: '10px 10px', fontSize: 12, color: 'var(--text-muted)' }}>불러오는 중…</p>

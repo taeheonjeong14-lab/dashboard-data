@@ -61,9 +61,24 @@ export default function AdminChartData() {
   const toggleIn = (arr: string[], set: (v: string[]) => void, v: string) =>
     set(arr.includes(v) ? arr.filter((x) => x !== v) : [...arr, v]);
   const [filtersOpen, setFiltersOpen] = useState(false);
+  // 패널 안에서는 draft 로 고르고, '적용' 눌러야 실제 필터에 반영(목록 갱신).
+  const [draftHospital, setDraftHospital] = useState('');
+  const [draftMonth, setDraftMonth] = useState('');
+  const [draftTypes, setDraftTypes] = useState<string[]>([]);
+  const [draftStages, setDraftStages] = useState<string[]>([]);
   const activeFilterCount =
     (filterHospital ? 1 : 0) + (filterMonth ? 1 : 0) + filterTypes.length + filterStages.length;
-  const resetFilters = () => { setFilterHospital(''); setFilterMonth(''); setFilterTypes([]); setFilterStages([]); };
+  const openFilters = () => {
+    setDraftHospital(filterHospital); setDraftMonth(filterMonth);
+    setDraftTypes(filterTypes); setDraftStages(filterStages);
+    setFiltersOpen(true);
+  };
+  const applyFilters = () => {
+    setFilterHospital(draftHospital); setFilterMonth(draftMonth);
+    setFilterTypes(draftTypes); setFilterStages(draftStages);
+    setFiltersOpen(false);
+  };
+  const clearDraft = () => { setDraftHospital(''); setDraftMonth(''); setDraftTypes([]); setDraftStages([]); };
   const [serverMeta, setServerMeta] = useState<{ totalParseRuns: number; limit: number } | null>(null);
   const [selectedId, setSelectedId] = useState('');
 
@@ -264,7 +279,7 @@ export default function AdminChartData() {
           {!historyLoading && history.length > 0 && (
             <button
               type="button"
-              onClick={() => setFiltersOpen((o) => !o)}
+              onClick={() => (filtersOpen ? setFiltersOpen(false) : openFilters())}
               aria-label="필터"
               title="필터"
               style={{
@@ -287,17 +302,15 @@ export default function AdminChartData() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: 10, border: '1px solid var(--border)', borderRadius: 8, background: 'var(--bg)', boxShadow: '0 8px 24px rgba(0,0,0,0.16)' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)' }}>필터</span>
-                {activeFilterCount > 0 && (
-                  <button type="button" onClick={resetFilters} style={{ border: 0, background: 'transparent', fontSize: 11.5, color: 'var(--text-muted)', cursor: 'pointer', padding: '2px 4px' }}>
-                    초기화
-                  </button>
-                )}
+                <button type="button" onClick={clearDraft} style={{ border: 0, background: 'transparent', fontSize: 11.5, color: 'var(--text-muted)', cursor: 'pointer', padding: '2px 4px' }}>
+                  초기화
+                </button>
               </div>
-              <select className="adminRailFilterSelect" value={filterHospital} onChange={(e) => setFilterHospital(e.target.value)} aria-label="병원 필터" style={{ width: '100%' }}>
+              <select className="adminRailFilterSelect" value={draftHospital} onChange={(e) => setDraftHospital(e.target.value)} aria-label="병원 필터" style={{ width: '100%' }}>
                 <option value="">병원 전체</option>
                 {hospitalOptions.map((h) => (<option key={h} value={h}>{h}</option>))}
               </select>
-              <select className="adminRailFilterSelect" value={filterMonth} onChange={(e) => setFilterMonth(e.target.value)} aria-label="추출 날짜 필터" style={{ width: '100%' }}>
+              <select className="adminRailFilterSelect" value={draftMonth} onChange={(e) => setDraftMonth(e.target.value)} aria-label="추출 날짜 필터" style={{ width: '100%' }}>
                 <option value="">추출월 전체</option>
                 {monthOptions.map((m) => (<option key={m} value={m}>{`${m.slice(2, 4)}년 ${String(Number(m.slice(5, 7)))}월`}</option>))}
               </select>
@@ -305,7 +318,7 @@ export default function AdminChartData() {
                 <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 5 }}>종류</div>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
                   {TYPE_FILTERS.map((t) => (
-                    <button key={t} type="button" onClick={() => toggleIn(filterTypes, setFilterTypes, t)} style={chipStyle(filterTypes.includes(t))}>{t}</button>
+                    <button key={t} type="button" onClick={() => toggleIn(draftTypes, setDraftTypes, t)} style={chipStyle(draftTypes.includes(t))}>{t}</button>
                   ))}
                 </div>
               </div>
@@ -313,10 +326,17 @@ export default function AdminChartData() {
                 <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 5 }}>진행 단계</div>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
                   {STAGE_FILTERS.map((s) => (
-                    <button key={s} type="button" onClick={() => toggleIn(filterStages, setFilterStages, s)} style={chipStyle(filterStages.includes(s))}>{s}</button>
+                    <button key={s} type="button" onClick={() => toggleIn(draftStages, setDraftStages, s)} style={chipStyle(draftStages.includes(s))}>{s}</button>
                   ))}
                 </div>
               </div>
+              <button
+                type="button"
+                onClick={applyFilters}
+                style={{ marginTop: 2, padding: '8px 0', width: '100%', border: 'none', borderRadius: 8, background: 'var(--accent)', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
+              >
+                적용
+              </button>
             </div>
           </div>
         )}

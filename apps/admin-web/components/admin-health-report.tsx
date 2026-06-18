@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Filter } from 'lucide-react';
 import { AdminHealthCheckupWorkspace } from '@/components/admin-health-checkup-workspace';
 import type { GeneratedContentListItem } from '@/lib/health-report-admin/types';
 import {
@@ -40,6 +41,21 @@ export default function AdminHealthReport() {
   const [filterHospital, setFilterHospital] = useState('');
   const [filterCheckupMonth, setFilterCheckupMonth] = useState('');
   const [filterReportMonth, setFilterReportMonth] = useState('');
+  // 필터 패널: draft 로 고르고 '적용' 눌러야 목록에 반영.
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [draftHospital, setDraftHospital] = useState('');
+  const [draftCheckupMonth, setDraftCheckupMonth] = useState('');
+  const [draftReportMonth, setDraftReportMonth] = useState('');
+  const activeFilterCount = (filterHospital ? 1 : 0) + (filterCheckupMonth ? 1 : 0) + (filterReportMonth ? 1 : 0);
+  const openFilters = () => {
+    setDraftHospital(filterHospital); setDraftCheckupMonth(filterCheckupMonth); setDraftReportMonth(filterReportMonth);
+    setFiltersOpen(true);
+  };
+  const applyFilters = () => {
+    setFilterHospital(draftHospital); setFilterCheckupMonth(draftCheckupMonth); setFilterReportMonth(draftReportMonth);
+    setFiltersOpen(false);
+  };
+  const clearDraft = () => { setDraftHospital(''); setDraftCheckupMonth(''); setDraftReportMonth(''); };
 
   // 차트 기록에서 리포트 만들기 모달
   const [createModalOpen, setCreateModalOpen] = useState(false);
@@ -243,6 +259,7 @@ export default function AdminHealthReport() {
   return (
     <div className="adminLayout2WithMain">
       <aside className="adminLayoutSecondaryRail" aria-label="건강검진 보고서 목록">
+        <div style={{ position: 'relative', zIndex: 5 }}>
         <div className="adminRailToolbar">
           <input
             type="search"
@@ -263,49 +280,59 @@ export default function AdminHealthReport() {
             }}
             disabled={runsLoading}
           />
+          {!runsLoading && runs.length > 0 && (
+            <button
+              type="button"
+              onClick={() => (filtersOpen ? setFiltersOpen(false) : openFilters())}
+              aria-label="필터"
+              title="필터"
+              style={{
+                position: 'relative', flexShrink: 0, border: 0, background: 'transparent', cursor: 'pointer',
+                padding: '2px 4px', display: 'inline-flex', alignItems: 'center',
+                color: activeFilterCount > 0 || filtersOpen ? 'var(--accent)' : 'var(--text-muted)',
+              }}
+            >
+              <Filter size={16} fill={activeFilterCount > 0 ? 'currentColor' : 'none'} />
+              {activeFilterCount > 0 && (
+                <span style={{ position: 'absolute', top: -3, right: -3, minWidth: 14, height: 14, padding: '0 3px', borderRadius: 999, background: 'var(--accent)', color: '#fff', fontSize: 9, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1 }}>
+                  {activeFilterCount}
+                </span>
+              )}
+            </button>
+          )}
         </div>
-        {!runsLoading && runs.length > 0 && (
-          <div className="adminRailFilterBar">
-            <select
-              className="adminRailFilterSelect"
-              style={{ flexBasis: '100%' }}
-              value={filterHospital}
-              onChange={(e) => setFilterHospital(e.target.value)}
-              aria-label="병원 필터"
-            >
-              <option value="">병원 전체</option>
-              {hospitalOptions.map((h) => (
-                <option key={h} value={h}>{h}</option>
-              ))}
-            </select>
-            <select
-              className="adminRailFilterSelect"
-              value={filterCheckupMonth}
-              onChange={(e) => setFilterCheckupMonth(e.target.value)}
-              aria-label="검진 날짜 필터"
-            >
-              <option value="">검진월 전체</option>
-              {checkupMonthOptions.map((m) => (
-                <option key={m} value={m}>
-                  {`${m.slice(2, 4)}년 ${String(Number(m.slice(5, 7)))}월`}
-                </option>
-              ))}
-            </select>
-            <select
-              className="adminRailFilterSelect"
-              value={filterReportMonth}
-              onChange={(e) => setFilterReportMonth(e.target.value)}
-              aria-label="리포트 생성 날짜 필터"
-            >
-              <option value="">생성월 전체</option>
-              {reportMonthOptions.map((m) => (
-                <option key={m} value={m}>
-                  {`${m.slice(2, 4)}년 ${String(Number(m.slice(5, 7)))}월`}
-                </option>
-              ))}
-            </select>
+        {!runsLoading && runs.length > 0 && filtersOpen && (
+          <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 20, padding: '4px 10px 8px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: 10, border: '1px solid var(--border)', borderRadius: 8, background: 'var(--bg)', boxShadow: '0 8px 24px rgba(0,0,0,0.16)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)' }}>필터</span>
+                <button type="button" onClick={clearDraft} style={{ border: 0, background: 'transparent', fontSize: 11.5, color: 'var(--text-muted)', cursor: 'pointer', padding: '2px 4px' }}>
+                  초기화
+                </button>
+              </div>
+              <select className="adminRailFilterSelect" value={draftHospital} onChange={(e) => setDraftHospital(e.target.value)} aria-label="병원 필터" style={{ width: '100%' }}>
+                <option value="">병원 전체</option>
+                {hospitalOptions.map((h) => (<option key={h} value={h}>{h}</option>))}
+              </select>
+              <select className="adminRailFilterSelect" value={draftCheckupMonth} onChange={(e) => setDraftCheckupMonth(e.target.value)} aria-label="검진 날짜 필터" style={{ width: '100%' }}>
+                <option value="">검진월 전체</option>
+                {checkupMonthOptions.map((m) => (<option key={m} value={m}>{`${m.slice(2, 4)}년 ${String(Number(m.slice(5, 7)))}월`}</option>))}
+              </select>
+              <select className="adminRailFilterSelect" value={draftReportMonth} onChange={(e) => setDraftReportMonth(e.target.value)} aria-label="리포트 생성 날짜 필터" style={{ width: '100%' }}>
+                <option value="">생성월 전체</option>
+                {reportMonthOptions.map((m) => (<option key={m} value={m}>{`${m.slice(2, 4)}년 ${String(Number(m.slice(5, 7)))}월`}</option>))}
+              </select>
+              <button
+                type="button"
+                onClick={applyFilters}
+                style={{ marginTop: 2, padding: '8px 0', width: '100%', border: 'none', borderRadius: 8, background: 'var(--accent)', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
+              >
+                적용
+              </button>
+            </div>
           </div>
         )}
+        </div>
         <div style={{ maxHeight: 'min(66vh, calc(100vh - 260px))', overflow: 'auto' }}>
           {runsLoading ? (
             <p style={{ margin: '10px 10px', fontSize: 12, color: 'var(--text-muted)' }}>불러오는 중…</p>
