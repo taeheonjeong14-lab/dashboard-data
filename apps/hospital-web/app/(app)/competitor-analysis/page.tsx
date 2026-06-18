@@ -215,6 +215,6 @@ export default function CompetitorAnalysisPage() {
 // 경영 대시보드 컨셉: 흰 카드 배경 없이 페이지에 바로 — 섹션 간 간격(gap)으로만 구분.
 const card: React.CSSProperties = { padding: 0 };
 const selectStyle: React.CSSProperties = {
-  padding: "6px 10px", fontSize: 13, borderRadius: "var(--radius)", border: "1px solid var(--border)",
-  background: "var(--bg)", color: "var(--text)", outline: "none", maxWidth: 240,
+  padding: "6px 2px", fontSize: 13, borderRadius: 0, border: "none", borderBottom: "1px solid var(--border-strong)",
+  background: "transparent", color: "var(--text)", outline: "none", maxWidth: 240, fontFamily: "inherit", cursor: "pointer",
 };

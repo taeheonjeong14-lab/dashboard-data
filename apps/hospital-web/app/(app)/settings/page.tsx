@@ -2,6 +2,7 @@
 
 import { useState, useEffect, type FormEvent } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import { inputStyle, primaryPillStyle } from '@/lib/form-styles';
 
 type Profile = {
   name: string;
@@ -130,7 +131,7 @@ export default function SettingsPage() {
         ) : (
           <form onSubmit={(e) => void handleProfileSubmit(e)} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             <Field label="이메일" hint="변경 불가">
-              <input value={profile.email} disabled style={{ ...inputStyle, background: 'var(--bg-raised)', color: 'var(--text-muted)', cursor: 'not-allowed' }} />
+              <input value={profile.email} disabled style={{ ...inputStyle, color: 'var(--text-muted)', cursor: 'not-allowed', borderBottomColor: 'var(--border)' }} />
             </Field>
             <Field label="이름" required>
               <input
@@ -255,26 +256,8 @@ function Msg({ type, text }: { type: 'success' | 'error'; text: string }) {
   );
 }
 
-const inputStyle: React.CSSProperties = {
-  width: '100%',
-  padding: '9px 12px',
-  border: '1px solid var(--border)',
-  borderRadius: 'var(--radius)',
-  background: 'var(--bg)',
-  color: 'var(--text)',
-  fontSize: 14,
-  outline: 'none',
-  boxSizing: 'border-box',
-};
 
 const primaryBtn = (disabled: boolean): React.CSSProperties => ({
+  ...primaryPillStyle(disabled),
   alignSelf: 'flex-start',
-  padding: '9px 20px',
-  background: disabled ? 'var(--bg-raised)' : 'var(--accent)',
-  color: disabled ? 'var(--text-muted)' : '#fff',
-  border: 'none',
-  borderRadius: 'var(--radius)',
-  fontSize: 14,
-  fontWeight: 600,
-  cursor: disabled ? 'not-allowed' : 'pointer',
 });

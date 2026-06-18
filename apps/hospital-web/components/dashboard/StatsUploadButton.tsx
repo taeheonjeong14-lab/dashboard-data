@@ -321,8 +321,8 @@ function Stat({ label, value }: { label: string; value: string }) {
 }
 
 const selectStyle: CSSProperties = {
-  width: '100%', padding: '9px 12px', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
-  background: 'var(--bg)', color: 'var(--text)', fontSize: 14, appearance: 'none',
+  width: '100%', padding: '9px 2px', border: 'none', borderBottom: '1px solid var(--border-strong)', borderRadius: 0,
+  background: 'transparent', color: 'var(--text)', fontSize: 14, appearance: 'none',
   backgroundImage:
     'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'12\' height=\'8\' viewBox=\'0 0 12 8\'%3E%3Cpath d=\'M1 1l5 5 5-5\' stroke=\'%236b7280\' stroke-width=\'1.5\' fill=\'none\' stroke-linecap=\'round\'/%3E%3C/svg%3E")',
   backgroundRepeat: 'no-repeat', backgroundPosition: 'right 12px center', paddingRight: 32, cursor: 'pointer',

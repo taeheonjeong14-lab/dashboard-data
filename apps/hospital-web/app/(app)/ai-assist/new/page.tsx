@@ -6,6 +6,7 @@ import Link from 'next/link';
 import type { CSSProperties } from 'react';
 import { useHospital } from '@/components/shell/hospital-context';
 import { ddxGet, ddxPost, DdxApiForbiddenError } from '@/lib/ddx-api';
+import { inputStyle, textareaStyle, SegmentedToggle, primaryPillStyle } from '@/lib/form-styles';
 
 type SessionListItem = {
   id: string;
@@ -201,26 +202,19 @@ export default function StartConsultationPage() {
         </div>
         <div style={{ marginTop: 14 }}>
           <Field label="방문 유형">
-            <div style={{ display: 'flex', gap: 8 }}>
-              {['초진', '재진'].map((vt) => (
-                <button key={vt} type="button" onClick={() => setVisitType(vt)}
-                  style={{ flex: 1, padding: '9px 0', borderRadius: 'var(--radius)', border: `1px solid ${visitType === vt ? 'var(--accent)' : 'var(--border-strong)'}`, background: visitType === vt ? 'var(--accent-subtle)' : 'var(--bg)', color: visitType === vt ? 'var(--accent)' : 'var(--text)', fontSize: 13, fontWeight: visitType === vt ? 600 : 400, cursor: 'pointer' }}>
-                  {vt}
-                </button>
-              ))}
-            </div>
+            <SegmentedToggle options={['초진', '재진']} value={visitType} onChange={setVisitType} />
           </Field>
         </div>
         <div style={{ marginTop: 14 }}>
           <Field label="진료 메모 / 대화 내용 (선택)">
-            <textarea style={{ ...inputStyle, resize: 'vertical', minHeight: 96 }} value={notes} onChange={(e) => setNotes(e.target.value)}
+            <textarea style={{ ...textareaStyle, resize: 'vertical', minHeight: 96 }} value={notes} onChange={(e) => setNotes(e.target.value)}
               placeholder="진료 중 메모나 대화 내용을 붙여넣으면 AI 감별진단·요약에 활용됩니다." rows={4} />
           </Field>
         </div>
       </div>
 
       <button type="button" onClick={handleStart} disabled={submitting || !userId}
-        style={{ width: '100%', padding: '13px', border: 'none', borderRadius: 'var(--radius)', background: submitting ? 'var(--bg-raised)' : 'var(--accent)', color: submitting ? 'var(--text-muted)' : '#fff', fontSize: 14, fontWeight: 600, cursor: submitting ? 'not-allowed' : 'pointer' }}>
+        style={{ ...primaryPillStyle(submitting || !userId), width: '100%', padding: '13px' }}>
         {submitting ? '진료 생성 중...' : '진료 시작'}
       </button>
     </div>
@@ -240,10 +234,6 @@ function Field({ label, required, children }: { label: string; required?: boolea
 
 const cardStyle: CSSProperties = {
   background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: 20, marginBottom: 16,
-};
-const inputStyle: CSSProperties = {
-  width: '100%', padding: '10px 12px', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)',
-  background: 'var(--bg)', color: 'var(--text)', fontSize: 13.5, boxSizing: 'border-box', outline: 'none', fontFamily: 'inherit',
 };
 const btnSecondary: CSSProperties = {
   padding: '8px 14px', border: '1px solid var(--border)', borderRadius: 'var(--radius)',

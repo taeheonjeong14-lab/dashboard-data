@@ -86,115 +86,85 @@ export async function GET(request: NextRequest) {
     const totalCalls = hospitals.reduce((s, h) => s + h.calls, 0) + (Number(sys.rows[0]?.calls) || 0);
     const systemUsd = Number(sys.rows[0]?.cost_usd) || 0;
 
-    // 선택 병원: 건(run)별 사용 내역 + 건별 세부 항목(기능별)
-    // 토큰은 화면 표시도 '실제 차감값'으로 — billing.token_ledger 의 정수 토큰을 그대로 사용(operation 단위 ceil + ×20 + 환불 반영).
-    type UsageItem = { feature: string; provider: string; costUsd: number; calls: number; tokens: number };
-    type UsageRun = {
-      runId: string | null; friendlyId: string | null; patientName: string | null; ownerName: string | null;
-      lastUsed: string | null; costUsd: number; calls: number; tokens: number; refunded: boolean; items: UsageItem[];
+    // 선택 병원: hospital-ui 사용량 탭과 '동일한' 사용·충전 내역(ledger: 사용/지급/조정)
+    //  + 각 사용(charge) 건을 펼쳐 볼 항목(runItems). 토큰은 전부 billing.token_ledger 의 실제 차감 정수값.
+    type LedgerRow = {
+      createdAt: string; kind: string; feature: string | null; tokens: number; balanceAfter: number | null;
+      runId: string | null; note: string | null; ownerName: string | null; patientName: string | null;
     };
+    type RunItem = { feature: string; provider: string; costUsd: number; calls: number; tokens: number };
     const hospitalIdParam = request.nextUrl.searchParams.get('hospitalId');
-    let runs: UsageRun[] = [];
+    let ledger: LedgerRow[] = [];
+    const runItems: Record<string, RunItem[]> = {};
     if (hospitalIdParam && /^[0-9a-fA-F-]{36}$/.test(hospitalIdParam)) {
-      // 1) usage 집계 — run+feature 별 원가/호출수/프로바이더 (세부 항목 표시용)
-      const rowsRes = await pool.query<{
-        run_id: string | null; feature: string; providers: string[] | null; cost_usd: number; calls: string; last_used: string;
+      // 사용·충전 내역 — charge/grant/adjust 전부. run_id(operation→llm_usage) + 보호자/환자명. (hospital-ui 와 동일)
+      const ledgerRes = await pool.query<{
+        created_at: string; kind: string; feature: string | null; tokens: number; balance_after: number | null;
+        run_id: string | null; note: string | null; owner_name: string | null; patient_name: string | null;
       }>(
-        `SELECT u.run_id, COALESCE(u.feature, '(기타)') AS feature,
-                array_agg(DISTINCT u.provider) AS providers,
-                SUM(u.cost_usd)::float8 AS cost_usd, COUNT(*)::bigint AS calls, MAX(u.created_at) AS last_used
-           FROM billing.llm_usage u
-          WHERE u.hospital_id = $1::uuid AND u.created_at >= now() - make_interval(days => $2::int)
-          GROUP BY u.run_id, u.feature`,
-        [hospitalIdParam, days],
-      );
-      // 2) 실제 차감 토큰 — token_ledger 를 run+feature 로 묶어 net(charge 음수 + 환불 양수) 합산. 표시는 차감액(양수)로 부호 반전.
-      const ledgerRes = await pool.query<{ run_id: string | null; feature: string; tokens: number }>(
-        `SELECT u.run_id, COALESCE(l.feature, '(기타)') AS feature, SUM(l.tokens)::float8 AS tokens
-           FROM billing.token_ledger l
-           JOIN (SELECT DISTINCT operation_id, run_id
-                   FROM billing.llm_usage
-                  WHERE hospital_id = $1::uuid AND created_at >= now() - make_interval(days => $2::int) AND operation_id IS NOT NULL
-                ) u ON u.operation_id = l.operation_id
-          WHERE l.hospital_id = $1::uuid
-          GROUP BY u.run_id, l.feature`,
-        [hospitalIdParam, days],
-      );
-      const deductedByRunFeature = new Map<string, Map<string, number>>();
-      for (const r of ledgerRes.rows) {
-        const rk = r.run_id ?? 'none';
-        const m = deductedByRunFeature.get(rk) ?? new Map<string, number>();
-        m.set(r.feature, (m.get(r.feature) ?? 0) - (Number(r.tokens) || 0)); // charge 음수 → 차감액 양수
-        deductedByRunFeature.set(rk, m);
-      }
-      // run 메타(친화번호·환자/보호자명) — run_id 당 1행
-      const runIds = [...new Set(rowsRes.rows.map((r) => r.run_id).filter((x): x is string => !!x))];
-      const metaMap = new Map<string, { friendlyId: string | null; patientName: string | null; ownerName: string | null }>();
-      if (runIds.length) {
-        const metaRes = await pool.query<{ run_id: string; friendly_id: string | null; patient_name: string | null; owner_name: string | null }>(
-          `SELECT DISTINCT ON (pr.id) pr.id::text AS run_id, pr.friendly_id, bi.patient_name, bi.owner_name
-             FROM chart_pdf.parse_runs pr
-             LEFT JOIN chart_pdf.result_basic_info bi ON bi.parse_run_id = pr.id
-            WHERE pr.id = ANY($1::uuid[])
-            ORDER BY pr.id`,
-          [runIds],
-        );
-        for (const m of metaRes.rows) metaMap.set(m.run_id, { friendlyId: m.friendly_id, patientName: m.patient_name, ownerName: m.owner_name });
-      }
-      // 바른플랜 환불된 run(진료케이스 차감 후 즉시 환불) — token_ledger note 로 판별
-      const refundedRes = await pool.query<{ run_id: string }>(
-        `SELECT DISTINCT u.run_id
-           FROM billing.token_ledger l
-           JOIN billing.llm_usage u ON u.operation_id = l.operation_id
-          WHERE u.hospital_id = $1::uuid AND u.run_id IS NOT NULL
-            AND l.kind = 'adjust' AND l.note = 'barun_plan_refund'`,
+        `SELECT base.created_at, base.kind, base.feature, base.tokens, base.balance_after, base.run_id, base.note,
+                bi.owner_name, bi.patient_name
+           FROM (
+             SELECT tl.created_at, tl.kind, tl.feature, tl.tokens, tl.balance_after, tl.note,
+                    (SELECT u.run_id FROM billing.llm_usage u
+                      WHERE u.operation_id = tl.operation_id AND u.run_id IS NOT NULL LIMIT 1) AS run_id
+               FROM billing.token_ledger tl
+              WHERE tl.hospital_id = $1::uuid
+              ORDER BY tl.created_at DESC
+              LIMIT 200
+           ) base
+           LEFT JOIN chart_pdf.result_basic_info bi ON bi.parse_run_id = base.run_id`,
         [hospitalIdParam],
       );
-      const refundedRuns = new Set(refundedRes.rows.map((r) => r.run_id));
+      ledger = ledgerRes.rows.map((r) => ({
+        createdAt: r.created_at, kind: r.kind, feature: r.feature, tokens: Number(r.tokens) || 0,
+        balanceAfter: r.balance_after == null ? null : Number(r.balance_after),
+        runId: r.run_id, note: r.note, ownerName: r.owner_name, patientName: r.patient_name,
+      }));
 
-      const byRun = new Map<string, UsageRun>();
-      for (const r of rowsRes.rows) {
-        const key = r.run_id ?? 'none';
-        let g = byRun.get(key);
-        if (!g) {
-          const meta = r.run_id ? metaMap.get(r.run_id) : null;
-          g = {
-            runId: r.run_id, friendlyId: meta?.friendlyId ?? null, patientName: meta?.patientName ?? null,
-            ownerName: meta?.ownerName ?? null, lastUsed: r.last_used, costUsd: 0, calls: 0, tokens: 0,
-            refunded: r.run_id ? refundedRuns.has(r.run_id) : false, items: [],
-          };
-          byRun.set(key, g);
+      // 3) 펼침용 항목 — 내역의 사용(charge) 건 run_id 들에 대해 기능별 원가/프로바이더/호출수 + 실제 차감 토큰.
+      const runIds = [...new Set(ledger.filter((l) => l.kind === 'charge' && l.runId).map((l) => l.runId as string))];
+      if (runIds.length) {
+        const [usageItemsRes, ledgerItemsRes] = await Promise.all([
+          pool.query<{ run_id: string; feature: string; providers: string[] | null; cost_usd: number; calls: string }>(
+            `SELECT u.run_id, COALESCE(u.feature, '(기타)') AS feature,
+                    array_agg(DISTINCT u.provider) AS providers,
+                    SUM(u.cost_usd)::float8 AS cost_usd, COUNT(*)::bigint AS calls
+               FROM billing.llm_usage u
+              WHERE u.hospital_id = $1::uuid AND u.run_id = ANY($2::uuid[])
+              GROUP BY u.run_id, u.feature`,
+            [hospitalIdParam, runIds],
+          ),
+          pool.query<{ run_id: string; feature: string; tokens: number }>(
+            `SELECT u.run_id, COALESCE(l.feature, '(기타)') AS feature, SUM(-l.tokens)::float8 AS tokens
+               FROM billing.token_ledger l
+               JOIN (SELECT DISTINCT operation_id, run_id FROM billing.llm_usage
+                      WHERE hospital_id = $1::uuid AND run_id = ANY($2::uuid[]) AND operation_id IS NOT NULL) u
+                 ON u.operation_id = l.operation_id
+              WHERE l.hospital_id = $1::uuid
+              GROUP BY u.run_id, l.feature`,
+            [hospitalIdParam, runIds],
+          ),
+        ]);
+        const tokByRunFeature = new Map<string, number>();
+        for (const r of ledgerItemsRes.rows) tokByRunFeature.set(`${r.run_id}|${r.feature}`, Number(r.tokens) || 0);
+        const byRun = new Map<string, RunItem[]>();
+        for (const r of usageItemsRes.rows) {
+          const arr = byRun.get(r.run_id) ?? [];
+          arr.push({
+            feature: r.feature,
+            provider: (r.providers ?? []).filter(Boolean).join(', '),
+            costUsd: Number(r.cost_usd) || 0,
+            calls: Number(r.calls) || 0,
+            tokens: tokByRunFeature.get(`${r.run_id}|${r.feature}`) ?? 0,
+          });
+          byRun.set(r.run_id, arr);
         }
-        const tokens = deductedByRunFeature.get(key)?.get(r.feature) ?? 0;
-        g.items.push({
-          feature: r.feature,
-          provider: (r.providers ?? []).filter(Boolean).join(', '),
-          costUsd: Number(r.cost_usd) || 0,
-          calls: Number(r.calls) || 0,
-          tokens,
-        });
-        g.costUsd += Number(r.cost_usd) || 0;
-        g.calls += Number(r.calls) || 0;
-        if ((r.last_used ?? '') > (g.lastUsed ?? '')) g.lastUsed = r.last_used;
+        for (const [rid, arr] of byRun) runItems[rid] = arr.sort((a, b) => b.tokens - a.tokens || b.costUsd - a.costUsd);
       }
-      // run 합계 토큰 = ledger net 합(이 run 의 모든 feature). usage 에 없던 ledger feature 도 항목으로 보강.
-      for (const [rk, fm] of deductedByRunFeature) {
-        const g = byRun.get(rk);
-        if (!g) continue;
-        let total = 0;
-        for (const v of fm.values()) total += v;
-        g.tokens = total;
-        const have = new Set(g.items.map((i) => i.feature));
-        for (const [f, v] of fm) {
-          if (!have.has(f) && v !== 0) g.items.push({ feature: f, provider: '', costUsd: 0, calls: 0, tokens: v });
-        }
-      }
-      runs = [...byRun.values()]
-        .map((g) => ({ ...g, items: g.items.sort((a, b) => b.tokens - a.tokens || b.costUsd - a.costUsd) }))
-        .sort((a, b) => ((a.lastUsed ?? '') < (b.lastUsed ?? '') ? 1 : -1));
     }
 
-    return NextResponse.json({ days, totalUsd, totalCalls, systemUsd, hospitals, features, runs });
+    return NextResponse.json({ days, totalUsd, totalCalls, systemUsd, hospitals, features, ledger, runItems });
   } catch (e) {
     if ((e as { code?: string }).code === '42P01' || (e as { code?: string }).code === '42703') {
       return NextResponse.json({

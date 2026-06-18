@@ -8,6 +8,7 @@ import type { CSSProperties } from 'react';
 import { Copy, Check } from 'lucide-react';
 import { CenteredSpinner } from '@/components/ui/loading-spinner';
 import { ddxGet } from '@/lib/ddx-api';
+import { kakaoPillStyle } from '@/lib/form-styles';
 
 // ─── 타입 ────────────────────────────────────────────────
 export type Question = {
@@ -424,10 +425,12 @@ export function SurveyKakaoSend({ token, defaultPhone, patientName, guardianName
           placeholder="010-0000-0000"
           type="tel"
           inputMode="numeric"
-          style={{ flex: 1, minWidth: 0, padding: '7px 10px', fontSize: 12.5, color: 'var(--text)', background: 'var(--bg)', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }}
+          style={{ flex: 1, minWidth: 0, padding: '7px 2px', fontSize: 12.5, color: 'var(--text)', background: 'transparent', border: 'none', borderBottom: '1px solid var(--border-strong)', borderRadius: 0, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }}
         />
-        <button type="button" onClick={send} disabled={sending}
-          style={{ flexShrink: 0, padding: '7px 14px', fontSize: 12.5, fontWeight: 600, cursor: sending ? 'not-allowed' : 'pointer', borderRadius: 'var(--radius)', border: 'none', background: sending ? 'var(--bg-raised)' : '#fae100', color: sending ? 'var(--text-muted)' : '#3c1e1e' }}>
+        <button type="button" onClick={send} disabled={sending} style={{ ...kakaoPillStyle(sending), flexShrink: 0, padding: '7px 14px', fontSize: 12.5 }}>
+          <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" style={{ display: 'block' }}>
+            <path fill={sending ? 'var(--text-muted)' : '#3c1e1e'} d="M12 3C6.477 3 2 6.486 2 10.79c0 2.79 1.86 5.236 4.65 6.61-.205.73-.74 2.64-.847 3.05-.133.51.187.503.394.366.163-.108 2.6-1.766 3.65-2.48.51.075 1.034.114 1.553.114 5.523 0 10-3.486 10-7.79C22 6.486 17.523 3 12 3z" />
+          </svg>
           {sending ? '발송 중…' : '카카오 발송'}
         </button>
       </div>

@@ -503,7 +503,7 @@ async function pollAndRun() {
 // ───────────────────────── 알림톡 발송 대기열(outbox) 처리 ─────────────────────────
 // chart-api 가 health_report.alimtalk_outbox 에 적은 발송 건을, 이 워커(사무실 고정 IP)에서 꺼내 알리고로 보낸다.
 // 알리고가 보는 발신 IP = 이 PC 의 공인 IP(사무실 고정 IP) → 알리고엔 그 IP 만 등록하면 됨.
-const ALIMTALK_POLL_INTERVAL_MS = 7_000;
+const ALIMTALK_POLL_INTERVAL_MS = 3_000;
 const ALIGO_ALIMTALK_URL = "https://kakaoapi.aligo.in/akv10/alimtalk/send/";
 const TOKEN_VALUE_USD = Number(process.env.BILLING_TOKEN_VALUE_USD) || 0.001; // 1토큰=$0.001 (chart-api 와 동일)
 // 알리고 응답에 단가가 없을 때 쓸 건당 고정 원가(원). 1원=1토큰이므로 곧 건당 토큰 수.

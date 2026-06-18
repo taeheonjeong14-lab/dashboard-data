@@ -6,6 +6,8 @@ import { useHospital } from '@/components/shell/hospital-context';
 import { CenteredSpinner } from '@/components/ui/loading-spinner';
 import { StickyHeader } from '@/components/ui/sticky-header';
 import { ddxGet, ddxPost, DdxApiForbiddenError } from '@/lib/ddx-api';
+import { inputStyle, textareaStyle, SegmentedToggle, ghostBtnStyle, kakaoPillStyle, primaryPillStyle } from '@/lib/form-styles';
+import { Modal } from '@/components/ui/modal';
 import {
   SessionDetailView,
   Section, Row, CopyBtn, StatusBadge, SurveyKakaoSend,
@@ -253,129 +255,150 @@ function SendModal({ userId, origin, onClose, onCreated }: {
   const [visitType, setVisitType] = useState('초진');
   const [previousChart, setPreviousChart] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [sendingKakao, setSendingKakao] = useState(false);
   const [err, setErr] = useState('');
   const [created, setCreated] = useState<{ id: string; token?: string | null } | null>(null);
+  const [kakaoMsg, setKakaoMsg] = useState('');
 
   const shareUrl = created && origin && created.token ? `${origin}/survey/${created.token}` : '';
 
-  const submit = async () => {
-    if (!contact.trim()) { setErr('연락처를 입력해 주세요.'); return; }
-    if (visitType === '재진' && !previousChart.trim()) { setErr('재진 사전문진은 이전 차트 내용이 필요합니다.'); return; }
+  // 입력값 검증 + 세션 생성. 성공 시 생성된 세션을 반환(없으면 null, 에러는 setErr 로 표시). throw 는 호출부에서 처리.
+  const createSession = async (): Promise<{ id: string; token?: string | null } | null> => {
+    if (!contact.trim()) { setErr('연락처를 입력해 주세요.'); return null; }
+    if (visitType === '재진' && !previousChart.trim()) { setErr('재진 사전문진은 이전 차트 내용이 필요합니다.'); return null; }
     setErr('');
-    setSubmitting(true);
-    try {
-      const body: Record<string, string> = {
-        userId,
-        contact: contact.trim(),
-        visitType,
-      };
-      if (patientName.trim()) body.patientName = patientName.trim();
-      if (guardianName.trim()) body.guardianName = guardianName.trim();
-      if (scheduledDate) body.scheduledDate = scheduledDate;
-      if (visitType === '재진' && previousChart.trim()) body.previousChart = previousChart.trim();
+    const body: Record<string, string> = { userId, contact: contact.trim(), visitType };
+    if (patientName.trim()) body.patientName = patientName.trim();
+    if (guardianName.trim()) body.guardianName = guardianName.trim();
+    if (scheduledDate) body.scheduledDate = scheduledDate;
+    if (visitType === '재진' && previousChart.trim()) body.previousChart = previousChart.trim();
 
-      const res = await ddxPost<{ success: boolean; session?: { id: string; token?: string | null }; error?: string }>(
-        '/api/surveys/sessions', userId, body,
-      );
-      if (res.success && res.session) {
-        setCreated({ id: res.session.id, token: res.session.token });
-        onCreated({ id: res.session.id, token: res.session.token });
-      } else {
-        setErr(res.error || '사전문진 생성에 실패했습니다.');
-      }
+    const res = await ddxPost<{ success: boolean; session?: { id: string; token?: string | null }; error?: string }>(
+      '/api/surveys/sessions', userId, body,
+    );
+    if (res.success && res.session) {
+      const session = { id: res.session.id, token: res.session.token };
+      setCreated(session);
+      onCreated(session);
+      return session;
+    }
+    setErr(res.error || '사전문진 생성에 실패했습니다.');
+    return null;
+  };
+
+  const handleCreateError = (e: unknown) => {
+    if (e instanceof DdxApiForbiddenError) setErr('ddx-api 계정 동기화가 필요합니다. 관리자에게 문의하세요.');
+    else setErr(e instanceof Error ? e.message : '사전문진 생성 중 오류가 발생했습니다.');
+  };
+
+  // "발송 링크 생성" — 세션만 생성하고 다음 화면(링크 + 발송)으로.
+  const submit = async () => {
+    setSubmitting(true);
+    try { await createSession(); }
+    catch (e) { handleCreateError(e); }
+    finally { setSubmitting(false); }
+  };
+
+  // "카카오톡 보내기" — 세션 생성 직후 곧바로 알림톡 발송까지 한 번에.
+  const submitAndSendKakao = async () => {
+    setSendingKakao(true);
+    setKakaoMsg('');
+    try {
+      const session = await createSession();
+      if (!session?.token) return; // 검증 실패/생성 실패는 setErr 로 이미 표시됨
+      const res = await fetch('/api/surveys/send-kakao', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: session.token, phone: contact, patientName, guardianName }),
+      });
+      const data = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string; queued?: boolean; message?: string };
+      if (!res.ok || !data.ok) { setErr(data.error ?? '알림톡 발송에 실패했습니다.'); return; }
+      setKakaoMsg(data.queued ? (data.message ?? '발송이 요청되었습니다. 곧 전송됩니다.') : '카카오 알림톡을 전송했습니다.');
     } catch (e) {
-      if (e instanceof DdxApiForbiddenError) setErr('ddx-api 계정 동기화가 필요합니다. 관리자에게 문의하세요.');
-      else setErr(e instanceof Error ? e.message : '사전문진 생성 중 오류가 발생했습니다.');
+      handleCreateError(e);
     } finally {
-      setSubmitting(false);
+      setSendingKakao(false);
     }
   };
 
   return (
-    <div
-      onClick={onClose}
-      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: 16 }}
+    <Modal
+      title={created ? '사전문진 발송 완료' : '사전문진 발송'}
+      onClose={onClose}
+      footer={created ? (
+        <button type="button" onClick={onClose} style={primaryPillStyle()}>완료</button>
+      ) : (
+        <>
+          <button type="button" onClick={submit} disabled={submitting || sendingKakao} style={ghostBtnStyle}
+            onMouseEnter={(e) => { if (!(submitting || sendingKakao)) e.currentTarget.style.color = 'var(--text)'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-secondary)'; }}>
+            {submitting ? '생성 중…' : '발송 링크 생성'}
+          </button>
+          <button type="button" onClick={submitAndSendKakao} disabled={submitting || sendingKakao} style={kakaoPillStyle(submitting || sendingKakao)}>
+            <svg width="17" height="17" viewBox="0 0 24 24" aria-hidden="true" style={{ display: 'block' }}>
+              <path fill={submitting || sendingKakao ? 'var(--text-muted)' : '#3c1e1e'} d="M12 3C6.477 3 2 6.486 2 10.79c0 2.79 1.86 5.236 4.65 6.61-.205.73-.74 2.64-.847 3.05-.133.51.187.503.394.366.163-.108 2.6-1.766 3.65-2.48.51.075 1.034.114 1.553.114 5.523 0 10-3.486 10-7.79C22 6.486 17.523 3 12 3z" />
+            </svg>
+            {sendingKakao ? '발송 중…' : '카카오톡 보내기'}
+          </button>
+        </>
+      )}
     >
-      <div onClick={(e) => e.stopPropagation()}
-        style={{ width: '100%', maxWidth: 520, background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: 24, boxShadow: '0 8px 32px rgba(0,0,0,0.18)', maxHeight: '90vh', overflowY: 'auto' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-          <h2 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: 'var(--text)' }}>{created ? '사전문진 발송 완료' : '사전문진 발송'}</h2>
-          <button type="button" onClick={onClose} style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 18, color: 'var(--text-muted)', lineHeight: 1 }}>×</button>
+      {created ? (
+        <div style={{ display: 'grid', gap: 14 }}>
+          {kakaoMsg && (
+            <div style={{ padding: '10px 12px', background: 'var(--success-subtle, #e6f6ec)', border: '1px solid var(--success)', borderRadius: 'var(--radius)', color: 'var(--success)', fontSize: 12.5 }}>
+              {kakaoMsg}
+            </div>
+          )}
+          <p style={{ margin: 0, fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+            아래 작성 링크를 보호자에게 전달하세요. 보호자가 작성을 완료하면 자동으로 AI 사전 분석이 진행됩니다.
+          </p>
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '10px 14px', background: 'var(--bg-subtle)', border: '1px solid var(--border)', borderRadius: 'var(--radius)' }}>
+            <span style={{ flex: 1, minWidth: 0, fontSize: 12.5, color: 'var(--text)', wordBreak: 'break-all', lineHeight: 1.6 }}>{shareUrl || '링크 생성 실패'}</span>
+            {shareUrl && <CopyBtn text={shareUrl} label="복사" />}
+          </div>
+          {created.token && (
+            <div style={{ padding: '12px 14px', background: 'var(--bg-subtle)', border: '1px solid var(--border)', borderRadius: 'var(--radius)' }}>
+              <SurveyKakaoSend token={created.token} defaultPhone={contact} patientName={patientName} guardianName={guardianName} />
+            </div>
+          )}
         </div>
-
-        {created ? (
-          <div style={{ display: 'grid', gap: 14 }}>
-            <p style={{ margin: 0, fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
-              아래 작성 링크를 보호자에게 전달하세요. 보호자가 작성을 완료하면 자동으로 AI 사전 분석이 진행됩니다.
-            </p>
-            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '10px 14px', background: 'var(--bg-subtle)', border: '1px solid var(--border)', borderRadius: 'var(--radius)' }}>
-              <span style={{ flex: 1, minWidth: 0, fontSize: 12.5, color: 'var(--text)', wordBreak: 'break-all', lineHeight: 1.6 }}>{shareUrl || '링크 생성 실패'}</span>
-              {shareUrl && <CopyBtn text={shareUrl} label="복사" />}
-            </div>
-            {created.token && (
-              <div style={{ padding: '12px 14px', background: 'var(--bg-subtle)', border: '1px solid var(--border)', borderRadius: 'var(--radius)' }}>
-                <SurveyKakaoSend token={created.token} defaultPhone={contact} patientName={patientName} guardianName={guardianName} />
-              </div>
-            )}
-            <button type="button" onClick={onClose}
-              style={{ padding: '11px', border: 'none', borderRadius: 'var(--radius)', background: 'var(--accent)', color: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>
-              완료
-            </button>
+      ) : (
+        <div style={{ display: 'grid', gap: 14 }}>
+          {err && (
+            <div style={{ padding: '10px 12px', background: 'var(--danger-subtle)', border: '1px solid var(--danger)', borderRadius: 'var(--radius)', color: 'var(--danger)', fontSize: 12.5 }}>{err}</div>
+          )}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <Field label="환자 이름">
+              <input style={inputStyle} value={patientName} onChange={(e) => setPatientName(e.target.value)} placeholder="예: 뽀미" />
+            </Field>
+            <Field label="보호자 성명">
+              <input style={inputStyle} value={guardianName} onChange={(e) => setGuardianName(e.target.value)} placeholder="예: 홍길동" />
+            </Field>
           </div>
-        ) : (
-          <div style={{ display: 'grid', gap: 14 }}>
-            {err && (
-              <div style={{ padding: '10px 12px', background: 'var(--danger-subtle)', border: '1px solid var(--danger)', borderRadius: 'var(--radius)', color: 'var(--danger)', fontSize: 12.5 }}>{err}</div>
-            )}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-              <Field label="환자 이름">
-                <input style={inputStyle} value={patientName} onChange={(e) => setPatientName(e.target.value)} placeholder="예: 뽀미" />
-              </Field>
-              <Field label="보호자 성명">
-                <input style={inputStyle} value={guardianName} onChange={(e) => setGuardianName(e.target.value)} placeholder="예: 홍길동" />
-              </Field>
-            </div>
-            <Field label="연락처" required>
-              <input style={inputStyle} value={contact} onChange={(e) => setContact(formatPhone(e.target.value))} placeholder="010-0000-0000" type="tel" inputMode="numeric" />
+          <Field label="연락처" required>
+            <input style={inputStyle} value={contact} onChange={(e) => setContact(formatPhone(e.target.value))} placeholder="010-0000-0000" type="tel" inputMode="numeric" />
+          </Field>
+          <Field label="내원 예정일">
+            <input style={inputStyle} type="date" value={scheduledDate} onChange={(e) => setScheduledDate(e.target.value)} />
+          </Field>
+          <Field label="방문 유형">
+            <SegmentedToggle options={['초진', '재진']} value={visitType} onChange={setVisitType} />
+          </Field>
+          {visitType === '재진' && (
+            <Field label="이전 차트 내용" required>
+              <textarea style={{ ...textareaStyle, resize: 'vertical', minHeight: 90 }} value={previousChart} onChange={(e) => setPreviousChart(e.target.value)}
+                placeholder="지난 진료 차트를 붙여넣으면 AI가 재진 맞춤 질문을 생성합니다." rows={4} />
             </Field>
-            <Field label="내원 예정일">
-              <input style={inputStyle} type="date" value={scheduledDate} onChange={(e) => setScheduledDate(e.target.value)} />
-            </Field>
-            <Field label="방문 유형">
-              <div style={{ display: 'flex', gap: 8 }}>
-                {['초진', '재진'].map((vt) => (
-                  <button key={vt} type="button" onClick={() => setVisitType(vt)}
-                    style={{
-                      flex: 1, padding: '9px 0', borderRadius: 'var(--radius)',
-                      border: `1px solid ${visitType === vt ? 'var(--accent)' : 'var(--border-strong)'}`,
-                      background: visitType === vt ? 'var(--accent-subtle)' : 'var(--bg)',
-                      color: visitType === vt ? 'var(--accent)' : 'var(--text)',
-                      fontSize: 13, fontWeight: visitType === vt ? 600 : 400, cursor: 'pointer',
-                    }}>
-                    {vt}
-                  </button>
-                ))}
-              </div>
-            </Field>
-            {visitType === '재진' && (
-              <Field label="이전 차트 내용" required>
-                <textarea style={{ ...inputStyle, resize: 'vertical', minHeight: 90 }} value={previousChart} onChange={(e) => setPreviousChart(e.target.value)}
-                  placeholder="지난 진료 차트를 붙여넣으면 AI가 재진 맞춤 질문을 생성합니다." rows={4} />
-              </Field>
-            )}
-            <p style={{ margin: '-2px 0 0', fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.5 }}>
-              {visitType === '재진'
-                ? '재진은 이전 차트를 바탕으로 AI 맞춤 질문이 생성됩니다.'
-                : '초진은 기본 사전문진 질문이 사용됩니다.'}
-            </p>
-            <button type="button" onClick={submit} disabled={submitting}
-              style={{ padding: '12px', border: 'none', borderRadius: 'var(--radius)', background: submitting ? 'var(--bg-raised)' : 'var(--accent)', color: submitting ? 'var(--text-muted)' : '#fff', fontSize: 14, fontWeight: 600, cursor: submitting ? 'not-allowed' : 'pointer' }}>
-              {submitting ? '생성 중…' : '발송 링크 생성'}
-            </button>
-          </div>
-        )}
-      </div>
-    </div>
+          )}
+          <p style={{ margin: '-2px 0 0', fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.5 }}>
+            {visitType === '재진'
+              ? '재진은 이전 차트를 바탕으로 AI 맞춤 질문이 생성됩니다.'
+              : '초진은 기본 사전문진 질문이 사용됩니다.'}
+          </p>
+        </div>
+      )}
+    </Modal>
   );
 }
 
@@ -395,10 +418,6 @@ function Field({ label, required, children }: { label: string; required?: boolea
   );
 }
 
-const inputStyle: CSSProperties = {
-  width: '100%', padding: '10px 12px', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)',
-  background: 'var(--bg)', color: 'var(--text)', fontSize: 13.5, boxSizing: 'border-box', outline: 'none', fontFamily: 'inherit',
-};
 
 const thStyle: CSSProperties = {
   padding: '9px 12px', textAlign: 'left', fontWeight: 600, color: 'var(--text-muted)',

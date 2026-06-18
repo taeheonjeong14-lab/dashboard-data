@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client';
 import { useHospital } from '@/components/shell/hospital-context';
 import { CenteredSpinner } from '@/components/ui/loading-spinner';
 import { StickyHeader } from '@/components/ui/sticky-header';
+import { primaryPillStyle } from '@/lib/form-styles';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -588,16 +589,7 @@ export default function HealthReportPage() {
 
               {/* Submit */}
               <button onClick={handleSubmit} disabled={!canSubmit}
-                style={{
-                  width: '100%', padding: '10px',
-                  background: canSubmit ? 'var(--accent)' : 'var(--bg-subtle)',
-                  color: canSubmit ? '#fff' : 'var(--text-muted)',
-                  border: `1px solid ${canSubmit ? 'var(--accent)' : 'var(--border)'}`,
-                  borderRadius: 'var(--radius)', fontSize: '13px', fontWeight: 600,
-                  cursor: canSubmit ? 'pointer' : 'not-allowed',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
-                  transition: 'background 0.15s',
-                }}>
+                style={{ ...primaryPillStyle(!canSubmit), width: '100%', padding: '10px', fontSize: '13px' }}>
                 {isProcessing ? <><Spinner />파일 업로드 중…</> : '리포트 생성 요청'}
               </button>
               {stage === 'done' && (
@@ -636,9 +628,9 @@ function FormField({ label, hint, required, children }: { label: string; hint?: 
 }
 
 const selectStyle: React.CSSProperties = {
-  width: '100%', padding: '8px 10px',
-  border: '1px solid var(--border)', borderRadius: 'var(--radius)',
-  background: 'var(--bg)', color: 'var(--text)', fontSize: '13px',
+  width: '100%', padding: '8px 2px',
+  border: 'none', borderBottom: '1px solid var(--border-strong)', borderRadius: 0,
+  background: 'transparent', color: 'var(--text)', fontSize: '13px',
   appearance: 'none',
   backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'12\' height=\'8\' viewBox=\'0 0 12 8\'%3E%3Cpath d=\'M1 1l5 5 5-5\' stroke=\'%236b7280\' stroke-width=\'1.5\' fill=\'none\' stroke-linecap=\'round\'/%3E%3C/svg%3E")',
   backgroundRepeat: 'no-repeat', backgroundPosition: 'right 10px center', paddingRight: '28px', cursor: 'pointer',

@@ -795,10 +795,11 @@ function FormField({ label, hint, required, children }: { label: string; hint?: 
 
 const inputStyle: React.CSSProperties = {
   width: '100%',
-  padding: '8px 10px',
-  border: '1px solid var(--border)',
-  borderRadius: 'var(--radius)',
-  background: 'var(--bg)',
+  padding: '8px 2px',
+  border: 'none',
+  borderBottom: '1px solid var(--border-strong)',
+  borderRadius: 0,
+  background: 'transparent',
   color: 'var(--text)',
   fontSize: 13,
   outline: 'none',
@@ -806,16 +807,25 @@ const inputStyle: React.CSSProperties = {
 };
 
 const textareaStyle: React.CSSProperties = {
-  ...inputStyle,
+  width: '100%',
+  padding: '8px 10px',
+  border: '1px solid var(--border-strong)',
+  borderRadius: 'var(--radius)',
+  background: 'var(--bg)',
+  color: 'var(--text)',
+  fontSize: 13,
+  outline: 'none',
+  boxSizing: 'border-box',
   resize: 'vertical',
 };
 
 const selectStyle: React.CSSProperties = {
   width: '100%',
-  padding: '8px 10px',
-  border: '1px solid var(--border)',
-  borderRadius: 'var(--radius)',
-  background: 'var(--bg)',
+  padding: '8px 2px',
+  border: 'none',
+  borderBottom: '1px solid var(--border-strong)',
+  borderRadius: 0,
+  background: 'transparent',
   color: 'var(--text)',
   fontSize: 13,
   appearance: 'none',

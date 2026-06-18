@@ -72,6 +72,15 @@ textarea {
   font-size: inherit;
 }
 
+/* 공용 입력 포커스 — border-color 만 accent 로. 밑줄형(아랫변만 보임)·박스형(전체) 모두 자연스럽게 강조.
+   (file/date 는 네이티브 UI 라 제외) */
+input:not([type="file"]):not([type="date"]):focus,
+select:focus,
+textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
 /* Scrollbar */
 ::-webkit-scrollbar {
   width: 6px;

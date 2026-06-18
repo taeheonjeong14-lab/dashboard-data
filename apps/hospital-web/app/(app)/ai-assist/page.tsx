@@ -95,7 +95,7 @@ export default function AiAssistPage() {
         <div style={{ marginBottom: 14 }}>
           <input type="search" value={search} onChange={(e) => setSearch(e.target.value)}
             placeholder="환자 또는 보호자 검색"
-            style={{ width: '100%', maxWidth: 320, padding: '9px 12px', fontSize: 13, color: 'var(--text)', background: 'var(--bg)', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+            style={{ width: '100%', maxWidth: 320, padding: '9px 2px', fontSize: 13, color: 'var(--text)', background: 'transparent', border: 'none', borderBottom: '1px solid var(--border-strong)', borderRadius: 0, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }} />
         </div>
       )}
 

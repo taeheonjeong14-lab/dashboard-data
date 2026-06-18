@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo, useCallback, type FormEvent } from 'react
 import { X, User, CreditCard, KeyRound, Coins } from 'lucide-react';
 import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { createClient } from '@/lib/supabase/client';
+import { inputStyle, primaryPillStyle, SegmentedToggle } from '@/lib/form-styles';
 
 type Tab = 'basic' | 'usage' | 'payment' | 'password';
 
@@ -303,7 +304,7 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
               ) : (
                 <form onSubmit={(e) => void handleProfileSubmit(e)} style={formStyle}>
                   <Field label="이메일" hint="변경 불가">
-                    <input value={profile.email} disabled style={{ ...inputStyle, background: 'var(--bg-raised)', color: 'var(--text-muted)', cursor: 'not-allowed' }} />
+                    <input value={profile.email} disabled style={{ ...inputStyle, color: 'var(--text-muted)', cursor: 'not-allowed', borderBottomColor: 'var(--border)' }} />
                   </Field>
                   <Field label="이름" required>
                     <input value={profile.name} onChange={(e) => setProfile((p) => ({ ...p, name: e.target.value }))} style={inputStyle} placeholder="홍길동" />
@@ -312,13 +313,13 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
                     <input value={profile.phone} onChange={(e) => setProfile((p) => ({ ...p, phone: e.target.value }))} style={inputStyle} placeholder="010-0000-0000" required />
                   </Field>
                   <Field label="병원명" hint="관리자만 수정 가능">
-                    <input value={hospital?.name ?? ''} disabled style={{ ...inputStyle, background: 'var(--bg-raised)', color: 'var(--text-muted)', cursor: 'not-allowed' }} />
+                    <input value={hospital?.name ?? ''} disabled style={{ ...inputStyle, color: 'var(--text-muted)', cursor: 'not-allowed', borderBottomColor: 'var(--border)' }} />
                   </Field>
                   <Field label="병원 주소" hint="관리자만 수정 가능">
-                    <input value={hospital?.address ?? ''} disabled style={{ ...inputStyle, background: 'var(--bg-raised)', color: 'var(--text-muted)', cursor: 'not-allowed' }} />
+                    <input value={hospital?.address ?? ''} disabled style={{ ...inputStyle, color: 'var(--text-muted)', cursor: 'not-allowed', borderBottomColor: 'var(--border)' }} />
                   </Field>
                   <Field label="병원 상세 주소" hint="관리자만 수정 가능">
-                    <input value={hospital?.addressDetail ?? ''} disabled style={{ ...inputStyle, background: 'var(--bg-raised)', color: 'var(--text-muted)', cursor: 'not-allowed' }} />
+                    <input value={hospital?.addressDetail ?? ''} disabled style={{ ...inputStyle, color: 'var(--text-muted)', cursor: 'not-allowed', borderBottomColor: 'var(--border)' }} />
                   </Field>
                   {profileMsg && <Msg type={profileMsg.type} text={profileMsg.text} />}
                   <button type="submit" disabled={savingProfile} style={primaryBtn(savingProfile)}>
@@ -344,26 +345,12 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
 
                 {/* 2) 날짜별/카테고리별 사용량 */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                  <div style={{ display: 'flex', gap: 6 }}>
-                    {[7, 30, 90].map((d) => {
-                      const active = usageDays === d;
-                      return (
-                        <button
-                          key={d}
-                          type="button"
-                          onClick={() => setUsageDays(d)}
-                          style={{
-                            padding: '6px 12px', fontSize: 12.5, fontWeight: 700, borderRadius: 8, cursor: 'pointer',
-                            border: `1px solid ${active ? 'var(--accent)' : 'var(--border)'}`,
-                            background: active ? 'var(--accent-subtle)' : 'var(--bg)',
-                            color: active ? 'var(--accent)' : 'var(--text-secondary)',
-                          }}
-                        >
-                          최근 {d}일
-                        </button>
-                      );
-                    })}
-                  </div>
+                  <SegmentedToggle
+                    options={['7일', '30일', '90일']}
+                    value={`${usageDays}일`}
+                    onChange={(v) => setUsageDays(Number(v.replace('일', '')))}
+                    padX={16}
+                  />
                   {loadingOverview && !overview ? (
                     <p style={{ margin: 0, fontSize: 13, color: 'var(--text-muted)' }}>불러오는 중…</p>
                   ) : chartData.length === 0 ? (
@@ -551,14 +538,7 @@ const menuItem: React.CSSProperties = {
 };
 const content: React.CSSProperties = { flex: 1, minWidth: 0, minHeight: 0, padding: '20px 22px', overflowY: 'auto' };
 const formStyle: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: 16 };
-const inputStyle: React.CSSProperties = {
-  width: '100%', padding: '9px 12px', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
-  background: 'var(--bg)', color: 'var(--text)', fontSize: 14, outline: 'none', boxSizing: 'border-box',
-};
 const primaryBtn = (disabled: boolean): React.CSSProperties => ({
-  alignSelf: 'flex-start', padding: '9px 20px',
-  background: disabled ? 'var(--bg-raised)' : 'var(--accent)',
-  color: disabled ? 'var(--text-muted)' : '#fff',
-  border: 'none', borderRadius: 'var(--radius)', fontSize: 14, fontWeight: 600,
-  cursor: disabled ? 'not-allowed' : 'pointer',
+  ...primaryPillStyle(disabled),
+  alignSelf: 'flex-start',
 });

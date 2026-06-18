@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 const KRW_PER_USD = 1380;
 
@@ -13,23 +13,30 @@ type HospitalRow = {
   calls: number;
   lastUsed: string | null;
 };
-type UsageItem = { feature: string; provider: string; costUsd: number; calls: number; tokens: number };
-type UsageRun = {
-  runId: string | null; friendlyId: string | null; patientName: string | null; ownerName: string | null;
-  lastUsed: string | null; costUsd: number; calls: number; tokens: number; refunded: boolean; items: UsageItem[];
+// hospital-ui 사용량 탭과 동일 데이터 구조.
+type LedgerRow = {
+  createdAt: string; kind: string; feature: string | null; tokens: number; balanceAfter: number | null;
+  runId: string | null; note: string | null; ownerName: string | null; patientName: string | null;
+};
+type RunItem = { feature: string; provider: string; costUsd: number; calls: number; tokens: number };
+// 내역을 작업(run) 단위로 묶은 행 (hospital-ui 와 동일). charge 는 run_id 로 합산, grant/adjust·run 없는 건 개별.
+type LedgerGroup = {
+  key: string; kind: string; label: string; createdAt: string; tokens: number; balanceAfter: number | null;
+  steps: number; runId: string | null; ownerName: string | null; patientName: string | null;
 };
 type UsageResponse = {
   days: number;
   totalUsd: number;
   hospitals: HospitalRow[];
-  runs: UsageRun[];
+  ledger: LedgerRow[];
+  runItems: Record<string, RunItem[]>;
   note?: string;
   error?: string;
 };
 
 const DAY_OPTIONS = [7, 30, 90];
 
-// 기능 코드 → 한글 라벨 + 색
+// 기능 코드 → 한글 라벨
 const FEATURE_LABEL: Record<string, string> = {
   extract: '추출',
   ocr: 'OCR',
@@ -44,7 +51,7 @@ const FEATURE_LABEL: Record<string, string> = {
 // 진료케이스 블로그 단계(인과·진단치료세부·아웃라인·글)는 한 그룹 '진료케이스'로 합쳐 표시.
 const CASE_BLOG_FEATURES = new Set(['blog_causal', 'blog_detail', 'blog_outline', 'blog_post']);
 const normFeature = (f: string) => (CASE_BLOG_FEATURES.has(f) ? 'case_blog' : f);
-const featureLabel = (f: string) => FEATURE_LABEL[normFeature(f)] ?? f;
+const featLabel = (f: string) => FEATURE_LABEL[normFeature(f)] ?? f;
 // 세부 항목용 — blog 단계를 합치지 않고 단계명 그대로 보여준다(그룹 헤더만 '진료케이스'로 합침).
 const ITEM_LABEL: Record<string, string> = {
   ...FEATURE_LABEL,
@@ -53,16 +60,19 @@ const ITEM_LABEL: Record<string, string> = {
 const itemLabel = (f: string) => ITEM_LABEL[f] ?? f;
 // 한 건(run)의 기능들 → 대표 라벨.
 const CASE_FEATS = new Set(['blog_causal', 'blog_detail', 'blog_outline', 'blog_post', 'blog_images']);
-function groupLabel(feats: string[]): string {
-  if (feats.some((x) => CASE_FEATS.has(x))) return '진료케이스';
-  if (feats.some((x) => x === 'health_checkup' || x === 'disease_intro')) return '건강검진';
-  if (feats.some((x) => x === 'image_analysis' || x === 'image_placement')) return '이미지분석';
-  if (feats.some((x) => x === 'assessment')) return 'AI평가';
-  if (feats.some((x) => x === 'extract' || x === 'ocr')) return '추출';
-  return feats[0] ? featureLabel(feats[0]) : '사용';
+function groupLabel(feats: Set<string>): string {
+  const f = [...feats];
+  if (f.some((x) => CASE_FEATS.has(x))) return '진료케이스';
+  if (f.some((x) => x === 'health_checkup' || x === 'disease_intro')) return '건강검진';
+  if (f.some((x) => x === 'image_analysis' || x === 'image_placement')) return '이미지분석';
+  if (f.some((x) => x === 'assessment')) return 'AI평가';
+  if (f.some((x) => x === 'extract' || x === 'ocr')) return '추출';
+  return f[0] ? featLabel(f[0]) : '사용';
 }
 
-// 토큰 사용량은 ledger 의 실제 차감 정수값을 그대로 표시(operation 단위 ceil + ×20 + 환불 반영).
+const KIND_LABEL: Record<string, string> = { charge: '사용', grant: '관리자 지급', adjust: '조정' };
+
+// 토큰은 ledger 의 실제 차감 정수값을 그대로 표시(operation 단위 ceil + ×20 + 환불 반영).
 const fmtTok = (v: number) => Math.round(v).toLocaleString();
 const usd = (v: number) => `$${v.toFixed(v < 1 ? 4 : 2)}`;
 const krw = (v: number) => `₩${Math.round(v * KRW_PER_USD).toLocaleString()}`;
@@ -129,7 +139,6 @@ export default function AdminUsageDashboard() {
     [days, selected, load],
   );
 
-  const runs = data?.runs ?? [];
   const selectedHospital = (data?.hospitals ?? []).find((h) => h.hospitalId === selected) ?? null;
   const anyZero = (data?.hospitals ?? []).some((h) => h.tokenBalance <= 0);
   const hospitalsFiltered = (() => {
@@ -138,6 +147,7 @@ export default function AdminUsageDashboard() {
     if (!q) return all;
     return all.filter((h) => `${h.hospitalName} ${h.address ?? ''}`.toLowerCase().includes(q));
   })();
+  const runItems = data?.runItems ?? {};
   const toggleRun = (key: string) =>
     setExpanded((prev) => {
       const n = new Set(prev);
@@ -145,6 +155,40 @@ export default function AdminUsageDashboard() {
       else n.add(key);
       return n;
     });
+
+  // 사용·충전 내역을 작업(run) 단위로 묶음 (hospital-ui 와 동일). charge+run → 합산, grant/adjust → 개별.
+  const groupedLedger = useMemo<LedgerGroup[]>(() => {
+    const out: LedgerGroup[] = [];
+    const byRun = new Map<string, { g: LedgerGroup; feats: Set<string> }>();
+    for (const r of data?.ledger ?? []) {
+      const t = Number(r.tokens);
+      if (r.kind === 'charge' && r.runId) {
+        const hit = byRun.get(r.runId);
+        if (hit) {
+          hit.g.tokens += t;
+          hit.g.steps += 1;
+          if (r.feature) hit.feats.add(r.feature);
+        } else {
+          const g: LedgerGroup = {
+            key: `run:${r.runId}`, kind: 'charge', label: '', createdAt: r.createdAt, tokens: t,
+            balanceAfter: r.balanceAfter, steps: 1, runId: r.runId, ownerName: r.ownerName ?? null, patientName: r.patientName ?? null,
+          };
+          byRun.set(r.runId, { g, feats: new Set(r.feature ? [r.feature] : []) });
+          out.push(g);
+        }
+      } else {
+        out.push({
+          key: `${r.kind}:${r.createdAt}:${out.length}`,
+          kind: r.kind,
+          label: r.kind === 'charge' ? featLabel(r.feature ?? '') : (KIND_LABEL[r.kind] ?? r.kind),
+          createdAt: r.createdAt, tokens: t, balanceAfter: r.balanceAfter, steps: 1, runId: null,
+          ownerName: r.ownerName ?? null, patientName: r.patientName ?? null,
+        });
+      }
+    }
+    for (const { g, feats } of byRun.values()) g.label = groupLabel(feats);
+    return out.sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+  }, [data]);
 
   return (
     <div className="adminLayout2WithMain">
@@ -264,62 +308,77 @@ export default function AdminUsageDashboard() {
             </div>
           ) : null}
 
-          {/* 사용 내역 — 외곽 박스 없이 라인 구분만 */}
-          {runs.length === 0 ? (
-            <div style={{ minHeight: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', fontSize: 13 }}>
-              {loading ? '불러오는 중…' : selectedHospital ? '이 기간 사용 내역이 없습니다.' : '병원을 선택하세요.'}
+          {/* 사용·충전 내역 — 사용(charge)·관리자 지급(grant)·조정(adjust) 모두. 사용 건은 펼쳐서 항목별로 더 볼 수 있음. */}
+          {!selectedHospital ? (
+            <div style={{ minHeight: 160, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', fontSize: 13 }}>
+              {loading ? '불러오는 중…' : '병원을 선택하세요.'}
             </div>
           ) : (
-            <div style={{ borderTop: '1px solid var(--border)' }}>
-              {runs.map((run) => {
-                const key = run.runId ?? 'none';
-                const open = expanded.has(key);
-                const label = groupLabel(run.items.map((i) => i.feature));
-                const who = [run.patientName, run.ownerName].filter(Boolean).join(' / ');
-                return (
-                  <div key={key} style={{ borderBottom: '1px solid var(--border)' }}>
-                    <div
-                      onClick={() => toggleRun(key)}
-                      style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '10px 2px', cursor: 'pointer', background: open ? 'var(--bg-subtle, #f8fafc)' : 'transparent' }}
-                    >
-                      <div style={{ minWidth: 0 }}>
-                        <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>
-                          <span style={{ color: 'var(--text-muted)', fontWeight: 600, marginRight: 4 }}>{open ? '▼' : '▶'}</span>
-                          {label}
-                          {run.refunded ? <span style={{ marginLeft: 6, fontSize: 10.5, fontWeight: 700, color: 'var(--accent)', background: 'var(--accent-subtle)', padding: '1px 6px', borderRadius: 999 }}>바른플랜 환불</span> : null}
-                          {run.friendlyId ? <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}> · #{run.friendlyId}</span> : null}
-                          {who ? <span style={{ color: 'var(--text-secondary)', fontWeight: 500 }}> · {who}</span> : null}
-                          {run.runId == null ? <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}> · (건 미귀속)</span> : null}
-                        </div>
-                        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
-                          {run.lastUsed ? new Date(run.lastUsed).toLocaleString('ko-KR', { dateStyle: 'short', timeStyle: 'short' }) : ''} · {run.items.length}개 항목 · {run.calls}회 호출
-                        </div>
-                      </div>
-                      <div style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
-                        <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--text)' }}>{fmtTok(run.tokens)} 토큰</div>
-                        <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{usd(run.costUsd)}</div>
-                      </div>
-                    </div>
-                    {open ? (
-                      <div style={{ padding: '4px 2px 10px 24px', background: 'var(--bg-subtle, #f8fafc)' }}>
-                        {run.items.map((it, ii) => (
-                          <div key={ii} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '4px 0', fontSize: 12.5, borderTop: ii ? '1px dashed var(--border)' : 'none' }}>
-                            <div style={{ color: 'var(--text-secondary)' }}>
-                              {itemLabel(it.feature)}
-                              <span style={{ color: 'var(--text-muted)' }}>
-                                {[it.provider, it.calls ? `${it.calls}회` : ''].filter(Boolean).map((s) => ` · ${s}`).join('')}
-                              </span>
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 8 }}>사용·충전 내역</div>
+              {groupedLedger.length === 0 ? (
+                <div style={{ padding: '14px 2px', fontSize: 13, color: 'var(--text-muted)' }}>
+                  {loading ? '불러오는 중…' : '내역이 없습니다.'}
+                </div>
+              ) : (
+                <div style={{ borderTop: '1px solid var(--border)' }}>
+                  {groupedLedger.map((g) => {
+                    const expandable = g.kind === 'charge' && g.runId != null;
+                    const open = expandable && expanded.has(g.key);
+                    const items = expandable ? (runItems[g.runId as string] ?? []) : [];
+                    const who = [g.patientName, g.ownerName].filter(Boolean).join(' / ');
+                    return (
+                      <div key={g.key} style={{ borderBottom: '1px solid var(--border)' }}>
+                        <div
+                          onClick={expandable ? () => toggleRun(g.key) : undefined}
+                          style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '10px 2px', cursor: expandable ? 'pointer' : 'default', background: open ? 'var(--bg-subtle, #f8fafc)' : 'transparent' }}
+                        >
+                          <div style={{ minWidth: 0 }}>
+                            <div style={{ fontSize: 13, fontWeight: 700, color: g.kind === 'charge' ? 'var(--text)' : 'var(--success)' }}>
+                              {expandable ? <span style={{ color: 'var(--text-muted)', fontWeight: 600, marginRight: 4 }}>{open ? '▼' : '▶'}</span> : null}
+                              {g.kind === 'charge' ? g.label : (KIND_LABEL[g.kind] ?? g.kind)}
+                              {who ? <span style={{ color: 'var(--text-secondary)', fontWeight: 500 }}> · {who}</span> : null}
+                              {g.kind === 'charge' && g.steps > 1 ? <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}> · {g.steps}단계</span> : null}
                             </div>
-                            <div style={{ whiteSpace: 'nowrap', color: 'var(--text)' }}>
-                              {fmtTok(it.tokens)} 토큰 <span style={{ color: 'var(--text-muted)' }}>({usd(it.costUsd)})</span>
+                            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
+                              {new Date(g.createdAt).toLocaleString('ko-KR', { dateStyle: 'short', timeStyle: 'short' })}
                             </div>
                           </div>
-                        ))}
+                          <div style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                            <div style={{ fontSize: 13, fontWeight: 800, color: g.tokens < 0 ? 'var(--danger)' : 'var(--success)' }}>
+                              {g.tokens > 0 ? '+' : ''}{fmtTok(g.tokens)} 토큰
+                            </div>
+                            {g.balanceAfter != null ? (
+                              <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>잔액 {fmtTok(Number(g.balanceAfter))}</div>
+                            ) : null}
+                          </div>
+                        </div>
+                        {open ? (
+                          <div style={{ padding: '4px 2px 10px 24px', background: 'var(--bg-subtle, #f8fafc)' }}>
+                            {items.length === 0 ? (
+                              <div style={{ fontSize: 12, color: 'var(--text-muted)', padding: '4px 0' }}>세부 항목이 없습니다.</div>
+                            ) : (
+                              items.map((it, ii) => (
+                                <div key={ii} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '4px 0', fontSize: 12.5, borderTop: ii ? '1px dashed var(--border)' : 'none' }}>
+                                  <div style={{ color: 'var(--text-secondary)' }}>
+                                    {itemLabel(it.feature)}
+                                    <span style={{ color: 'var(--text-muted)' }}>
+                                      {[it.provider, it.calls ? `${it.calls}회` : ''].filter(Boolean).map((s) => ` · ${s}`).join('')}
+                                    </span>
+                                  </div>
+                                  <div style={{ whiteSpace: 'nowrap', color: 'var(--text)' }}>
+                                    {fmtTok(it.tokens)} 토큰 <span style={{ color: 'var(--text-muted)' }}>({usd(it.costUsd)})</span>
+                                  </div>
+                                </div>
+                              ))
+                            )}
+                          </div>
+                        ) : null}
                       </div>
-                    ) : null}
-                  </div>
-                );
-              })}
+                    );
+                  })}
+                </div>
+              )}
             </div>
           )}
         </div>
