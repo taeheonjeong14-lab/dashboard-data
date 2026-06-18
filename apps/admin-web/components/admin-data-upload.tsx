@@ -8,6 +8,7 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { useChartExtraction } from '@/components/chart-extraction-provider';
 import AdminDataConsole from '@/components/admin-data-console';
+import AdminCollectScheduler from '@/components/admin-collect-scheduler';
 import { Upload } from 'lucide-react';
 
 const COLLECT_STEPS = [
@@ -179,6 +180,7 @@ function SearchadCoverage({ jobId }: { jobId: string }) {
 export default function AdminDataUpload() {
   const searchParams = useSearchParams();
   const [section, setSection] = useState<UploadSection>('pdf');
+  const [schedulerOpen, setSchedulerOpen] = useState(false);
   const { startExtract, status, lastRunId, error: extractError } = useChartExtraction();
   const [localError, setLocalError] = useState<string | null>(null);
   const [chartType, setChartType] = useState<string>('intovet');
@@ -648,6 +650,7 @@ export default function AdminDataUpload() {
 
   return section === 'collect' ? (
     <div className="adminLayout2WithMain" style={{ gridTemplateColumns: '360px minmax(0, 1fr)' }}>
+      <AdminCollectScheduler hospitals={hospitals} open={schedulerOpen} onClose={() => setSchedulerOpen(false)} />
       <aside className="adminLayoutSecondaryRail" style={{ width: 360, maxWidth: 360, overflowY: 'auto' }}>
         <div style={{ padding: '14px 14px 24px' }}>
                 <div style={{ display: 'grid', gap: 16 }}>
@@ -851,6 +854,17 @@ export default function AdminDataUpload() {
                         병원과 항목을 하나 이상 선택해 주세요.
                       </p>
                     )}
+                  </div>
+
+                  {/* 자동 수집 스케줄 — 모달로 설정 */}
+                  <div style={{ borderTop: '1px solid var(--border)', paddingTop: 14 }}>
+                    <button
+                      type="button"
+                      onClick={() => setSchedulerOpen(true)}
+                      style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, width: '100%', padding: '10px', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius, 8px)', background: '#fff', color: 'var(--text-secondary)', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
+                    >
+                      ⏱ 자동 수집 스케줄
+                    </button>
                   </div>
 
                 </div>
