@@ -30,21 +30,21 @@ export const HEALTH_STAGE_LABEL: Record<Exclude<HealthStage, 'none'>, string> = 
 };
 
 // 배지 색 규칙 (모든 화면 공통):
-//  배경 = 카테고리 (블로그 초록 / 검진리포트 파랑), 글자 = 단계 (요청 빨강 / 작성중 주황 / 완료 파랑)
+//  배경 = 카테고리 (블로그 노랑 / 검진리포트 파랑), 글자색은 단계 '단어'(요청/작성중/완료)에만 입힌다.
+//  요청=빨강, 작성중=주황, 완료=파랑. 카테고리 단어(블로그/검진리포트)는 기본색.
 export type BadgeCategory = 'blog' | 'health';
 type StageKey = 'requested' | 'writing' | 'done';
-const CATEGORY_BG: Record<BadgeCategory, string> = {
-  blog: 'rgba(16,185,129,0.16)',   // 초록 배경
-  health: 'rgba(59,130,246,0.16)', // 파랑 배경
+export const CATEGORY_BADGE_BG: Record<BadgeCategory, string> = {
+  blog: '#fef9c3',   // 노란 배경
+  health: '#e6efff', // 파란 배경
 };
-const STAGE_COLOR: Record<StageKey, string> = {
+export const CATEGORY_WORD: Record<BadgeCategory, string> = { blog: '블로그', health: '검진리포트' };
+export const STAGE_WORD: Record<StageKey, string> = { requested: '요청', writing: '작성중', done: '완료' };
+export const STAGE_COLOR: Record<StageKey, string> = {
   requested: '#dc2626', // 빨강
   writing: '#ea580c',   // 주황
   done: '#2563eb',      // 파랑
 };
-export function badgeStyle(category: BadgeCategory, stage: StageKey): { background: string; color: string } {
-  return { background: CATEGORY_BG[category], color: STAGE_COLOR[stage] };
-}
 
 // 필터용 — 타입(블로그/검진리포트), 단계(요청/작성중/완료)
 export const TYPE_FILTERS = ['블로그', '검진리포트'] as const;

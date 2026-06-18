@@ -11,10 +11,8 @@ import {
   normalizeHistoryApiItem,
   type HistoryItem,
 } from '@/lib/chart-history-normalize';
-import {
-  BLOG_STAGE_LABEL, HEALTH_STAGE_LABEL, badgeStyle,
-  TYPE_FILTERS, STAGE_FILTERS, runTypes, runStages,
-} from '@/lib/case-status';
+import { TYPE_FILTERS, STAGE_FILTERS, runTypes, runStages } from '@/lib/case-status';
+import { StatusBadge } from '@/components/status-badge';
 
 const divider = 'var(--border)';
 
@@ -27,19 +25,12 @@ function chipStyle(on: boolean): CSSProperties {
   };
 }
 
-// 차트 목록/레일 공용 상태 배지 (배경=카테고리, 글자=단계 — case-status.badgeStyle)
+// 차트 목록/레일 상태 배지 (공용 StatusBadge)
 function StatusBadges({ blogStage, healthStage }: { blogStage: HistoryItem['blogStage']; healthStage: HistoryItem['healthStage'] }) {
-  const badges: { key: string; label: string; style: { background: string; color: string } }[] = [];
-  if (healthStage !== 'none') badges.push({ key: 'h', label: HEALTH_STAGE_LABEL[healthStage], style: badgeStyle('health', healthStage) });
-  if (blogStage !== 'none') badges.push({ key: 'b', label: BLOG_STAGE_LABEL[blogStage], style: badgeStyle('blog', blogStage) });
-  if (badges.length === 0) return null;
   return (
     <>
-      {badges.map((b) => (
-        <span key={b.key} style={{ marginLeft: 6, display: 'inline-block', padding: '1px 6px', borderRadius: 4, background: b.style.background, color: b.style.color, fontSize: 10, fontWeight: 700, verticalAlign: 'middle' }}>
-          {b.label}
-        </span>
-      ))}
+      {healthStage !== 'none' && <StatusBadge category="health" stage={healthStage} style={{ marginLeft: 6 }} />}
+      {blogStage !== 'none' && <StatusBadge category="blog" stage={blogStage} style={{ marginLeft: 6 }} />}
     </>
   );
 }

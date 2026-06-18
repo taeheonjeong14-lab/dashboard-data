@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState, type CSSProperties } from 'react';
 import { CaseBlogButton } from './admin-case-blog-modal';
-import { BLOG_STAGE_LABEL, badgeStyle } from '@/lib/case-status';
+import { StatusBadge } from '@/components/status-badge';
 
 type CaseBlogItem = {
   runId: string;
@@ -20,14 +20,7 @@ type CaseBlogItem = {
 };
 
 function StageSticker({ stage }: { stage: 'writing' | 'done' }) {
-  return (
-    <span style={{
-      marginLeft: 6, display: 'inline-block', padding: '1px 6px', borderRadius: 4, fontSize: 10, fontWeight: 700, verticalAlign: 'middle',
-      ...badgeStyle('blog', stage),
-    }}>
-      {BLOG_STAGE_LABEL[stage]}
-    </span>
-  );
+  return <StatusBadge category="blog" stage={stage} style={{ marginLeft: 6 }} />;
 }
 
 const btnSecondary: CSSProperties = {
