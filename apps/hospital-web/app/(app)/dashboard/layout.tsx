@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import type { ReactNode, CSSProperties } from "react";
 import { StatsUploadButton } from "@/components/dashboard/StatsUploadButton";
 import { StickyHeader } from "@/components/ui/sticky-header";
+import { useHospital } from "@/components/shell/hospital-context";
 
 const TABS = [
   { href: "/dashboard/sales", label: "매출" },
@@ -20,6 +21,18 @@ const TABS = [
 
 export default function DashboardLayout({ children }: { children: ReactNode }) {
   const pathname = usePathname();
+  const { isStaff } = useHospital();
+
+  // 경영 대시보드는 Master 전용 — Staff 차단.
+  if (isStaff) {
+    return (
+      <div style={{ padding: "64px 18px", textAlign: "center", color: "var(--text-muted)" }}>
+        <div style={{ fontSize: 32, marginBottom: 10 }}>🔒</div>
+        <div style={{ fontSize: 15, fontWeight: 700, color: "var(--text)", marginBottom: 4 }}>접근 권한이 없습니다</div>
+        <div style={{ fontSize: 13 }}>경영 대시보드는 병원 관리자(Master)만 볼 수 있습니다.</div>
+      </div>
+    );
+  }
 
   // 정확히 일치하거나 그 하위 경로일 때만 활성. startsWith 만 쓰면
   // /dashboard/place-ads 가 /dashboard/place 도 활성으로 만드는 prefix 충돌 발생.

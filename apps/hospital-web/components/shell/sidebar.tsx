@@ -3,6 +3,10 @@
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { BarChart2, FileHeart, Stethoscope, ClipboardList, ClipboardCheck, Newspaper, Swords, CalendarDays } from 'lucide-react';
+import { useHospital } from './hospital-context';
+
+// Staff 가 접근할 수 없는 경로(경영 대시보드). 메뉴 숨김 + 서버 라우트 가드(app/(app)/dashboard/layout) 양쪽 적용.
+const STAFF_HIDDEN_PREFIXES = ['/dashboard'];
 
 const navGroups = [
   {
@@ -37,11 +41,18 @@ const navGroups = [
 
 export function Sidebar() {
   const pathname = usePathname();
+  const { isStaff } = useHospital();
+
+  const groups = isStaff
+    ? navGroups
+        .map((g) => ({ ...g, items: g.items.filter((it) => !STAFF_HIDDEN_PREFIXES.includes(it.matchPrefix)) }))
+        .filter((g) => g.items.length > 0)
+    : navGroups;
 
   return (
     <aside style={styles.sidebar}>
       <nav style={styles.nav}>
-        {navGroups.map((group) => (
+        {groups.map((group) => (
           <div key={group.title} style={styles.group}>
             <div style={styles.groupTitle}>{group.title}</div>
             {group.items.map((item) => {

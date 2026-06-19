@@ -1,12 +1,13 @@
 'use client';
 
 import { useState, useEffect, useMemo, useCallback, type FormEvent } from 'react';
-import { X, User, CreditCard, KeyRound, Coins } from 'lucide-react';
+import { X, User, CreditCard, KeyRound, Coins, Users } from 'lucide-react';
 import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { createClient } from '@/lib/supabase/client';
 import { inputStyle, primaryPillStyle, SegmentedToggle } from '@/lib/form-styles';
+import { MembersPanel } from './members-panel';
 
-type Tab = 'basic' | 'usage' | 'payment' | 'password';
+type Tab = 'basic' | 'usage' | 'members' | 'payment' | 'password';
 
 const FEATURE_LABEL: Record<string, string> = {
   extract: '추출', ocr: 'OCR', case_blog: '진료케이스',
@@ -55,15 +56,17 @@ type Profile = {
   email: string;
 };
 
-const MENU: { key: Tab; label: string; icon: typeof User }[] = [
+const MENU: { key: Tab; label: string; icon: typeof User; masterOnly?: boolean }[] = [
   { key: 'basic', label: '기본 정보', icon: User },
   { key: 'usage', label: '토큰 사용량', icon: Coins },
+  { key: 'members', label: '멤버 관리', icon: Users, masterOnly: true },
   { key: 'payment', label: '청구 및 결제', icon: CreditCard },
   { key: 'password', label: '비밀번호 변경', icon: KeyRound },
 ];
 
 export function SettingsModal({ open, onClose }: { open: boolean; onClose: () => void; tokenBalance?: number }) {
   const [tab, setTab] = useState<Tab>('basic');
+  const [isMaster, setIsMaster] = useState(false);
 
   const [profile, setProfile] = useState<Profile>({
     name: '', phone: '', customHospitalName: '', hospital_address: '', hospital_address_detail: '', email: '',
@@ -118,10 +121,11 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
       const { data } = await supabase
         .schema('core')
         .from('users')
-        .select('name, phone, customHospitalName, hospital_address, hospital_address_detail')
+        .select('name, phone, customHospitalName, hospital_address, hospital_address_detail, hospital_role')
         .eq('id', user.id)
         .single();
-      const row = data as Partial<Profile> | null;
+      const row = data as (Partial<Profile> & { hospital_role?: string | null }) | null;
+      setIsMaster(row?.hospital_role === 'master');
       setProfile({
         name: row?.name ?? '',
         phone: row?.phone ?? '',
@@ -276,7 +280,7 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
         <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
           {/* Left menu */}
           <nav style={leftMenu}>
-            {MENU.map(({ key, label, icon: Icon }) => {
+            {MENU.filter((m) => !m.masterOnly || isMaster).map(({ key, label, icon: Icon }) => {
               const active = tab === key;
               return (
                 <button
@@ -298,6 +302,7 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
 
           {/* Content */}
           <section style={content}>
+            {tab === 'members' && isMaster && <MembersPanel />}
             {tab === 'basic' && (
               loadingProfile ? (
                 <p style={{ margin: 0, fontSize: 13, color: 'var(--text-muted)' }}>불러오는 중…</p>

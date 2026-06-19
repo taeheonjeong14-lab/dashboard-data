@@ -73,6 +73,7 @@ const NAV_GROUPS: NavGroup[] = [
   {
     title: '관리',
     items: [
+      { href: '/admin/registrations', label: '병원 심사', icon: ClipboardCheck, matchPrefix: '/admin/registrations' },
       { href: '/admin/users/users', label: '사용자 관리', icon: Users, matchPrefix: '/admin/users/users' },
       { href: '/admin/users/hospitals', label: '병원 관리', icon: Building2, matchPrefix: '/admin/users/hospitals' },
       { href: '/admin/usage', label: '사용량', icon: Gauge, matchPrefix: '/admin/usage' },

@@ -12,11 +12,12 @@ interface HospitalShellProps {
   tokenBalance?: number;
   userId?: string | null;
   hospitalId?: string | null;
+  isStaff?: boolean;
 }
 
-export function HospitalShell({ children, userName, hospitalName, tokenBalance, userId = null, hospitalId = null }: HospitalShellProps) {
+export function HospitalShell({ children, userName, hospitalName, tokenBalance, userId = null, hospitalId = null, isStaff = false }: HospitalShellProps) {
   return (
-    <HospitalProvider userId={userId} hospitalId={hospitalId}>
+    <HospitalProvider userId={userId} hospitalId={hospitalId} isStaff={isStaff}>
       <div style={{ display: 'flex', minHeight: '100vh' }}>
         <TopBar userName={userName} hospitalName={hospitalName} tokenBalance={tokenBalance} />
         <Sidebar />

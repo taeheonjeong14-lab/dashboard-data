@@ -23,6 +23,8 @@ model Hospital {
   phone              String? @db.Text
   slug               String? @unique(map: "uq_core_hospitals_slug_when_set", where: raw("(slug IS NOT NULL AND btrim(slug::text) <> '')"))
   code               String? @db.Text
+  email              String? @db.Text // 병원 대표 이메일 (심사 결과 통지용)
+  directorPhone      String? @map("director_phone") @db.Text // 대표원장 휴대폰
   directorNameKo     String? @map("director_name_ko") @db.Text
   sealUrl            String? @map("seal_url") @db.Text
   coverPetImageUrl   String? @map("cover_pet_image_url") @db.Text
@@ -59,6 +61,14 @@ model User {
   approved              Boolean   @default(false) // 관리자 승인 여부
   rejected              Boolean   @default(false) // 관리자 승인 거절 여부 (거절 시 대기 목록에서 제외)
   role                  String    @default("member") // Supabase 확장 (백엔드 / 멤버십)
+  // 병원 내 역할 (사람×병원 소속 속성). 새 병원 등록=master, 기존 병원 합류=staff.
+  hospitalRole          String?   @map("hospital_role") // 'master' | 'staff'
+  staffApproved         Boolean   @default(false) @map("staff_approved") // Master 의 스태프 승인 (master 는 자동 true)
+  // 휴대폰 본인인증 (PortOne). ci=사람 고유, di=서비스 내 중복확인.
+  ci                    String?   @db.Text
+  di                    String?   @db.Text
+  phoneVerified         Boolean   @default(false) @map("phone_verified")
+  verifiedName          String?   @map("verified_name") // 본인인증으로 확인된 실명
   active                 Boolean   @default(true)  // 비활성화 시 false (로그인 불가)
   deletedAt              DateTime? // 삭제 시 설정 (소프트 삭제, 목록 제외·로그인 불가)
   emailVerified         Boolean   @default(false) // 이메일 인증 링크 클릭 완료 여부
@@ -68,6 +78,7 @@ model User {
   hospital Hospital? @relation(fields: [hospitalId], references: [id], onDelete: SetNull)
 
   @@index([hospitalId], map: "idx_core_users_hospital")
+  @@index([di], map: "idx_core_users_di")
   @@map("users")
   @@schema("core")
 }
@@ -81,6 +92,34 @@ model AdminUser {
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   @@map("admin_users")
+  @@schema("core")
+}
+
+/// 병원 등록 신청·심사 대기. 승인 전엔 core.hospitals 에 안 만들고 여기 쌓는다.
+/// 승인 시 core.hospitals 생성 + master_user_id 유저에 hospital_id 연결·활성화.
+model HospitalRegistration {
+  id                 String    @id @default(uuid())
+  hospitalName       String    @map("hospital_name")
+  phone              String?   @db.Text
+  address            String?   @db.Text
+  addressDetail      String?   @map("address_detail") @db.Text
+  email              String?   @db.Text // 병원 이메일 (통지용)
+  directorName       String?   @map("director_name") @db.Text // 대표원장 성함
+  directorPhone      String?   @map("director_phone") @db.Text // 대표원장 휴대폰
+  bizCertPath        String?   @map("biz_cert_path") @db.Text // 사업자등록증 (Storage 경로)
+  vetLicensePath     String?   @map("vet_license_path") @db.Text // 수의사신고필증 (Storage 경로)
+  masterUserId       String?   @map("master_user_id") // 제출 시 만든 마스터 인증계정 uid
+  status             String    @default("pending") // pending|approved|rejected
+  reviewNote         String?   @map("review_note") @db.Text // admin 심사 메모
+  diConflict         Boolean   @default(false) @map("di_conflict") // 마스터 DI 중복(심사 경고)
+  diConflictHospital String?   @map("di_conflict_hospital") @db.Text // 중복 시 기존 병원명
+  hospitalId         String?   @map("hospital_id") // 승인 시 생성된 hospital
+  reviewedAt         DateTime? @map("reviewed_at")
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
+
+  @@index([status], map: "idx_hospital_registrations_status")
+  @@map("hospital_registrations")
   @@schema("core")
 }
 

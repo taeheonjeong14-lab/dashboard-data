@@ -20,7 +20,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   const { data: coreUser, error: coreUserErr } = await supabase
     .schema('core')
     .from('users')
-    .select('approved, name, customHospitalName, hospital_id')
+    .select('approved, name, customHospitalName, hospital_id, hospital_role, staff_approved, emailVerified')
     .eq('id', user.id)
     .single();
   if (coreUserErr) {
@@ -32,7 +32,19 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
     name?: string | null;
     customHospitalName?: string | null;
     hospital_id?: string | null;
+    hospital_role?: string | null;
+    staff_approved?: boolean | null;
+    emailVerified?: boolean | null;
   } | null;
+
+  // 이용 가능 조건.
+  //  - 신규 흐름(hospital_role 있음): 이메일 인증 완료 AND (마스터=approved / 스태프=staff_approved)
+  //  - 레거시(role 없음): 기존대로 approved 만 (이메일 인증 미적용 운영자 보호)
+  const canUse = !!cu && (
+    cu.hospital_role
+      ? (cu.emailVerified === true && (cu.hospital_role === 'master' ? cu.approved === true : cu.staff_approved === true))
+      : cu.approved === true
+  );
 
   // hospital_name: prefer custom overrides, then fetch from core.hospitals via hospital_id
   let resolvedHospitalName: string | null = cu?.customHospitalName?.trim() || null;
@@ -55,7 +67,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
 
   // 승인 가드 — whitelist 방식. row 가 없거나(트리거/동기화 실패) approved !== true 면 차단.
   // 기존 fail-open(`cu && cu.approved === false`) 은 row 미존재 시 통과되어 미승인 사용자가 로그인되는 버그가 있었음.
-  if (!cu || cu.approved !== true) {
+  if (!canUse) {
     const pendingIcon = '⏳';
     const pendingTitle = '승인 대기 중';
     const pendingBody = (
@@ -160,6 +172,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
       tokenBalance={tokenBalance}
       userId={user.id}
       hospitalId={cu?.hospital_id ?? null}
+      isStaff={cu?.hospital_role === 'staff'}
     >
       {children}
     </HospitalShell>
