@@ -632,6 +632,27 @@ async function processAlimtalkOutbox() {
         `[collect-worker] 알림톡 ${result.ok ? "발송" : "실패"}: ${row.id} (code=${result.code}` +
           `${totalCost != null ? `, ${totalCost}원` : ""}${result.ok ? "" : " " + result.message})`
       );
+
+      // 병원 유저(마스터·스태프)에게 발송 결과 알림
+      if (row.hospital_id) {
+        try {
+          const { data: users } = await supabase
+            .schema("core").from("users").select("id")
+            .eq("hospital_id", row.hospital_id).eq("rejected", false).is("deleted_at", null);
+          const recipients = (users || []).map((u) => u.id);
+          if (recipients.length) {
+            const title = result.ok ? "알림톡 발송 완료" : "알림톡 발송 실패";
+            const body = result.ok
+              ? `${row.receiver || "보호자"}님께 알림톡을 발송했어요.`
+              : `${row.receiver || "보호자"}님께 알림톡 발송에 실패했어요. (${result.message || "사유 미상"})`;
+            await supabase.schema("core").from("notifications").insert(
+              recipients.map((uid) => ({ user_id: uid, hospital_id: row.hospital_id, type: "alimtalk_result", title, body, link: null }))
+            );
+          }
+        } catch (e) {
+          console.warn("[collect-worker] 알림톡 결과 알림 실패(무시):", describeError(e));
+        }
+      }
     }
   } catch (e) {
     console.error("[collect-worker] 알림톡 outbox 처리 오류:", describeError(e));

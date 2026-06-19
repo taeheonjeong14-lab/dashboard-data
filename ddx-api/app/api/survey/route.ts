@@ -130,6 +130,25 @@ export async function POST(request: NextRequest) {
           console.error('analyzeSurveySessionById failed:', e),
         ),
       );
+      // 병원 유저 알림 — 사전문진 작성 완료
+      try {
+        if (updated.hospitalId) {
+          const recipients = await prisma.user.findMany({
+            where: { hospitalId: updated.hospitalId, deletedAt: null, rejected: false },
+            select: { id: true },
+          });
+          if (recipients.length) {
+            await prisma.notification.createMany({
+              data: recipients.map((r) => ({
+                userId: r.id, hospitalId: updated.hospitalId, type: 'survey_submitted',
+                title: '사전문진 작성 완료',
+                body: `${updated.guardianName || '보호자'}/${updated.patientName || '환자'}님이 사전문진을 작성해주셨어요. 확인해주세요.`,
+                link: '/pre-consultation',
+              })),
+            });
+          }
+        }
+      } catch (e) { console.error('[survey notify] failed:', e); }
     }
 
     return NextResponse.json({ success: true, completed: complete });

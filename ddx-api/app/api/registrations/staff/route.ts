@@ -59,6 +59,23 @@ export async function POST(request: NextRequest) {
       },
     });
 
+    // 마스터에게 스태프 승인 요청 알림
+    try {
+      const masters = await prisma.user.findMany({
+        where: { hospitalId, hospitalRole: 'master', deletedAt: null, rejected: false },
+        select: { id: true },
+      });
+      if (masters.length) {
+        await prisma.notification.createMany({
+          data: masters.map((m) => ({
+            userId: m.id, hospitalId, type: 'staff_approval_request',
+            title: '스태프 가입 승인 요청',
+            body: `${v.name || '스태프'}님이 가입을 신청했어요. 설정 > 멤버 관리에서 승인해 주세요.`,
+          })),
+        });
+      }
+    } catch (e) { console.error('[staff notify] failed:', e); }
+
     return NextResponse.json({ success: true });
   } catch (e) {
     console.error('POST /api/registrations/staff error:', e);

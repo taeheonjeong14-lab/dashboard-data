@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAdminApi } from '@/lib/assert-admin-api';
 import { getAdminWebPgPool } from '@/lib/db';
 import { formatSupabaseError } from '@/lib/format-supabase-error';
+import { notifyHospitalUsers } from '@/lib/notify';
 
 export const dynamic = 'force-dynamic';
 
@@ -205,6 +206,14 @@ export async function POST(request: NextRequest) {
       `SELECT billing.token_grant($1, $2::int, $3, 'grant') AS token_grant`,
       [hospitalId, tokens, typeof body.note === 'string' ? body.note : null],
     );
+    // 충전(양수 지급) 시 마스터에게 알림. (차감/음수는 알림 안 함)
+    if (tokens > 0) {
+      await notifyHospitalUsers(hospitalId, {
+        type: 'token_granted',
+        title: '토큰 충전 완료',
+        body: `토큰 ${tokens.toLocaleString()}개가 충전되었습니다.`,
+      }, { role: 'master' });
+    }
     return NextResponse.json({ ok: true, balanceAfter: Number(rows[0]?.token_grant) });
   } catch (e) {
     return NextResponse.json({ error: formatSupabaseError(e) }, { status: 500 });

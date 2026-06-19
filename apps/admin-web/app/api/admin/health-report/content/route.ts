@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdminApi } from '@/lib/assert-admin-api';
+import { notifyHospitalUsers, runHospitalAndPatient } from '@/lib/notify';
 import { createServiceRoleClient } from '@/lib/supabase/service-role';
 import { isParseRunUuid } from '@/lib/chart-extraction/uuid';
 
@@ -110,6 +111,17 @@ export async function PATCH(request: NextRequest) {
 
     if (error) throw new Error(error.message);
     if (!saved) throw new Error('upsert returned no row');
+
+    // 진료케이스 확정(blog_post + confirmed) 시 병원 유저 알림
+    if (contentType === 'blog_post' && (body.payload as { confirmed?: boolean })?.confirmed === true) {
+      const { hospitalId, patientName } = await runHospitalAndPatient(runId);
+      await notifyHospitalUsers(hospitalId, {
+        type: 'case_blog_done',
+        title: '진료케이스 작성 완료',
+        body: `${patientName || '환자'} 진료케이스가 작성 완료되었습니다!`,
+        link: '/blog',
+      });
+    }
 
     const s = saved as Record<string, unknown>;
     return NextResponse.json({

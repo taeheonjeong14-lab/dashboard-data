@@ -3,6 +3,7 @@ import { requireAdminApi } from '@/lib/assert-admin-api';
 import { isParseRunUuid } from '@/lib/chart-extraction/uuid';
 import { getChartApiProxyConfig } from '@/lib/chart-api-proxy-env';
 import { formatChartApiFetchError } from '@/lib/chart-api-fetch-error';
+import { notifyHospitalUsers, runHospitalAndPatient } from '@/lib/notify';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 120;
@@ -59,6 +60,17 @@ export async function POST(request: NextRequest) {
         { status: 502 },
       );
     }
+    // 건강검진 리포트 생성 완료 시 병원 유저 알림
+    if (res.ok && String(o.contentType ?? '') === 'health_checkup') {
+      const { hospitalId, patientName } = await runHospitalAndPatient(runId);
+      await notifyHospitalUsers(hospitalId, {
+        type: 'health_report_ready',
+        title: '건강검진 리포트 준비 완료',
+        body: `${patientName || '환자'} 건강검진 리포트가 준비되었습니다. 검토 후 보호자님께 발송해주세요!`,
+        link: '/health-report',
+      });
+    }
+
     return NextResponse.json(json, { status: res.status });
   } catch (e) {
     console.error('POST /api/admin/health-report/generate (proxy):', e);

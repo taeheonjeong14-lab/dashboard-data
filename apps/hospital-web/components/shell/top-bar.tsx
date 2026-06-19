@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { Settings, LogOut, Coins } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { SettingsModal } from './settings-modal';
+import { NotificationBell } from './notification-bell';
 
 interface TopBarProps {
   userName: string | null;
@@ -61,7 +62,7 @@ export function TopBar({ userName, hospitalName, tokenBalance }: TopBarProps) {
     >
       {/* Left — logo (public/logo.svg 있으면 이미지, 없으면 텍스트 워드마크) */}
       <Link
-        href="/dashboard"
+        href="/home"
         style={{
           display: 'flex',
           alignItems: 'center',
@@ -122,6 +123,8 @@ export function TopBar({ userName, hospitalName, tokenBalance }: TopBarProps) {
           <span style={{ fontWeight: 600, color: 'var(--text)' }}>{userName ?? '사용자'}</span>
           {hospitalName && <span style={{ color: 'var(--text-muted)' }}> ({hospitalName})</span>}
         </span>
+
+        <NotificationBell />
 
         <button
           onClick={() => setSettingsOpen(true)}

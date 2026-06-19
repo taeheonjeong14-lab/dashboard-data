@@ -100,6 +100,23 @@ model AdminUser {
   @@schema("core")
 }
 
+/// 병원 유저(마스터/스태프) 알림 — 이벤트당 수신자별 1행.
+model Notification {
+  id         String   @id @default(uuid())
+  userId     String   @map("user_id")
+  hospitalId String?  @map("hospital_id")
+  type       String
+  title      String
+  body       String?
+  link       String?
+  read       Boolean  @default(false)
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@index([userId, read, createdAt], map: "idx_notifications_user")
+  @@map("notifications")
+  @@schema("core")
+}
+
 /// 병원 등록 신청·심사 대기. 승인 전엔 core.hospitals 에 안 만들고 여기 쌓는다.
 /// 승인 시 core.hospitals 생성 + master_user_id 유저에 hospital_id 연결·활성화.
 model HospitalRegistration {

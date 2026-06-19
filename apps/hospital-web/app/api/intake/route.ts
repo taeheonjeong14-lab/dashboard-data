@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase/service-role';
+import { notifyHospitalUsers } from '@/lib/notify';
 import type { IntakeAnswers } from '@/lib/intake/form-spec';
 
 export const runtime = 'nodejs';
@@ -85,6 +86,15 @@ export async function POST(request: NextRequest) {
       const { error: petErr } = await svc.schema('intake').from('submission_pets').insert(petRows);
       if (petErr) throw new Error(petErr.message);
     }
+
+    // 병원 유저 알림 — 초진 접수증 작성됨
+    const petName = (a.pets?.[0]?.name ?? '').trim();
+    await notifyHospitalUsers(hospitalId, {
+      type: 'intake_submitted',
+      title: '초진 접수증 도착',
+      body: `${a.ownerName?.trim() || '보호자'}/${petName || '환자'}이(가) 초진 접수증을 작성해주셨어요. 확인해주세요.`,
+      link: '/reception',
+    });
 
     return NextResponse.json({ ok: true });
   } catch (e) {
