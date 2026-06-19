@@ -1,20 +1,25 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { createClient } from '@/lib/supabase/client';
 import { ddxPostPublic, ddxGetPublic } from '@/lib/ddx-api';
 
+// 한국 전화번호 포맷 — 서울 02(2자리) / 그 외 지역번호·휴대폰(3자리) + 중간 3~4 + 끝 4.
 function formatPhoneInput(value: string): string {
   const d = value.replace(/\D/g, '').slice(0, 11);
-  if (d.length <= 3) return d;
-  if (d.startsWith('010')) {
-    if (d.length <= 7) return `${d.slice(0, 3)}-${d.slice(3)}`;
-    return `${d.slice(0, 3)}-${d.slice(3, 7)}-${d.slice(7)}`;
+  if (d.length === 0) return '';
+  if (d.startsWith('02')) {
+    if (d.length <= 2) return d;
+    if (d.length <= 5) return `02-${d.slice(2)}`;
+    if (d.length <= 9) return `02-${d.slice(2, d.length - 4)}-${d.slice(d.length - 4)}`; // 02-XXX-XXXX
+    return `02-${d.slice(2, 6)}-${d.slice(6, 10)}`; // 02-XXXX-XXXX
   }
-  if (d.length <= 6) return `${d.slice(0, 3)}-${d.slice(3)}`;
-  return `${d.slice(0, 3)}-${d.slice(3, 6)}-${d.slice(6)}`;
+  if (d.length <= 3) return d;
+  if (d.length <= 7) return `${d.slice(0, 3)}-${d.slice(3)}`;
+  if (d.length <= 10) return `${d.slice(0, 3)}-${d.slice(3, d.length - 4)}-${d.slice(d.length - 4)}`; // 0XX-XXX-XXXX
+  return `${d.slice(0, 3)}-${d.slice(3, 7)}-${d.slice(7, 11)}`; // 010-XXXX-XXXX
 }
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const digits = (s: string) => s.replace(/\D/g, '');
@@ -35,10 +40,10 @@ function loadDaumPostcode(): Promise<DaumNamespace> {
 
 type Hospital = { id: string; name: string; address?: string | null };
 type StepKey =
-  | 'hName' | 'hPhone' | 'hAddr' | 'director' | 'bizCert' | 'vetCert'
-  | 'identity' | 'account' | 'review';
+  | 'hIntro' | 'hName' | 'hPhone' | 'hAddr' | 'director' | 'bizCert' | 'vetCert'
+  | 'masterIntro' | 'identity' | 'account' | 'review';
 
-const NEW_STEPS: StepKey[] = ['hName', 'hPhone', 'hAddr', 'director', 'bizCert', 'vetCert', 'identity', 'account', 'review'];
+const NEW_STEPS: StepKey[] = ['hIntro', 'hName', 'hPhone', 'hAddr', 'director', 'bizCert', 'vetCert', 'masterIntro', 'identity', 'account', 'review'];
 const STAFF_STEPS: StepKey[] = ['identity', 'account', 'review'];
 
 export default function SignupPage() {
@@ -142,6 +147,8 @@ export default function SignupPage() {
 
   const canProceed = (): boolean => {
     switch (step) {
+      case 'hIntro': return true;
+      case 'masterIntro': return true;
       case 'hName': return hName.trim().length > 0;
       case 'hPhone': return digits(hPhone).length >= 8;
       case 'hAddr': return addrBase.trim().length > 0;
@@ -284,7 +291,14 @@ export default function SignupPage() {
         {mode === 'new' ? '새 병원 등록' : `${selected?.name ?? ''} · 스태프 가입`} · {stepIdx + 1} / {steps.length}
       </div>
 
-      <div style={{ display: 'grid', gap: 12, minHeight: 180 }}>
+      <div key={step} className="stepFade" style={{ display: 'grid', gap: 12, minHeight: 180 }}>
+        {step === 'hIntro' && (
+          <Info title="반갑습니다 👋">
+            더함의료마케팅의 동물병원 관리 솔루션에 오신 것을 환영합니다.<br /><br />
+            현재 찾으시는 <b style={{ color: 'var(--text)' }}>{hName || '동물병원'}</b>은 아직 저희 시스템에 등록되어 있지 않습니다.<br /><br />
+            먼저 병원 정보를 입력해 주시고, 직후에는 병원의 <b style={{ color: 'var(--text)' }}>마스터 계정</b>이 될 사용자의 정보를 수집할 예정입니다.
+          </Info>
+        )}
         {step === 'hName' && (<><StepHead title="병원명" /><input autoFocus style={box.input} value={hName} onChange={(e) => setHName(e.target.value)} placeholder="○○동물병원" /></>)}
         {step === 'hPhone' && (<><StepHead title="병원 전화번호" desc="대표 전화번호를 입력해 주세요." /><input autoFocus style={box.input} type="tel" value={hPhone} onChange={(e) => setHPhone(formatPhoneInput(e.target.value))} placeholder="02-000-0000" /></>)}
         {step === 'hAddr' && (
@@ -304,8 +318,14 @@ export default function SignupPage() {
             <input style={box.input} type="tel" value={directorPhone} onChange={(e) => setDirectorPhone(formatPhoneInput(e.target.value))} placeholder="010-0000-0000" />
           </>
         )}
-        {step === 'bizCert' && (<><StepHead title="사업자등록증" desc="PDF 또는 이미지 파일을 첨부해 주세요." /><input type="file" accept=".pdf,image/*" onChange={(e) => setBizFile(e.target.files?.[0] ?? null)} />{bizFile && <span style={{ fontSize: 12, color: 'var(--success)' }}>✓ {bizFile.name}</span>}</>)}
-        {step === 'vetCert' && (<><StepHead title="수의사 신고필증" desc="PDF 또는 이미지 파일을 첨부해 주세요." /><input type="file" accept=".pdf,image/*" onChange={(e) => setVetFile(e.target.files?.[0] ?? null)} />{vetFile && <span style={{ fontSize: 12, color: 'var(--success)' }}>✓ {vetFile.name}</span>}</>)}
+        {step === 'bizCert' && (<><StepHead title="사업자등록증" desc="PDF 또는 이미지 파일을 첨부해 주세요." /><FileDrop file={bizFile} onFile={setBizFile} accept=".pdf,image/*" /></>)}
+        {step === 'vetCert' && (<><StepHead title="수의사 신고필증" desc="PDF 또는 이미지 파일을 첨부해 주세요." /><FileDrop file={vetFile} onFile={setVetFile} accept=".pdf,image/*" /></>)}
+        {step === 'masterIntro' && (
+          <Info title="마스터 계정 안내">
+            이번에는 <b style={{ color: 'var(--text)' }}>{hName || '병원'}</b>의 <b style={{ color: 'var(--accent)' }}>마스터 계정</b> 생성을 위한 정보를 수집합니다.<br /><br />
+            마스터 계정은 스태프 계정 초대·수락을 비롯해 병원 관련 모든 정보를 열람할 수 있는 계정이며, 병원을 최초 등록할 경우 마스터 계정을 반드시 함께 생성해야 합니다.
+          </Info>
+        )}
         {step === 'identity' && (
           <>
             <StepHead title="가입자 본인 정보" desc={mode === 'new' ? '이 계정이 병원의 관리자(Master)가 됩니다. 가입 후 이메일 인증으로 본인 확인합니다.' : '가입 후 이메일 인증으로 본인 확인합니다.'} />
@@ -372,6 +392,49 @@ export default function SignupPage() {
   );
 }
 
+function FileDrop({ file, onFile, accept }: { file: File | null; onFile: (f: File | null) => void; accept: string }) {
+  const [drag, setDrag] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+  return (
+    <div
+      onClick={() => inputRef.current?.click()}
+      onDragOver={(e) => { e.preventDefault(); setDrag(true); }}
+      onDragLeave={() => setDrag(false)}
+      onDrop={(e) => { e.preventDefault(); setDrag(false); const f = e.dataTransfer.files?.[0]; if (f) onFile(f); }}
+      style={{
+        border: `2px dashed ${drag ? 'var(--accent)' : 'var(--border-strong)'}`,
+        borderRadius: 'var(--radius)', background: drag ? 'var(--accent-subtle)' : 'var(--bg-subtle)',
+        padding: '28px 16px', textAlign: 'center', cursor: 'pointer', transition: 'background .15s, border-color .15s',
+      }}
+    >
+      <input ref={inputRef} type="file" accept={accept} style={{ display: 'none' }} onChange={(e) => onFile(e.target.files?.[0] ?? null)} />
+      {file ? (
+        <div>
+          <div style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--success)' }}>✓ {file.name}</div>
+          <button type="button" onClick={(e) => { e.stopPropagation(); onFile(null); }}
+            style={{ marginTop: 8, fontSize: 12, color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer' }}>
+            다른 파일 선택
+          </button>
+        </div>
+      ) : (
+        <>
+          <div style={{ fontSize: 13.5, color: 'var(--text-secondary)', fontWeight: 600 }}>파일을 끌어다 놓거나 클릭하여 선택</div>
+          <div style={{ fontSize: 11.5, color: 'var(--text-muted)', marginTop: 4 }}>PDF 또는 이미지</div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function Info({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: 'var(--text)', letterSpacing: '-0.01em' }}>{title}</h2>
+      <p style={{ margin: '14px 0 0', fontSize: 14, color: 'var(--text-secondary)', lineHeight: 1.7 }}>{children}</p>
+    </div>
+  );
+}
+
 function StepHead({ title, desc }: { title: string; desc?: string }) {
   return (
     <div>
@@ -400,7 +463,7 @@ function Shell({ children, subtitle }: { children: React.ReactNode; subtitle?: s
 const box: Record<string, React.CSSProperties> = {
   container: { display: 'flex', minHeight: '100vh', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-subtle)', padding: 16 },
   card: { width: '100%', maxWidth: 440, background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: 32, boxShadow: '0 1px 3px rgba(0,0,0,0.06)', margin: '16px 0' },
-  input: { width: '100%', padding: '11px 2px', fontSize: 15, background: 'transparent', color: 'var(--text)', border: 'none', borderBottom: '1px solid var(--border-strong)', borderRadius: 0, outline: 'none', boxSizing: 'border-box' },
+  input: { width: '100%', padding: '11px 12px', fontSize: 15, background: 'var(--bg-subtle)', color: 'var(--text)', border: 'none', borderBottom: '2px solid var(--border-strong)', borderRadius: '8px 8px 0 0', outline: 'none', boxSizing: 'border-box' },
   btn: { padding: '12px 16px', fontSize: 14, fontWeight: 700, background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: 'var(--radius)', cursor: 'pointer' },
   btnSecondary: { padding: '12px 16px', fontSize: 14, fontWeight: 600, background: 'transparent', color: 'var(--text-secondary)', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', cursor: 'pointer' },
   msg: { padding: '12px 14px', borderRadius: 'var(--radius)', fontSize: 13.5, lineHeight: 1.6 },

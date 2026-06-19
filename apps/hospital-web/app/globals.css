@@ -72,6 +72,14 @@ textarea {
   font-size: inherit;
 }
 
+/* 단계 전환 — 토스 느낌의 부드러운 페이드 + 살짝 위로. (가입 위저드 등) */
+@keyframes stepFadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+.stepFade { animation: stepFadeIn 0.25s ease; }
+@media (prefers-reduced-motion: reduce) { .stepFade { animation: none; } }
+
 /* 공용 입력 포커스 — border-color 만 accent 로. 밑줄형(아랫변만 보임)·박스형(전체) 모두 자연스럽게 강조.
    (file/date 는 네이티브 UI 라 제외) */
 input:not([type="file"]):not([type="date"]):focus,
