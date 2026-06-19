@@ -61,6 +61,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   // approve — core.hospitals 생성 (병원은 마스터와 독립. id 는 앱에서 생성: DB 기본값 없음)
   const hospitalId = randomUUID();
+  const nowIso = new Date().toISOString();
   const { error: hospErr } = await supabase.schema('core').from('hospitals')
     .insert({
       id: hospitalId,
@@ -70,6 +71,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       email: reg.email,
       director_phone: reg.director_phone,
       director_name_ko: reg.director_name,
+      createdAt: nowIso,
+      updatedAt: nowIso,
     });
   if (hospErr) return NextResponse.json({ error: `병원 생성 실패: ${hospErr.message}` }, { status: 500 });
 

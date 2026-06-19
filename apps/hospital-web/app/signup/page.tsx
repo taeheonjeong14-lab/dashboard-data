@@ -462,7 +462,7 @@ function Shell({ children, subtitle }: { children: React.ReactNode; subtitle?: s
 
 const box: Record<string, React.CSSProperties> = {
   container: { display: 'flex', minHeight: '100vh', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-subtle)', padding: 16 },
-  card: { width: '100%', maxWidth: 440, background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: 32, boxShadow: '0 1px 3px rgba(0,0,0,0.06)', margin: '16px 0' },
+  card: { width: '100%', maxWidth: 480, background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: 40, boxShadow: '0 1px 3px rgba(0,0,0,0.06)', margin: '16px 0' },
   input: { width: '100%', padding: '11px 12px', fontSize: 15, background: 'var(--bg-subtle)', color: 'var(--text)', border: 'none', borderBottom: '2px solid var(--border-strong)', borderRadius: '8px 8px 0 0', outline: 'none', boxSizing: 'border-box' },
   btn: { padding: '12px 16px', fontSize: 14, fontWeight: 700, background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: 'var(--radius)', cursor: 'pointer' },
   btnSecondary: { padding: '12px 16px', fontSize: 14, fontWeight: 600, background: 'transparent', color: 'var(--text-secondary)', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', cursor: 'pointer' },
