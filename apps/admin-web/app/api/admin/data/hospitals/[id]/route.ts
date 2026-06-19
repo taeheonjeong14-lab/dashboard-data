@@ -103,6 +103,13 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
       }
     }
 
+    // 잔여 토큰(삭제 확인 표시용) — 컬럼 미존재 대비 방어적 조회
+    let tokenBalance = 0;
+    {
+      const r = await supabase.schema('core').from('hospitals').select('token_balance').eq('id', hospitalId).maybeSingle();
+      if (!r.error && r.data) tokenBalance = Number((r.data as { token_balance?: number | string | null }).token_balance) || 0;
+    }
+
     const base = {
       id: String(row.id || ''),
       name: String(row.name || ''),
@@ -166,7 +173,25 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
       }
     }
 
-    return NextResponse.json({ form: { ...base, competitors } });
+    return NextResponse.json({ form: { ...base, competitors }, tokenBalance });
+  } catch (e) {
+    return NextResponse.json({ error: formatSupabaseError(e) }, { status: 500 });
+  }
+}
+
+// DELETE /api/admin/data/hospitals/[id] — 병원 삭제. (잔여 토큰/환불 연계는 별도 — 지금은 확인 후 단순 삭제)
+// core.users.hospital_id 는 onDelete SetNull 로 풀린다.
+export async function DELETE(_request: Request, context: { params: Promise<{ id: string }> }) {
+  const gate = await requireAdminApi();
+  if (!gate.ok) return gate.response;
+  const { id } = await context.params;
+  const hospitalId = String(id || '').trim();
+  if (!hospitalId) return NextResponse.json({ error: 'id required' }, { status: 400 });
+  try {
+    const supabase = createServiceRoleClient();
+    const { error } = await supabase.schema('core').from('hospitals').delete().eq('id', hospitalId);
+    if (error) throw error;
+    return NextResponse.json({ ok: true });
   } catch (e) {
     return NextResponse.json({ error: formatSupabaseError(e) }, { status: 500 });
   }

@@ -310,6 +310,7 @@ export default function AdminHospitalsManager() {
   const [message, setMessage] = useState('');
   const [hospitals, setHospitals] = useState<HospitalListRow[]>([]);
   const [selectedId, setSelectedId] = useState('');
+  const [selectedBalance, setSelectedBalance] = useState(0);
   const [query, setQuery] = useState('');
   const [form, setForm] = useState(EMPTY_FORM);
   // 선택된 탭만 표시. 저장은 어느 탭에서나 전체 폼 저장.
@@ -353,6 +354,7 @@ export default function AdminHospitalsManager() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || '상세 조회 실패');
       setSelectedId(id);
+      setSelectedBalance(Number(data.tokenBalance) || 0);
       const apiForm = (data.form || {}) as Record<string, unknown>;
       const toKeywordArray = (text: unknown) =>
         String(text || '').split('\n').map((s) => s.trim()).filter(Boolean);
@@ -404,6 +406,34 @@ export default function AdminHospitalsManager() {
       }
     } catch (e) {
       setMessage(`저장 실패: ${formatSupabaseError(e)}`);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function deleteHospital() {
+    const id = String(selectedId || '').trim();
+    if (!id) return;
+    const name = form.name || id;
+    const ok = typeof window !== 'undefined' && window.confirm(
+      `정말 "${name}" 병원을 삭제하시겠습니까?\n\n` +
+      `현재 잔여 토큰: ${Math.round(selectedBalance).toLocaleString()} 토큰\n\n` +
+      `삭제하면 되돌릴 수 없습니다. (잔여 토큰 환불 등 후속 처리는 별도로 진행해야 합니다.)`,
+    );
+    if (!ok) return;
+    setLoading(true);
+    setMessage('');
+    try {
+      const res = await fetch(`/api/admin/data/hospitals/${encodeURIComponent(id)}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || '삭제 실패');
+      setMessage('병원 삭제 완료');
+      setSelectedId('');
+      setSelectedBalance(0);
+      setForm(EMPTY_FORM);
+      await refreshHospitals();
+    } catch (e) {
+      setMessage(`삭제 실패: ${formatSupabaseError(e)}`);
     } finally {
       setLoading(false);
     }
@@ -818,10 +848,16 @@ export default function AdminHospitalsManager() {
             ) : null}
           </TabPanel>
 
-          <div className="adminLegacyModalActions">
+          <div className="adminLegacyModalActions" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
             <button type="submit" className="adminLegacyPrimaryBtn" disabled={loading}>
               저장
             </button>
+            {selectedId ? (
+              <button type="button" onClick={() => void deleteHospital()} disabled={loading}
+                style={{ padding: '8px 14px', fontSize: 13, fontWeight: 700, borderRadius: 6, border: '1px solid var(--danger)', background: '#fff', color: 'var(--danger)', cursor: 'pointer' }}>
+                병원 삭제
+              </button>
+            ) : null}
           </div>
         </form>
         </div>
