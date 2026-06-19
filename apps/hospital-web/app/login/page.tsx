@@ -52,7 +52,7 @@ function LoginContent() {
         }
       }
 
-      router.push('/dashboard');
+      router.push('/home');
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : '오류가 발생했습니다.';
       setMessage({ type: 'error', text: msg });
