@@ -72,6 +72,12 @@ textarea {
   font-size: inherit;
 }
 
+/* 홈 기능 카드 — 호버 시 살짝 떠오르며 accent 강조 */
+.homeCard { transition: border-color .15s ease, box-shadow .15s ease, transform .15s ease; }
+.homeCard:hover { border-color: var(--accent); box-shadow: 0 8px 24px rgba(0,0,0,0.08); transform: translateY(-2px); }
+.homeCard .homeArrow { color: var(--text-muted); transition: color .15s ease, transform .15s ease; }
+.homeCard:hover .homeArrow { color: var(--accent); transform: translateX(2px); }
+
 /* 단계 전환 — 토스 느낌의 부드러운 페이드 + 살짝 위로. (가입 위저드 등) */
 @keyframes stepFadeIn {
   from { opacity: 0; transform: translateY(8px); }
