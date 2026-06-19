@@ -20,11 +20,12 @@ export async function POST(
 
     const supabase = createServiceRoleClient();
 
-    // DB: soft delete
+    // DB: soft delete. rejected/active 도 함께 — 재가입 중복 체크가 rejected:false·deletedAt:null 을 필터하므로
+    // 같은 이메일/번호로 다시 가입할 수 있게 한다.
     const { error: updErr } = await supabase
       .schema('core')
       .from('users')
-      .update({ deleted_at: new Date().toISOString() })
+      .update({ deleted_at: new Date().toISOString(), rejected: true, active: false })
       .eq('id', targetUserId);
     if (updErr) throw updErr;
 
