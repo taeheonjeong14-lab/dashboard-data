@@ -25,6 +25,11 @@ model Hospital {
   code               String? @db.Text
   email              String? @db.Text // 병원 대표 이메일 (심사 결과 통지용)
   directorPhone      String? @map("director_phone") @db.Text // 대표원장 휴대폰
+  naverLoginId       String? @map("naver_login_id") @db.Text // 데이터 수집용 네이버 계정(평문)
+  naverLoginPw       String? @map("naver_login_pw") @db.Text
+  onboardingDone     Boolean @default(false) @map("onboarding_done") // 마스터 최초 로그인 온보딩 완료
+  wishKeywords       String[] @default([]) @map("wish_keywords")     // 마스터가 희망한 노출 키워드(admin 참고)
+  wishCompetitors    String[] @default([]) @map("wish_competitors")  // 마스터가 희망한 경쟁병원(admin 참고)
   directorNameKo     String? @map("director_name_ko") @db.Text
   sealUrl            String? @map("seal_url") @db.Text
   coverPetImageUrl   String? @map("cover_pet_image_url") @db.Text
@@ -113,6 +118,7 @@ model HospitalRegistration {
   reviewNote         String?   @map("review_note") @db.Text // admin 심사 메모
   diConflict         Boolean   @default(false) @map("di_conflict") // 마스터 DI 중복(심사 경고)
   diConflictHospital String?   @map("di_conflict_hospital") @db.Text // 중복 시 기존 병원명
+  marketingChannels  String[]  @default([]) @map("marketing_channels") // 가입 시 과거 마케팅 활동
   hospitalId         String?   @map("hospital_id") // 승인 시 생성된 hospital
   reviewedAt         DateTime? @map("reviewed_at")
   createdAt          DateTime  @default(now()) @map("created_at")

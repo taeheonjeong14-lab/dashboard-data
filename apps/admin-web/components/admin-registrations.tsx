@@ -14,6 +14,7 @@ type Reg = {
   status: 'pending' | 'approved' | 'rejected';
   di_conflict: boolean;
   di_conflict_hospital: string | null;
+  marketing_channels: string[] | null;
   created_at: string;
   reviewed_at: string | null;
 };
@@ -160,6 +161,7 @@ export default function AdminRegistrations() {
                 <Row k="주소" v={[detail.registration.address, detail.registration.address_detail].filter(Boolean).join(' ')} />
                 <Row k="대표원장" v={detail.registration.director_name} />
                 <Row k="대표원장 연락처" v={detail.registration.director_phone} />
+                <Row k="과거 마케팅" v={(detail.registration.marketing_channels ?? []).join(', ')} />
                 <Row k="상태" v={detail.registration.status} />
                 <Row k="신청일" v={fmt(detail.registration.created_at)} />
               </dl>

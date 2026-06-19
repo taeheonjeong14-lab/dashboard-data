@@ -103,6 +103,22 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
       }
     }
 
+    // 네이버 로그인 계정 + 마스터 희망(키워드/경쟁병원) — 컬럼 미존재 대비 방어적 조회
+    let naverLoginId = '';
+    let naverLoginPw = '';
+    let wishKeywords: string[] = [];
+    let wishCompetitors: string[] = [];
+    {
+      const r = await supabase.schema('core').from('hospitals').select('naver_login_id, naver_login_pw, wish_keywords, wish_competitors').eq('id', hospitalId).maybeSingle();
+      if (!r.error && r.data) {
+        const d = r.data as { naver_login_id?: string | null; naver_login_pw?: string | null; wish_keywords?: string[] | null; wish_competitors?: string[] | null };
+        naverLoginId = d.naver_login_id ?? '';
+        naverLoginPw = d.naver_login_pw ?? '';
+        wishKeywords = Array.isArray(d.wish_keywords) ? d.wish_keywords : [];
+        wishCompetitors = Array.isArray(d.wish_competitors) ? d.wish_competitors : [];
+      }
+    }
+
     // 잔여 토큰(삭제 확인 표시용) — 컬럼 미존재 대비 방어적 조회
     let tokenBalance = 0;
     {
@@ -148,6 +164,10 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
         ads.googleads_refresh_token_encrypted != null
           ? String(ads.googleads_refresh_token_encrypted || '')
           : '',
+      naver_login_id: naverLoginId,
+      naver_login_pw: naverLoginPw,
+      wish_keywords: wishKeywords,
+      wish_competitors: wishCompetitors,
       intake_survey_enabled: intakeSurveyEnabled,
       barun_plan_enabled: barunEnabled,
       barun_plan_start: barunStart,

@@ -136,6 +136,25 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
     );
   }
 
+  // 마스터 최초 로그인 온보딩 미완료 → 온보딩 설문으로 보냄 (/onboarding 은 (app) 밖이라 루프 없음)
+  // redirect() 는 내부적으로 throw 하므로 try/catch 밖에서 호출한다.
+  let masterNeedsOnboarding = false;
+  if (cu?.hospital_role === 'master' && cu?.hospital_id) {
+    try {
+      const srvc = createServiceRoleClient();
+      const { data: ob } = await srvc
+        .schema('core')
+        .from('hospitals')
+        .select('onboarding_done')
+        .eq('id', cu.hospital_id)
+        .single();
+      masterNeedsOnboarding = (ob as { onboarding_done?: boolean } | null)?.onboarding_done !== true;
+    } catch {
+      masterNeedsOnboarding = false; // 컬럼 미존재 등 → 막지 않음
+    }
+  }
+  if (masterNeedsOnboarding) redirect('/onboarding');
+
   const userName =
     cu?.name?.trim() ||
     (user.user_metadata?.name as string | undefined)?.trim() ||

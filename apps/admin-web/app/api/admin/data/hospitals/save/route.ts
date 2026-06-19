@@ -46,6 +46,8 @@ type FormBody = {
     smartplace_stat_url?: string;
     smartplace_review_url?: string;
     debug_port?: string;
+    naver_login_id?: string;
+    naver_login_pw?: string;
     blog_keywords_text?: string;
     place_keywords_text?: string;
     searchad_customer_id?: string;
@@ -114,6 +116,8 @@ export async function POST(request: Request) {
       smartplace_stat_url: (hospitalForm.smartplace_stat_url || '').trim() || null,
       smartplace_review_url: (hospitalForm.smartplace_review_url || '').trim() || null,
       debug_port: hospitalForm.debug_port ? Number(hospitalForm.debug_port) : null,
+      naver_login_id: (hospitalForm.naver_login_id || '').trim() || null,
+      naver_login_pw: (hospitalForm.naver_login_pw || '').trim() || null,
     };
 
     // 로고/직인은 전용 업로드 경로로 관리한다. 편집 폼이 기존 값을 못 실어 빈 값으로 와도 기존 자산을

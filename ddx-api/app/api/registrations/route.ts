@@ -13,6 +13,9 @@ export async function POST(request: NextRequest) {
     const email = (body.email as string)?.trim() || undefined;
     const hospital = (body.hospital ?? {}) as Record<string, string | undefined>;
     const verify = (body.verify ?? {}) as { impUid?: string; phone?: string; name?: string };
+    const marketingChannels = Array.isArray(body.marketingChannels)
+      ? (body.marketingChannels as unknown[]).map(String).filter(Boolean)
+      : [];
 
     if (!userId) return NextResponse.json({ success: false, error: 'userId required' }, { status: 400 });
     if (!hospital.name?.trim()) return NextResponse.json({ success: false, error: '병원명이 필요합니다.' }, { status: 400 });
@@ -97,6 +100,7 @@ export async function POST(request: NextRequest) {
         status: 'pending',
         diConflict,
         diConflictHospital,
+        marketingChannels,
       },
     });
 

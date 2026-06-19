@@ -45,6 +45,10 @@ const EMPTY_FORM = {
   debug_port: '',
   blog_keywords: [] as string[],
   place_keywords: [] as string[],
+  wish_keywords: [] as string[],
+  wish_competitors: [] as string[],
+  naver_login_id: '',
+  naver_login_pw: '',
   searchad_customer_id: '',
   searchad_api_license: '',
   searchad_secret_key_encrypted: '',
@@ -679,6 +683,11 @@ export default function AdminHospitalsManager() {
 
           {/* 키워드 — 블로그·플레이스 검색 순위 모니터링 키워드 모음 (흰 박스 2열) */}
           <TabPanel active={activeTab === 'keyword'}>
+            {form.wish_keywords.length > 0 && (
+              <div style={{ marginBottom: 12, padding: '10px 12px', background: 'var(--accent-subtle)', borderRadius: 8, fontSize: 12.5, color: 'var(--text-secondary)' }}>
+                <b style={{ color: 'var(--accent)' }}>마스터 희망 키워드</b>: {form.wish_keywords.join(', ')}
+              </div>
+            )}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, alignItems: 'start' }}>
               <DataCard title="플레이스 키워드" desc="플레이스 검색 순위 모니터링 대상 키워드">
                 <KeywordList value={form.place_keywords} onChange={(v) => setForm((f) => ({ ...f, place_keywords: v }))} />
@@ -706,6 +715,15 @@ export default function AdminHospitalsManager() {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, alignItems: 'start' }}>
               {/* 좌측 칼럼 */}
               <div style={{ display: 'grid', gap: 12 }}>
+                <DataCard title="네이버 로그인 계정" desc="정확한 데이터 수집·분석·관리를 위해 병원 네이버 아이디를 요청드립니다. 비밀번호가 타 계정과 동일하면 변경 후 입력하도록 안내해 주세요. (평문 저장 — 민감정보)">
+                  <LabeledField label="네이버 아이디">
+                    <input value={form.naver_login_id} onChange={(e) => setForm((f) => ({ ...f, naver_login_id: e.target.value }))} style={fieldStyle} autoComplete="off" />
+                  </LabeledField>
+                  <LabeledField label="네이버 비밀번호">
+                    <input type="text" value={form.naver_login_pw} onChange={(e) => setForm((f) => ({ ...f, naver_login_pw: e.target.value }))} style={fieldStyle} autoComplete="off" />
+                  </LabeledField>
+                </DataCard>
+
                 <DataCard title="디버그 포트" desc="수집 크롤러(크롬) 공용 디버그 포트.">
                   <LabeledField label="디버그 포트" hint="모든 수집에 공용으로 쓰이는 크롬 디버그 포트">
                     <input value={form.debug_port} onChange={(e) => setForm((f) => ({ ...f, debug_port: e.target.value }))} style={fieldStyle} />
@@ -759,6 +777,11 @@ export default function AdminHospitalsManager() {
 
           {/* ⚔️ 경쟁병원 분석 — 경쟁병원별 흰 박스 (최대 3) */}
           <TabPanel active={activeTab === 'competitor'}>
+            {form.wish_competitors.length > 0 && (
+              <div style={{ marginBottom: 12, padding: '10px 12px', background: 'var(--accent-subtle)', borderRadius: 8, fontSize: 12.5, color: 'var(--text-secondary)' }}>
+                <b style={{ color: 'var(--accent)' }}>마스터 희망 경쟁병원</b>: {form.wish_competitors.join(', ')}
+              </div>
+            )}
             <div style={{ display: 'grid', gap: 12 }}>
               {form.competitors.map((c, i) => (
                 <DataCard key={i} title={`경쟁병원 ${i + 1}`} desc="경쟁병원 분석 메뉴의 비교 대상으로 사용">

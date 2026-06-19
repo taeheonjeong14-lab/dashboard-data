@@ -40,10 +40,12 @@ function loadDaumPostcode(): Promise<DaumNamespace> {
 
 type Hospital = { id: string; name: string; address?: string | null };
 type StepKey =
-  | 'hIntro' | 'hName' | 'hPhone' | 'hAddr' | 'director' | 'bizCert' | 'vetCert'
+  | 'hIntro' | 'hName' | 'hPhone' | 'hAddr' | 'director' | 'bizCert' | 'vetCert' | 'marketing'
   | 'masterIntro' | 'identity' | 'account' | 'review';
 
-const NEW_STEPS: StepKey[] = ['hIntro', 'hName', 'hPhone', 'hAddr', 'director', 'bizCert', 'vetCert', 'masterIntro', 'identity', 'account', 'review'];
+const NEW_STEPS: StepKey[] = ['hIntro', 'hName', 'hPhone', 'hAddr', 'director', 'bizCert', 'vetCert', 'marketing', 'masterIntro', 'identity', 'account', 'review'];
+
+const MARKETING_OPTIONS = ['네이버 블로그', '네이버 플레이스', '네이버 광고', '당근비즈니스', '구글 광고', '인스타그램 계정', '인스타그램 광고', '카페바이럴 광고', '체험단', '그 외'];
 const STAFF_STEPS: StepKey[] = ['identity', 'account', 'review'];
 
 export default function SignupPage() {
@@ -70,6 +72,8 @@ export default function SignupPage() {
   const [directorPhone, setDirectorPhone] = useState('');
   const [bizFile, setBizFile] = useState<File | null>(null);
   const [vetFile, setVetFile] = useState<File | null>(null);
+  const [marketingChannels, setMarketingChannels] = useState<string[]>([]);
+  const toggleChannel = (c: string) => setMarketingChannels((arr) => arr.includes(c) ? arr.filter((x) => x !== c) : [...arr, c]);
 
   // 가입자 본인 + 계정
   const [vName, setVName] = useState('');
@@ -155,6 +159,7 @@ export default function SignupPage() {
       case 'director': return directorName.trim().length > 0 && digits(directorPhone).length >= 10;
       case 'bizCert': return !!bizFile;
       case 'vetCert': return !!vetFile;
+      case 'marketing': return true;
       case 'identity': return vName.trim().length > 0 && digits(vPhone).length >= 10;
       case 'account': return EMAIL_REGEX.test(email.trim()) && emailVerified && password.length >= 6 && password === passwordConfirm;
       case 'review': return true;
@@ -212,6 +217,7 @@ export default function SignupPage() {
             directorName: directorName.trim(), directorPhone: directorPhone.trim(), bizCertPath, vetLicensePath,
           },
           verify: { phone: vPhone.trim(), name: vName.trim() },
+          marketingChannels,
         });
         if (!res.success) throw new Error(res.error ?? '신청 처리에 실패했습니다.');
         setSubmitted('new');
@@ -320,6 +326,24 @@ export default function SignupPage() {
         )}
         {step === 'bizCert' && (<><StepHead title="사업자등록증" desc="PDF 또는 이미지 파일을 첨부해 주세요." /><FileDrop file={bizFile} onFile={setBizFile} accept=".pdf,image/*" /></>)}
         {step === 'vetCert' && (<><StepHead title="수의사 신고필증" desc="PDF 또는 이미지 파일을 첨부해 주세요." /><FileDrop file={vetFile} onFile={setVetFile} accept=".pdf,image/*" /></>)}
+        {step === 'marketing' && (
+          <>
+            <StepHead title="과거 마케팅 활동" desc="과거에 병원에서 진행하셨던 마케팅 활동이 무엇이 있으신가요? (복수 선택, 없으면 건너뛰기)" />
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+              {MARKETING_OPTIONS.map((c) => {
+                const on = marketingChannels.includes(c);
+                return (
+                  <button key={c} type="button" onClick={() => toggleChannel(c)}
+                    style={{ padding: '8px 14px', fontSize: 13, fontWeight: 600, borderRadius: 999, cursor: 'pointer',
+                      border: `1px solid ${on ? 'var(--accent)' : 'var(--border-strong)'}`,
+                      background: on ? 'var(--accent-subtle)' : 'var(--bg)', color: on ? 'var(--accent)' : 'var(--text-secondary)' }}>
+                    {c}
+                  </button>
+                );
+              })}
+            </div>
+          </>
+        )}
         {step === 'masterIntro' && (
           <Info title="마스터 계정 안내">
             이번에는 <b style={{ color: 'var(--text)' }}>{hName || '병원'}</b>의 <b style={{ color: 'var(--accent)' }}>마스터 계정</b> 생성을 위한 정보를 수집합니다.<br /><br />
