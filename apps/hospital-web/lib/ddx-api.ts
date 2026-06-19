@@ -50,11 +50,18 @@ export async function ddxPostStream(
 }
 
 // 공개(로그인 불필요) 엔드포인트용 — userId 를 붙이지 않고 공개 프록시를 경유. (예: /api/survey 토큰 기반)
+// 비정상 응답이면 본문의 error 메시지를 우선 사용(없으면 상태코드).
+async function errorFromRes(res: Response): Promise<Error> {
+  try {
+    const j = (await res.json()) as { error?: string };
+    if (j?.error) return new Error(j.error);
+  } catch { /* 본문 파싱 실패 시 무시 */ }
+  return new Error(`ddx-api error: ${res.status}`);
+}
+
 export async function ddxGetPublic<T>(path: string): Promise<T> {
   const res = await fetch(`${DDX_API_PUBLIC}${path}`);
-  if (!res.ok) {
-    throw new Error(`ddx-api error: ${res.status}`);
-  }
+  if (!res.ok) throw await errorFromRes(res);
   return res.json() as Promise<T>;
 }
 
@@ -64,9 +71,7 @@ export async function ddxPostPublic<T>(path: string, body: object): Promise<T> {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
-  if (!res.ok) {
-    throw new Error(`ddx-api error: ${res.status}`);
-  }
+  if (!res.ok) throw await errorFromRes(res);
   return res.json() as Promise<T>;
 }
 

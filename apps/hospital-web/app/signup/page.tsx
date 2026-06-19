@@ -291,7 +291,7 @@ export default function SignupPage() {
         {mode === 'new' ? '새 병원 등록' : `${selected?.name ?? ''} · 스태프 가입`} · {stepIdx + 1} / {steps.length}
       </div>
 
-      <div key={step} className="stepFade" style={{ display: 'grid', gap: 12, minHeight: 180 }}>
+      <div key={step} className="stepFade" style={{ display: 'grid', gap: 12, alignContent: 'start', minHeight: 180 }}>
         {step === 'hIntro' && (
           <Info title="반갑습니다 👋">
             더함의료마케팅의 동물병원 관리 솔루션에 오신 것을 환영합니다.<br /><br />
@@ -328,14 +328,14 @@ export default function SignupPage() {
         )}
         {step === 'identity' && (
           <>
-            <StepHead title="가입자 본인 정보" desc={mode === 'new' ? '이 계정이 병원의 관리자(Master)가 됩니다. 가입 후 이메일 인증으로 본인 확인합니다.' : '가입 후 이메일 인증으로 본인 확인합니다.'} />
+            <StepHead title={mode === 'new' ? '마스터 유저 정보' : '가입자 본인 정보'} desc={mode === 'new' ? '이 계정이 병원의 관리자(Master)가 됩니다. 가입 후 이메일 인증으로 본인 확인합니다.' : '가입 후 이메일 인증으로 본인 확인합니다.'} />
             <input autoFocus style={box.input} value={vName} onChange={(e) => setVName(e.target.value)} placeholder="이름" />
             <input style={box.input} type="tel" value={vPhone} onChange={(e) => setVPhone(formatPhoneInput(e.target.value))} placeholder="010-0000-0000" />
           </>
         )}
         {step === 'account' && (
           <>
-            <StepHead title="로그인 계정" desc="이메일 인증 후 비밀번호를 설정해 주세요." />
+            <StepHead title={mode === 'new' ? '마스터 유저 로그인 계정' : '로그인 계정'} desc="이메일 인증 후 비밀번호를 설정해 주세요." />
             <div style={{ display: 'flex', gap: 8 }}>
               <input autoFocus style={{ ...box.input, flex: 1 }} type="email" value={email} onChange={(e) => onEmailChange(e.target.value)} placeholder="you@example.com" disabled={emailVerified} />
               {emailVerified ? (
