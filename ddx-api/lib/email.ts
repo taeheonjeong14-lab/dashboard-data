@@ -75,6 +75,32 @@ export async function sendRejectedEmail(to: string, name?: string): Promise<bool
   }
 }
 
+/** 이메일 인증 코드 발송 (회원가입 시 인라인 인증용). 실패 시 원인 반환. */
+export async function sendVerificationCodeEmail(to: string, code: string): Promise<{ ok: true } | { ok: false; reason: string }> {
+  if (!RESEND_API_KEY || RESEND_API_KEY.trim() === '') {
+    return { ok: false, reason: 'RESEND_API_KEY가 설정되지 않았습니다.' };
+  }
+  try {
+    const { Resend } = await import('resend');
+    const resend = new Resend(RESEND_API_KEY);
+    const { error } = await resend.emails.send({
+      from: FROM,
+      to: [to],
+      subject: `[RoboVet AI] 이메일 인증번호 ${code}`,
+      html: `
+        <p>안녕하세요.</p>
+        <p>회원가입 이메일 인증번호는 아래와 같습니다.</p>
+        <p style="font-size:28px;font-weight:700;letter-spacing:4px;margin:16px 0;">${code}</p>
+        <p style="color:#666;font-size:0.9em;">인증번호는 10분간 유효합니다. 본인이 요청한 것이 아니라면 이 메일을 무시하세요.</p>
+      `,
+    });
+    if (error) return { ok: false, reason: error.message || 'Resend API 오류' };
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, reason: e instanceof Error ? e.message : '이메일 발송 중 오류가 발생했습니다.' };
+  }
+}
+
 /** 이메일 인증 링크 발송 (회원가입 본인 확인용). 실패 시 원인 반환. */
 export async function sendVerificationEmail(to: string, verifyLink: string): Promise<{ ok: true } | { ok: false; reason: string }> {
   if (!RESEND_API_KEY || RESEND_API_KEY.trim() === '') {

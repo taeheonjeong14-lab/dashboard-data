@@ -11,10 +11,10 @@ export async function GET(_request: NextRequest) {
     const supabase = createServiceRoleClient();
 
     const listAttempts = [
-      { cols: 'id,email,name,phone,approved,rejected,active,hospital_id,custom_hospital_name,hospital_address,hospital_address_detail,created_at', order: 'created_at' },
-      { cols: 'id,email,name,phone,approved,rejected,active,hospital_id,custom_hospital_name,hospital_address,hospital_address_detail,createdAt', order: 'createdAt' },
-      { cols: 'id,email,name,approved,rejected,active,hospital_id,createdAt', order: 'createdAt' },
-      { cols: 'id,email,name,approved,rejected,active,hospital_id,created_at', order: 'created_at' },
+      { cols: 'id,email,name,phone,approved,rejected,active,emailVerified,hospital_role,hospital_id,custom_hospital_name,hospital_address,hospital_address_detail,created_at', order: 'created_at' },
+      { cols: 'id,email,name,phone,approved,rejected,active,emailVerified,hospital_role,hospital_id,custom_hospital_name,hospital_address,hospital_address_detail,createdAt', order: 'createdAt' },
+      { cols: 'id,email,name,approved,rejected,active,emailVerified,hospital_role,hospital_id,createdAt', order: 'createdAt' },
+      { cols: 'id,email,name,approved,rejected,active,emailVerified,hospital_role,hospital_id,created_at', order: 'created_at' },
     ] as const;
 
     let listRes: any = null;

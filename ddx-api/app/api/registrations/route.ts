@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { verifyPhone } from '@/lib/phone-verify';
-import { sendSignupVerifyEmail } from '@/lib/send-verify';
+import { isEmailRecentlyVerified } from '@/lib/send-verify';
 
 // POST /api/registrations — 새 병원 + 마스터 동시 신청 (경로 A).
 // 1) 휴대폰 본인인증 검증 → 2) 마스터 유저(core.users, role=master, 미승인) upsert
@@ -27,7 +27,12 @@ export async function POST(request: NextRequest) {
     }
 
     const v = await verifyPhone(verify);
-    if (!v.phone) return NextResponse.json({ success: false, error: '휴대폰 본인인증이 필요합니다.' }, { status: 400 });
+    if (!v.phone) return NextResponse.json({ success: false, error: '휴대폰 정보가 필요합니다.' }, { status: 400 });
+
+    // 가입 전 인라인 이메일 인증 필수
+    if (!email || !(await isEmailRecentlyVerified(email))) {
+      return NextResponse.json({ success: false, error: '이메일 인증을 먼저 완료해 주세요.' }, { status: 400 });
+    }
 
     // DI 중복(활성/대기) — 경로 A 는 차단하지 않고 플래그(심사에서 admin 이 처리)
     let diConflict = false;
@@ -58,7 +63,7 @@ export async function POST(request: NextRequest) {
         phone: v.phone || null,
         hospitalRole: 'master',
         approved: false,
-        emailVerified: false,
+        emailVerified: true,
         phoneVerified: v.verified,
         verifiedName: v.name || null,
         ci: v.ci || null,
@@ -69,6 +74,7 @@ export async function POST(request: NextRequest) {
         name: v.name || undefined,
         phone: v.phone || undefined,
         hospitalRole: 'master',
+        emailVerified: true,
         phoneVerified: v.verified,
         verifiedName: v.name || null,
         ci: v.ci || null,
@@ -94,16 +100,7 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // 이메일 인증 메일 발송(가입자 본인 확인). best-effort.
-    let emailSent: boolean | null = null;
-    let emailError: string | null = null;
-    if (email) {
-      const r = await sendSignupVerifyEmail(email);
-      emailSent = r.ok;
-      if (!r.ok) emailError = r.error ?? null;
-    }
-
-    return NextResponse.json({ success: true, registrationId: reg.id, diConflict, emailSent, emailError });
+    return NextResponse.json({ success: true, registrationId: reg.id, diConflict });
   } catch (e) {
     console.error('POST /api/registrations error:', e);
     return NextResponse.json({ success: false, error: e instanceof Error ? e.message : 'Unknown error' }, { status: 500 });

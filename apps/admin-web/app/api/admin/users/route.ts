@@ -49,6 +49,21 @@ export async function GET(request: NextRequest) {
       ),
     );
 
+    // emailVerified / hospital_role 는 신규 컬럼이라 메인 select 호환성 영향 없이 별도 best-effort 조회.
+    const metaById = new Map<string, { emailVerified: boolean; hospitalRole: string | null }>();
+    {
+      const ids = rows.map((r) => String(r.id)).filter(Boolean);
+      if (ids.length) {
+        const mr = await supabase.schema('core').from('users').select('id, emailVerified, hospital_role').in('id', ids);
+        if (!mr.error) {
+          (mr.data || []).forEach((m) => {
+            const mm = m as { id: string; emailVerified?: boolean; hospital_role?: string | null };
+            metaById.set(String(mm.id), { emailVerified: Boolean(mm.emailVerified), hospitalRole: mm.hospital_role ?? null });
+          });
+        }
+      }
+    }
+
     const hospitalNameById = new Map<string, { id: string; name: string | null }>();
     if (hospitalIds.length) {
       const hRes = await supabase
@@ -80,6 +95,8 @@ export async function GET(request: NextRequest) {
         hospitalAddress: u.hospital_address != null ? String(u.hospital_address) : null,
         hospitalAddressDetail: u.hospital_address_detail != null ? String(u.hospital_address_detail) : null,
         createdAt: u.created_at ?? u.createdAt ?? null,
+        emailVerified: metaById.get(String(u.id))?.emailVerified ?? false,
+        hospitalRole: metaById.get(String(u.id))?.hospitalRole ?? null,
         hospital,
       };
     });

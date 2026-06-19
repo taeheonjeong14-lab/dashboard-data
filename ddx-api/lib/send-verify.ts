@@ -10,6 +10,15 @@ function getBaseUrl(): string {
   return 'http://localhost:3000';
 }
 
+// 가입 직전 인라인 이메일 인증(코드)을 1시간 내 통과했는지 확인.
+export async function isEmailRecentlyVerified(email: string): Promise<boolean> {
+  const row = await prisma.emailVerification.findFirst({
+    where: { email: email.toLowerCase(), verifiedAt: { not: null } },
+    orderBy: { verifiedAt: 'desc' },
+  });
+  return !!(row?.verifiedAt && Date.now() - row.verifiedAt.getTime() < 60 * 60 * 1000);
+}
+
 export async function sendSignupVerifyEmail(email: string): Promise<{ ok: boolean; error?: string }> {
   const normalized = email.toLowerCase();
   const token = randomBytes(32).toString('hex');

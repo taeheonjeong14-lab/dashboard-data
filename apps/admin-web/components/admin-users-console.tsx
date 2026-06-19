@@ -15,6 +15,8 @@ type ApiUser = {
   hospitalAddress: string | null;
   hospitalAddressDetail: string | null;
   createdAt: unknown;
+  emailVerified?: boolean;
+  hospitalRole?: string | null;
   hospital: { id: string; name: string | null } | null;
 };
 
@@ -93,6 +95,7 @@ function StatusBadge({ user }: { user: ApiUser }) {
   if (user.rejected) badges.push({ label: '거절됨', color: 'var(--danger)', bg: 'var(--danger-subtle)' });
   else if (user.approved) badges.push({ label: '승인됨', color: '#15803d', bg: 'rgba(34,197,94,0.12)' });
   else badges.push({ label: '승인 대기', color: '#b45309', bg: 'rgba(245,158,11,0.14)' });
+  if (user.emailVerified === false) badges.push({ label: '이메일 미인증', color: 'var(--danger)', bg: 'var(--danger-subtle)' });
   if (!user.active) badges.push({ label: '비활성', color: 'var(--text-muted)', bg: 'var(--bg-subtle)' });
   return (
     <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
@@ -427,7 +430,13 @@ export default function AdminUsersConsole() {
                   <StatusBadge user={selectedUser} />
                   <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                     {!selectedUser.approved ? (
-                      <button type="button" style={btnPrimary} onClick={() => void approve(selectedUser.id)} disabled={loading}>
+                      <button
+                        type="button"
+                        style={{ ...btnPrimary, ...(selectedUser.emailVerified === false ? { opacity: 0.5, cursor: 'not-allowed' } : {}) }}
+                        onClick={() => void approve(selectedUser.id)}
+                        disabled={loading || selectedUser.emailVerified === false}
+                        title={selectedUser.emailVerified === false ? '이메일 인증을 완료해야 승인할 수 있습니다.' : undefined}
+                      >
                         승인
                       </button>
                     ) : null}

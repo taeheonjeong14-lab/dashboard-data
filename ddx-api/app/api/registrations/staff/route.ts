@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { verifyPhone } from '@/lib/phone-verify';
-import { sendSignupVerifyEmail } from '@/lib/send-verify';
+import { isEmailRecentlyVerified } from '@/lib/send-verify';
 
 // POST /api/registrations/staff — 기존(승인된) 병원에 스태프로 가입 (경로 B).
 // 휴대폰 본인인증 → DI 중복(활성/대기)이면 즉시 차단(소속 병원명 반환) → staff 유저 생성(Master 승인 대기).
@@ -20,7 +20,11 @@ export async function POST(request: NextRequest) {
     if (!hospital) return NextResponse.json({ success: false, error: '병원을 찾을 수 없습니다.' }, { status: 404 });
 
     const v = await verifyPhone(verify);
-    if (!v.phone) return NextResponse.json({ success: false, error: '휴대폰 본인인증이 필요합니다.' }, { status: 400 });
+    if (!v.phone) return NextResponse.json({ success: false, error: '휴대폰 정보가 필요합니다.' }, { status: 400 });
+
+    if (!email || !(await isEmailRecentlyVerified(email))) {
+      return NextResponse.json({ success: false, error: '이메일 인증을 먼저 완료해 주세요.' }, { status: 400 });
+    }
 
     // DI 중복(활성/대기) → 즉시 차단 + 소속 병원명
     if (v.di) {
@@ -45,23 +49,17 @@ export async function POST(request: NextRequest) {
       where: { id: userId },
       create: {
         id: userId, email: email ?? null, name: v.name || null, phone: v.phone || null,
-        hospitalId, hospitalRole: 'staff', staffApproved: false, approved: false, emailVerified: false,
+        hospitalId, hospitalRole: 'staff', staffApproved: false, approved: false, emailVerified: true,
         phoneVerified: v.verified, verifiedName: v.name || null, ci: v.ci || null, di: v.di || null,
       },
       update: {
         ...(email !== undefined && { email }), name: v.name || undefined, phone: v.phone || undefined,
-        hospitalId, hospitalRole: 'staff', staffApproved: false,
+        hospitalId, hospitalRole: 'staff', staffApproved: false, emailVerified: true,
         phoneVerified: v.verified, verifiedName: v.name || null, ci: v.ci || null, di: v.di || null,
       },
     });
 
-    let emailSent: boolean | null = null;
-    if (email) {
-      const r = await sendSignupVerifyEmail(email);
-      emailSent = r.ok;
-    }
-
-    return NextResponse.json({ success: true, emailSent });
+    return NextResponse.json({ success: true });
   } catch (e) {
     console.error('POST /api/registrations/staff error:', e);
     return NextResponse.json({ success: false, error: e instanceof Error ? e.message : 'Unknown error' }, { status: 500 });

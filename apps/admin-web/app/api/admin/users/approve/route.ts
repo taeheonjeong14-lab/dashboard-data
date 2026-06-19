@@ -16,6 +16,21 @@ export async function POST(request: NextRequest) {
     }
 
     const supabase = createServiceRoleClient();
+
+    // 이메일 인증 전이면 승인 불가
+    const { data: target } = await supabase
+      .schema('core')
+      .from('users')
+      .select('emailVerified')
+      .eq('id', targetUserId)
+      .maybeSingle();
+    if (target && (target as { emailVerified?: boolean }).emailVerified !== true) {
+      return NextResponse.json(
+        { success: false, error: '이메일 인증을 완료하지 않은 사용자는 승인할 수 없습니다.' },
+        { status: 409 },
+      );
+    }
+
     const { error } = await supabase
       .schema('core')
       .from('users')

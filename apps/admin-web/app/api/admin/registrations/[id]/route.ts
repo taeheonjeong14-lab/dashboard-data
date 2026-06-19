@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdminApi } from '@/lib/assert-admin-api';
 import { createServiceRoleClient } from '@/lib/supabase/service-role';
@@ -58,23 +59,23 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     return NextResponse.json({ ok: true, status: 'rejected' });
   }
 
-  // approve — core.hospitals 생성 + 마스터 연결·활성화
-  const { data: hosp, error: hospErr } = await supabase.schema('core').from('hospitals')
+  // approve — core.hospitals 생성 (병원은 마스터와 독립. id 는 앱에서 생성: DB 기본값 없음)
+  const hospitalId = randomUUID();
+  const { error: hospErr } = await supabase.schema('core').from('hospitals')
     .insert({
+      id: hospitalId,
       name: reg.hospital_name,
       phone: reg.phone,
       address: reg.address,
       email: reg.email,
       director_phone: reg.director_phone,
       director_name_ko: reg.director_name,
-    })
-    .select('id')
-    .single();
-  if (hospErr || !hosp) return NextResponse.json({ error: hospErr?.message ?? '병원 생성 실패' }, { status: 500 });
-  const hospitalId = (hosp as { id: string }).id;
+    });
+  if (hospErr) return NextResponse.json({ error: `병원 생성 실패: ${hospErr.message}` }, { status: 500 });
 
+  // 마스터 연결·활성화 — best-effort(병원과 별개라, 마스터 처리 실패해도 병원 생성/승인은 유지)
   if (reg.master_user_id) {
-    await supabase.schema('core').from('users').update({
+    const { error: mErr } = await supabase.schema('core').from('users').update({
       hospital_id: hospitalId,
       hospital_role: 'master',
       staff_approved: true,
@@ -82,6 +83,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       rejected: false,
       active: true,
     }).eq('id', reg.master_user_id);
+    if (mErr) console.warn('[registrations approve] master link failed (hospital still created):', mErr.message);
   }
 
   await supabase.schema('core').from('hospital_registrations')
