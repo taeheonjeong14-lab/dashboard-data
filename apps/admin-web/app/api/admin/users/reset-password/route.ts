@@ -22,7 +22,7 @@ export async function POST(request: NextRequest) {
     //   (Supabase Authentication > URL Configuration의 Redirect URLs에도 등록 필요)
     const redirectTo =
       process.env.PASSWORD_RESET_REDIRECT_URL ||
-      'https://vet-solution-hospital-ui.vercel.app/reset-password';
+      'https://app.thehamm.kr/reset-password';
     const { error } = await supabase.auth.resetPasswordForEmail(
       email,
       redirectTo ? { redirectTo } : undefined,
