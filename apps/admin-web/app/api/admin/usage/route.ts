@@ -128,12 +128,14 @@ export async function GET(request: NextRequest) {
       if (runIds.length) {
         const [usageItemsRes, ledgerItemsRes] = await Promise.all([
           pool.query<{ run_id: string; feature: string; providers: string[] | null; cost_usd: number; calls: string }>(
-            `SELECT u.run_id, COALESCE(u.feature, '(기타)') AS feature,
+            // OCR(google vision)은 추출 operation 에 합산 청구되므로 'ocr' 피처를 'extract' 로 접어
+            // 별도 line item 을 만들지 않는다(원가·호출수는 추출 줄에 합산).
+            `SELECT u.run_id, CASE WHEN u.feature = 'ocr' THEN 'extract' ELSE COALESCE(u.feature, '(기타)') END AS feature,
                     array_agg(DISTINCT u.provider) AS providers,
                     SUM(u.cost_usd)::float8 AS cost_usd, COUNT(*)::bigint AS calls
                FROM billing.llm_usage u
               WHERE u.hospital_id = $1::uuid AND u.run_id = ANY($2::uuid[])
-              GROUP BY u.run_id, u.feature`,
+              GROUP BY u.run_id, CASE WHEN u.feature = 'ocr' THEN 'extract' ELSE COALESCE(u.feature, '(기타)') END`,
             [hospitalIdParam, runIds],
           ),
           pool.query<{ run_id: string; feature: string; tokens: number }>(
