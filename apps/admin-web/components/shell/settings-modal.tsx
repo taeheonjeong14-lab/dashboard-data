@@ -225,8 +225,8 @@ const menuItem: React.CSSProperties = {
 const content: React.CSSProperties = { flex: 1, minWidth: 0, minHeight: 0, padding: '20px 22px', overflowY: 'auto' };
 const formStyle: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: 16 };
 const inputStyle: React.CSSProperties = {
-  width: '100%', padding: '9px 11px', fontSize: 14, color: 'var(--text)',
-  background: 'var(--bg)', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', outline: 'none',
+  width: '100%', padding: '8px 2px', fontSize: 14, color: 'var(--text)',
+  background: 'transparent', border: 'none', borderBottom: '1px solid var(--border-strong)', borderRadius: 0, outline: 'none',
 };
 const primaryBtn = (disabled: boolean): React.CSSProperties => ({
   alignSelf: 'flex-start', padding: '9px 18px', fontSize: 14, fontWeight: 600,

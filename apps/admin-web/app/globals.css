@@ -59,6 +59,22 @@ textarea {
   font-size: inherit;
 }
 
+/* 입력칸 밑줄형(세련) — hospital-ui 와 동일 톤. 단일행 input/select 기본을 박스→밑줄로.
+   (인라인 border 를 쓰는 곳은 각 컴포넌트 스타일이 우선. textarea·체크박스 등은 제외) */
+input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="date"]):not([type="color"]):not([type="range"]):not([type="submit"]):not([type="button"]),
+select {
+  border: none;
+  border-bottom: 1px solid var(--border-strong);
+  border-radius: 0;
+  background: transparent;
+}
+input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="date"]):not([type="color"]):not([type="range"]):focus,
+select:focus,
+textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
 /* 홈(허브) 기능 카드 — 호버 시 살짝 떠오르며 accent 강조 (hospital-web 과 동일) */
 .homeCard { transition: border-color .16s ease, box-shadow .16s ease, transform .16s ease, background .16s ease; }
 .homeCard:hover { border-color: var(--accent); box-shadow: 0 10px 28px rgba(0,0,0,0.09); transform: translateY(-3px); }
