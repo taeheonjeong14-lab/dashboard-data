@@ -1,3 +1,4 @@
+import { cache } from 'react';
 import { redirect } from 'next/navigation';
 import type { User } from '@supabase/supabase-js';
 import { createClient } from '@/lib/supabase/server';
@@ -37,8 +38,9 @@ export async function fetchDdxAdminAllowed(userId: string): Promise<boolean> {
   }
 }
 
-/** 세션 필수 + ddx-api 기준 관리자만 통과. 아니면 `/login` 또는 `forbidden`으로 리다이렉트 */
-export async function requireAdminSession(): Promise<User> {
+/** 세션 필수 + ddx-api 기준 관리자만 통과. 아니면 `/login` 또는 `forbidden`으로 리다이렉트.
+ *  cache(): 한 요청(렌더)에서 레이아웃·페이지가 여러 번 호출해도 getUser+권한확인 왕복은 1회만. */
+export const requireAdminSession = cache(async (): Promise<User> => {
   const supabase = await createClient();
   const {
     data: { user },
@@ -47,4 +49,4 @@ export async function requireAdminSession(): Promise<User> {
   const allowed = await fetchDdxAdminAllowed(user.id);
   if (!allowed) redirect('/login?error=forbidden');
   return user;
-}
+});

@@ -1,22 +1,19 @@
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { createServiceRoleClient } from '@/lib/supabase/service-role';
+import { getCachedUser } from '@/lib/supabase/get-user';
 import { HospitalShell } from '@/components/shell/hospital-shell';
 import type { ReactNode } from 'react';
 
 export default async function AppLayout({ children }: { children: ReactNode }) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
+  const user = await getCachedUser();
   if (!user) {
     redirect('/login');
   }
 
+  const supabase = await createClient();
   // core.users 컬럼명은 prisma schema 기준 camelCase(approved/customHospitalName) + snake_case(hospital_id).
   // emailVerified 가드는 임시 제거 — 기존 운영자 row 들이 false/null 상태라 신규 가드가 본인까지 막는 회귀가 있었음.
-  // 이메일 인증 강제는 운영자 row 일괄 업데이트(혹은 verify-email 흐름 완성) 후 다시 추가.
   const { data: coreUser, error: coreUserErr } = await supabase
     .schema('core')
     .from('users')
@@ -46,27 +43,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
       : cu.approved === true
   );
 
-  // hospital_name: prefer custom overrides, then fetch from core.hospitals via hospital_id
-  let resolvedHospitalName: string | null = cu?.customHospitalName?.trim() || null;
-
-  if (!resolvedHospitalName && cu?.hospital_id) {
-    try {
-      const srvc = createServiceRoleClient();
-      const { data: hospital } = await srvc
-        .schema('core')
-        .from('hospitals')
-        .select('name')
-        .eq('id', cu.hospital_id)
-        .single();
-      resolvedHospitalName =
-        (hospital as { name?: string | null } | null)?.name?.trim() || null;
-    } catch {
-      // service role key not configured — skip hospital name lookup
-    }
-  }
-
   // 승인 가드 — whitelist 방식. row 가 없거나(트리거/동기화 실패) approved !== true 면 차단.
-  // 기존 fail-open(`cu && cu.approved === false`) 은 row 미존재 시 통과되어 미승인 사용자가 로그인되는 버그가 있었음.
   if (!canUse) {
     const pendingIcon = '⏳';
     const pendingTitle = '승인 대기 중';
@@ -136,24 +113,29 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
     );
   }
 
-  // 마스터 최초 로그인 온보딩 미완료 → 온보딩 설문으로 보냄 (/onboarding 은 (app) 밖이라 루프 없음)
-  // redirect() 는 내부적으로 throw 하므로 try/catch 밖에서 호출한다.
-  let masterNeedsOnboarding = false;
-  if (cu?.hospital_role === 'master' && cu?.hospital_id) {
+  // 병원 레코드 1회 조회 — 이름·온보딩·토큰잔액을 한 번에(기존 3회 왕복 → 1회).
+  type HospitalRow = { name?: string | null; onboarding_done?: boolean | null; token_balance?: number | string | null };
+  let hospitalRow: HospitalRow | null = null;
+  if (cu?.hospital_id) {
     try {
       const srvc = createServiceRoleClient();
-      const { data: ob } = await srvc
+      const { data } = await srvc
         .schema('core')
         .from('hospitals')
-        .select('onboarding_done')
+        .select('name, onboarding_done, token_balance')
         .eq('id', cu.hospital_id)
         .single();
-      masterNeedsOnboarding = (ob as { onboarding_done?: boolean } | null)?.onboarding_done !== true;
+      hospitalRow = (data ?? null) as HospitalRow | null;
     } catch {
-      masterNeedsOnboarding = false; // 컬럼 미존재 등 → 막지 않음
+      // service role key 미설정/권한 등 → null (이름·잔액 기본값, 온보딩 차단 안 함)
     }
   }
-  if (masterNeedsOnboarding) redirect('/onboarding');
+
+  // 마스터 최초 로그인 온보딩 미완료 → 온보딩 설문으로. (조회 실패 시 막지 않음)
+  // redirect() 는 throw 하므로 try/catch 밖에서 호출.
+  if (cu?.hospital_role === 'master' && hospitalRow && hospitalRow.onboarding_done !== true) {
+    redirect('/onboarding');
+  }
 
   const userName =
     cu?.name?.trim() ||
@@ -161,28 +143,11 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
     user.email ||
     null;
   const hospitalName =
-    resolvedHospitalName ||
+    cu?.customHospitalName?.trim() ||
+    hospitalRow?.name?.trim() ||
     (user.user_metadata?.hospital_name as string | undefined)?.trim() ||
     null;
-
-  // 토큰 잔액 — 병원 단위(core.hospitals.token_balance). 과금은 병원 잔액에서 차감되므로 여기를 본다.
-  // (옛 core.users.token_balance 아님) 마이그레이션 전/권한 없음이면 0.
-  let tokenBalance = 0;
-  if (cu?.hospital_id) {
-    try {
-      const srvc = createServiceRoleClient();
-      const { data: hb } = await srvc
-        .schema('core')
-        .from('hospitals')
-        .select('token_balance')
-        .eq('id', cu.hospital_id)
-        .single();
-      const v = (hb as { token_balance?: number | string | null } | null)?.token_balance;
-      if (v != null) tokenBalance = Number(v) || 0;
-    } catch {
-      /* 미설정/권한 등 → 0 */
-    }
-  }
+  const tokenBalance = Number(hospitalRow?.token_balance ?? 0) || 0;
 
   return (
     <HospitalShell

@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 import { createServiceRoleClient } from '@/lib/supabase/service-role';
+import { getCachedUser } from '@/lib/supabase/get-user';
 import { UnreadNotifications } from './unread-notifications';
 import {
   ClipboardCheck, Stethoscope, BarChart2, Swords, ClipboardList, FileHeart, Newspaper, CalendarDays, ChevronRight,
@@ -49,8 +50,8 @@ const GROUPS: Group[] = [
 ];
 
 export default async function HomePage() {
+  const user = await getCachedUser();
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
 
   let name = (user?.user_metadata?.name as string | undefined)?.trim() || user?.email || '';
   let hospitalName = '';
