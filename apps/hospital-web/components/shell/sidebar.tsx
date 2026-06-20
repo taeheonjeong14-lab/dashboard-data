@@ -2,15 +2,9 @@
 
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
-import { BarChart2, FileHeart, Stethoscope, ClipboardList, ClipboardCheck, Newspaper, Swords, CalendarDays, Home } from 'lucide-react';
+import { BarChart2, FileHeart, Stethoscope, ClipboardList, ClipboardCheck, Newspaper, Swords, CalendarDays } from 'lucide-react';
 
 const navGroups = [
-  {
-    title: '',
-    items: [
-      { href: '/home', label: '홈', icon: Home, matchPrefix: '/home' },
-    ],
-  },
   {
     title: 'AI진료 보조',
     items: [
@@ -26,7 +20,7 @@ const navGroups = [
     ],
   },
   {
-    title: '경영운영',
+    title: '병원운영',
     items: [
       { href: '/reception', label: '초진 접수', icon: ClipboardList, matchPrefix: '/reception' },
       { href: '/health-report', label: '건강검진 리포트', icon: FileHeart, matchPrefix: '/health-report' },

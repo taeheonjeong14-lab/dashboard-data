@@ -3,7 +3,7 @@ import { requireAdminApi } from '@/lib/assert-admin-api';
 import { isParseRunUuid } from '@/lib/chart-extraction/uuid';
 import { getChartApiProxyConfig } from '@/lib/chart-api-proxy-env';
 import { formatChartApiFetchError } from '@/lib/chart-api-fetch-error';
-import { notifyHospitalUsers, runHospitalAndPatient } from '@/lib/notify';
+import { notifyHospitalUsers, notifyAdminError, runHospitalAndPatient } from '@/lib/notify';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 120;
@@ -40,6 +40,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'runId invalid' }, { status: 400 });
   }
 
+  const genLabel = String(o.contentType ?? '') === 'health_checkup' ? '건강검진 리포트 생성' : '콘텐츠 생성';
   const url = `${cfg.outboundBase}/api/content/generate`;
   try {
     const res = await fetch(url, {
@@ -55,10 +56,16 @@ export async function POST(request: NextRequest) {
     try {
       json = JSON.parse(text) as unknown;
     } catch {
+      await notifyAdminError({ source: genLabel, message: `chart-api 응답이 JSON이 아닙니다 (${res.status}) · run ${runId}`, link: '/admin/health-report' });
       return NextResponse.json(
         { error: `chart-api 응답이 JSON이 아닙니다 (${res.status})`, raw: text.slice(0, 500) },
         { status: 502 },
       );
+    }
+    // chart-api 가 오류 상태로 응답 — 생성 실패
+    if (!res.ok) {
+      const detail = (json as { error?: string } | null)?.error;
+      await notifyAdminError({ source: genLabel, message: `${detail ? `${detail} · ` : ''}(${res.status}) run ${runId}`, link: '/admin/health-report' });
     }
     // 건강검진 리포트 생성 완료 시 병원 유저 알림
     if (res.ok && String(o.contentType ?? '') === 'health_checkup') {
@@ -74,6 +81,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(json, { status: res.status });
   } catch (e) {
     console.error('POST /api/admin/health-report/generate (proxy):', e);
+    await notifyAdminError({ source: genLabel, message: `${formatChartApiFetchError(e)} · run ${runId}`, link: '/admin/health-report' });
     return NextResponse.json(
       {
         error: formatChartApiFetchError(e),

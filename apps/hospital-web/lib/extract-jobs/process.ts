@@ -1,6 +1,7 @@
 // 비동기 추출 워커 (extract_jobs). 변경 시 hospital-web 재배포 트리거됨.
 import { setGlobalDispatcher, Agent } from 'undici';
 import { createServiceRoleClient } from '@/lib/supabase/service-role';
+import { notifyAdminError } from '@/lib/notify';
 
 // chart-api 추출은 오래 걸리므로 fetch 타임아웃을 800초로(undici 기본 300초 우회).
 setGlobalDispatcher(new Agent({ headersTimeout: 800_000, bodyTimeout: 800_000, connectTimeout: 20_000 }));
@@ -162,5 +163,10 @@ export async function processExtractJob(jobId: string): Promise<void> {
       .update({ status: finalStatus, error_text: msg, updated_at: new Date().toISOString() })
       .eq('id', job.id);
     console.error('[extract-job] failed', jobId, `(attempts=${job.attempts}, →${finalStatus})`, msg);
+    // 재시도 소진(최종 error)일 때만 운영자에게 알림 — 재시도 가능(queued)은 도배 방지로 제외.
+    if (finalStatus === 'error') {
+      const source = job.kind === 'blog_case' ? '진료케이스 추출' : '건강검진 추출';
+      await notifyAdminError({ source, message: `${msg} · job ${job.id}`, link: '/admin/health-report', hospitalId: job.hospital_id });
+    }
   }
 }

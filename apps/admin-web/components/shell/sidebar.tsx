@@ -96,9 +96,9 @@ export function Sidebar(): ReactElement {
   return (
     <aside style={styles.sidebar}>
       <nav style={styles.nav}>
-        {NAV_GROUPS.map((group) => (
-          <div key={group.title} style={styles.group}>
-            <div style={styles.groupTitle}>{group.title}</div>
+        {NAV_GROUPS.map((group, gi) => (
+          <div key={group.title || `g-${gi}`} style={styles.group}>
+            {group.title && <div style={styles.groupTitle}>{group.title}</div>}
             {group.items.map((item) => {
               const active = isActive(item);
               const Icon = item.icon;

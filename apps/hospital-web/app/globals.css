@@ -73,10 +73,15 @@ textarea {
 }
 
 /* 홈 기능 카드 — 호버 시 살짝 떠오르며 accent 강조 */
-.homeCard { transition: border-color .15s ease, box-shadow .15s ease, transform .15s ease; }
-.homeCard:hover { border-color: var(--accent); box-shadow: 0 8px 24px rgba(0,0,0,0.08); transform: translateY(-2px); }
-.homeCard .homeArrow { color: var(--text-muted); transition: color .15s ease, transform .15s ease; }
-.homeCard:hover .homeArrow { color: var(--accent); transform: translateX(2px); }
+.homeCard { transition: border-color .16s ease, box-shadow .16s ease, transform .16s ease, background .16s ease; }
+.homeCard:hover { border-color: var(--accent); box-shadow: 0 10px 28px rgba(0,0,0,0.09); transform: translateY(-3px); }
+.homeCard .homeArrow { color: var(--text-muted); transition: color .16s ease, transform .16s ease; }
+.homeCard:hover .homeArrow { color: var(--accent); transform: translateX(3px); }
+
+/* 홈 진입 시 카드/섹션이 순차적으로 부드럽게 나타남 */
+@keyframes homeRise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+.homeRise { animation: homeRise .4s ease both; }
+@media (prefers-reduced-motion: reduce) { .homeRise { animation: none; } }
 
 /* 단계 전환 — 토스 느낌의 부드러운 페이드 + 살짝 위로. (가입 위저드 등) */
 @keyframes stepFadeIn {

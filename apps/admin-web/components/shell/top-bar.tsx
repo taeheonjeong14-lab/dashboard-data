@@ -2,7 +2,9 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { LogOut } from 'lucide-react';
+import { LogOut, Home, Settings } from 'lucide-react';
+import { NotificationBell } from './notification-bell';
+import { SettingsModal } from './settings-modal';
 
 interface TopBarProps {
   userName: string | null;
@@ -13,8 +15,10 @@ export function TopBar({ userName, userEmail }: TopBarProps) {
   // 이름이 있으면 이름을 노출, 없으면 이메일을 보여준다(서버에서 fallback 처리되지만 이중 안전망).
   const displayName = userName?.trim() || userEmail || null;
   const [logoOk, setLogoOk] = useState(true);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   return (
+    <>
     <header
       style={{
         position: 'fixed',
@@ -32,7 +36,7 @@ export function TopBar({ userName, userEmail }: TopBarProps) {
       }}
     >
       <Link
-        href="/admin/performance"
+        href="/admin/home"
         style={{
           display: 'flex',
           alignItems: 'center',
@@ -73,6 +77,44 @@ export function TopBar({ userName, userEmail }: TopBarProps) {
           </span>
         ) : null}
 
+        <Link
+          href="/admin/home"
+          title="홈"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            width: 30,
+            height: 30,
+            borderRadius: 'var(--radius)',
+            color: 'var(--text-muted)',
+            background: 'transparent',
+          }}
+        >
+          <Home size={16} />
+        </Link>
+
+        <NotificationBell />
+
+        <button
+          onClick={() => setSettingsOpen(true)}
+          title="설정"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            width: 30,
+            height: 30,
+            borderRadius: 'var(--radius)',
+            color: 'var(--text-muted)',
+            background: 'transparent',
+            border: 'none',
+            cursor: 'pointer',
+          }}
+        >
+          <Settings size={16} />
+        </button>
+
         <a
           href="/auth/signout"
           title="로그아웃"
@@ -95,5 +137,7 @@ export function TopBar({ userName, userEmail }: TopBarProps) {
         </a>
       </div>
     </header>
+    <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+    </>
   );
 }

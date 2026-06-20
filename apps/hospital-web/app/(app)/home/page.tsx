@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 import { createServiceRoleClient } from '@/lib/supabase/service-role';
+import { UnreadNotifications } from './unread-notifications';
 import {
   ClipboardCheck, Stethoscope, BarChart2, Swords, ClipboardList, FileHeart, Newspaper, CalendarDays, ChevronRight,
   type LucideIcon,
@@ -8,6 +9,13 @@ import {
 
 type Feature = { href: string; label: string; desc: string; icon: LucideIcon; badge?: string };
 type Group = { title: string; items: Feature[] };
+
+// 카드 설명 — 길이와 무관하게 항상 2줄 높이를 차지(짧으면 빈 줄 확보, 길면 2줄로 자름) → 카드 높이 고정.
+const cardDesc: React.CSSProperties = {
+  margin: '4px 0 0', fontSize: 12.5, color: 'var(--text-secondary)', lineHeight: 1.5,
+  minHeight: 'calc(12.5px * 1.5 * 2)',
+  display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden',
+};
 
 const GROUPS: Group[] = [
   {
@@ -25,7 +33,7 @@ const GROUPS: Group[] = [
     ],
   },
   {
-    title: '경영 운영',
+    title: '병원 운영',
     items: [
       { href: '/reception', label: '초진 접수', desc: '초진 접수증을 받고 직원이 열람합니다.', icon: ClipboardList },
       { href: '/health-report', label: '건강검진 리포트', desc: '차트로 보호자용 건강검진 리포트를 생성합니다.', icon: FileHeart },
@@ -60,26 +68,42 @@ export default async function HomePage() {
     }
   }
 
-  const kstHour = (new Date().getUTCHours() + 9) % 24;
+  const now = new Date();
+  const kstHour = Number(new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Seoul', hour: 'numeric', hour12: false }).format(now)) % 24;
   const greet = kstHour < 6 ? '편안한 새벽이에요' : kstHour < 12 ? '좋은 아침이에요' : kstHour < 18 ? '좋은 오후예요' : '좋은 저녁이에요';
+  const dateStr = new Intl.DateTimeFormat('ko-KR', { timeZone: 'Asia/Seoul', month: 'long', day: 'numeric', weekday: 'long' }).format(now);
 
   return (
-    <div style={{ maxWidth: 960, margin: '0 auto' }}>
+    <div style={{ maxWidth: 980, margin: '0 auto' }}>
       {/* 히어로 인사 헤더 */}
-      <div style={{ borderRadius: 'var(--radius-lg)', padding: '32px 28px', marginBottom: 28, background: 'linear-gradient(135deg, var(--accent-subtle) 0%, var(--bg) 70%)', border: '1px solid var(--border)' }}>
-        <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--accent)' }}>{greet}</div>
-        <h1 style={{ margin: '8px 0 0', fontSize: 28, fontWeight: 800, color: 'var(--text)', letterSpacing: '-0.02em' }}>
-          {name || '회원'}님, 반가워요 👋
-        </h1>
-        <p style={{ margin: '10px 0 0', fontSize: 15, color: 'var(--text-secondary)' }}>
-          {hospitalName ? `${hospitalName} · ` : ''}오늘도 좋은 진료 되세요. 아래에서 원하는 기능을 선택하세요.
-        </p>
+      <div className="homeRise" style={{ position: 'relative', overflow: 'hidden', borderRadius: 'var(--radius-lg)', padding: '34px 30px', marginBottom: 26, background: 'linear-gradient(135deg, var(--accent-subtle) 0%, var(--bg) 62%)', border: '1px solid var(--border)' }}>
+        {/* 우상단 부드러운 장식 글로우 */}
+        <div aria-hidden style={{ position: 'absolute', top: -70, right: -50, width: 220, height: 220, borderRadius: '50%', background: 'radial-gradient(circle, var(--accent-subtle) 0%, transparent 70%)', opacity: 0.7, pointerEvents: 'none' }} />
+        <div style={{ position: 'relative' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, fontWeight: 600, color: 'var(--text-muted)' }}>
+            <span style={{ display: 'inline-flex', width: 6, height: 6, borderRadius: '50%', background: 'var(--accent)' }} />
+            {dateStr}
+          </div>
+          <div style={{ marginTop: 14, fontSize: 13.5, fontWeight: 600, color: 'var(--accent)' }}>{greet}</div>
+          <h1 style={{ margin: '6px 0 0', fontSize: 28, fontWeight: 800, color: 'var(--text)', letterSpacing: '-0.02em' }}>
+            {name || '회원'}님, 반가워요 👋
+          </h1>
+          <p style={{ margin: '10px 0 0', fontSize: 15, color: 'var(--text-secondary)' }}>
+            {hospitalName ? `${hospitalName} · ` : ''}오늘도 좋은 진료 되세요. 아래에서 원하는 기능을 선택하세요.
+          </p>
+        </div>
       </div>
 
-      {GROUPS.map((g) => (
-        <section key={g.title} style={{ marginBottom: 28 }}>
-          <h2 style={{ margin: '0 0 12px', fontSize: 13, fontWeight: 700, color: 'var(--text-muted)', letterSpacing: '0.02em' }}>{g.title}</h2>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 14 }}>
+      {/* 읽지 않은 알림 (있을 때만 표시) */}
+      <UnreadNotifications />
+
+      {GROUPS.map((g, gi) => (
+        <section key={g.title} className="homeRise" style={{ marginBottom: 26, animationDelay: `${0.05 + gi * 0.06}s` }}>
+          <h2 style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '0 0 13px', fontSize: 13, fontWeight: 700, color: 'var(--text-secondary)', letterSpacing: '0.01em' }}>
+            <span style={{ display: 'inline-flex', width: 4, height: 14, borderRadius: 2, background: 'var(--accent)' }} />
+            {g.title}
+          </h2>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 14 }}>
             {g.items.map((f) => {
               const Icon = f.icon;
               return (
@@ -87,9 +111,9 @@ export default async function HomePage() {
                   key={f.href}
                   href={f.href}
                   className="homeCard"
-                  style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: 18, borderRadius: 'var(--radius-lg)', border: '1px solid var(--border)', background: 'var(--bg)', textDecoration: 'none' }}
+                  style={{ display: 'flex', alignItems: 'center', gap: 14, minHeight: 92, padding: '16px 18px', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border)', background: 'var(--bg)', textDecoration: 'none' }}
                 >
-                  <span style={{ display: 'inline-flex', width: 42, height: 42, borderRadius: 11, background: 'var(--accent-subtle)', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <span style={{ display: 'inline-flex', width: 44, height: 44, borderRadius: 12, background: 'var(--accent-subtle)', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                     <Icon size={21} style={{ color: 'var(--accent)' }} />
                   </span>
                   <div style={{ flex: 1, minWidth: 0 }}>
@@ -97,9 +121,9 @@ export default async function HomePage() {
                       <span style={{ fontSize: 15.5, fontWeight: 700, color: 'var(--text)' }}>{f.label}</span>
                       {f.badge && <span style={{ fontSize: 10.5, fontWeight: 700, color: 'var(--text-muted)', background: 'var(--bg-subtle)', padding: '2px 7px', borderRadius: 999 }}>{f.badge}</span>}
                     </div>
-                    <p style={{ margin: '4px 0 0', fontSize: 12.5, color: 'var(--text-secondary)', lineHeight: 1.5 }}>{f.desc}</p>
+                    <p style={cardDesc}>{f.desc}</p>
                   </div>
-                  <ChevronRight size={18} className="homeArrow" style={{ flexShrink: 0, marginTop: 2 }} />
+                  <ChevronRight size={18} className="homeArrow" style={{ flexShrink: 0 }} />
                 </Link>
               );
             })}

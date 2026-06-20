@@ -64,9 +64,14 @@ const MENU: { key: Tab; label: string; icon: typeof User; masterOnly?: boolean }
   { key: 'password', label: '비밀번호 변경', icon: KeyRound },
 ];
 
-export function SettingsModal({ open, onClose }: { open: boolean; onClose: () => void; tokenBalance?: number }) {
+export function SettingsModal({ open, onClose, initialTab }: { open: boolean; onClose: () => void; tokenBalance?: number; initialTab?: Tab }) {
   const [tab, setTab] = useState<Tab>('basic');
   const [isMaster, setIsMaster] = useState(false);
+
+  // 모달이 열릴 때 요청한 탭으로 진입 (예: 상단바 토큰 박스 → '토큰 사용량')
+  useEffect(() => {
+    if (open) setTab(initialTab ?? 'basic');
+  }, [open, initialTab]);
 
   const [profile, setProfile] = useState<Profile>({
     name: '', phone: '', customHospitalName: '', hospital_address: '', hospital_address_detail: '', email: '',

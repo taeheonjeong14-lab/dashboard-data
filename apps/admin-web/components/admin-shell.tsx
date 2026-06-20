@@ -1,6 +1,7 @@
 'use client';
 
 import type { ReactNode } from 'react';
+import { usePathname } from 'next/navigation';
 import { ChartExtractionBanner, ChartExtractionProvider } from '@/components/chart-extraction-provider';
 import { TopBar } from '@/components/shell/top-bar';
 import { Sidebar } from '@/components/shell/sidebar';
@@ -23,14 +24,18 @@ export function AdminShell({
   void title;
   void description;
 
+  // 홈은 허브 화면 — 사이드바를 숨기고 본문을 전체 폭으로(좌측 여백 제거).
+  const pathname = usePathname();
+  const isHome = pathname === '/admin/home';
+
   return (
     <ChartExtractionProvider>
       <div style={{ display: 'flex', minHeight: '100vh' }}>
         <TopBar userName={userName} userEmail={userEmail} />
-        <Sidebar />
+        {!isHome && <Sidebar />}
         <div
           style={{
-            marginLeft: 'var(--sidebar-width)',
+            marginLeft: isHome ? 0 : 'var(--sidebar-width)',
             marginTop: 'var(--topbar-height)',
             flex: 1,
             display: 'flex',

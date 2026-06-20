@@ -76,6 +76,28 @@ function describeError(err) {
   return parts.join(" | ");
 }
 
+// 운영자(admin) 오류 알림 — core.admin_users 로 fan-out. 같은 source(=title) 가 15분 안에
+// 이미 있으면 도배 방지를 위해 건너뛴다. (admin-web lib/notify.ts 의 notifyAdminError 와 동일 규칙)
+async function notifyAdminError(source, message, link) {
+  try {
+    const title = `${source} 오류`;
+    const since = new Date(Date.now() - 15 * 60_000).toISOString();
+    const { count } = await supabase
+      .schema("core").from("notifications")
+      .select("id", { count: "exact", head: true })
+      .eq("type", "admin_error").eq("title", title).gte("created_at", since);
+    if (count && count > 0) return;
+    const { data: admins } = await supabase.schema("core").from("admin_users").select("id");
+    const recipients = (admins || []).map((a) => a.id);
+    if (!recipients.length) return;
+    await supabase.schema("core").from("notifications").insert(
+      recipients.map((uid) => ({ user_id: uid, hospital_id: null, type: "admin_error", title, body: message || null, link: link || null }))
+    );
+  } catch (e) {
+    console.warn("[collect-worker] admin 오류 알림 실패(무시):", describeError(e));
+  }
+}
+
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // 잡 행 업데이트를 네트워크 오류(DNS ENOTFOUND 등)에 대비해 백오프 재시도한다.
@@ -316,6 +338,11 @@ async function reapStaleJobs() {
     if (updErr) console.error(`[collect-worker] reaper 업데이트 오류(${row.id}):`, updErr.message);
   }
   console.warn(`[collect-worker] 고아 잡 ${stale.length}건 failed 처리: ${stale.map((r) => r.id).join(", ")}`);
+  await notifyAdminError(
+    "데이터 수집",
+    `진행이 멈춘 수집 작업 ${stale.length}건을 중단(고아 잡)으로 처리했어요. (job ${stale.map((r) => r.id).join(", ")})`,
+    "/admin/data-upload?section=collect",
+  );
 }
 
 async function pollAndRun() {
@@ -453,6 +480,13 @@ async function pollAndRun() {
     // accSteps에는 hospitalId/hospitalName이 포함되어 있으므로 우선 사용
     const finalSteps = accSteps.length > 0 ? accSteps : parsed.steps;
     const status = code === 0 ? "done" : "failed";
+    if (status === "failed") {
+      await notifyAdminError(
+        "데이터 수집",
+        `수집 작업이 실패했어요. (job ${job.id})`,
+        "/admin/data-upload?section=collect",
+      );
+    }
 
     // Postgres text/jsonb는 NUL(\u0000)을 저장하지 못한다. 자식 출력(특히 Windows의 Chrome/python)에
     // NUL이 섞이면 update가 통째로 거부돼 행이 running으로 박힌다 → 미리 제거.
@@ -632,6 +666,15 @@ async function processAlimtalkOutbox() {
         `[collect-worker] 알림톡 ${result.ok ? "발송" : "실패"}: ${row.id} (code=${result.code}` +
           `${totalCost != null ? `, ${totalCost}원` : ""}${result.ok ? "" : " " + result.message})`
       );
+
+      // 알림톡 발송 실패 시 운영자에게도 알림
+      if (!result.ok) {
+        await notifyAdminError(
+          "알림톡 발송",
+          `${row.receiver || "보호자"}님께 알림톡 발송에 실패했어요. (${result.message || "사유 미상"}, code=${result.code})`,
+          "/admin/data-upload?section=collect",
+        );
+      }
 
       // 병원 유저(마스터·스태프)에게 발송 결과 알림
       if (row.hospital_id) {

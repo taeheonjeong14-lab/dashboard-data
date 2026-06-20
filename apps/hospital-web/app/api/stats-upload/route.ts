@@ -10,6 +10,7 @@ import {
   parseEFriendsFile,
 } from '@dashboard/chart-ingest';
 import { STATS_UPLOAD_BUCKET } from '@/lib/stats-upload-storage';
+import { notifyAdminError } from '@/lib/notify';
 
 export const maxDuration = 300;
 
@@ -126,6 +127,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       } catch (e) {
         console.error('[stats-upload] executeChartUpload error:', e);
         const msg = e instanceof Error ? e.message : '데이터 저장에 실패했습니다.';
+        await notifyAdminError({ source: '경영통계 업로드', message: `${msg} · ${chartType}`, link: '/admin/data-upload?section=stats', hospitalId });
         return NextResponse.json({ error: msg }, { status: 500 });
       }
 

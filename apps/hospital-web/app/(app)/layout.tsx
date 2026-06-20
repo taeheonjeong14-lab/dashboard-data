@@ -192,6 +192,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
       userId={user.id}
       hospitalId={cu?.hospital_id ?? null}
       isStaff={cu?.hospital_role === 'staff'}
+      isMaster={cu?.hospital_role === 'master'}
     >
       {children}
     </HospitalShell>

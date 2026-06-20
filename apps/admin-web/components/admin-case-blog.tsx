@@ -1,7 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState, type CSSProperties } from 'react';
-import { Filter } from 'lucide-react';
+import { useSearchParams } from 'next/navigation';
+import { Filter, X } from 'lucide-react';
 import { CaseBlogButton } from './admin-case-blog-modal';
 import { StatusBadge } from '@/components/status-badge';
 
@@ -87,6 +88,12 @@ function buildImageCaption(im: { examType?: unknown; bodyPart?: unknown; briefCo
 }
 
 export default function AdminCaseBlog() {
+  // 홈 "처리할 작업"에서 ?stage=writing 으로 진입하면 작업 중만 자동 필터.
+  const searchParams = useSearchParams();
+  const initStage = searchParams.get('stage');
+  const [stageFilter, setStageFilter] = useState<'writing' | 'done' | ''>(
+    initStage === 'writing' || initStage === 'done' ? initStage : '',
+  );
   const [items, setItems] = useState<CaseBlogItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -97,7 +104,7 @@ export default function AdminCaseBlog() {
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [draftHospital, setDraftHospital] = useState('');
   const [draftMonth, setDraftMonth] = useState('');
-  const activeFilterCount = (filterHospital ? 1 : 0) + (filterMonth ? 1 : 0);
+  const activeFilterCount = (filterHospital ? 1 : 0) + (filterMonth ? 1 : 0) + (stageFilter ? 1 : 0);
   const openFilters = () => {
     setDraftHospital(filterHospital); setDraftMonth(filterMonth);
     setFiltersOpen(true);
@@ -142,6 +149,7 @@ export default function AdminCaseBlog() {
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return items.filter((it) => {
+      if (stageFilter && it.stage !== stageFilter) return false;
       if (filterHospital && (it.hospitalName?.trim() || '') !== filterHospital) return false;
       if (filterMonth && (it.createdAt || '').slice(0, 7) !== filterMonth) return false;
       if (!q) return true;
@@ -150,7 +158,7 @@ export default function AdminCaseBlog() {
         .toLowerCase()
         .includes(q);
     });
-  }, [items, query, filterHospital, filterMonth]);
+  }, [items, query, filterHospital, filterMonth, stageFilter]);
 
   useEffect(() => {
     if (filtered.length === 0) {
@@ -312,6 +320,17 @@ export default function AdminCaseBlog() {
           >
             ↻
           </button>
+          {stageFilter && (
+            <button
+              type="button"
+              onClick={() => setStageFilter('')}
+              title="필터 해제"
+              style={{ flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: 4, padding: '4px 8px', borderRadius: 999, border: '1px solid var(--border)', background: 'var(--accent-subtle)', color: 'var(--accent)', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
+            >
+              {stageFilter === 'writing' ? '작업 중' : '완료'}만
+              <X size={12} />
+            </button>
+          )}
         </div>
         {!loading && items.length > 0 && filtersOpen && (
           <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 20, padding: '4px 10px 8px' }}>

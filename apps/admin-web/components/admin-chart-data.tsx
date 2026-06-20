@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { Filter } from 'lucide-react';
 import { useChartExtraction } from '@/components/chart-extraction-provider';
 import { AdminRunExtractionDetail } from '@/components/admin-run-extraction-detail';
@@ -48,6 +49,10 @@ function formatRunRailDateShort(iso: string): string {
 
 export default function AdminChartData() {
   const { lastRunId } = useChartExtraction();
+  // 홈 "처리할 작업" 등에서 ?type=&stage= 로 진입하면 해당 필터를 자동 적용.
+  const searchParams = useSearchParams();
+  const initType = (searchParams.get('type') ?? '').split(',').filter((v) => (TYPE_FILTERS as readonly string[]).includes(v));
+  const initStage = (searchParams.get('stage') ?? '').split(',').filter((v) => (STAGE_FILTERS as readonly string[]).includes(v));
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -56,8 +61,8 @@ export default function AdminChartData() {
   const [search, setSearch] = useState('');
   const [filterHospital, setFilterHospital] = useState('');
   const [filterMonth, setFilterMonth] = useState('');
-  const [filterTypes, setFilterTypes] = useState<string[]>([]);   // 블로그 / 검진리포트 (다중)
-  const [filterStages, setFilterStages] = useState<string[]>([]); // 요청 / 작성중 / 완료 (다중)
+  const [filterTypes, setFilterTypes] = useState<string[]>(initType);   // 블로그 / 검진리포트 (다중)
+  const [filterStages, setFilterStages] = useState<string[]>(initStage); // 요청 / 작성중 / 완료 (다중)
   const toggleIn = (arr: string[], set: (v: string[]) => void, v: string) =>
     set(arr.includes(v) ? arr.filter((x) => x !== v) : [...arr, v]);
   const [filtersOpen, setFiltersOpen] = useState(false);

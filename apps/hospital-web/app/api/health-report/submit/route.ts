@@ -2,6 +2,7 @@ import { NextRequest, NextResponse, after } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { createServiceRoleClient } from '@/lib/supabase/service-role';
 import { processExtractJob } from '@/lib/extract-jobs/process';
+import { notifyAdminError } from '@/lib/notify';
 
 // 진료케이스(blog_case)·건강검진(hospital_notes) 비동기 제출.
 // 접수(job)만 만들고 즉시 jobId 반환 → 추출/저장은 백그라운드(after)에서. 사용자는 기다리지 않아도 된다.
@@ -148,6 +149,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: true, jobId, status: 'queued' }, { status: 202 });
   } catch (e) {
     console.error('POST /api/health-report/submit:', e);
+    const source = kind === 'blog_case' ? '진료케이스 접수' : '건강검진 접수';
+    await notifyAdminError({ source, message: `${e instanceof Error ? e.message : 'Unknown error'}`, link: '/admin/health-report', hospitalId });
     return NextResponse.json({ error: e instanceof Error ? e.message : 'Unknown error' }, { status: 500 });
   }
 }

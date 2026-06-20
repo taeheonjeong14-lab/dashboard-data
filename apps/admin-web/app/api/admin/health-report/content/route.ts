@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdminApi } from '@/lib/assert-admin-api';
-import { notifyHospitalUsers, runHospitalAndPatient } from '@/lib/notify';
+import { notifyHospitalUsers, notifyAdminError, runHospitalAndPatient } from '@/lib/notify';
 import { createServiceRoleClient } from '@/lib/supabase/service-role';
 import { isParseRunUuid } from '@/lib/chart-extraction/uuid';
 
@@ -134,6 +134,8 @@ export async function PATCH(request: NextRequest) {
     });
   } catch (e) {
     console.error('PATCH /api/admin/health-report/content:', e);
+    const source = contentType.startsWith('blog') ? '진료케이스 저장' : '건강검진 리포트 저장';
+    await notifyAdminError({ source, message: `${e instanceof Error ? e.message : 'Unknown error'} · run ${runId}`, link: '/admin/health-report' });
     return NextResponse.json(
       { error: e instanceof Error ? e.message : 'Unknown error' },
       { status: 500 },

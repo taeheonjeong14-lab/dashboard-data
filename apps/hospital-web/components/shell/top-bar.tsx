@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Settings, LogOut, Coins } from 'lucide-react';
+import { Settings, LogOut, Coins, Home } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { SettingsModal } from './settings-modal';
 import { NotificationBell } from './notification-bell';
@@ -12,12 +12,15 @@ interface TopBarProps {
   userName: string | null;
   hospitalName: string | null;
   tokenBalance?: number;
+  isMaster?: boolean;
 }
 
-export function TopBar({ userName, hospitalName, tokenBalance }: TopBarProps) {
+export function TopBar({ userName, hospitalName, tokenBalance, isMaster = false }: TopBarProps) {
   const router = useRouter();
   const [logoOk, setLogoOk] = useState(true);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  // 설정 모달을 어느 탭으로 열지 — 토큰 박스 클릭 시 '토큰 사용량'으로 바로 진입.
+  const [settingsTab, setSettingsTab] = useState<'basic' | 'usage'>('basic');
   // 데모용 마스킹: 다른 병원에 데모할 때 상단바의 사용자 이름·병원명만 흐리게 가린다.
   // 1순위) 환경변수 NEXT_PUBLIC_DEMO_MASK=1 이면 서버 렌더부터 "항상" 마스킹(로그아웃/리다이렉트/새로고침 무관).
   // 2순위) URL ?demo=1 로 켜고 ?demo=0 로 끔(localStorage 기억). env 가 켜져 있으면 토글은 무시.
@@ -89,24 +92,49 @@ export function TopBar({ userName, hospitalName, tokenBalance }: TopBarProps) {
 
       {/* Right — token balance + user info + settings + logout */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-        <span
-          title="보유 토큰"
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 5,
-            padding: '5px 10px',
-            borderRadius: 'var(--radius)',
-            background: 'var(--accent-subtle)',
-            color: 'var(--accent)',
-            fontSize: 13,
-            fontWeight: 600,
-            whiteSpace: 'nowrap',
-          }}
-        >
-          <Coins size={14} />
-          {Math.round(tokenBalance ?? 0).toLocaleString()} 토큰
-        </span>
+        {isMaster ? (
+          <button
+            type="button"
+            onClick={() => { setSettingsTab('usage'); setSettingsOpen(true); }}
+            title="토큰 사용량 보기"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 5,
+              padding: '5px 10px',
+              borderRadius: 'var(--radius)',
+              background: 'var(--accent-subtle)',
+              color: 'var(--accent)',
+              fontSize: 13,
+              fontWeight: 600,
+              whiteSpace: 'nowrap',
+              border: 'none',
+              cursor: 'pointer',
+            }}
+          >
+            <Coins size={14} />
+            {Math.round(tokenBalance ?? 0).toLocaleString()} 토큰
+          </button>
+        ) : (
+          <span
+            title="보유 토큰"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 5,
+              padding: '5px 10px',
+              borderRadius: 'var(--radius)',
+              background: 'var(--accent-subtle)',
+              color: 'var(--accent)',
+              fontSize: 13,
+              fontWeight: 600,
+              whiteSpace: 'nowrap',
+            }}
+          >
+            <Coins size={14} />
+            {Math.round(tokenBalance ?? 0).toLocaleString()} 토큰
+          </span>
+        )}
         <span
           title={mask ? '데모 마스킹 중 (URL 에 ?demo=0 으로 해제)' : undefined}
           style={{
@@ -124,10 +152,27 @@ export function TopBar({ userName, hospitalName, tokenBalance }: TopBarProps) {
           {hospitalName && <span style={{ color: 'var(--text-muted)' }}> ({hospitalName})</span>}
         </span>
 
+        <Link
+          href="/home"
+          title="홈"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            width: 30,
+            height: 30,
+            borderRadius: 'var(--radius)',
+            color: 'var(--text-muted)',
+            background: 'transparent',
+          }}
+        >
+          <Home size={16} />
+        </Link>
+
         <NotificationBell />
 
         <button
-          onClick={() => setSettingsOpen(true)}
+          onClick={() => { setSettingsTab('basic'); setSettingsOpen(true); }}
           title="설정"
           style={{
             display: 'flex',
@@ -166,7 +211,7 @@ export function TopBar({ userName, hospitalName, tokenBalance }: TopBarProps) {
         </button>
       </div>
     </header>
-    <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} tokenBalance={tokenBalance} />
+    <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} tokenBalance={tokenBalance} initialTab={settingsTab} />
     </>
   );
 }
