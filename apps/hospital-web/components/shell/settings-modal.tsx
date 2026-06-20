@@ -26,6 +26,7 @@ const PRODUCT: Record<string, { label: string; color: string }> = {
   case_blog: { label: '진료케이스', color: '#6366f1' },
   health_report: { label: '건강검진 리포트', color: '#10b981' },
   survey: { label: '사전문진', color: '#f59e0b' },
+  ops_bundle: { label: '운영 패키지', color: '#3b82f6' },
   etc: { label: '기타', color: '#94a3b8' },
 };
 const productLabel = (c: string) => PRODUCT[c]?.label ?? c;
