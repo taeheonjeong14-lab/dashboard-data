@@ -19,6 +19,24 @@ const normFeature = (f: string) => (CASE_BLOG_FEATURES.has(f) ? 'case_blog' : f)
 const PALETTE = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#3b82f6', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316', '#64748b'];
 const KIND_LABEL: Record<string, string> = { charge: '사용', grant: '관리자 지급', adjust: '조정' };
 const featLabel = (f: string) => FEATURE_LABEL[normFeature(f)] ?? f;
+
+// 사용량 그래프 — API 피처가 아니라 우리 "상품" 단위로 묶고 상품별 색을 쓴다.
+function featureProduct(f: string): string {
+  if (f.startsWith('blog')) return '진료케이스';
+  if (f === 'health_checkup' || f === 'disease_intro' || f.startsWith('image')) return '건강검진 리포트';
+  if (f === 'extract' || f === 'ocr') return '차트 추출';
+  if (f.includes('alimtalk') || f.includes('kakao')) return '알림톡';
+  if (f === 'assessment') return 'AI 평가';
+  return '기타';
+}
+const PRODUCT_COLOR: Record<string, string> = {
+  '진료케이스': '#6366f1',
+  '건강검진 리포트': '#10b981',
+  '차트 추출': '#f59e0b',
+  '알림톡': '#8b5cf6',
+  'AI 평가': '#ec4899',
+  '기타': '#94a3b8',
+};
 // 토큰은 ledger 의 실제 차감 정수값을 그대로 표시(잔액·사용량·내역 전부 정수).
 const fmtTok = (v: number) => Math.round(v).toLocaleString();
 // 전액 환불되어 net 0 인 차감(진료케이스) 그룹은 '-0'(=차감 안 됨)으로 표기.
@@ -178,13 +196,13 @@ export function SettingsModal({ open, onClose, initialTab }: { open: boolean; on
     const byDate = new Map<string, Record<string, number | string>>();
     for (const r of overview?.daily ?? []) {
       const row = byDate.get(r.date) ?? { date: r.date };
-      const fk = normFeature(r.feature);
+      const fk = featureProduct(r.feature);
       row[fk] = ((row[fk] as number) ?? 0) + (Number(r.tokens) || 0);
       byDate.set(r.date, row);
     }
     return [...byDate.values()].sort((a, b) => (String(a.date) < String(b.date) ? -1 : 1));
   }, [overview]);
-  const featureKeys = useMemo(() => [...new Set((overview?.daily ?? []).map((d) => normFeature(d.feature)))], [overview]);
+  const featureKeys = useMemo(() => [...new Set((overview?.daily ?? []).map((d) => featureProduct(d.feature)))], [overview]);
 
   // 사용·충전 내역을 작업(run) 단위로 그룹핑 — 건강검진/진료케이스 1건이 한 줄로 합쳐짐.
   const groupedLedger = useMemo<LedgerGroup[]>(() => {
@@ -379,7 +397,7 @@ export function SettingsModal({ open, onClose, initialTab }: { open: boolean; on
                         <Tooltip formatter={(v) => `${fmtTok(Number(v))} 토큰`} contentStyle={{ fontSize: 12 }} />
                         <Legend wrapperStyle={{ fontSize: 11 }} />
                         {featureKeys.map((fk, i) => (
-                          <Bar key={fk} dataKey={fk} stackId="u" fill={PALETTE[i % PALETTE.length]} name={featLabel(fk)} />
+                          <Bar key={fk} dataKey={fk} stackId="u" fill={PRODUCT_COLOR[fk] ?? PALETTE[i % PALETTE.length]} name={fk} />
                         ))}
                       </BarChart>
                     </ResponsiveContainer>
