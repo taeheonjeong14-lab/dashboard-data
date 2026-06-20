@@ -6,6 +6,7 @@ import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAx
 import { createClient } from '@/lib/supabase/client';
 import { inputStyle, primaryPillStyle, SegmentedToggle } from '@/lib/form-styles';
 import { MembersPanel } from './members-panel';
+import { SubscriptionPanel } from './subscription-panel';
 
 type Tab = 'basic' | 'usage' | 'members' | 'payment' | 'password';
 
@@ -456,31 +457,10 @@ export function SettingsModal({ open, onClose, initialTab }: { open: boolean; on
 
             {tab === 'payment' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                {/* 플랜 결제 */}
-                <div>
-                  <div style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 8 }}>플랜</div>
-                  <div style={{
-                    border: '1px dashed var(--border)', borderRadius: 10,
-                    padding: '22px 16px', textAlign: 'center', background: 'var(--bg-raised)',
-                  }}>
-                    <p style={{ margin: '0 0 14px', fontSize: 13, color: 'var(--text-muted)' }}>플랜 선택·결제는 준비 중입니다.</p>
-                    <button disabled style={primaryBtn(true)}>플랜 결제 (준비 중)</button>
-                  </div>
-                </div>
-
-                <div>
-                  <div style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 8 }}>등록된 결제수단</div>
-                  <div style={{
-                    border: '1px dashed var(--border)', borderRadius: 10,
-                    padding: '22px 16px', textAlign: 'center', background: 'var(--bg-raised)',
-                  }}>
-                    <CreditCard size={22} style={{ color: 'var(--text-muted)', marginBottom: 8 }} />
-                    <p style={{ margin: '0 0 14px', fontSize: 13, color: 'var(--text-muted)' }}>등록된 카드가 없습니다.</p>
-                    <button disabled style={primaryBtn(true)}>카드 등록 (준비 중)</button>
-                  </div>
-                </div>
+                <div style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text-secondary)' }}>구독</div>
+                <SubscriptionPanel />
                 <p style={{ margin: 0, fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.7 }}>
-                  * 카드 등록과 토큰 충전은 결제 연동(PG) 후 제공됩니다. 토큰 잔액·사용/충전 내역은 <b>토큰 사용량</b> 탭에서 확인할 수 있습니다.
+                  * 구독료는 보유 토큰에서 차감됩니다. 카드 등록·토큰 충전은 결제 연동(PG) 후 제공됩니다.
                 </p>
               </div>
             )}
