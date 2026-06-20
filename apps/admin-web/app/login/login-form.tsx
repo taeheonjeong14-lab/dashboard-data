@@ -21,14 +21,15 @@ const labelStyle: CSSProperties = {
 };
 
 const inputBase: CSSProperties = {
-  padding: '11px 12px',
-  background: 'var(--bg)',
-  border: '1px solid var(--border)',
-  borderRadius: 'var(--radius)',
+  padding: '11px 2px',
+  background: 'transparent',
+  border: 'none',
+  borderBottom: '1px solid var(--border-strong)',
+  borderRadius: 0,
   fontSize: 14,
   color: 'var(--text)',
   outline: 'none',
-  transition: 'border-color 0.15s, box-shadow 0.15s',
+  transition: 'border-color 0.15s',
 };
 
 const noticeBase: CSSProperties = {
@@ -69,8 +70,7 @@ export function AdminLoginForm({ forbidden }: Props) {
     if (focused !== name) return inputBase;
     return {
       ...inputBase,
-      borderColor: 'var(--accent)',
-      boxShadow: '0 0 0 3px var(--accent-subtle)',
+      borderBottomColor: 'var(--accent)',
     };
   }
 
