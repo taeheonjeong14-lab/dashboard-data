@@ -162,16 +162,17 @@ export default function AdminUsageDashboard() {
     const byRun = new Map<string, { g: LedgerGroup; feats: Set<string> }>();
     for (const r of data?.ledger ?? []) {
       const t = Number(r.tokens);
-      if (r.kind === 'charge' && r.runId) {
+      // 같은 run 의 charge(차감)와 adjust(바른플랜 환불)를 한 그룹으로 묶어 net 표시. 확장하면 조정 세부가 보임.
+      if ((r.kind === 'charge' || r.kind === 'adjust') && r.runId) {
         const hit = byRun.get(r.runId);
         if (hit) {
           hit.g.tokens += t;
-          hit.g.steps += 1;
+          if (r.kind === 'charge') hit.g.steps += 1;
           if (r.feature) hit.feats.add(r.feature);
         } else {
           const g: LedgerGroup = {
             key: `run:${r.runId}`, kind: 'charge', label: '', createdAt: r.createdAt, tokens: t,
-            balanceAfter: r.balanceAfter, steps: 1, runId: r.runId, ownerName: r.ownerName ?? null, patientName: r.patientName ?? null,
+            balanceAfter: r.balanceAfter, steps: r.kind === 'charge' ? 1 : 0, runId: r.runId, ownerName: r.ownerName ?? null, patientName: r.patientName ?? null,
           };
           byRun.set(r.runId, { g, feats: new Set(r.feature ? [r.feature] : []) });
           out.push(g);
@@ -188,6 +189,15 @@ export default function AdminUsageDashboard() {
     }
     for (const { g, feats } of byRun.values()) g.label = groupLabel(feats);
     return out.sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+  }, [data]);
+
+  // run 별 조정(바른플랜 환불) 합계 — 그룹 확장 시 세부에 표시.
+  const adjustByRun = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const r of data?.ledger ?? []) {
+      if (r.kind === 'adjust' && r.runId) m.set(r.runId, (m.get(r.runId) ?? 0) + (Number(r.tokens) || 0));
+    }
+    return m;
   }, [data]);
 
   return (
@@ -353,12 +363,18 @@ export default function AdminUsageDashboard() {
                             ) : null}
                           </div>
                         </div>
-                        {open ? (
-                          <div style={{ padding: '4px 2px 10px 24px', background: 'var(--bg-subtle, #f8fafc)' }}>
-                            {items.length === 0 ? (
-                              <div style={{ fontSize: 12, color: 'var(--text-muted)', padding: '4px 0' }}>세부 항목이 없습니다.</div>
-                            ) : (
-                              items.map((it, ii) => (
+                        {open ? (() => {
+                          const refund = g.runId ? (adjustByRun.get(g.runId) ?? 0) : 0;
+                          if (items.length === 0 && refund === 0) {
+                            return (
+                              <div style={{ padding: '4px 2px 10px 24px', background: 'var(--bg-subtle, #f8fafc)' }}>
+                                <div style={{ fontSize: 12, color: 'var(--text-muted)', padding: '4px 0' }}>세부 항목이 없습니다.</div>
+                              </div>
+                            );
+                          }
+                          return (
+                            <div style={{ padding: '4px 2px 10px 24px', background: 'var(--bg-subtle, #f8fafc)' }}>
+                              {items.map((it, ii) => (
                                 <div key={ii} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '4px 0', fontSize: 12.5, borderTop: ii ? '1px dashed var(--border)' : 'none' }}>
                                   <div style={{ color: 'var(--text-secondary)' }}>
                                     {itemLabel(it.feature)}
@@ -370,10 +386,16 @@ export default function AdminUsageDashboard() {
                                     {fmtTok(it.tokens)} 토큰 <span style={{ color: 'var(--text-muted)' }}>({usd(it.costUsd)})</span>
                                   </div>
                                 </div>
-                              ))
-                            )}
-                          </div>
-                        ) : null}
+                              ))}
+                              {refund !== 0 ? (
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '4px 0', fontSize: 12.5, borderTop: items.length ? '1px dashed var(--border)' : 'none' }}>
+                                  <div style={{ color: 'var(--success)' }}>바른플랜 환불 <span style={{ color: 'var(--text-muted)' }}>(조정)</span></div>
+                                  <div style={{ whiteSpace: 'nowrap', color: 'var(--success)' }}>+{fmtTok(refund)} 토큰</div>
+                                </div>
+                              ) : null}
+                            </div>
+                          );
+                        })() : null}
                       </div>
                     );
                   })}

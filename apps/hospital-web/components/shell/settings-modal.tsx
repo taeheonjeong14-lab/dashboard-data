@@ -188,15 +188,16 @@ export function SettingsModal({ open, onClose, initialTab }: { open: boolean; on
     const byRun = new Map<string, { g: LedgerGroup; feats: Set<string> }>();
     for (const r of overview?.ledger ?? []) {
       const t = Number(r.tokens);
-      if (r.kind === 'charge' && r.runId) {
+      // 같은 run 의 charge(차감)와 adjust(바른플랜 환불)를 한 그룹으로 묶어 net 만 보여준다.
+      if ((r.kind === 'charge' || r.kind === 'adjust') && r.runId) {
         const hit = byRun.get(r.runId);
         if (hit) {
-          // 행은 최신순 — 그룹의 날짜/잔액은 가장 최근(첫 등장) 값을 유지하고 토큰만 합산.
+          // 행은 최신순 — 그룹의 날짜/잔액은 가장 최근(첫 등장) 값을 유지하고 토큰만 합산(net).
           hit.g.tokens += t;
-          hit.g.steps += 1;
+          if (r.kind === 'charge') hit.g.steps += 1; // 단계 수는 실제 사용(charge)만 카운트
           if (r.feature) hit.feats.add(r.feature);
         } else {
-          const g: LedgerGroup = { key: `run:${r.runId}`, kind: 'charge', label: '', createdAt: r.createdAt, tokens: t, balanceAfter: r.balanceAfter, steps: 1, ownerName: r.ownerName ?? null, patientName: r.patientName ?? null };
+          const g: LedgerGroup = { key: `run:${r.runId}`, kind: 'charge', label: '', createdAt: r.createdAt, tokens: t, balanceAfter: r.balanceAfter, steps: r.kind === 'charge' ? 1 : 0, ownerName: r.ownerName ?? null, patientName: r.patientName ?? null };
           byRun.set(r.runId, { g, feats: new Set(r.feature ? [r.feature] : []) });
           out.push(g);
         }
