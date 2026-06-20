@@ -20,21 +20,12 @@ const PALETTE = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#3b82f6', '#8b5cf6
 const KIND_LABEL: Record<string, string> = { charge: '사용', grant: '관리자 지급', adjust: '조정' };
 const featLabel = (f: string) => FEATURE_LABEL[normFeature(f)] ?? f;
 
-// 사용량 그래프 — API 피처가 아니라 우리 "상품" 단위로 묶고 상품별 색을 쓴다.
-function featureProduct(f: string): string {
-  if (f.startsWith('blog')) return '진료케이스';
-  if (f === 'health_checkup' || f === 'disease_intro' || f.startsWith('image')) return '건강검진 리포트';
-  if (f === 'extract' || f === 'ocr') return '차트 추출';
-  if (f.includes('alimtalk') || f.includes('kakao')) return '알림톡';
-  if (f === 'assessment') return 'AI 평가';
-  return '기타';
-}
+// 사용량 그래프 — RPC(my_usage_overview)가 상품 단위(진료케이스/건강검진 리포트/사전문진/기타)로
+// 집계해 daily.feature 에 상품명을 담아준다. 여기선 상품별 색만 매핑.
 const PRODUCT_COLOR: Record<string, string> = {
   '진료케이스': '#6366f1',
   '건강검진 리포트': '#10b981',
-  '차트 추출': '#f59e0b',
-  '알림톡': '#8b5cf6',
-  'AI 평가': '#ec4899',
+  '사전문진': '#f59e0b',
   '기타': '#94a3b8',
 };
 // 토큰은 ledger 의 실제 차감 정수값을 그대로 표시(잔액·사용량·내역 전부 정수).
@@ -196,13 +187,13 @@ export function SettingsModal({ open, onClose, initialTab }: { open: boolean; on
     const byDate = new Map<string, Record<string, number | string>>();
     for (const r of overview?.daily ?? []) {
       const row = byDate.get(r.date) ?? { date: r.date };
-      const fk = featureProduct(r.feature);
+      const fk = r.feature || '기타'; // RPC 가 이미 상품명으로 집계해 줌
       row[fk] = ((row[fk] as number) ?? 0) + (Number(r.tokens) || 0);
       byDate.set(r.date, row);
     }
     return [...byDate.values()].sort((a, b) => (String(a.date) < String(b.date) ? -1 : 1));
   }, [overview]);
-  const featureKeys = useMemo(() => [...new Set((overview?.daily ?? []).map((d) => featureProduct(d.feature)))], [overview]);
+  const featureKeys = useMemo(() => [...new Set((overview?.daily ?? []).map((d) => d.feature || '기타'))], [overview]);
 
   // 사용·충전 내역을 작업(run) 단위로 그룹핑 — 건강검진/진료케이스 1건이 한 줄로 합쳐짐.
   const groupedLedger = useMemo<LedgerGroup[]>(() => {
