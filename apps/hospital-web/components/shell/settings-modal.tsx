@@ -21,6 +21,10 @@ const KIND_LABEL: Record<string, string> = { charge: '사용', grant: '관리자
 const featLabel = (f: string) => FEATURE_LABEL[normFeature(f)] ?? f;
 // 토큰은 ledger 의 실제 차감 정수값을 그대로 표시(잔액·사용량·내역 전부 정수).
 const fmtTok = (v: number) => Math.round(v).toLocaleString();
+// 전액 환불되어 net 0 인 차감(진료케이스) 그룹은 '-0'(=차감 안 됨)으로 표기.
+const isZeroCharge = (kind: string, tokens: number) => kind === 'charge' && Math.round(tokens) === 0;
+const fmtGroupTokens = (kind: string, tokens: number) =>
+  isZeroCharge(kind, tokens) ? '-0' : `${tokens > 0 ? '+' : ''}${fmtTok(tokens)}`;
 
 // 한 작업(run) 안의 기능들 → 대표 라벨. 진료케이스(블로그 4단계) > 건강검진 > 이미지 > 평가 > 추출 순.
 const CASE_FEATS = new Set(['blog_causal', 'blog_detail', 'blog_outline', 'blog_post', 'blog_images']);
@@ -424,8 +428,8 @@ export function SettingsModal({ open, onClose, initialTab }: { open: boolean; on
                               </div>
                             </div>
                             <div style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
-                              <div style={{ fontWeight: 700, color: g.tokens < 0 ? 'var(--danger)' : 'var(--success)' }}>
-                                {g.tokens > 0 ? '+' : ''}{fmtTok(g.tokens)}
+                              <div style={{ fontWeight: 700, color: isZeroCharge(g.kind, g.tokens) ? 'var(--danger)' : (g.tokens < 0 ? 'var(--danger)' : 'var(--success)') }}>
+                                {fmtGroupTokens(g.kind, g.tokens)}
                               </div>
                               {g.balanceAfter != null ? (
                                 <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>잔액 {fmtTok(Number(g.balanceAfter))}</div>

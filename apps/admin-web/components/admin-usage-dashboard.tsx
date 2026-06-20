@@ -74,6 +74,10 @@ const KIND_LABEL: Record<string, string> = { charge: '사용', grant: '관리자
 
 // 토큰은 ledger 의 실제 차감 정수값을 그대로 표시(operation 단위 ceil + ×20 + 환불 반영).
 const fmtTok = (v: number) => Math.round(v).toLocaleString();
+// 전액 환불되어 net 0 인 차감(진료케이스) 그룹은 '-0'(=차감 안 됨)으로 표기.
+const isZeroCharge = (kind: string, tokens: number) => kind === 'charge' && Math.round(tokens) === 0;
+const fmtGroupTokens = (kind: string, tokens: number) =>
+  isZeroCharge(kind, tokens) ? '-0' : `${tokens > 0 ? '+' : ''}${fmtTok(tokens)}`;
 const usd = (v: number) => `$${v.toFixed(v < 1 ? 4 : 2)}`;
 const krw = (v: number) => `₩${Math.round(v * KRW_PER_USD).toLocaleString()}`;
 // 잔액도 정수 표시. (과거 round(.,2) 차감 시절의 소수 잔액 잔재가 있어 표시는 반올림 — 실제 정리는 SQL 백필 권장)
@@ -355,8 +359,8 @@ export default function AdminUsageDashboard() {
                             </div>
                           </div>
                           <div style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
-                            <div style={{ fontSize: 13, fontWeight: 800, color: g.tokens < 0 ? 'var(--danger)' : 'var(--success)' }}>
-                              {g.tokens > 0 ? '+' : ''}{fmtTok(g.tokens)} 토큰
+                            <div style={{ fontSize: 13, fontWeight: 800, color: isZeroCharge(g.kind, g.tokens) ? 'var(--danger)' : (g.tokens < 0 ? 'var(--danger)' : 'var(--success)') }}>
+                              {fmtGroupTokens(g.kind, g.tokens)} 토큰
                             </div>
                             {g.balanceAfter != null ? (
                               <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>잔액 {fmtTok(Number(g.balanceAfter))}</div>
@@ -396,7 +400,7 @@ export default function AdminUsageDashboard() {
                               {refund !== 0 ? (
                                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '6px 0 2px', fontSize: 12.5, fontWeight: 700, borderTop: '1px solid var(--border)' }}>
                                   <div style={{ color: 'var(--text)' }}>합계 (net)</div>
-                                  <div style={{ whiteSpace: 'nowrap', color: g.tokens < 0 ? 'var(--danger)' : 'var(--text)' }}>{g.tokens > 0 ? '+' : ''}{fmtTok(g.tokens)} 토큰</div>
+                                  <div style={{ whiteSpace: 'nowrap', color: isZeroCharge(g.kind, g.tokens) ? 'var(--danger)' : (g.tokens < 0 ? 'var(--danger)' : 'var(--text)') }}>{fmtGroupTokens(g.kind, g.tokens)} 토큰</div>
                                 </div>
                               ) : null}
                             </div>
