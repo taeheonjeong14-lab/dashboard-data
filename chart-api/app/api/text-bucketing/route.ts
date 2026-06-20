@@ -2602,6 +2602,9 @@ export async function POST(request: NextRequest) {
     }
 
     // 과금: 이 추출 작업의 operationId + 사전 잔액 점검(0 이하면 차단, 토큰 미설정이면 통과).
+    // product: 호출부(processExtractJob)가 job.kind 로 넘긴 상품 코드(case_blog/health_report). 추출 차감을 상품에 귀속.
+    const productRaw = formData.get("product");
+    const extractProduct = typeof productRaw === "string" && productRaw.trim() ? productRaw.trim() : null;
     const extractOperationId = crypto.randomUUID();
     if (!(await hospitalHasTokens(hospitalId))) {
       return Response.json(
@@ -2768,7 +2771,7 @@ export async function POST(request: NextRequest) {
         : Promise.resolve(emptyOcr),
     ]);
     // 추출 작업 토큰 차감(추출+OCR usage 합산 → ceil($/0.10), 병원 잔액에서 1회).
-    await chargeOperationTokens(hospitalId, extractOperationId, "extract");
+    await chargeOperationTokens(hospitalId, extractOperationId, "extract", extractProduct);
     console.log(`[text-bucketing DEBUG] llmLines count=${llmLines.length}, first3=${JSON.stringify(llmLines.slice(0, 3))}, last3=${JSON.stringify(llmLines.slice(-3))}`);
     console.log(`[text-bucketing] OCR 결과: rows=${ocr.rows.length} (ocrConfigured=${ocrConfigured}) — rows>0 이면 OCR 동작, 0이면 실패/미동작`);
 

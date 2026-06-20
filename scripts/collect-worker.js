@@ -598,7 +598,7 @@ async function processAlimtalkOutbox() {
     const { data: rows, error } = await supabase
       .schema("health_report")
       .from("alimtalk_outbox")
-      .select("id, hospital_id, run_id, receiver, template_code, subject, emphasis_title, message, buttons, attempts")
+      .select("id, hospital_id, run_id, receiver, template_code, subject, emphasis_title, message, buttons, attempts, product_code")
       .eq("status", "queued")
       .order("created_at", { ascending: true })
       .limit(5);
@@ -645,6 +645,7 @@ async function processAlimtalkOutbox() {
           p_cost_krw: totalCost,
           p_run_id: row.run_id || null,
           p_token_value_usd: TOKEN_VALUE_USD,
+          p_product: row.product_code || null,
         });
         if (chargeErr) console.warn("[collect-worker] 알림톡 비용 과금 실패(무시):", chargeErr.message);
       }

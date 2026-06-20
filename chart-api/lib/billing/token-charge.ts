@@ -35,12 +35,13 @@ export async function chargeOperationTokens(
   hospitalId: string | null | undefined,
   operationId: string | null | undefined,
   feature?: string | null,
+  product?: string | null,
 ): Promise<{ tokens: number; balanceAfter: number } | null> {
   if (!hospitalId || !operationId) return null;
   try {
     const { rows } = await getChartPgPool().query<{ tokens: number; balance_after: number; cost_usd: number }>(
-      `SELECT * FROM billing.token_charge_operation($1, $2::uuid, $3, $4::numeric)`,
-      [hospitalId, operationId, feature ?? null, TOKEN_VALUE_USD],
+      `SELECT * FROM billing.token_charge_operation($1, $2::uuid, $3, $4::numeric, $5)`,
+      [hospitalId, operationId, feature ?? null, TOKEN_VALUE_USD, product ?? null],
     );
     if (rows.length === 0) return null; // 비용 0 또는 이미 청구됨
     return { tokens: Number(rows[0].tokens), balanceAfter: Number(rows[0].balance_after) };

@@ -104,8 +104,8 @@ export async function POST(request: NextRequest) {
     // 워커(collect-worker)가 발송하도록 outbox 에 적재한다. 워커가 꺼내 알리고로 보냄.
     const ins = await pool.query<{ id: string }>(
       `INSERT INTO health_report.alimtalk_outbox
-         (status, run_id, hospital_id, receiver, template_code, subject, emphasis_title, message, buttons, pdf_url)
-       VALUES ('queued', $1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8::jsonb, $9)
+         (status, run_id, hospital_id, receiver, template_code, subject, emphasis_title, message, buttons, pdf_url, product_code)
+       VALUES ('queued', $1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8::jsonb, $9, 'health_report')
        RETURNING id`,
       [
         runId,

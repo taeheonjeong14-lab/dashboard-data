@@ -34,6 +34,8 @@ async function callChartApiExtract(job: ExtractJob): Promise<string> {
   params.set('storageBucket', job.storage_bucket);
   params.set('chartType', job.chart_type);
   params.set('hospitalId', job.hospital_id);
+  // 추출 차감을 상품에 귀속시키기 위해 job.kind 를 상품 코드로 넘긴다.
+  params.set('product', job.kind === 'blog_case' ? 'case_blog' : 'health_report');
   const emphasis = (job.payload as { emphasis_text?: string }).emphasis_text;
   if (typeof emphasis === 'string' && emphasis) params.set('emphasisText', emphasis);
 

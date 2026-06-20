@@ -16,18 +16,19 @@ const FEATURE_LABEL: Record<string, string> = {
 // 진료케이스 블로그 단계(인과·진단치료세부·아웃라인·글)는 한 그룹 '진료케이스'로 합쳐 표시.
 const CASE_BLOG_FEATURES = new Set(['blog_causal', 'blog_detail', 'blog_outline', 'blog_post']);
 const normFeature = (f: string) => (CASE_BLOG_FEATURES.has(f) ? 'case_blog' : f);
-const PALETTE = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#3b82f6', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316', '#64748b'];
 const KIND_LABEL: Record<string, string> = { charge: '사용', grant: '관리자 지급', adjust: '조정' };
 const featLabel = (f: string) => FEATURE_LABEL[normFeature(f)] ?? f;
 
-// 사용량 그래프 — RPC(my_usage_overview)가 상품 단위(진료케이스/건강검진 리포트/사전문진/기타)로
-// 집계해 daily.feature 에 상품명을 담아준다. 여기선 상품별 색만 매핑.
-const PRODUCT_COLOR: Record<string, string> = {
-  '진료케이스': '#6366f1',
-  '건강검진 리포트': '#10b981',
-  '사전문진': '#f59e0b',
-  '기타': '#94a3b8',
+// 사용량 그래프 — RPC(my_usage_overview)가 상품 "코드"(case_blog/health_report/survey/etc)를
+// daily.feature 에 담아준다. 코드 → 한글 라벨·색 매핑. 새 상품 추가 시 여기에 한 줄만 추가하면 됨.
+const PRODUCT: Record<string, { label: string; color: string }> = {
+  case_blog: { label: '진료케이스', color: '#6366f1' },
+  health_report: { label: '건강검진 리포트', color: '#10b981' },
+  survey: { label: '사전문진', color: '#f59e0b' },
+  etc: { label: '기타', color: '#94a3b8' },
 };
+const productLabel = (c: string) => PRODUCT[c]?.label ?? c;
+const productColor = (c: string) => PRODUCT[c]?.color ?? '#94a3b8';
 // 토큰은 ledger 의 실제 차감 정수값을 그대로 표시(잔액·사용량·내역 전부 정수).
 const fmtTok = (v: number) => Math.round(v).toLocaleString();
 // 전액 환불되어 net 0 인 차감(진료케이스) 그룹은 '-0'(=차감 안 됨)으로 표기.
@@ -387,8 +388,8 @@ export function SettingsModal({ open, onClose, initialTab }: { open: boolean; on
                         <YAxis tick={{ fontSize: 11 }} width={40} label={{ value: '토큰', angle: -90, position: 'insideLeft', fontSize: 11 }} />
                         <Tooltip formatter={(v) => `${fmtTok(Number(v))} 토큰`} contentStyle={{ fontSize: 12 }} />
                         <Legend wrapperStyle={{ fontSize: 11 }} />
-                        {featureKeys.map((fk, i) => (
-                          <Bar key={fk} dataKey={fk} stackId="u" fill={PRODUCT_COLOR[fk] ?? PALETTE[i % PALETTE.length]} name={fk} />
+                        {featureKeys.map((fk) => (
+                          <Bar key={fk} dataKey={fk} stackId="u" fill={productColor(fk)} name={productLabel(fk)} />
                         ))}
                       </BarChart>
                     </ResponsiveContainer>
