@@ -1,0 +1,72 @@
+-- 바른플랜 환불 대상 확장: 진료케이스(blog) 작성에 쓴 "모든" 토큰을 환불한다.
+-- 기존엔 글쓰기 4단계(blog_causal/detail/outline/post)만 환불 → blog_images·blog_format 등은
+-- 차감만 되어 케이스 net 이 0 이 되지 않는 갭이 있었다.
+-- 변경: ×20 인건비 배율은 글쓰기 4단계에만(그대로), 환불은 feature LIKE 'blog%' 전체로 분리.
+create or replace function billing.token_charge_operation(
+  p_hospital_id     text,
+  p_operation_id    uuid,
+  p_feature         text default null,
+  p_token_value_usd numeric default 0.01
+) returns table(tokens numeric, balance_after numeric, cost_usd numeric)
+language plpgsql security definer as $$
+declare
+  v_cost          numeric;
+  v_tokens        numeric;
+  v_balance       numeric;
+  v_is_case_write boolean;  -- ×20 인건비 대상(글쓰기 4단계)
+  v_is_case       boolean;  -- 바른플랜 환불 대상(진료케이스 단계 전체)
+  v_refund        boolean;
+begin
+  if p_hospital_id is null or p_operation_id is null then
+    return;
+  end if;
+  if exists (select 1 from billing.token_ledger l where l.operation_id = p_operation_id and l.kind = 'charge') then
+    return; -- 이미 청구됨(멱등)
+  end if;
+  select coalesce(sum(u.cost_usd), 0) into v_cost
+    from billing.llm_usage u
+   where u.operation_id = p_operation_id and u.hospital_id = p_hospital_id::uuid;
+  if v_cost <= 0 then
+    return; -- 비용 없음
+  end if;
+
+  v_is_case_write := p_feature in ('blog_causal', 'blog_detail', 'blog_outline', 'blog_post');
+  v_is_case       := p_feature like 'blog%'; -- blog_causal/detail/outline/post/images/format ...
+  v_tokens        := ceil(v_cost / nullif(p_token_value_usd, 0));
+  if v_is_case_write then
+    v_tokens := v_tokens * 20; -- 글쓰기 단계만 인건비 ×20
+  end if;
+  if v_tokens <= 0 then
+    return;
+  end if;
+
+  -- 정상 차감
+  update core.hospitals
+     set token_balance = coalesce(token_balance, 0) - v_tokens
+   where id = p_hospital_id
+   returning token_balance into v_balance;
+  insert into billing.token_ledger(hospital_id, operation_id, feature, cost_usd, tokens, balance_after, kind)
+    values (p_hospital_id::uuid, p_operation_id, p_feature, v_cost, -v_tokens, v_balance, 'charge');
+
+  -- 바른플랜 활성 기간 + 진료케이스 단계(blog%)면 방금 차감분을 즉시 환불(기록 남김 → net 0).
+  if v_is_case then
+    select (h.barun_plan_enabled
+            and (h.barun_plan_start is null or current_date >= h.barun_plan_start)
+            and (h.barun_plan_end   is null or current_date <= h.barun_plan_end))
+      into v_refund
+      from core.hospitals h
+     where h.id = p_hospital_id;
+    if coalesce(v_refund, false) then
+      update core.hospitals
+         set token_balance = coalesce(token_balance, 0) + v_tokens
+       where id = p_hospital_id
+       returning token_balance into v_balance;
+      insert into billing.token_ledger(hospital_id, operation_id, feature, cost_usd, tokens, balance_after, kind, note)
+        values (p_hospital_id::uuid, p_operation_id, p_feature, 0, v_tokens, v_balance, 'adjust', 'barun_plan_refund');
+    end if;
+  end if;
+
+  return query select v_tokens, v_balance, v_cost;
+end $$;
+
+grant execute on function billing.token_charge_operation(text, uuid, text, numeric) to service_role;
