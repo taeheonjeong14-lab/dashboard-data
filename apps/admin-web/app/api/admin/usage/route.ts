@@ -137,12 +137,13 @@ export async function GET(request: NextRequest) {
             [hospitalIdParam, runIds],
           ),
           pool.query<{ run_id: string; feature: string; tokens: number }>(
-            `SELECT u.run_id, COALESCE(l.feature, '(기타)') AS feature, SUM(-l.tokens)::float8 AS tokens
+            // 순수 차감(charge)만, 부호 유지(음수). 환불(adjust)은 펼침에서 별도 라인으로 표시하므로 여기서 제외.
+            `SELECT u.run_id, COALESCE(l.feature, '(기타)') AS feature, SUM(l.tokens)::float8 AS tokens
                FROM billing.token_ledger l
                JOIN (SELECT DISTINCT operation_id, run_id FROM billing.llm_usage
                       WHERE hospital_id = $1::uuid AND run_id = ANY($2::uuid[]) AND operation_id IS NOT NULL) u
                  ON u.operation_id = l.operation_id
-              WHERE l.hospital_id = $1::uuid
+              WHERE l.hospital_id = $1::uuid AND l.kind = 'charge'
               GROUP BY u.run_id, l.feature`,
             [hospitalIdParam, runIds],
           ),

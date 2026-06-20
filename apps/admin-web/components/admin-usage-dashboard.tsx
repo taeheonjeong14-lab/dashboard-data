@@ -382,7 +382,7 @@ export default function AdminUsageDashboard() {
                                       {[it.provider, it.calls ? `${it.calls}회` : ''].filter(Boolean).map((s) => ` · ${s}`).join('')}
                                     </span>
                                   </div>
-                                  <div style={{ whiteSpace: 'nowrap', color: 'var(--text)' }}>
+                                  <div style={{ whiteSpace: 'nowrap', color: it.tokens < 0 ? 'var(--danger)' : 'var(--text)' }}>
                                     {fmtTok(it.tokens)} 토큰 <span style={{ color: 'var(--text-muted)' }}>({usd(it.costUsd)})</span>
                                   </div>
                                 </div>
@@ -391,6 +391,12 @@ export default function AdminUsageDashboard() {
                                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '4px 0', fontSize: 12.5, borderTop: items.length ? '1px dashed var(--border)' : 'none' }}>
                                   <div style={{ color: 'var(--success)' }}>바른플랜 환불 <span style={{ color: 'var(--text-muted)' }}>(조정)</span></div>
                                   <div style={{ whiteSpace: 'nowrap', color: 'var(--success)' }}>+{fmtTok(refund)} 토큰</div>
+                                </div>
+                              ) : null}
+                              {refund !== 0 ? (
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '6px 0 2px', fontSize: 12.5, fontWeight: 700, borderTop: '1px solid var(--border)' }}>
+                                  <div style={{ color: 'var(--text)' }}>합계 (net)</div>
+                                  <div style={{ whiteSpace: 'nowrap', color: g.tokens < 0 ? 'var(--danger)' : 'var(--text)' }}>{g.tokens > 0 ? '+' : ''}{fmtTok(g.tokens)} 토큰</div>
                                 </div>
                               ) : null}
                             </div>
