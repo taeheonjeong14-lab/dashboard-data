@@ -75,8 +75,8 @@ const MENU: { key: Tab; label: string; icon: typeof User; masterOnly?: boolean }
   { key: 'basic', label: '기본 정보', icon: User },
   { key: 'members', label: '조직 관리', icon: Users, masterOnly: true },
   { key: 'password', label: '비밀번호 변경', icon: KeyRound },
-  { key: 'usage', label: '토큰 사용량', icon: Coins },
-  { key: 'payment', label: '청구 및 결제', icon: CreditCard },
+  { key: 'usage', label: '토큰 사용량', icon: Coins, masterOnly: true },
+  { key: 'payment', label: '청구 및 결제', icon: CreditCard, masterOnly: true },
 ];
 
 export function SettingsModal({ open, onClose, initialTab }: { open: boolean; onClose: () => void; tokenBalance?: number; initialTab?: Tab }) {
@@ -355,7 +355,7 @@ export function SettingsModal({ open, onClose, initialTab }: { open: boolean; on
               )
             )}
 
-            {tab === 'usage' && (
+            {tab === 'usage' && isMaster && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                 {/* 1) 잔여 토큰 */}
                 <div style={{
@@ -455,7 +455,7 @@ export function SettingsModal({ open, onClose, initialTab }: { open: boolean; on
               </div>
             )}
 
-            {tab === 'payment' && (
+            {tab === 'payment' && isMaster && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                 <div style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text-secondary)' }}>구독</div>
                 <SubscriptionPanel />
