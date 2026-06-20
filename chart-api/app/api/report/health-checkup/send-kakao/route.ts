@@ -121,23 +121,8 @@ export async function POST(request: NextRequest) {
     );
     const outboxId = ins.rows[0]?.id;
 
-    // 워커가 보낼 때까지 잠깐 폴링해 결과를 즉시 돌려준다(최대 ~24초). 시간 초과면 "요청됨"으로 응답.
-    const deadline = Date.now() + 24_000;
-    while (outboxId && Date.now() < deadline) {
-      await new Promise((r) => setTimeout(r, 1500));
-      const { rows } = await pool.query<{ status: string; result_code: number | null; error: string | null }>(
-        `SELECT status, result_code, error FROM health_report.alimtalk_outbox WHERE id = $1::uuid`,
-        [outboxId],
-      );
-      const st = rows[0];
-      if (!st) break;
-      if (st.status === 'sent') return NextResponse.json({ ok: true });
-      if (st.status === 'failed') {
-        return NextResponse.json({ error: `발송 실패 (${st.result_code ?? ''}: ${st.error ?? ''})` }, { status: 502 });
-      }
-    }
-    // 아직 처리 중 — 큐에는 들어갔으니 곧 발송됨(워커가 처리)
-    return NextResponse.json({ ok: true, queued: true, message: '발송이 요청되었습니다. 곧 전송됩니다.' });
+    // 큐에 적재 즉시 응답(버튼 즉시 반응). 발송 결과(성공/실패)는 워커가 alimtalk_result 알림으로 전달한다.
+    return NextResponse.json({ ok: true, queued: true, outboxId, message: '발송이 요청되었습니다. 곧 전송됩니다.' });
   } catch (e) {
     console.error('POST send-kakao:', e);
     return NextResponse.json({ error: e instanceof Error ? e.message : '발송 실패' }, { status: 500 });
