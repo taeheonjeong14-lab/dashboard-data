@@ -108,6 +108,7 @@ export function SettingsModal({ open, onClose, initialTab }: { open: boolean; on
   const [hospital, setHospital] = useState<HospitalSettings | null>(null);
 
   const [usageDays, setUsageDays] = useState(30);
+  const [usageSub, setUsageSub] = useState<'buy' | 'history'>('history');
   const [overview, setOverview] = useState<Overview | null>(null);
   const [loadingOverview, setLoadingOverview] = useState(false);
   const [showLedger, setShowLedger] = useState(false); // '상세 내역 보기' 토글
@@ -375,6 +376,30 @@ export function SettingsModal({ open, onClose, initialTab }: { open: boolean; on
 
             {tab === 'usage' && isMaster && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                {/* 서브탭: 토큰 구매 | 사용 내역 */}
+                <div style={{ display: 'flex', gap: 4, borderBottom: '1px solid var(--border)' }}>
+                  {([['buy', '토큰 구매'], ['history', '사용 내역']] as const).map(([k, lbl]) => (
+                    <button key={k} type="button" onClick={() => setUsageSub(k)}
+                      style={{ padding: '8px 12px', fontSize: 13.5, fontWeight: usageSub === k ? 700 : 500, color: usageSub === k ? 'var(--accent)' : 'var(--text-muted)', background: 'transparent', border: 'none', borderBottom: `2px solid ${usageSub === k ? 'var(--accent)' : 'transparent'}`, marginBottom: -1, cursor: 'pointer' }}>
+                      {lbl}
+                    </button>
+                  ))}
+                </div>
+
+                {usageSub === 'buy' && (
+                  <div style={{ minHeight: '32vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12, textAlign: 'center' }}>
+                    <span style={{ display: 'inline-flex', width: 48, height: 48, borderRadius: 14, background: 'var(--bg-raised)', alignItems: 'center', justifyContent: 'center' }}>
+                      <Coins size={22} style={{ color: 'var(--text-muted)' }} />
+                    </span>
+                    <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)' }}>준비 중입니다</div>
+                    <p style={{ margin: 0, fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.7 }}>
+                      토큰 구매(충전)는 결제 연동(PG) 후 제공됩니다.
+                    </p>
+                  </div>
+                )}
+
+                {usageSub === 'history' && (
+                <>
                 {/* 1) 잔여 토큰 */}
                 <div style={{
                   display: 'flex', alignItems: 'baseline', justifyContent: 'space-between',
@@ -470,6 +495,8 @@ export function SettingsModal({ open, onClose, initialTab }: { open: boolean; on
                     </div>
                   )}
                 </div>
+                </>
+                )}
               </div>
             )}
 
