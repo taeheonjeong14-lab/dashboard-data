@@ -53,6 +53,7 @@ const FEATURE_LABEL: Record<string, string> = {
   image_analysis: '이미지분석',
   assessment: 'AI평가',
   kakao_alimtalk: '알림톡',
+  subscription: '운영 패키지',
 };
 // 진료케이스 블로그 단계(인과·진단치료세부·아웃라인·글)는 한 그룹 '진료케이스'로 합쳐 표시.
 const CASE_BLOG_FEATURES = new Set(['blog_causal', 'blog_detail', 'blog_outline', 'blog_post']);
@@ -208,6 +209,7 @@ export default function AdminUsageDashboard() {
   const groupedLedger = useMemo<LedgerGroup[]>(() => {
     const out: LedgerGroup[] = [];
     const byRun = new Map<string, { g: LedgerGroup; feats: Set<string> }>();
+    const byFeat = new Map<string, LedgerGroup>();
     for (const r of data?.ledger ?? []) {
       const t = Number(r.tokens);
       // 같은 run 의 charge(차감)와 adjust(바른플랜 환불)를 한 그룹으로 묶어 net 표시. 확장하면 조정 세부가 보임.
@@ -225,11 +227,29 @@ export default function AdminUsageDashboard() {
           byRun.set(r.runId, { g, feats: new Set(r.feature ? [r.feature] : []) });
           out.push(g);
         }
+      } else if ((r.kind === 'charge' || r.kind === 'adjust') && r.feature) {
+        // runId 없는 차감/환불(구독 월정액·알림톡 등)은 같은 날·같은 기능끼리 한 줄로 net(hospital-ui 와 동일).
+        const feat = normFeature(r.feature);
+        const key = `feat:${feat}:${(r.createdAt || '').slice(0, 10)}`;
+        const hit = byFeat.get(key);
+        if (hit) {
+          hit.tokens += t;
+          if (r.kind === 'charge') hit.steps += 1;
+        } else {
+          const g: LedgerGroup = {
+            key, kind: 'charge', label: featLabel(feat), createdAt: r.createdAt, tokens: t,
+            balanceAfter: r.balanceAfter, steps: r.kind === 'charge' ? 1 : 0, runId: null, ownerName: null, patientName: null,
+          };
+          byFeat.set(key, g);
+          out.push(g);
+        }
       } else {
         out.push({
           key: `${r.kind}:${r.createdAt}:${out.length}`,
           kind: r.kind,
-          label: r.kind === 'charge' ? featLabel(r.feature ?? '') : (KIND_LABEL[r.kind] ?? r.kind),
+          label: r.kind === 'charge'
+            ? featLabel(r.feature ?? '')
+            : (r.kind === 'grant' && r.feature === 'token_purchase' ? '토큰 구매' : (KIND_LABEL[r.kind] ?? r.kind)),
           createdAt: r.createdAt, tokens: t, balanceAfter: r.balanceAfter, steps: 1, runId: null,
           ownerName: r.ownerName ?? null, patientName: r.patientName ?? null,
         });
@@ -421,7 +441,7 @@ export default function AdminUsageDashboard() {
                           <div style={{ minWidth: 0 }}>
                             <div style={{ fontSize: 13, fontWeight: 700, color: g.kind === 'charge' ? 'var(--text)' : 'var(--success)' }}>
                               {expandable ? <span style={{ color: 'var(--text-muted)', fontWeight: 600, marginRight: 4 }}>{open ? '▼' : '▶'}</span> : null}
-                              {g.kind === 'charge' ? g.label : (KIND_LABEL[g.kind] ?? g.kind)}
+                              {g.label}
                               {who ? <span style={{ color: 'var(--text-secondary)', fontWeight: 500 }}> · {who}</span> : null}
                               {g.kind === 'charge' && g.steps > 1 ? <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}> · {g.steps}단계</span> : null}
                             </div>

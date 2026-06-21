@@ -68,7 +68,7 @@ function LedgerRow({ g, border }: { g: LedgerGroup; border: boolean }) {
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '11px 14px', borderTop: border ? '1px solid var(--border)' : 'none', fontSize: 13 }}>
       <div style={{ minWidth: 0 }}>
         <span style={{ fontWeight: 700, color: g.kind === 'charge' ? 'var(--text)' : 'var(--success)' }}>
-          {g.kind === 'charge' ? g.label : (KIND_LABEL[g.kind] ?? g.kind)}
+          {g.label}
         </span>
         {g.patientName || g.ownerName ? (
           <span style={{ color: 'var(--text-secondary)' }}> · {[g.patientName, g.ownerName].filter(Boolean).join(' / ')}</span>
@@ -308,7 +308,9 @@ export function SettingsModal({ open, onClose, initialTab }: { open: boolean; on
         out.push({
           key: `${r.kind}:${r.createdAt}:${out.length}`,
           kind: r.kind,
-          label: r.kind === 'charge' ? featLabel(r.feature ?? '') : (KIND_LABEL[r.kind] ?? r.kind),
+          label: r.kind === 'charge'
+            ? featLabel(r.feature ?? '')
+            : (r.kind === 'grant' && r.feature === 'token_purchase' ? '토큰 구매' : (KIND_LABEL[r.kind] ?? r.kind)),
           createdAt: r.createdAt, tokens: t, balanceAfter: r.balanceAfter, steps: 1,
           ownerName: r.ownerName ?? null, patientName: r.patientName ?? null,
         });
