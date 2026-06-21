@@ -48,7 +48,7 @@ function formatRunRailDateShort(iso: string): string {
 }
 
 export default function AdminChartData() {
-  const { lastRunId } = useChartExtraction();
+  const { lastRunId, status: extractionStatus } = useChartExtraction();
   // 홈 "처리할 작업" 등에서 ?type=&stage= 로 진입하면 해당 필터를 자동 적용.
   const searchParams = useSearchParams();
   const initType = (searchParams.get('type') ?? '').split(',').filter((v) => (TYPE_FILTERS as readonly string[]).includes(v));
@@ -168,6 +168,20 @@ export default function AdminChartData() {
       dialog.close();
     }
   }, [uploadModalOpen]);
+
+  // 추출이 성공하면 업로드 모달을 자동으로 닫는다.
+  // 모달 '열 때'의 runId 를 baseline 으로 두고(이후 변화엔 갱신 안 함), 그와 다른 runId 로 success 가 되면 = 이번 업로드가 성공.
+  const lastRunIdRef = useRef(lastRunId);
+  useEffect(() => { lastRunIdRef.current = lastRunId; }, [lastRunId]);
+  const modalBaselineRunIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (uploadModalOpen) modalBaselineRunIdRef.current = lastRunIdRef.current;
+  }, [uploadModalOpen]);
+  useEffect(() => {
+    if (uploadModalOpen && extractionStatus === 'success' && lastRunId && lastRunId !== modalBaselineRunIdRef.current) {
+      setUploadModalOpen(false);
+    }
+  }, [extractionStatus, lastRunId, uploadModalOpen]);
 
   const hospitalOptions = useMemo(
     () => [...new Set(history.map((h) => h.hospitalName?.trim() ?? '').filter(Boolean))].sort(),
