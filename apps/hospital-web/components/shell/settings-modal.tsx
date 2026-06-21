@@ -108,7 +108,7 @@ export function SettingsModal({ open, onClose, initialTab }: { open: boolean; on
   const [hospital, setHospital] = useState<HospitalSettings | null>(null);
 
   const [usageDays, setUsageDays] = useState(30);
-  const [usageSub, setUsageSub] = useState<'buy' | 'history'>('history');
+  const [usageSub, setUsageSub] = useState<'buy' | 'history'>('buy');
   const [overview, setOverview] = useState<Overview | null>(null);
   const [loadingOverview, setLoadingOverview] = useState(false);
   const [showLedger, setShowLedger] = useState(false); // '상세 내역 보기' 토글
@@ -188,6 +188,11 @@ export function SettingsModal({ open, onClose, initialTab }: { open: boolean; on
     if (!open) return;
     if (tab === 'usage') void loadOverview(usageDays);
   }, [open, tab, usageDays, loadOverview]);
+
+  // 토큰 관리 진입 시 항상 '토큰 구매'를 기본으로. (기간 변경엔 반응 안 하도록 tab/open 만 의존)
+  useEffect(() => {
+    if (open && tab === 'usage') setUsageSub('buy');
+  }, [open, tab]);
 
   const chartData = useMemo(() => {
     const byDate = new Map<string, Record<string, number | string>>();
@@ -387,32 +392,34 @@ export function SettingsModal({ open, onClose, initialTab }: { open: boolean; on
                 </div>
 
                 {usageSub === 'buy' && (
-                  <div style={{ minHeight: '32vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12, textAlign: 'center' }}>
-                    <span style={{ display: 'inline-flex', width: 48, height: 48, borderRadius: 14, background: 'var(--bg-raised)', alignItems: 'center', justifyContent: 'center' }}>
-                      <Coins size={22} style={{ color: 'var(--text-muted)' }} />
-                    </span>
-                    <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)' }}>준비 중입니다</div>
-                    <p style={{ margin: 0, fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.7 }}>
-                      토큰 구매(충전)는 결제 연동(PG) 후 제공됩니다.
-                    </p>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                    {/* 잔여 토큰 */}
+                    <div style={{
+                      display: 'flex', alignItems: 'baseline', justifyContent: 'space-between',
+                      padding: '14px 16px', borderRadius: 'var(--radius)', background: 'var(--bg-raised)',
+                    }}>
+                      <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>현재 보유 토큰</span>
+                      <span style={{ fontSize: 22, fontWeight: 800, color: 'var(--text)' }}>
+                        {overview?.balance == null ? '-' : fmtTok(overview.balance)}{' '}
+                        <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-muted)' }}>토큰</span>
+                      </span>
+                    </div>
+                    {/* 충전 — 준비 중 */}
+                    <div style={{ minHeight: '24vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12, textAlign: 'center' }}>
+                      <span style={{ display: 'inline-flex', width: 48, height: 48, borderRadius: 14, background: 'var(--bg-raised)', alignItems: 'center', justifyContent: 'center' }}>
+                        <Coins size={22} style={{ color: 'var(--text-muted)' }} />
+                      </span>
+                      <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)' }}>준비 중입니다</div>
+                      <p style={{ margin: 0, fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.7 }}>
+                        토큰 구매(충전)는 결제 연동(PG) 후 제공됩니다.
+                      </p>
+                    </div>
                   </div>
                 )}
 
                 {usageSub === 'history' && (
                 <>
-                {/* 1) 잔여 토큰 */}
-                <div style={{
-                  display: 'flex', alignItems: 'baseline', justifyContent: 'space-between',
-                  padding: '14px 16px', borderRadius: 'var(--radius)', background: 'var(--bg-raised)',
-                }}>
-                  <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>현재 보유 토큰</span>
-                  <span style={{ fontSize: 22, fontWeight: 800, color: 'var(--text)' }}>
-                    {overview?.balance == null ? '-' : fmtTok(overview.balance)}{' '}
-                    <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-muted)' }}>토큰</span>
-                  </span>
-                </div>
-
-                {/* 2) 날짜별/카테고리별 사용량 */}
+                {/* 날짜별/카테고리별 사용량 */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                   <SegmentedToggle
                     options={['7일', '30일', '90일']}
