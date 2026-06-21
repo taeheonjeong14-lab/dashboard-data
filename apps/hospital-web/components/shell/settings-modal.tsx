@@ -37,6 +37,12 @@ const TOKEN_PACKAGES: { id: string; base: number; bonus: number; bonusPct: numbe
   { id: 'p3', base: 4800, bonus: 240, bonusPct: 5, price: 400000, tag: '최대 적립' },
 ];
 const fmtWon = (v: number) => v.toLocaleString('ko-KR');
+type TokenOrder = { orderNo: string; baseTokens: number; bonusTokens: number; totalTokens: number; priceKrw: number; status?: string; createdAt?: string; paidAt?: string | null };
+const ORDER_STATUS: Record<string, { label: string; color: string }> = {
+  pending: { label: '입금 대기', color: 'var(--warning, #b45309)' },
+  paid: { label: '충전 완료', color: 'var(--success)' },
+  canceled: { label: '취소', color: 'var(--text-muted)' },
+};
 
 // 한 작업(run) 안의 기능들 → 대표 라벨. 진료케이스(블로그 4단계) > 건강검진 > 이미지 > 평가 > 추출 순.
 const CASE_FEATS = new Set(['blog_causal', 'blog_detail', 'blog_outline', 'blog_post', 'blog_images']);
@@ -136,7 +142,10 @@ export function SettingsModal({ open, onClose, initialTab }: { open: boolean; on
 
   const [openMonths, setOpenMonths] = useState<Set<string>>(new Set());
   const [selectedPkg, setSelectedPkg] = useState('p2');
-  const [purchaseNotice, setPurchaseNotice] = useState(false);
+  const [placing, setPlacing] = useState(false);
+  const [placedOrder, setPlacedOrder] = useState<TokenOrder | null>(null);
+  const [myOrders, setMyOrders] = useState<TokenOrder[]>([]);
+  const [orderMsg, setOrderMsg] = useState<string | null>(null);
   const [usageSub, setUsageSub] = useState<'buy' | 'history'>('buy');
   const [overview, setOverview] = useState<Overview | null>(null);
   const [loadingOverview, setLoadingOverview] = useState(false);
@@ -219,8 +228,45 @@ export function SettingsModal({ open, onClose, initialTab }: { open: boolean; on
 
   // 토큰 관리 진입 시 항상 '토큰 구매' 선택 스텝부터.
   useEffect(() => {
-    if (open && tab === 'usage') { setUsageSub('buy'); setPurchaseNotice(false); }
+    if (open && tab === 'usage') { setUsageSub('buy'); setPlacedOrder(null); setOrderMsg(null); }
   }, [open, tab]);
+
+  const loadOrders = useCallback(async () => {
+    try {
+      const res = await fetch('/api/token-orders', { credentials: 'include' });
+      const d = (await res.json()) as { orders?: TokenOrder[] };
+      if (res.ok) setMyOrders(d.orders ?? []);
+    } catch { /* noop */ }
+  }, []);
+  useEffect(() => {
+    if (open && tab === 'usage' && usageSub === 'buy') void loadOrders();
+  }, [open, tab, usageSub, loadOrders]);
+
+  async function placeOrder() {
+    const pkg = TOKEN_PACKAGES.find((p) => p.id === selectedPkg) ?? TOKEN_PACKAGES[0];
+    const ok = window.confirm(
+      `${fmtTok(pkg.base)}${pkg.bonus > 0 ? ` + ${fmtTok(pkg.bonus)}` : ''}토큰을 ${fmtWon(pkg.price)}원에 주문하시겠어요?\n주문 후 입금 안내를 드립니다.`,
+    );
+    if (!ok) return;
+    setPlacing(true); setOrderMsg(null);
+    try {
+      const res = await fetch('/api/token-orders', {
+        method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ packageId: selectedPkg }),
+      });
+      const d = (await res.json()) as { order?: TokenOrder; error?: string };
+      if (!res.ok || !d.order) {
+        setOrderMsg(d.error === 'not_master' ? '구매는 마스터만 가능합니다.' : (d.error ?? '주문에 실패했습니다.'));
+        return;
+      }
+      setPlacedOrder(d.order);
+      void loadOrders();
+    } catch {
+      setOrderMsg('네트워크 오류가 발생했습니다.');
+    } finally {
+      setPlacing(false);
+    }
+  }
 
   // 사용·충전 내역을 작업(run) 단위로 그룹핑 — 건강검진/진료케이스 1건이 한 줄로 합쳐짐.
   const groupedLedger = useMemo<LedgerGroup[]>(() => {
@@ -283,8 +329,6 @@ export function SettingsModal({ open, onClose, initialTab }: { open: boolean; on
     }
     return [...m.values()]; // groupedLedger 가 최신순이라 월도 최신순
   }, [groupedLedger]);
-
-  const selectedPackage = TOKEN_PACKAGES.find((p) => p.id === selectedPkg) ?? TOKEN_PACKAGES[0];
 
   if (!open) return null;
 
@@ -423,27 +467,36 @@ export function SettingsModal({ open, onClose, initialTab }: { open: boolean; on
                   ))}
                 </div>
 
-                {usageSub === 'buy' && (purchaseNotice ? (
-                  /* 입금 안내 — 단독 스텝(또렷하게) */
+                {usageSub === 'buy' && (placedOrder ? (
+                  /* 주문 접수 + 입금 안내 — 단독 스텝 */
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                    <button type="button" onClick={() => setPurchaseNotice(false)}
+                    <button type="button" onClick={() => setPlacedOrder(null)}
                       style={{ alignSelf: 'flex-start', display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', background: 'transparent', border: 'none', cursor: 'pointer', padding: 0 }}>
-                      ← 상품 다시 선택
+                      ← 토큰 구매
                     </button>
+
+                    {/* 접수 확인 */}
+                    <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--text)' }}>주문이 접수되었습니다</div>
+                      <div style={{ fontSize: 12.5, color: 'var(--text-secondary)' }}>
+                        주문번호 <b style={{ color: 'var(--text)' }}>#{placedOrder.orderNo}</b>
+                        <span style={{ marginLeft: 8, fontSize: 11.5, fontWeight: 700, color: '#b45309', background: '#fef3c7', padding: '2px 8px', borderRadius: 999 }}>● 입금 대기 중</span>
+                      </div>
+                    </div>
 
                     {/* 주문 요약 */}
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '12px 14px', borderRadius: 10, background: 'var(--bg-raised)' }}>
                       <span style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--text)' }}>
-                        {fmtTok(selectedPackage.base)}{selectedPackage.bonus > 0 ? <span style={{ color: 'var(--accent)' }}> + {fmtTok(selectedPackage.bonus)}</span> : null} 토큰 충전
+                        {fmtTok(placedOrder.baseTokens)}{placedOrder.bonusTokens > 0 ? <span style={{ color: 'var(--accent)' }}> + {fmtTok(placedOrder.bonusTokens)}</span> : null} 토큰 충전
                       </span>
-                      <span style={{ fontSize: 14, fontWeight: 800, color: 'var(--text)' }}>{fmtWon(selectedPackage.price)}원</span>
+                      <span style={{ fontSize: 14, fontWeight: 800, color: 'var(--text)' }}>{fmtWon(placedOrder.priceKrw)}원</span>
                     </div>
 
                     {/* 입금액 강조 */}
                     <div style={{ textAlign: 'center', marginTop: 4 }}>
                       <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 4 }}>아래 계좌로 입금해 주세요</div>
                       <div style={{ fontSize: 30, fontWeight: 900, color: 'var(--accent)', letterSpacing: '-0.02em' }}>
-                        {fmtWon(selectedPackage.price)}<span style={{ fontSize: 18, fontWeight: 800 }}>원</span>
+                        {fmtWon(placedOrder.priceKrw)}<span style={{ fontSize: 18, fontWeight: 800 }}>원</span>
                       </div>
                     </div>
 
@@ -462,7 +515,7 @@ export function SettingsModal({ open, onClose, initialTab }: { open: boolean; on
 
                     <p style={{ margin: 0, fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.8 }}>
                       · 입금자명을 <b>병원명</b>으로 해주시면 확인이 빨라요.<br />
-                      · 입금 확인 후 영업일 기준 토큰이 충전됩니다.<br />
+                      · 입금이 확인되면 토큰이 충전됩니다(영업일 기준).<br />
                       · 카드 결제는 추후 제공됩니다.
                     </p>
                   </div>
@@ -524,13 +577,35 @@ export function SettingsModal({ open, onClose, initialTab }: { open: boolean; on
                       })}
                     </div>
 
+                    {orderMsg ? <Msg type="error" text={orderMsg} /> : null}
                     <button
                       type="button"
-                      onClick={() => setPurchaseNotice(true)}
-                      style={{ marginTop: 2, padding: '12px 16px', fontSize: 14.5, fontWeight: 700, color: '#fff', background: 'var(--accent)', border: 'none', borderRadius: 'var(--radius)', cursor: 'pointer' }}
+                      disabled={placing}
+                      onClick={() => void placeOrder()}
+                      style={{ marginTop: 2, padding: '12px 16px', fontSize: 14.5, fontWeight: 700, color: '#fff', background: placing ? 'var(--text-muted)' : 'var(--accent)', border: 'none', borderRadius: 'var(--radius)', cursor: placing ? 'default' : 'pointer' }}
                     >
-                      구매하기
+                      {placing ? '주문 중…' : '구매하기'}
                     </button>
+
+                    {myOrders.length > 0 ? (
+                      <div style={{ marginTop: 4 }}>
+                        <div style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 8 }}>내 주문</div>
+                        <div style={{ border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden' }}>
+                          {myOrders.slice(0, 5).map((o, i) => {
+                            const st = ORDER_STATUS[o.status ?? ''] ?? { label: o.status ?? '', color: 'var(--text-muted)' };
+                            return (
+                              <div key={o.orderNo} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, padding: '10px 12px', borderTop: i ? '1px solid var(--border)' : 'none', fontSize: 12.5 }}>
+                                <div style={{ minWidth: 0 }}>
+                                  <div style={{ fontWeight: 700, color: 'var(--text)' }}>{fmtTok(o.totalTokens)}토큰 · {fmtWon(o.priceKrw)}원</div>
+                                  <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>#{o.orderNo}{o.createdAt ? ` · ${new Date(o.createdAt).toLocaleDateString('ko-KR')}` : ''}</div>
+                                </div>
+                                <span style={{ fontSize: 11.5, fontWeight: 700, color: st.color, whiteSpace: 'nowrap' }}>{st.label}</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ) : null}
                   </div>
                 ))}
 
