@@ -256,7 +256,7 @@ export async function POST(request: NextRequest) {
     console.log('[chart-extraction] chart-api 응답: HTTP %d', proxyRes.status);
 
     const proxyText = await proxyRes.text();
-    let proxyPayload: { runId?: string; friendlyId?: string; error?: string; stack?: string; _debug?: unknown };
+    let proxyPayload: { runId?: string; friendlyId?: string; error?: string; stack?: string; stage?: string; _debug?: unknown };
     try {
       proxyPayload = JSON.parse(proxyText) as typeof proxyPayload;
     } catch {
@@ -277,7 +277,7 @@ export async function POST(request: NextRequest) {
     if (!proxyRes.ok) {
       console.error('chart-api text-bucketing error:', proxyRes.status, proxyPayload);
       return NextResponse.json(
-        { error: proxyPayload.error ?? '추출 서비스 오류가 발생했습니다.', stack: proxyPayload.stack },
+        { error: proxyPayload.error ?? '추출 서비스 오류가 발생했습니다.', stage: proxyPayload.stage, stack: proxyPayload.stack },
         { status: proxyRes.status >= 400 && proxyRes.status < 600 ? proxyRes.status : 500 },
       );
     }

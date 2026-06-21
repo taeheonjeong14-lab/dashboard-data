@@ -2580,6 +2580,7 @@ export async function POST(request: NextRequest) {
 
   console.log("[text-bucketing] POST 수신 content-type:", request.headers.get("content-type"));
 
+  let stage = "init"; // 디버그(임시): 크래시 단계 추적
   try {
     const labDebugEnabled = process.env.LAB_DEBUG === "true";
     const formData = await request.formData();
@@ -2845,6 +2846,7 @@ export async function POST(request: NextRequest) {
 
     const sanitizedLines = [...pasteLines, ...effectivePdfLines];
 
+    stage = "assignLinesToBuckets";
     let buckets = assignLinesToBuckets(sanitizedLines, ocr.rows, chartType);
     let physicalExamBucket: (typeof buckets)["vitals"] | undefined;
     if (chartType === "efriends") {
@@ -2859,11 +2861,13 @@ export async function POST(request: NextRequest) {
     }
     const physicalExamItems =
       chartType === "efriends" ? parseEfriendsPhysicalExamItemsFromVitalsLines(buckets.vitals) : [];
+    stage = "vitals";
     const mergedVitals = mergeVitalsWithPhysicalExamItems(
       parseVitalsFromLines(sanitizedLines, chartType),
       physicalExamItems,
     );
 
+    stage = "chartBody";
     const efriendsDirectBlocks = efriendsChartBodyByDateFromBlocks(efriendsChartBlocks);
     let chartBodyByDate =
       chartType === "efriends"
@@ -2885,9 +2889,12 @@ export async function POST(request: NextRequest) {
     const allBucketLines = Object.values(buckets).flat();
     const correctedCount = allBucketLines.filter((line) => line.corrected).length;
 
+    stage = "groupLabLinesByDate";
     const labLineGroups = groupLabLinesByDate(buckets.lab);
     const chartTextForBasicInfo = sanitizedLines.map((line) => line.text).join("\n");
+    stage = "parseBasicInfoFromText";
     const parsedBasicInfo = parseBasicInfoFromText(chartTextForBasicInfo, chartType, buckets.basicInfo);
+    stage = "detectSpeciesProfile";
     const labCanonicalSpecies = detectSpeciesProfile(parsedBasicInfo.species);
     const useLabSinglePass = process.env.LAB_SINGLE_PASS === "true";
     const labItemsSource = "rules" as const;
@@ -2909,6 +2916,7 @@ export async function POST(request: NextRequest) {
     }> = [];
     // Use grouped lab lines as the single source of truth.
     // This keeps grouping deterministic and avoids cross-date spillover.
+    stage = "labItems";
     for (const group of labLineGroups) {
       const parsed = sanitizeLabItems(
         parseLabItemsFromGroupLines(group.lines, chartType),
@@ -3174,6 +3182,7 @@ export async function POST(request: NextRequest) {
       {
         error: `Text bucket pipeline failed: ${message}`,
         // 디버그(임시): 정확한 크래시 위치 확인용 — 잡고 나면 제거.
+        stage,
         stack: stack.split("\n").slice(0, 8).join("\n"),
         ...(exposeOpenAiErrorDetailsInResponse() && openAiDetails ? { openAiError: openAiDetails } : {}),
       },
