@@ -217,9 +217,9 @@ export function SettingsModal({ open, onClose, initialTab }: { open: boolean; on
     if (tab === 'usage') void loadOverview(DETAIL_DAYS);
   }, [open, tab, loadOverview]);
 
-  // 토큰 관리 진입 시 항상 '토큰 구매'를 기본으로.
+  // 토큰 관리 진입 시 항상 '토큰 구매' 선택 스텝부터.
   useEffect(() => {
-    if (open && tab === 'usage') setUsageSub('buy');
+    if (open && tab === 'usage') { setUsageSub('buy'); setPurchaseNotice(false); }
   }, [open, tab]);
 
   // 사용·충전 내역을 작업(run) 단위로 그룹핑 — 건강검진/진료케이스 1건이 한 줄로 합쳐짐.
@@ -423,7 +423,51 @@ export function SettingsModal({ open, onClose, initialTab }: { open: boolean; on
                   ))}
                 </div>
 
-                {usageSub === 'buy' && (
+                {usageSub === 'buy' && (purchaseNotice ? (
+                  /* 입금 안내 — 단독 스텝(또렷하게) */
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                    <button type="button" onClick={() => setPurchaseNotice(false)}
+                      style={{ alignSelf: 'flex-start', display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', background: 'transparent', border: 'none', cursor: 'pointer', padding: 0 }}>
+                      ← 상품 다시 선택
+                    </button>
+
+                    {/* 주문 요약 */}
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '12px 14px', borderRadius: 10, background: 'var(--bg-raised)' }}>
+                      <span style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--text)' }}>
+                        {fmtTok(selectedPackage.base)}{selectedPackage.bonus > 0 ? <span style={{ color: 'var(--accent)' }}> + {fmtTok(selectedPackage.bonus)}</span> : null} 토큰 충전
+                      </span>
+                      <span style={{ fontSize: 14, fontWeight: 800, color: 'var(--text)' }}>{fmtWon(selectedPackage.price)}원</span>
+                    </div>
+
+                    {/* 입금액 강조 */}
+                    <div style={{ textAlign: 'center', marginTop: 4 }}>
+                      <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 4 }}>아래 계좌로 입금해 주세요</div>
+                      <div style={{ fontSize: 30, fontWeight: 900, color: 'var(--accent)', letterSpacing: '-0.02em' }}>
+                        {fmtWon(selectedPackage.price)}<span style={{ fontSize: 18, fontWeight: 800 }}>원</span>
+                      </div>
+                    </div>
+
+                    {/* 계좌 박스 */}
+                    <div style={{ border: '1.5px solid var(--accent)', borderRadius: 12, padding: '16px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>국민은행</div>
+                        <div style={{ fontSize: 19, fontWeight: 800, color: 'var(--text)', letterSpacing: '0.01em' }}>031601-04-242731</div>
+                        <div style={{ fontSize: 12.5, color: 'var(--text-secondary)', marginTop: 2 }}>주식회사 바른반려연구소</div>
+                      </div>
+                      <button type="button" onClick={() => navigator.clipboard?.writeText('031601-04-242731')}
+                        style={{ flexShrink: 0, fontSize: 13, fontWeight: 700, color: '#fff', background: 'var(--accent)', border: 'none', borderRadius: 8, padding: '9px 14px', cursor: 'pointer' }}>
+                        계좌 복사
+                      </button>
+                    </div>
+
+                    <p style={{ margin: 0, fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.8 }}>
+                      · 입금자명을 <b>병원명</b>으로 해주시면 확인이 빨라요.<br />
+                      · 입금 확인 후 영업일 기준 토큰이 충전됩니다.<br />
+                      · 카드 결제는 추후 제공됩니다.
+                    </p>
+                  </div>
+                ) : (
+                  /* 상품 선택 스텝 */
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                     {/* 잔여 토큰 */}
                     <div style={{
@@ -487,43 +531,8 @@ export function SettingsModal({ open, onClose, initialTab }: { open: boolean; on
                     >
                       구매하기
                     </button>
-
-                    {purchaseNotice ? (
-                      <div style={{ border: '1px solid var(--accent)', borderRadius: 12, padding: '14px 16px', background: 'var(--accent-subtle)', display: 'flex', flexDirection: 'column', gap: 10 }}>
-                        <div style={{ fontSize: 13.5, fontWeight: 800, color: 'var(--text)' }}>입금 안내</div>
-                        <p style={{ margin: 0, fontSize: 12.5, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
-                          아래 계좌로 <b style={{ color: 'var(--text)' }}>{fmtWon(selectedPackage.price)}원</b>을 입금해 주세요. 입금이 확인되면{' '}
-                          <b style={{ color: 'var(--text)' }}>{fmtTok(selectedPackage.base + selectedPackage.bonus)}토큰</b>이 충전됩니다.
-                        </p>
-                        <div style={{ background: 'var(--bg)', borderRadius: 8, padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 7, fontSize: 13 }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
-                            <span style={{ color: 'var(--text-muted)' }}>입금액</span>
-                            <span style={{ fontWeight: 800, color: 'var(--text)' }}>{fmtWon(selectedPackage.price)}원</span>
-                          </div>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
-                            <span style={{ color: 'var(--text-muted)' }}>은행</span>
-                            <span style={{ fontWeight: 700, color: 'var(--text)' }}>국민은행</span>
-                          </div>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'center' }}>
-                            <span style={{ color: 'var(--text-muted)' }}>계좌번호</span>
-                            <span style={{ fontWeight: 700, color: 'var(--text)', display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-                              031601-04-242731
-                              <button type="button" onClick={() => navigator.clipboard?.writeText('031601-04-242731')}
-                                style={{ fontSize: 11, fontWeight: 700, color: 'var(--accent)', background: 'var(--accent-subtle)', border: 'none', borderRadius: 6, padding: '2px 7px', cursor: 'pointer' }}>복사</button>
-                            </span>
-                          </div>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
-                            <span style={{ color: 'var(--text-muted)' }}>예금주</span>
-                            <span style={{ fontWeight: 700, color: 'var(--text)' }}>주식회사 바른반려연구소</span>
-                          </div>
-                        </div>
-                        <p style={{ margin: 0, fontSize: 11.5, color: 'var(--text-muted)', lineHeight: 1.6 }}>
-                          * 입금자명을 병원명으로 해주시면 확인이 빨라요. 입금 확인 후 영업일 기준 충전됩니다. 카드 결제는 추후 제공됩니다.
-                        </p>
-                      </div>
-                    ) : null}
                   </div>
-                )}
+                ))}
 
                 {usageSub === 'history' && (
                 <>
