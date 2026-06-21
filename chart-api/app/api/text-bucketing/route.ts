@@ -1624,8 +1624,8 @@ function parseLabItemsFromGroupLines(lines: BucketedLine[], chartKind: ChartKind
   return [...unique.values()];
 }
 
-function isLikelyNoiseLabItemName(name: string) {
-  const trimmed = name.trim();
+function isLikelyNoiseLabItemName(name: string | null | undefined) {
+  const trimmed = (name ?? "").trim();
   if (!trimmed) return true;
   if (/^[-+]?\d+(?:[.,]\d+)?$/.test(trimmed)) return true;
   if (!/[A-Za-z가-힣]/.test(trimmed)) return true;
