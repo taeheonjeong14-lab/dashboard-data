@@ -265,6 +265,7 @@ function SendModal({ userId, origin, onClose, onCreated }: {
   // 입력값 검증 + 세션 생성. 성공 시 생성된 세션을 반환(없으면 null, 에러는 setErr 로 표시). throw 는 호출부에서 처리.
   const createSession = async (): Promise<{ id: string; token?: string | null } | null> => {
     if (!contact.trim()) { setErr('연락처를 입력해 주세요.'); return null; }
+    if (!scheduledDate) { setErr('내원 예정일을 입력해 주세요.'); return null; }
     if (visitType === '재진' && !previousChart.trim()) { setErr('재진 사전문진은 이전 차트 내용이 필요합니다.'); return null; }
     setErr('');
     const body: Record<string, string> = { userId, contact: contact.trim(), visitType };
@@ -379,7 +380,7 @@ function SendModal({ userId, origin, onClose, onCreated }: {
           <Field label="연락처" required>
             <input style={inputStyle} value={contact} onChange={(e) => setContact(formatPhone(e.target.value))} placeholder="010-0000-0000" type="tel" inputMode="numeric" />
           </Field>
-          <Field label="내원 예정일">
+          <Field label="내원 예정일" required>
             <input style={inputStyle} type="date" value={scheduledDate} onChange={(e) => setScheduledDate(e.target.value)} />
           </Field>
           <Field label="방문 유형">
