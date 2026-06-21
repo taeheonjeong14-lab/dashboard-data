@@ -39,6 +39,19 @@ const isZeroCharge = (kind: string, tokens: number) => kind === 'charge' && Math
 const fmtGroupTokens = (kind: string, tokens: number) =>
   isZeroCharge(kind, tokens) ? '-0' : `${tokens > 0 ? '+' : ''}${fmtTok(tokens)}`;
 
+// 그래프 집계 단위: 일간(최근 30일)·주간(최근 6개월)·월간(최근 1년). 일별 데이터를 버킷 합산.
+type Gran = 'day' | 'week' | 'month';
+const GRAN_DAYS: Record<Gran, number> = { day: 30, week: 182, month: 365 };
+const GRAN_LABEL: Record<Gran, string> = { day: '일간', week: '주간', month: '월간' };
+const GRAN_BY_LABEL: Record<string, Gran> = { 일간: 'day', 주간: 'week', 월간: 'month' };
+function weekStartKey(dateStr: string): string {
+  const d = new Date(`${dateStr}T00:00:00`);
+  d.setDate(d.getDate() + (d.getDay() === 0 ? -6 : 1 - d.getDay())); // 그 주의 월요일
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+const bucketOf = (date: string, g: Gran) => (g === 'month' ? date.slice(0, 7) : g === 'week' ? weekStartKey(date) : date);
+const bucketTick = (key: string, g: Gran) => (g === 'month' ? `${Number(key.slice(5, 7))}월` : key.slice(5));
+
 // 한 작업(run) 안의 기능들 → 대표 라벨. 진료케이스(블로그 4단계) > 건강검진 > 이미지 > 평가 > 추출 순.
 const CASE_FEATS = new Set(['blog_causal', 'blog_detail', 'blog_outline', 'blog_post', 'blog_images']);
 function groupLabel(feats: Set<string>): string {
@@ -107,7 +120,7 @@ export function SettingsModal({ open, onClose, initialTab }: { open: boolean; on
   // 병원 레코드(병원명/주소 등) — 기본 정보 탭에서 읽기 전용으로 표시.
   const [hospital, setHospital] = useState<HospitalSettings | null>(null);
 
-  const [usageDays, setUsageDays] = useState(30);
+  const [gran, setGran] = useState<Gran>('day');
   const [usageSub, setUsageSub] = useState<'buy' | 'history'>('buy');
   const [overview, setOverview] = useState<Overview | null>(null);
   const [loadingOverview, setLoadingOverview] = useState(false);
@@ -186,8 +199,8 @@ export function SettingsModal({ open, onClose, initialTab }: { open: boolean; on
   // 사용량/토큰 탭 데이터 — 열릴 때 + 기간 변경 시 로드
   useEffect(() => {
     if (!open) return;
-    if (tab === 'usage') void loadOverview(usageDays);
-  }, [open, tab, usageDays, loadOverview]);
+    if (tab === 'usage') void loadOverview(GRAN_DAYS[gran]);
+  }, [open, tab, gran, loadOverview]);
 
   // 토큰 관리 진입 시 항상 '토큰 구매'를 기본으로. (기간 변경엔 반응 안 하도록 tab/open 만 의존)
   useEffect(() => {
@@ -195,15 +208,16 @@ export function SettingsModal({ open, onClose, initialTab }: { open: boolean; on
   }, [open, tab]);
 
   const chartData = useMemo(() => {
-    const byDate = new Map<string, Record<string, number | string>>();
+    const byBucket = new Map<string, Record<string, number | string>>();
     for (const r of overview?.daily ?? []) {
-      const row = byDate.get(r.date) ?? { date: r.date };
+      const key = bucketOf(r.date, gran); // 일/주/월 버킷
+      const row = byBucket.get(key) ?? { date: key };
       const fk = r.feature || '기타'; // RPC 가 이미 상품명으로 집계해 줌
       row[fk] = ((row[fk] as number) ?? 0) + (Number(r.tokens) || 0);
-      byDate.set(r.date, row);
+      byBucket.set(key, row);
     }
-    return [...byDate.values()].sort((a, b) => (String(a.date) < String(b.date) ? -1 : 1));
-  }, [overview]);
+    return [...byBucket.values()].sort((a, b) => (String(a.date) < String(b.date) ? -1 : 1));
+  }, [overview, gran]);
   const featureKeys = useMemo(() => [...new Set((overview?.daily ?? []).map((d) => d.feature || '기타'))], [overview]);
 
   // 사용·충전 내역을 작업(run) 단위로 그룹핑 — 건강검진/진료케이스 1건이 한 줄로 합쳐짐.
@@ -422,9 +436,9 @@ export function SettingsModal({ open, onClose, initialTab }: { open: boolean; on
                 {/* 날짜별/카테고리별 사용량 */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                   <SegmentedToggle
-                    options={['7일', '30일', '90일']}
-                    value={`${usageDays}일`}
-                    onChange={(v) => setUsageDays(Number(v.replace('일', '')))}
+                    options={['일간', '주간', '월간']}
+                    value={GRAN_LABEL[gran]}
+                    onChange={(v) => setGran(GRAN_BY_LABEL[v] ?? 'day')}
                     padX={16}
                   />
                   {loadingOverview && !overview ? (
@@ -435,7 +449,7 @@ export function SettingsModal({ open, onClose, initialTab }: { open: boolean; on
                     <ResponsiveContainer width="100%" height={300}>
                       <BarChart data={chartData} margin={{ top: 8, right: 8, bottom: 4, left: 0 }}>
                         <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
-                        <XAxis dataKey="date" tick={{ fontSize: 11 }} tickFormatter={(d: string) => d.slice(5)} />
+                        <XAxis dataKey="date" tick={{ fontSize: 11 }} tickFormatter={(d: string) => bucketTick(d, gran)} />
                         <YAxis tick={{ fontSize: 11 }} width={40} label={{ value: '토큰', angle: -90, position: 'insideLeft', fontSize: 11 }} />
                         <Tooltip formatter={(v) => `${fmtTok(Number(v))} 토큰`} contentStyle={{ fontSize: 12 }} />
                         <Legend wrapperStyle={{ fontSize: 11 }} />
@@ -446,7 +460,7 @@ export function SettingsModal({ open, onClose, initialTab }: { open: boolean; on
                     </ResponsiveContainer>
                   )}
                   <p style={{ margin: 0, fontSize: 12, color: 'var(--text-muted)' }}>
-                    기능별로 사용한 토큰을 날짜별로 보여줍니다. (알림톡 발송 토큰 포함)
+                    기능별로 사용한 토큰을 기간별로 보여줍니다. (알림톡 발송 토큰 포함)
                   </p>
                 </div>
 
