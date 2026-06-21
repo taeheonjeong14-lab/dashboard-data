@@ -284,6 +284,8 @@ export function SettingsModal({ open, onClose, initialTab }: { open: boolean; on
     return [...m.values()]; // groupedLedger 가 최신순이라 월도 최신순
   }, [groupedLedger]);
 
+  const selectedPackage = TOKEN_PACKAGES.find((p) => p.id === selectedPkg) ?? TOKEN_PACKAGES[0];
+
   if (!open) return null;
 
   async function handleProfileSubmit(e: FormEvent) {
@@ -478,12 +480,6 @@ export function SettingsModal({ open, onClose, initialTab }: { open: boolean; on
                       })}
                     </div>
 
-                    {purchaseNotice ? (
-                      <p style={{ margin: 0, fontSize: 13, padding: '8px 12px', borderRadius: 'var(--radius)', background: 'var(--accent-subtle)', color: 'var(--accent)', border: '1px solid var(--accent)' }}>
-                        결제 연동(PG) 준비 중입니다. 곧 카드 결제로 구매할 수 있어요.
-                      </p>
-                    ) : null}
-
                     <button
                       type="button"
                       onClick={() => setPurchaseNotice(true)}
@@ -491,9 +487,41 @@ export function SettingsModal({ open, onClose, initialTab }: { open: boolean; on
                     >
                       구매하기
                     </button>
-                    <p style={{ margin: 0, fontSize: 11.5, color: 'var(--text-muted)', textAlign: 'center' }}>
-                      추가 적립 토큰은 결제 즉시 잔액에 함께 충전됩니다.
-                    </p>
+
+                    {purchaseNotice ? (
+                      <div style={{ border: '1px solid var(--accent)', borderRadius: 12, padding: '14px 16px', background: 'var(--accent-subtle)', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                        <div style={{ fontSize: 13.5, fontWeight: 800, color: 'var(--text)' }}>입금 안내</div>
+                        <p style={{ margin: 0, fontSize: 12.5, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+                          아래 계좌로 <b style={{ color: 'var(--text)' }}>{fmtWon(selectedPackage.price)}원</b>을 입금해 주세요. 입금이 확인되면{' '}
+                          <b style={{ color: 'var(--text)' }}>{fmtTok(selectedPackage.base + selectedPackage.bonus)}토큰</b>이 충전됩니다.
+                        </p>
+                        <div style={{ background: 'var(--bg)', borderRadius: 8, padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 7, fontSize: 13 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+                            <span style={{ color: 'var(--text-muted)' }}>입금액</span>
+                            <span style={{ fontWeight: 800, color: 'var(--text)' }}>{fmtWon(selectedPackage.price)}원</span>
+                          </div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+                            <span style={{ color: 'var(--text-muted)' }}>은행</span>
+                            <span style={{ fontWeight: 700, color: 'var(--text)' }}>국민은행</span>
+                          </div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'center' }}>
+                            <span style={{ color: 'var(--text-muted)' }}>계좌번호</span>
+                            <span style={{ fontWeight: 700, color: 'var(--text)', display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                              031601-04-242731
+                              <button type="button" onClick={() => navigator.clipboard?.writeText('031601-04-242731')}
+                                style={{ fontSize: 11, fontWeight: 700, color: 'var(--accent)', background: 'var(--accent-subtle)', border: 'none', borderRadius: 6, padding: '2px 7px', cursor: 'pointer' }}>복사</button>
+                            </span>
+                          </div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+                            <span style={{ color: 'var(--text-muted)' }}>예금주</span>
+                            <span style={{ fontWeight: 700, color: 'var(--text)' }}>주식회사 바른반려연구소</span>
+                          </div>
+                        </div>
+                        <p style={{ margin: 0, fontSize: 11.5, color: 'var(--text-muted)', lineHeight: 1.6 }}>
+                          * 입금자명을 병원명으로 해주시면 확인이 빨라요. 입금 확인 후 영업일 기준 충전됩니다. 카드 결제는 추후 제공됩니다.
+                        </p>
+                      </div>
+                    ) : null}
                   </div>
                 )}
 
