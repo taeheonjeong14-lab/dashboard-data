@@ -2172,7 +2172,7 @@ async function extractLabItemsForBucket(
   // Supplemental OCR rows help recover rows broken by LLM line wrapping.
   // We keep this narrow (name/value overlap with lab bucket text) to avoid noise.
   const ocrCandidates = ocrRows.filter((row) => {
-    if (!row.text.trim()) return false;
+    if (!(row.text ?? "").trim()) return false;
     const hasLabKeywords =
       /\b(alt|ast|alp|alb|glob|bun|crea|glu|wbc|rbc|hgb|hct|plt|crp|alb\/glob|bun\/crea|name|unit|result|reference|performed by|lab)\b/i.test(
         row.text,
@@ -2770,6 +2770,8 @@ export async function POST(request: NextRequest) {
           })
         : Promise.resolve(emptyOcr),
     ]);
+    // Google OCR 일부 행은 text 가 null 로 올 수 있음 → 빈 문자열로 정규화(downstream .trim() 널 크래시 방지).
+    ocr.rows = ocr.rows.map((r) => (r.text == null ? { ...r, text: "" } : r));
     // 추출 작업 토큰 차감(추출+OCR usage 합산 → ceil($/0.10), 병원 잔액에서 1회).
     await chargeOperationTokens(hospitalId, extractOperationId, "extract", extractProduct);
     console.log(`[text-bucketing DEBUG] llmLines count=${llmLines.length}, first3=${JSON.stringify(llmLines.slice(0, 3))}, last3=${JSON.stringify(llmLines.slice(-3))}`);
@@ -2807,7 +2809,7 @@ export async function POST(request: NextRequest) {
     for (const l of sanitizedPdfLines) llmCountByPage.set(l.page, (llmCountByPage.get(l.page) ?? 0) + 1);
     const ocrByPage = new Map<number, OrderedLine[]>();
     for (const row of ocr.rows) {
-      const t = row.text.trim();
+      const t = (row.text ?? "").trim();
       if (!cleanOcrRow(t)) continue;
       const list = ocrByPage.get(row.page) ?? [];
       list.push({ page: row.page, text: t });
@@ -2837,7 +2839,7 @@ export async function POST(request: NextRequest) {
     );
     // 진단: 원본 추출(버켓팅 전)에 "Subjective"가 몇 개인가 = Gemini가 진료를 몇 건 뽑았나.
     // chartBody 그룹 수(subjectiveAnchored visits)와 다르면 버켓팅 문제, 같으면 추출(LLM) 문제.
-    const rawSubjectiveCount = effectivePdfLines.filter((l) => /^subjective\b/i.test(l.text.trim())).length;
+    const rawSubjectiveCount = effectivePdfLines.filter((l) => /^subjective\b/i.test((l.text ?? "").trim())).length;
     console.log(`[text-bucketing DEBUG] rawSubjectiveCount(추출단계 진료수)=${rawSubjectiveCount}`);
 
     const sanitizedLines = [...pasteLines, ...effectivePdfLines];
