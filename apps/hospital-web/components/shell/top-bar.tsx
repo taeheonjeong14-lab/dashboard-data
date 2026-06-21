@@ -96,7 +96,7 @@ export function TopBar({ userName, hospitalName, tokenBalance, isMaster = false 
           <button
             type="button"
             onClick={() => { setSettingsTab('usage'); setSettingsOpen(true); }}
-            title="토큰 사용량 보기"
+            title="토큰 관리"
             style={{
               display: 'inline-flex',
               alignItems: 'center',

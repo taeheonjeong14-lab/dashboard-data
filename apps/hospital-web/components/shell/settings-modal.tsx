@@ -77,8 +77,8 @@ const MENU: { key: Tab; label: string; icon: typeof User; masterOnly?: boolean }
   { key: 'basic', label: '기본 정보', icon: User },
   { key: 'members', label: '조직 관리', icon: Users, masterOnly: true },
   { key: 'password', label: '비밀번호 변경', icon: KeyRound },
-  { key: 'usage', label: '토큰 사용량', icon: Coins, masterOnly: true },
-  { key: 'payment', label: '토큰 및 상품 결제', icon: CreditCard, masterOnly: true },
+  { key: 'usage', label: '토큰 관리', icon: Coins, masterOnly: true },
+  { key: 'payment', label: '이용권 구매', icon: CreditCard, masterOnly: true },
   { key: 'payment_method', label: '결제수단', icon: Wallet, masterOnly: true },
 ];
 
