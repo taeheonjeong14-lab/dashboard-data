@@ -39,16 +39,11 @@ const isZeroCharge = (kind: string, tokens: number) => kind === 'charge' && Math
 const fmtGroupTokens = (kind: string, tokens: number) =>
   isZeroCharge(kind, tokens) ? '-0' : `${tokens > 0 ? '+' : ''}${fmtTok(tokens)}`;
 
-// 그래프 집계 단위: 일간(최근 30일)·주간(최근 6개월)·월간(최근 1년). 일별 데이터를 버킷 합산.
-type Gran = 'day' | 'week' | 'month';
-const GRAN_DAYS: Record<Gran, number> = { day: 30, week: 182, month: 365 };
-const GRAN_LABEL: Record<Gran, string> = { day: '일간', week: '주간', month: '월간' };
-function weekStartKey(dateStr: string): string {
-  const d = new Date(`${dateStr}T00:00:00`);
-  d.setDate(d.getDate() + (d.getDay() === 0 ? -6 : 1 - d.getDay())); // 그 주의 월요일
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
-const bucketOf = (date: string, g: Gran) => (g === 'month' ? date.slice(0, 7) : g === 'week' ? weekStartKey(date) : date);
+// 그래프/상세 집계 단위: 일간(최근 30일)·월간(최근 1년). 일별 데이터를 버킷 합산.
+type Gran = 'day' | 'month';
+const GRAN_DAYS: Record<Gran, number> = { day: 30, month: 365 };
+const GRAN_LABEL: Record<Gran, string> = { day: '일간', month: '월간' };
+const bucketOf = (date: string, g: Gran) => (g === 'month' ? date.slice(0, 7) : date);
 const bucketTick = (key: string, g: Gran) => (g === 'month' ? `${Number(key.slice(5, 7))}월` : key.slice(5));
 
 // 한 작업(run) 안의 기능들 → 대표 라벨. 진료케이스(블로그 4단계) > 건강검진 > 이미지 > 평가 > 추출 순.
@@ -68,6 +63,34 @@ type OverviewLedger = { createdAt: string; kind: string; feature: string | null;
 type Overview = { balance: number | null; daily: OverviewDaily[]; ledger: OverviewLedger[] };
 // 내역을 작업(run) 단위로 묶은 행. charge 는 run_id 로 합산, grant/adjust·추출(run 없음)은 개별.
 type LedgerGroup = { key: string; kind: string; label: string; createdAt: string; tokens: number; balanceAfter: number | null; steps: number; ownerName: string | null; patientName: string | null };
+
+// 상세 내역 한 행 — 일간(flat)·월간(접이식) 양쪽에서 재사용.
+function LedgerRow({ g, border }: { g: LedgerGroup; border: boolean }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '11px 14px', borderTop: border ? '1px solid var(--border)' : 'none', fontSize: 13 }}>
+      <div style={{ minWidth: 0 }}>
+        <span style={{ fontWeight: 700, color: g.kind === 'charge' ? 'var(--text)' : 'var(--success)' }}>
+          {g.kind === 'charge' ? g.label : (KIND_LABEL[g.kind] ?? g.kind)}
+        </span>
+        {g.patientName || g.ownerName ? (
+          <span style={{ color: 'var(--text-secondary)' }}> · {[g.patientName, g.ownerName].filter(Boolean).join(' / ')}</span>
+        ) : null}
+        {g.kind === 'charge' && g.steps > 1 ? <span style={{ color: 'var(--text-muted)' }}> · {g.steps}단계</span> : null}
+        <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+          {new Date(g.createdAt).toLocaleString('ko-KR', { dateStyle: 'short', timeStyle: 'short' })}
+        </div>
+      </div>
+      <div style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+        <div style={{ fontWeight: 700, color: isZeroCharge(g.kind, g.tokens) ? 'var(--danger)' : (g.tokens < 0 ? 'var(--danger)' : 'var(--success)') }}>
+          {fmtGroupTokens(g.kind, g.tokens)}
+        </div>
+        {g.balanceAfter != null ? (
+          <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>잔액 {fmtTok(Number(g.balanceAfter))}</div>
+        ) : null}
+      </div>
+    </div>
+  );
+}
 
 type HospitalSettings = {
   name: string;
@@ -120,6 +143,7 @@ export function SettingsModal({ open, onClose, initialTab }: { open: boolean; on
   const [hospital, setHospital] = useState<HospitalSettings | null>(null);
 
   const [gran, setGran] = useState<Gran>('day');
+  const [openMonths, setOpenMonths] = useState<Set<string>>(new Set());
   const [usageSub, setUsageSub] = useState<'buy' | 'history'>('buy');
   const [overview, setOverview] = useState<Overview | null>(null);
   const [loadingOverview, setLoadingOverview] = useState(false);
@@ -223,7 +247,9 @@ export function SettingsModal({ open, onClose, initialTab }: { open: boolean; on
     const out: LedgerGroup[] = [];
     const byRun = new Map<string, { g: LedgerGroup; feats: Set<string> }>();
     const byFeat = new Map<string, LedgerGroup>();
+    const cutoff = Date.now() - GRAN_DAYS[gran] * 86400000; // 토글 기간만(일간 30일·월간 1년)
     for (const r of overview?.ledger ?? []) {
+      if (new Date(r.createdAt).getTime() < cutoff) continue;
       const t = Number(r.tokens);
       // 같은 run 의 charge(차감)와 adjust(바른플랜 환불)를 한 그룹으로 묶어 net 만 보여준다.
       if ((r.kind === 'charge' || r.kind === 'adjust') && r.runId) {
@@ -264,7 +290,19 @@ export function SettingsModal({ open, onClose, initialTab }: { open: boolean; on
     }
     for (const { g, feats } of byRun.values()) g.label = groupLabel(feats);
     return out.sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
-  }, [overview]);
+  }, [overview, gran]);
+
+  // 월간: 상세 내역을 '월'로 묶어 접이식. (일간은 flat)
+  const monthGroups = useMemo(() => {
+    const m = new Map<string, { month: string; label: string; items: LedgerGroup[] }>();
+    for (const g of groupedLedger) {
+      const key = (g.createdAt || '').slice(0, 7);
+      const hit = m.get(key);
+      if (hit) hit.items.push(g);
+      else m.set(key, { month: key, label: `${key.slice(0, 4)}년 ${Number(key.slice(5, 7))}월`, items: [g] });
+    }
+    return [...m.values()]; // groupedLedger 가 최신순이라 월도 최신순
+  }, [groupedLedger]);
 
   if (!open) return null;
 
@@ -436,7 +474,7 @@ export function SettingsModal({ open, onClose, initialTab }: { open: boolean; on
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
                     <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>토큰 사용량</span>
                     <div style={{ display: 'inline-flex', gap: 2, padding: 3, background: 'var(--bg-subtle)', borderRadius: 8, border: '1px solid var(--border)' }}>
-                      {(['day', 'week', 'month'] as Gran[]).map((g) => (
+                      {(['day', 'month'] as Gran[]).map((g) => (
                         <button
                           key={g}
                           type="button"
@@ -478,44 +516,37 @@ export function SettingsModal({ open, onClose, initialTab }: { open: boolean; on
                   </p>
                 </div>
 
-                {/* 3) 상세 내역 보기 토글 */}
+                {/* 상세 내역 — 일간: flat / 월간: 월별 접이식 */}
                 <div>
                   <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 10 }}>상세 내역</div>
-                    <div style={{ border: '1px solid var(--border-strong)', borderRadius: 10, overflow: 'hidden' }}>
-                      {groupedLedger.length === 0 ? (
-                        <div style={{ padding: 12, fontSize: 13, color: 'var(--text-muted)' }}>
-                          {loadingOverview ? '불러오는 중…' : '내역이 없습니다.'}
-                        </div>
-                      ) : (
-                        groupedLedger.map((g, i) => (
-                          <div key={g.key} style={{
-                            display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
-                            padding: '11px 14px', borderTop: i ? '1px solid var(--border)' : 'none', fontSize: 13,
-                          }}>
-                            <div style={{ minWidth: 0 }}>
-                              <span style={{ fontWeight: 700, color: g.kind === 'charge' ? 'var(--text)' : 'var(--success)' }}>
-                                {g.kind === 'charge' ? g.label : (KIND_LABEL[g.kind] ?? g.kind)}
-                              </span>
-                              {g.patientName || g.ownerName ? (
-                                <span style={{ color: 'var(--text-secondary)' }}> · {[g.patientName, g.ownerName].filter(Boolean).join(' / ')}</span>
-                              ) : null}
-                              {g.kind === 'charge' && g.steps > 1 ? <span style={{ color: 'var(--text-muted)' }}> · {g.steps}단계</span> : null}
-                              <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                                {new Date(g.createdAt).toLocaleString('ko-KR', { dateStyle: 'short', timeStyle: 'short' })}
-                              </div>
-                            </div>
-                            <div style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
-                              <div style={{ fontWeight: 700, color: isZeroCharge(g.kind, g.tokens) ? 'var(--danger)' : (g.tokens < 0 ? 'var(--danger)' : 'var(--success)') }}>
-                                {fmtGroupTokens(g.kind, g.tokens)}
-                              </div>
-                              {g.balanceAfter != null ? (
-                                <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>잔액 {fmtTok(Number(g.balanceAfter))}</div>
-                              ) : null}
-                            </div>
-                          </div>
-                        ))
-                      )}
+                  {groupedLedger.length === 0 ? (
+                    <div style={{ padding: 12, fontSize: 13, color: 'var(--text-muted)', border: '1px solid var(--border-strong)', borderRadius: 10 }}>
+                      {loadingOverview ? '불러오는 중…' : '내역이 없습니다.'}
                     </div>
+                  ) : gran === 'month' ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      {monthGroups.map((mg) => {
+                        const isOpen = openMonths.has(mg.month);
+                        return (
+                          <div key={mg.month} style={{ border: '1px solid var(--border-strong)', borderRadius: 10, overflow: 'hidden' }}>
+                            <button
+                              type="button"
+                              onClick={() => setOpenMonths((prev) => { const n = new Set(prev); if (n.has(mg.month)) n.delete(mg.month); else n.add(mg.month); return n; })}
+                              style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', padding: '11px 14px', background: 'var(--bg-subtle)', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 700, color: 'var(--text)' }}
+                            >
+                              <span>{mg.label} <span style={{ fontWeight: 500, color: 'var(--text-muted)' }}>· {mg.items.length}건</span></span>
+                              <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>{isOpen ? '접기 ▲' : '펼치기 ▼'}</span>
+                            </button>
+                            {isOpen && mg.items.map((g, i) => <LedgerRow key={g.key} g={g} border={i > 0} />)}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div style={{ border: '1px solid var(--border-strong)', borderRadius: 10, overflow: 'hidden' }}>
+                      {groupedLedger.map((g, i) => <LedgerRow key={g.key} g={g} border={i > 0} />)}
+                    </div>
+                  )}
                 </div>
                 </>
                 )}
