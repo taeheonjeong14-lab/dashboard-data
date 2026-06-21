@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useMemo, useCallback, type FormEvent } from 'react';
 import { X, User, CreditCard, KeyRound, Coins, Users, Wallet } from 'lucide-react';
-import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { createClient } from '@/lib/supabase/client';
 import { inputStyle, primaryPillStyle } from '@/lib/form-styles';
 import { MembersPanel } from './members-panel';
@@ -21,17 +20,6 @@ const normFeature = (f: string) => (CASE_BLOG_FEATURES.has(f) ? 'case_blog' : f)
 const KIND_LABEL: Record<string, string> = { charge: '사용', grant: '관리자 지급', adjust: '조정' };
 const featLabel = (f: string) => FEATURE_LABEL[normFeature(f)] ?? f;
 
-// 사용량 그래프 — RPC(my_usage_overview)가 상품 "코드"(case_blog/health_report/survey/etc)를
-// daily.feature 에 담아준다. 코드 → 한글 라벨·색 매핑. 새 상품 추가 시 여기에 한 줄만 추가하면 됨.
-const PRODUCT: Record<string, { label: string; color: string }> = {
-  case_blog: { label: '진료케이스', color: '#6366f1' },
-  health_report: { label: '건강검진 리포트', color: '#10b981' },
-  survey: { label: '사전문진', color: '#f59e0b' },
-  ops_bundle: { label: '운영 패키지', color: '#3b82f6' },
-  etc: { label: '기타', color: '#94a3b8' },
-};
-const productLabel = (c: string) => PRODUCT[c]?.label ?? c;
-const productColor = (c: string) => PRODUCT[c]?.color ?? '#94a3b8';
 // 토큰은 ledger 의 실제 차감 정수값을 그대로 표시(잔액·사용량·내역 전부 정수).
 const fmtTok = (v: number) => Math.round(v).toLocaleString();
 // 전액 환불되어 net 0 인 차감(진료케이스) 그룹은 '-0'(=차감 안 됨)으로 표기.
@@ -39,12 +27,8 @@ const isZeroCharge = (kind: string, tokens: number) => kind === 'charge' && Math
 const fmtGroupTokens = (kind: string, tokens: number) =>
   isZeroCharge(kind, tokens) ? '-0' : `${tokens > 0 ? '+' : ''}${fmtTok(tokens)}`;
 
-// 그래프/상세 집계 단위: 일간(최근 30일)·월간(최근 1년). 일별 데이터를 버킷 합산.
-type Gran = 'day' | 'month';
-const GRAN_DAYS: Record<Gran, number> = { day: 30, month: 365 };
-const GRAN_LABEL: Record<Gran, string> = { day: '일간', month: '월간' };
-const bucketOf = (date: string, g: Gran) => (g === 'month' ? date.slice(0, 7) : date);
-const bucketTick = (key: string, g: Gran) => (g === 'month' ? `${Number(key.slice(5, 7))}월` : key.slice(5));
+// 상세 내역 조회 범위 — 최근 1년.
+const DETAIL_DAYS = 365;
 
 // 한 작업(run) 안의 기능들 → 대표 라벨. 진료케이스(블로그 4단계) > 건강검진 > 이미지 > 평가 > 추출 순.
 const CASE_FEATS = new Set(['blog_causal', 'blog_detail', 'blog_outline', 'blog_post', 'blog_images']);
@@ -142,7 +126,6 @@ export function SettingsModal({ open, onClose, initialTab }: { open: boolean; on
   // 병원 레코드(병원명/주소 등) — 기본 정보 탭에서 읽기 전용으로 표시.
   const [hospital, setHospital] = useState<HospitalSettings | null>(null);
 
-  const [gran, setGran] = useState<Gran>('day');
   const [openMonths, setOpenMonths] = useState<Set<string>>(new Set());
   const [usageSub, setUsageSub] = useState<'buy' | 'history'>('buy');
   const [overview, setOverview] = useState<Overview | null>(null);
@@ -218,36 +201,23 @@ export function SettingsModal({ open, onClose, initialTab }: { open: boolean; on
     return () => window.removeEventListener('keydown', onKey);
   }, [open, onClose]);
 
-  // 사용량/토큰 탭 데이터 — 열릴 때 + 기간 변경 시 로드
+  // 토큰 관리 탭 데이터 — 열릴 때 로드(최근 1년)
   useEffect(() => {
     if (!open) return;
-    if (tab === 'usage') void loadOverview(GRAN_DAYS[gran]);
-  }, [open, tab, gran, loadOverview]);
+    if (tab === 'usage') void loadOverview(DETAIL_DAYS);
+  }, [open, tab, loadOverview]);
 
-  // 토큰 관리 진입 시 항상 '토큰 구매'를 기본으로. (기간 변경엔 반응 안 하도록 tab/open 만 의존)
+  // 토큰 관리 진입 시 항상 '토큰 구매'를 기본으로.
   useEffect(() => {
     if (open && tab === 'usage') setUsageSub('buy');
   }, [open, tab]);
-
-  const chartData = useMemo(() => {
-    const byBucket = new Map<string, Record<string, number | string>>();
-    for (const r of overview?.daily ?? []) {
-      const key = bucketOf(r.date, gran); // 일/주/월 버킷
-      const row = byBucket.get(key) ?? { date: key };
-      const fk = r.feature || '기타'; // RPC 가 이미 상품명으로 집계해 줌
-      row[fk] = ((row[fk] as number) ?? 0) + (Number(r.tokens) || 0);
-      byBucket.set(key, row);
-    }
-    return [...byBucket.values()].sort((a, b) => (String(a.date) < String(b.date) ? -1 : 1));
-  }, [overview, gran]);
-  const featureKeys = useMemo(() => [...new Set((overview?.daily ?? []).map((d) => d.feature || '기타'))], [overview]);
 
   // 사용·충전 내역을 작업(run) 단위로 그룹핑 — 건강검진/진료케이스 1건이 한 줄로 합쳐짐.
   const groupedLedger = useMemo<LedgerGroup[]>(() => {
     const out: LedgerGroup[] = [];
     const byRun = new Map<string, { g: LedgerGroup; feats: Set<string> }>();
     const byFeat = new Map<string, LedgerGroup>();
-    const cutoff = Date.now() - GRAN_DAYS[gran] * 86400000; // 토글 기간만(일간 30일·월간 1년)
+    const cutoff = Date.now() - DETAIL_DAYS * 86400000; // 최근 1년
     for (const r of overview?.ledger ?? []) {
       if (new Date(r.createdAt).getTime() < cutoff) continue;
       const t = Number(r.tokens);
@@ -290,7 +260,7 @@ export function SettingsModal({ open, onClose, initialTab }: { open: boolean; on
     }
     for (const { g, feats } of byRun.values()) g.label = groupLabel(feats);
     return out.sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
-  }, [overview, gran]);
+  }, [overview]);
 
   // 월간: 상세 내역을 '월'로 묶어 접이식. (일간은 flat)
   const monthGroups = useMemo(() => {
@@ -469,61 +439,14 @@ export function SettingsModal({ open, onClose, initialTab }: { open: boolean; on
 
                 {usageSub === 'history' && (
                 <>
-                {/* 날짜별/카테고리별 사용량 */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-                    <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>토큰 사용량</span>
-                    <div style={{ display: 'inline-flex', gap: 2, padding: 3, background: 'var(--bg-subtle)', borderRadius: 8, border: '1px solid var(--border)' }}>
-                      {(['day', 'month'] as Gran[]).map((g) => (
-                        <button
-                          key={g}
-                          type="button"
-                          onClick={() => setGran(g)}
-                          style={{
-                            padding: '4px 12px', fontSize: 12.5, fontWeight: gran === g ? 700 : 500,
-                            color: gran === g ? 'var(--text)' : 'var(--text-muted)',
-                            background: gran === g ? 'var(--bg)' : 'transparent',
-                            border: 'none', borderRadius: 6, cursor: 'pointer',
-                            boxShadow: gran === g ? '0 1px 2px rgba(0,0,0,0.08)' : 'none',
-                            transition: 'background 0.12s, color 0.12s',
-                          }}
-                        >
-                          {GRAN_LABEL[g]}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                  {loadingOverview && !overview ? (
-                    <p style={{ margin: 0, fontSize: 13, color: 'var(--text-muted)' }}>불러오는 중…</p>
-                  ) : chartData.length === 0 ? (
-                    <p style={{ margin: 0, fontSize: 13, color: 'var(--text-muted)' }}>이 기간 사용 내역이 없습니다.</p>
-                  ) : (
-                    <ResponsiveContainer width="100%" height={300}>
-                      <BarChart data={chartData} margin={{ top: 8, right: 8, bottom: 4, left: 0 }}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
-                        <XAxis dataKey="date" tick={{ fontSize: 11 }} tickFormatter={(d: string) => bucketTick(d, gran)} />
-                        <YAxis tick={{ fontSize: 11 }} width={36} />
-                        <Tooltip formatter={(v) => `${fmtTok(Number(v))} 토큰`} contentStyle={{ fontSize: 12 }} />
-                        <Legend wrapperStyle={{ fontSize: 11 }} />
-                        {featureKeys.map((fk) => (
-                          <Bar key={fk} dataKey={fk} stackId="u" fill={productColor(fk)} name={productLabel(fk)} />
-                        ))}
-                      </BarChart>
-                    </ResponsiveContainer>
-                  )}
-                  <p style={{ margin: 0, fontSize: 12, color: 'var(--text-muted)' }}>
-                    기능별로 사용한 토큰을 기간별로 보여줍니다. (알림톡 발송 토큰 포함)
-                  </p>
-                </div>
-
-                {/* 상세 내역 — 일간: flat / 월간: 월별 접이식 */}
+                {/* 상세 내역 — 월별 접이식(최근 1년) */}
                 <div>
                   <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 10 }}>상세 내역</div>
                   {groupedLedger.length === 0 ? (
                     <div style={{ padding: 12, fontSize: 13, color: 'var(--text-muted)', border: '1px solid var(--border-strong)', borderRadius: 10 }}>
                       {loadingOverview ? '불러오는 중…' : '내역이 없습니다.'}
                     </div>
-                  ) : gran === 'month' ? (
+                  ) : (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                       {monthGroups.map((mg) => {
                         const isOpen = openMonths.has(mg.month);
@@ -541,10 +464,6 @@ export function SettingsModal({ open, onClose, initialTab }: { open: boolean; on
                           </div>
                         );
                       })}
-                    </div>
-                  ) : (
-                    <div style={{ border: '1px solid var(--border-strong)', borderRadius: 10, overflow: 'hidden' }}>
-                      {groupedLedger.map((g, i) => <LedgerRow key={g.key} g={g} border={i > 0} />)}
                     </div>
                   )}
                 </div>
