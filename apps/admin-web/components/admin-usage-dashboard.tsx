@@ -36,6 +36,12 @@ type UsageResponse = {
 
 const DAY_OPTIONS = [7, 30, 90];
 
+type OrderRow = {
+  id: string; order_no: string; hospital_id: string; hospital_name: string | null;
+  base_tokens: number; bonus_tokens: number; total_tokens: number; price_krw: number;
+  status: string; created_at: string; paid_at: string | null;
+};
+
 // 기능 코드 → 한글 라벨
 const FEATURE_LABEL: Record<string, string> = {
   extract: '추출',
@@ -143,7 +149,45 @@ export default function AdminUsageDashboard() {
     [days, selected, load],
   );
 
+  // 토큰 구매 주문(무통장입금) — 입금 대기 줄을 병원 내역에 함께 표시.
+  const [orders, setOrders] = useState<OrderRow[]>([]);
+  const [confirmingId, setConfirmingId] = useState<string | null>(null);
+  const loadOrders = useCallback(async () => {
+    try {
+      const res = await fetch('/api/admin/token-orders', { credentials: 'include' });
+      const j = (await res.json()) as { orders?: OrderRow[] };
+      if (res.ok) setOrders(j.orders ?? []);
+    } catch { /* noop */ }
+  }, []);
+  useEffect(() => { void loadOrders(); }, [loadOrders]);
+
+  const confirmOrder = useCallback(async (o: OrderRow) => {
+    if (!window.confirm(`${o.hospital_name ?? ''}\n${o.total_tokens.toLocaleString()}토큰 (${o.price_krw.toLocaleString()}원)\n\n입금을 확인하고 토큰을 지급할까요?`)) return;
+    setConfirmingId(o.id);
+    try {
+      const res = await fetch('/api/admin/token-orders', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
+        body: JSON.stringify({ orderId: o.id }),
+      });
+      const j = (await res.json()) as { success?: boolean; error?: string };
+      if (!res.ok || !j.success) throw new Error(j.error || '처리 실패');
+      await loadOrders();
+      await load(days, selected);
+    } catch (e) {
+      window.alert(e instanceof Error ? e.message : '처리 실패');
+    } finally {
+      setConfirmingId(null);
+    }
+  }, [loadOrders, load, days, selected]);
+
+  const pendingByHospital = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const o of orders) if (o.status === 'pending') m.set(o.hospital_id, (m.get(o.hospital_id) ?? 0) + 1);
+    return m;
+  }, [orders]);
+
   const selectedHospital = (data?.hospitals ?? []).find((h) => h.hospitalId === selected) ?? null;
+  const pendingOrders = orders.filter((o) => o.status === 'pending' && o.hospital_id === selected);
   const anyZero = (data?.hospitals ?? []).some((h) => h.tokenBalance <= 0);
   const hospitalsFiltered = (() => {
     const q = hospitalQuery.trim().toLowerCase();
@@ -242,6 +286,11 @@ export default function AdminUsageDashboard() {
                   <span style={{ flex: 1, minWidth: 0, fontSize: 13, fontWeight: active ? 700 : 500, color: active ? 'var(--accent)' : 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                     {h.hospitalName}
                   </span>
+                  {h.hospitalId && (pendingByHospital.get(h.hospitalId) ?? 0) > 0 ? (
+                    <span style={{ flexShrink: 0, fontSize: 10, fontWeight: 800, color: '#b45309', background: '#fef3c7', padding: '1px 6px', borderRadius: 999 }}>
+                      입금대기 {pendingByHospital.get(h.hospitalId)}
+                    </span>
+                  ) : null}
                   <span style={{ flexShrink: 0, fontSize: 11.5, fontWeight: 700, color: h.tokenBalance <= 0 ? 'var(--danger)' : 'var(--text-secondary)' }}>
                     {num(h.tokenBalance)}
                   </span>
@@ -330,7 +379,29 @@ export default function AdminUsageDashboard() {
           ) : (
             <div>
               <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 8 }}>사용·충전 내역</div>
-              {groupedLedger.length === 0 ? (
+              {pendingOrders.length > 0 ? (
+                <div style={{ borderTop: '1px solid var(--border)' }}>
+                  {pendingOrders.map((o) => (
+                    <div key={o.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '10px 2px', borderBottom: '1px solid var(--border)', background: '#fffdf5' }}>
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>
+                          토큰 구매
+                          <span style={{ marginLeft: 6, fontSize: 11, fontWeight: 700, color: '#b45309', background: '#fef3c7', padding: '1px 7px', borderRadius: 999 }}>입금 대기</span>
+                          <span style={{ color: 'var(--text-secondary)', fontWeight: 500 }}> · {o.total_tokens.toLocaleString()}토큰 · {o.price_krw.toLocaleString()}원</span>
+                        </div>
+                        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
+                          #{o.order_no} · {new Date(o.created_at).toLocaleString('ko-KR', { dateStyle: 'short', timeStyle: 'short' })}
+                        </div>
+                      </div>
+                      <button type="button" onClick={() => void confirmOrder(o)} disabled={confirmingId === o.id}
+                        style={{ flexShrink: 0, padding: '7px 13px', fontSize: 12.5, fontWeight: 700, color: '#fff', background: confirmingId === o.id ? 'var(--text-muted)' : 'var(--accent)', border: 'none', borderRadius: 8, cursor: confirmingId === o.id ? 'default' : 'pointer' }}>
+                        {confirmingId === o.id ? '처리 중…' : '입금 확인'}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+              {groupedLedger.length === 0 && pendingOrders.length === 0 ? (
                 <div style={{ padding: '14px 2px', fontSize: 13, color: 'var(--text-muted)' }}>
                   {loading ? '불러오는 중…' : '내역이 없습니다.'}
                 </div>
