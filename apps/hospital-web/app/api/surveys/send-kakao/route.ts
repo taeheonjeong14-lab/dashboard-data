@@ -8,11 +8,6 @@ import { createServiceRoleClient } from '@/lib/supabase/service-role';
 export const runtime = 'nodejs';
 
 const SURVEY_TEMPLATE_CODE = process.env.ALIGO_TPL_CODE_SURVEY || 'UI_SURVEY';
-const DDX_API = (
-  process.env.DDX_API_URL ||
-  process.env.NEXT_PUBLIC_DDX_API_URL ||
-  'https://ddx-api.vercel.app'
-).replace(/\/$/, '');
 
 /** 숫자만 남긴 수신번호(01012345678). 유효하지 않으면 빈 문자열. */
 function normalizePhone(raw: string): string {
@@ -21,27 +16,15 @@ function normalizePhone(raw: string): string {
   return /^01[0-9]{8,9}$/.test(local) ? local : '';
 }
 
-/** 세션 scheduledDate(ISO) → 알림톡 변수 #{예약일} 표기("6월 25일"). 없으면 빈 문자열. */
-function formatVisitDate(iso?: string | null): string {
-  if (!iso) return '';
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return '';
-  return d.toLocaleDateString('ko-KR', { timeZone: 'Asia/Seoul', year: 'numeric', month: 'long', day: 'numeric' });
-}
-
 // 승인된 사전문진 템플릿 본문에 변수를 치환한 전체 텍스트. 템플릿과 글자까지 일치해야 발송됨.
-// 변수: #{예약일}(visitDate), #{동물병원명}(hospitalName).
-function buildMessage(visitDate: string, hospitalName: string): string {
+function buildMessage(guardianName: string, patientName: string, hospitalName: string): string {
   return [
-    '안녕하세요, 보호자님.',
+    `안녕하세요, ${guardianName} 보호자님.`,
     '',
-    `${visitDate} ${hospitalName} 예약이 확인되었습니다.`,
+    `${hospitalName} 방문 전 작성하시는 사전문진 안내드립니다.`,
+    `아래 '사전문진 작성하기' 버튼을 눌러 ${patientName}의 증상과 상태를 미리 작성해 주세요.`,
     '',
-    '내원 전 아이의 상태를 미리 확인하기 위해 간단한 사전문진을 부탁드립니다.',
-    '',
-    '문진은 약 3분 정도 소요되며, 작성해 주신 내용을 바탕으로 저희 의료진이 보다 세심하게 진료를 준비할 수 있도록 하겠습니다.',
-    '',
-    '아래 링크를 통해 사전문진 작성해주세요.',
+    '작성해 주신 내용은 진료 시 수의사에게 전달되어 더 정확하고 빠른 진료에 도움이 됩니다.',
     '',
     '감사합니다.',
   ].join('\n');
@@ -57,6 +40,8 @@ export async function POST(request: NextRequest) {
 
   const token = String(body.token ?? '').trim();
   const phone = normalizePhone(String(body.phone ?? ''));
+  const patientNameIn = String(body.patientName ?? '').trim();
+  const guardianNameIn = String(body.guardianName ?? '').trim();
   if (!token) return NextResponse.json({ error: 'token required' }, { status: 400 });
   if (!phone) return NextResponse.json({ error: '올바른 휴대폰 번호를 입력해 주세요.' }, { status: 400 });
 
@@ -87,18 +72,8 @@ export async function POST(request: NextRequest) {
       .single();
     if (hospital?.name_ko && String(hospital.name_ko).trim()) hospitalName = String(hospital.name_ko).trim();
 
-    // 내원 예정일(#{예약일}) — 세션에 저장된 scheduledDate 를 토큰으로 조회. 알림톡 변수는 비면 발송 거부되므로 필수.
-    let visitDate = '';
-    try {
-      const sres = await fetch(`${DDX_API}/api/survey?token=${encodeURIComponent(token)}`, { cache: 'no-store' });
-      if (sres.ok) {
-        const sdata = (await sres.json()) as { session?: { scheduledDate?: string | null } };
-        visitDate = formatVisitDate(sdata.session?.scheduledDate);
-      }
-    } catch { /* 조회 실패 → 아래에서 차단 */ }
-    if (!visitDate) {
-      return NextResponse.json({ error: '내원 예정일이 없어 알림톡을 보낼 수 없습니다. 사전문진에 내원 예정일을 입력해 주세요.' }, { status: 400 });
-    }
+    const patientName = patientNameIn || '환자';
+    const guardianName = guardianNameIn || '고객';
 
     // WL 버튼 링크 — 운영 도메인(NEXT_PUBLIC_SITE_URL)을 베이스로 토큰 경로를 붙인다(템플릿 등록 도메인과 일치).
     const base = (process.env.NEXT_PUBLIC_SITE_URL || new URL(request.url).origin).replace(/\/$/, '');
@@ -120,10 +95,9 @@ export async function POST(request: NextRequest) {
         receiver: phone,
         template_code: SURVEY_TEMPLATE_CODE,
         subject: '사전문진 안내',
-        message: buildMessage(visitDate, hospitalName),
+        message: buildMessage(guardianName, patientName, hospitalName),
         buttons,
         pdf_url: null,
-        product_code: 'survey',
       })
       .select('id')
       .single();
@@ -133,8 +107,26 @@ export async function POST(request: NextRequest) {
     }
     const outboxId = ins.id as string;
 
-    // 큐에 적재 즉시 응답(버튼 즉시 반응). 발송 결과(성공/실패)는 워커가 alimtalk_result 알림으로 전달한다.
-    return NextResponse.json({ ok: true, queued: true, outboxId, message: '발송이 요청되었습니다. 곧 전송됩니다.' });
+    // 워커가 보낼 때까지 잠깐 폴링해 결과를 즉시 돌려준다(최대 ~24초). 시간 초과면 "요청됨"으로 응답.
+    const deadline = Date.now() + 24_000;
+    while (Date.now() < deadline) {
+      await new Promise((r) => setTimeout(r, 1500));
+      const { data: st } = await srvc
+        .schema('health_report')
+        .from('alimtalk_outbox')
+        .select('status, result_code, error')
+        .eq('id', outboxId)
+        .single();
+      if (!st) break;
+      if (st.status === 'sent') return NextResponse.json({ ok: true });
+      if (st.status === 'failed') {
+        return NextResponse.json(
+          { error: `발송 실패 (${st.result_code ?? ''}: ${st.error ?? ''})` },
+          { status: 502 },
+        );
+      }
+    }
+    return NextResponse.json({ ok: true, queued: true, message: '발송이 요청되었습니다. 곧 전송됩니다.' });
   } catch (e) {
     console.error('POST surveys/send-kakao:', e);
     return NextResponse.json({ error: e instanceof Error ? e.message : '발송 실패' }, { status: 500 });
