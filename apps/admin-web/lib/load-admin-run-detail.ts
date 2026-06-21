@@ -22,6 +22,7 @@ const CHART_TYPE_NOTICE: Record<ChartKind, string> = {
   efriends:
     'eFriends: 방문수는 (일자 + 고객) 기준 해석을 권장합니다. H컬럼 괄호 안 환자명은 참고용입니다. [RETAIL SALES] 행은 매출만 포함합니다.',
   other: '차트 종류가 기타로 분류되었습니다. 지표 해석 시 원천 데이터 구조를 확인하세요.',
+  woorien_pms: '우리엔PMS: S.O.A.P 일자별 기록 + 검사결과 패널 구조입니다. 초기 버전이라 일부 구간이 누락되거나 잘못 나뉠 수 있습니다.',
 };
 
 /** admin-data-console CHART_TYPE_HELP 와 유사 — DB chart_type 문자열 기준 */

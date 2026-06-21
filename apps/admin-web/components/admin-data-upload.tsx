@@ -1212,7 +1212,7 @@ export default function AdminDataUpload() {
                           <option value="intovet">인투벳</option>
                           <option value="plusvet">플러스벳</option>
                           <option value="efriends">이프렌즈</option>
-                          <option value="other">기타</option>
+                          <option value="woorien_pms">우리엔PMS</option>
                         </select>
                       </div>
                     </div>

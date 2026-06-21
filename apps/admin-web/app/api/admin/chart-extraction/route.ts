@@ -192,7 +192,7 @@ export async function POST(request: NextRequest) {
       INVALID_JSON: { status: 400, error: 'Invalid JSON body' },
       INVALID_CHART_TYPE: {
         status: 400,
-        error: 'chartType은 intovet | plusvet | other | efriends 중 하나여야 합니다.',
+        error: 'chartType은 intovet | plusvet | efriends | woorien_pms 중 하나여야 합니다.',
       },
       INVALID_HOSPITAL_ID: {
         status: 400,

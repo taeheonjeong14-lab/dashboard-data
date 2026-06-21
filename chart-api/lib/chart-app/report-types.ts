@@ -76,7 +76,7 @@ export type ReportSourceData = {
     model: string | null;
     parserVersion: string | null;
     fileName: string | null;
-    chartType: 'intovet' | 'efriends' | 'plusvet' | 'other';
+    chartType: 'intovet' | 'efriends' | 'plusvet' | 'other' | 'woorien_pms';
   };
   basicInfo: BasicInfo | null;
   chartBodyByDate: ReportChartBodyByDate[];
