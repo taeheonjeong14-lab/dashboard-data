@@ -468,9 +468,7 @@ export function SettingsModal({ open, onClose, initialTab }: { open: boolean; on
                                 <span style={{ display: 'inline-block', marginTop: 6, fontSize: 11.5, fontWeight: 800, color: 'var(--accent)', background: sel ? 'var(--bg)' : 'var(--accent-subtle)', padding: '3px 9px', borderRadius: 999 }}>
                                   🎁 {p.bonusPct}% 추가 적립
                                 </span>
-                              ) : (
-                                <span style={{ display: 'inline-block', marginTop: 6, fontSize: 11.5, color: 'var(--text-muted)' }}>기본 구성</span>
-                              )}
+                              ) : null}
                             </div>
                             <div style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
                               <div style={{ fontSize: 17, fontWeight: 800, color: 'var(--text)' }}>{fmtWon(p.price)}<span style={{ fontSize: 12, fontWeight: 600 }}> 원</span></div>
