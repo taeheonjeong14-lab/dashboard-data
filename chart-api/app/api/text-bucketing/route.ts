@@ -150,8 +150,8 @@ type DebugTrace = {
   }>;
 };
 
-function cleanNoise(line: string) {
-  const trimmed = line.trim();
+function cleanNoise(line: string | null | undefined) {
+  const trimmed = (line ?? "").trim();
   if (!trimmed) return null;
   if (/^printed\s*:/i.test(trimmed)) return null;
   if (/^page\s+\d+\s+of\s+\d+$/i.test(trimmed)) return null;
@@ -2770,7 +2770,8 @@ export async function POST(request: NextRequest) {
           })
         : Promise.resolve(emptyOcr),
     ]);
-    // Google OCR 일부 행은 text 가 null 로 올 수 있음 → 빈 문자열로 정규화(downstream .trim() 널 크래시 방지).
+    // LLM/OCR 모두 일부 줄의 text 가 런타임 null 로 올 수 있음 → 빈 문자열로 정규화(downstream .trim() 널 크래시 방지).
+    for (const l of llmLines) if (l.text == null) (l as { text: string }).text = "";
     ocr.rows = ocr.rows.map((r) => (r.text == null ? { ...r, text: "" } : r));
     // 추출 작업 토큰 차감(추출+OCR usage 합산 → ceil($/0.10), 병원 잔액에서 1회).
     await chargeOperationTokens(hospitalId, extractOperationId, "extract", extractProduct);
