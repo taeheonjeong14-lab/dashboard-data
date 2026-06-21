@@ -13,6 +13,7 @@ type Tab = 'basic' | 'usage' | 'members' | 'payment' | 'password';
 const FEATURE_LABEL: Record<string, string> = {
   extract: '추출', ocr: 'OCR', case_blog: '진료케이스',
   health_checkup: '건강검진', disease_intro: '질환소개', image_placement: '이미지배치', image_analysis: '이미지분석', assessment: 'AI평가', kakao_alimtalk: '알림톡',
+  subscription: '운영 패키지',
 };
 // 진료케이스 블로그 단계(인과·진단치료세부·아웃라인·글)는 한 그룹 '진료케이스'로 합쳐 표시.
 const CASE_BLOG_FEATURES = new Set(['blog_causal', 'blog_detail', 'blog_outline', 'blog_post']);
@@ -202,6 +203,7 @@ export function SettingsModal({ open, onClose, initialTab }: { open: boolean; on
   const groupedLedger = useMemo<LedgerGroup[]>(() => {
     const out: LedgerGroup[] = [];
     const byRun = new Map<string, { g: LedgerGroup; feats: Set<string> }>();
+    const bySub = new Map<string, LedgerGroup>();
     for (const r of overview?.ledger ?? []) {
       const t = Number(r.tokens);
       // 같은 run 의 charge(차감)와 adjust(바른플랜 환불)를 한 그룹으로 묶어 net 만 보여준다.
@@ -215,6 +217,18 @@ export function SettingsModal({ open, onClose, initialTab }: { open: boolean; on
         } else {
           const g: LedgerGroup = { key: `run:${r.runId}`, kind: 'charge', label: '', createdAt: r.createdAt, tokens: t, balanceAfter: r.balanceAfter, steps: r.kind === 'charge' ? 1 : 0, ownerName: r.ownerName ?? null, patientName: r.patientName ?? null };
           byRun.set(r.runId, { g, feats: new Set(r.feature ? [r.feature] : []) });
+          out.push(g);
+        }
+      } else if ((r.kind === 'charge' || r.kind === 'adjust') && r.feature === 'subscription') {
+        // 구독(월정액)은 runId 가 없다. 같은 날의 차감(-200)+바른플랜 환불(+200)을
+        // 한 줄(운영 패키지)로 묶어 net 만 — 바른플랜이면 -0, 미환불(유료구독)이면 -200.
+        const key = `sub:${(r.createdAt || '').slice(0, 10)}`;
+        const hit = bySub.get(key);
+        if (hit) {
+          hit.tokens += t;
+        } else {
+          const g: LedgerGroup = { key, kind: 'charge', label: '운영 패키지', createdAt: r.createdAt, tokens: t, balanceAfter: r.balanceAfter, steps: 1, ownerName: null, patientName: null };
+          bySub.set(key, g);
           out.push(g);
         }
       } else {
