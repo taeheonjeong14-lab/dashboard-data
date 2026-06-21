@@ -1733,7 +1733,8 @@ function mapLabItemsToDateGroups(
   return mapped;
 }
 
-function parsePlanRows(planText: string, chartKind: ChartKind = "intovet"): ParsedPlanRow[] {
+function parsePlanRows(planText: string | null | undefined, chartKind: ChartKind = "intovet"): ParsedPlanRow[] {
+  planText = planText ?? "";
   if (chartKind === "plusvet") {
     return parsePlusVetPlanRows(planText) as ParsedPlanRow[];
   }
@@ -2518,8 +2519,8 @@ async function saveParseRun(params: {
 
     const planRows = chartRowsInserted.flatMap((row, groupIndex) => {
       const matched = params.chartBodyByDate.find((group) => group.dateTime === row.date_time);
-      if (!matched || !matched.planText.trim()) return [];
-      return parsePlanRows(matched.planText, params.chartType).map((plan, itemIndex) => ({
+      if (!matched || !(matched.planText ?? "").trim()) return [];
+      return parsePlanRows(matched.planText ?? "", params.chartType).map((plan, itemIndex) => ({
         parse_run_id: parseRunId,
         chart_by_date_id: row.id,
         code: plan.code || null,
