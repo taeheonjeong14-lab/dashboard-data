@@ -92,12 +92,10 @@ export async function assignFriendlyIdToParseRun(
   supabase: SupabaseClient,
   runId: string,
   createdAtIso: string,
-  params: { hospitalId: string; hospitalSlug: string },
+  params: { hospitalId: string; hospitalSlug: string | null | undefined },
 ): Promise<string> {
-  const slug = params.hospitalSlug.trim();
-  if (!slug) {
-    throw new Error("friendly_id: hospital slug is empty");
-  }
+  // code·slug 가 모두 비어 있어도 추출이 실패하지 않도록 fallback.
+  const slug = (params.hospitalSlug ?? "").trim() || "chart";
   const db = dbSchema(supabase);
   const created = new Date(createdAtIso);
   const yymmdd = formatKstYymmdd(created);

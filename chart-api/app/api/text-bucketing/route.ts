@@ -2574,7 +2574,7 @@ async function saveParseRun(params: {
     saveSubStage = "friendlyId";
     const friendlyId = await assignFriendlyIdToParseRun(supabase, parseRunId, runCreatedAt, {
       hospitalId: hospitalRow.id as string,
-      hospitalSlug: ((hospitalRow.code as string | null) ?? hospitalRow.slug) as string,
+      hospitalSlug: (((hospitalRow.code as string | null) ?? (hospitalRow.slug as string | null) ?? (hospitalRow.id as string) ?? "chart") as string),
     });
 
     return { runId: parseRunId, friendlyId };
