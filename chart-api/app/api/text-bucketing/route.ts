@@ -2918,22 +2918,23 @@ export async function POST(request: NextRequest) {
     // This keeps grouping deterministic and avoids cross-date spillover.
     stage = "labItems";
     for (const group of labLineGroups) {
-      const parsed = sanitizeLabItems(
-        parseLabItemsFromGroupLines(group.lines, chartType),
-        chartType,
-      );
+      stage = "labItems:parse";
+      const parsedRaw = parseLabItemsFromGroupLines(group.lines, chartType);
+      stage = "labItems:sanitize";
+      const parsed = sanitizeLabItems(parsedRaw, chartType);
+      const mappedItems: Array<{ itemName: string; rawItemName: string; valueText: string; unit: string | null; referenceRange: string | null; flag: LabItem["flag"]; page: number }> = [];
+      for (const item of parsed) {
+        const dbg = JSON.stringify({ itemName: item.itemName, valueText: item.valueText, unit: item.unit, ref: item.referenceRange, flag: item.flag }).slice(0, 300);
+        stage = `labItems:canonicalize ${dbg}`;
+        const itemName = canonicalizeLabItemName(item.itemName, labCanonicalSpecies);
+        stage = `labItems:refineFlag ${dbg}`;
+        const flag = refineLabFlag(item.flag, item.valueText, item.referenceRange);
+        mappedItems.push({ itemName, rawItemName: item.itemName, valueText: item.valueText, unit: item.unit, referenceRange: item.referenceRange, flag, page: item.page });
+      }
       labItemsByDate.push({
         dateTime: group.dateTime,
         pages: [...new Set(group.lines.map((line) => line.page))].sort((a, b) => a - b),
-        items: parsed.map((item) => ({
-          itemName: canonicalizeLabItemName(item.itemName, labCanonicalSpecies),
-          rawItemName: item.itemName,
-          valueText: item.valueText,
-          unit: item.unit,
-          referenceRange: item.referenceRange,
-          flag: refineLabFlag(item.flag, item.valueText, item.referenceRange),
-          page: item.page,
-        })),
+        items: mappedItems,
         source: labItemsSource,
         error: labExtractError,
       });
