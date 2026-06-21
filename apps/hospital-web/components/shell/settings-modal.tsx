@@ -1,14 +1,14 @@
 'use client';
 
 import { useState, useEffect, useMemo, useCallback, type FormEvent } from 'react';
-import { X, User, CreditCard, KeyRound, Coins, Users } from 'lucide-react';
+import { X, User, CreditCard, KeyRound, Coins, Users, Wallet } from 'lucide-react';
 import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { createClient } from '@/lib/supabase/client';
 import { inputStyle, primaryPillStyle, SegmentedToggle } from '@/lib/form-styles';
 import { MembersPanel } from './members-panel';
 import { SubscriptionPanel } from './subscription-panel';
 
-type Tab = 'basic' | 'usage' | 'members' | 'payment' | 'password';
+type Tab = 'basic' | 'usage' | 'members' | 'payment' | 'payment_method' | 'password';
 
 const FEATURE_LABEL: Record<string, string> = {
   extract: '추출', ocr: 'OCR', case_blog: '진료케이스',
@@ -79,6 +79,7 @@ const MENU: { key: Tab; label: string; icon: typeof User; masterOnly?: boolean }
   { key: 'password', label: '비밀번호 변경', icon: KeyRound },
   { key: 'usage', label: '토큰 사용량', icon: Coins, masterOnly: true },
   { key: 'payment', label: '청구 및 결제', icon: CreditCard, masterOnly: true },
+  { key: 'payment_method', label: '결제수단', icon: Wallet, masterOnly: true },
 ];
 
 export function SettingsModal({ open, onClose, initialTab }: { open: boolean; onClose: () => void; tokenBalance?: number; initialTab?: Tab }) {
@@ -478,6 +479,18 @@ export function SettingsModal({ open, onClose, initialTab }: { open: boolean; on
                 <SubscriptionPanel />
                 <p style={{ margin: 0, fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.7 }}>
                   * 구독료는 보유 토큰에서 차감됩니다. 카드 등록·토큰 충전은 결제 연동(PG) 후 제공됩니다.
+                </p>
+              </div>
+            )}
+
+            {tab === 'payment_method' && isMaster && (
+              <div style={{ minHeight: '40vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12, textAlign: 'center' }}>
+                <span style={{ display: 'inline-flex', width: 48, height: 48, borderRadius: 14, background: 'var(--bg-raised)', alignItems: 'center', justifyContent: 'center' }}>
+                  <Wallet size={22} style={{ color: 'var(--text-muted)' }} />
+                </span>
+                <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)' }}>준비 중입니다</div>
+                <p style={{ margin: 0, fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.7 }}>
+                  결제수단 등록 기능은 결제 연동(PG) 후 제공됩니다.
                 </p>
               </div>
             )}
