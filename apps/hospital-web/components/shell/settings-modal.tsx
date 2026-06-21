@@ -123,7 +123,6 @@ export function SettingsModal({ open, onClose, initialTab }: { open: boolean; on
   const [usageSub, setUsageSub] = useState<'buy' | 'history'>('buy');
   const [overview, setOverview] = useState<Overview | null>(null);
   const [loadingOverview, setLoadingOverview] = useState(false);
-  const [showLedger, setShowLedger] = useState(false); // '상세 내역 보기' 토글
 
   const loadOverview = useCallback(async (days: number) => {
     setLoadingOverview(true);
@@ -396,7 +395,7 @@ export function SettingsModal({ open, onClose, initialTab }: { open: boolean; on
               <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                 {/* 서브탭: 토큰 구매 | 사용 내역 */}
                 <div style={{ display: 'flex', gap: 4, borderBottom: '1px solid var(--border)' }}>
-                  {([['buy', '토큰 구매'], ['history', '사용 내역']] as const).map(([k, lbl]) => (
+                  {([['buy', '토큰 구매'], ['history', '상세 내역']] as const).map(([k, lbl]) => (
                     <button key={k} type="button" onClick={() => setUsageSub(k)}
                       style={{ padding: '8px 12px', fontSize: 13.5, fontWeight: usageSub === k ? 700 : 500, color: usageSub === k ? 'var(--accent)' : 'var(--text-muted)', background: 'transparent', border: 'none', borderBottom: `2px solid ${usageSub === k ? 'var(--accent)' : 'transparent'}`, marginBottom: -1, cursor: 'pointer' }}>
                       {lbl}
@@ -480,20 +479,8 @@ export function SettingsModal({ open, onClose, initialTab }: { open: boolean; on
 
                 {/* 3) 상세 내역 보기 토글 */}
                 <div>
-                  <button
-                    type="button"
-                    onClick={() => setShowLedger((v) => !v)}
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: 6, padding: '8px 12px', width: '100%',
-                      border: '1px solid var(--border)', borderRadius: 8, background: 'var(--bg)',
-                      color: 'var(--text-secondary)', fontSize: 12.5, fontWeight: 700, cursor: 'pointer', justifyContent: 'space-between',
-                    }}
-                  >
-                    <span>사용·충전 상세 내역</span>
-                    <span style={{ color: 'var(--text-muted)' }}>{showLedger ? '접기 ▲' : '보기 ▼'}</span>
-                  </button>
-                  {showLedger && (
-                    <div style={{ marginTop: 10, border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 10 }}>상세 내역</div>
+                    <div style={{ border: '1px solid var(--border-strong)', borderRadius: 10, overflow: 'hidden' }}>
                       {groupedLedger.length === 0 ? (
                         <div style={{ padding: 12, fontSize: 13, color: 'var(--text-muted)' }}>
                           {loadingOverview ? '불러오는 중…' : '내역이 없습니다.'}
@@ -502,7 +489,7 @@ export function SettingsModal({ open, onClose, initialTab }: { open: boolean; on
                         groupedLedger.map((g, i) => (
                           <div key={g.key} style={{
                             display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
-                            padding: '8px 12px', borderTop: i ? '1px solid var(--border)' : 'none', fontSize: 12.5,
+                            padding: '11px 14px', borderTop: i ? '1px solid var(--border)' : 'none', fontSize: 13,
                           }}>
                             <div style={{ minWidth: 0 }}>
                               <span style={{ fontWeight: 700, color: g.kind === 'charge' ? 'var(--text)' : 'var(--success)' }}>
@@ -528,7 +515,6 @@ export function SettingsModal({ open, onClose, initialTab }: { open: boolean; on
                         ))
                       )}
                     </div>
-                  )}
                 </div>
                 </>
                 )}
