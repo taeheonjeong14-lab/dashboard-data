@@ -268,6 +268,20 @@ export default function AdminUsageDashboard() {
     return m;
   }, [data]);
 
+  // runId 없는 feature+날짜 그룹(구독·알림톡 등)의 구성 항목(차감·환불) — 펼침 세부용.
+  const featEntries = useMemo(() => {
+    const m = new Map<string, LedgerRow[]>();
+    for (const r of data?.ledger ?? []) {
+      if ((r.kind === 'charge' || r.kind === 'adjust') && !r.runId && r.feature) {
+        const key = `feat:${normFeature(r.feature)}:${(r.createdAt || '').slice(0, 10)}`;
+        const arr = m.get(key) ?? [];
+        arr.push(r);
+        m.set(key, arr);
+      }
+    }
+    return m;
+  }, [data]);
+
   return (
     <div className="adminLayout2WithMain">
       {/* 좌측 레일: 병원 목록 (full-bleed, 라인 구분) */}
@@ -428,9 +442,10 @@ export default function AdminUsageDashboard() {
               ) : (
                 <div style={{ borderTop: '1px solid var(--border)' }}>
                   {groupedLedger.map((g) => {
-                    const expandable = g.kind === 'charge' && g.runId != null;
+                    const featRows = g.runId ? [] : (featEntries.get(g.key) ?? []);
+                    const expandable = (g.kind === 'charge' && g.runId != null) || featRows.length > 1;
                     const open = expandable && expanded.has(g.key);
-                    const items = expandable ? (runItems[g.runId as string] ?? []) : [];
+                    const items = (g.kind === 'charge' && g.runId != null) ? (runItems[g.runId as string] ?? []) : [];
                     const who = [g.patientName, g.ownerName].filter(Boolean).join(' / ');
                     return (
                       <div key={g.key} style={{ borderBottom: '1px solid var(--border)' }}>
@@ -458,7 +473,7 @@ export default function AdminUsageDashboard() {
                             ) : null}
                           </div>
                         </div>
-                        {open ? (() => {
+                        {open ? (g.runId ? (() => {
                           const refund = g.runId ? (adjustByRun.get(g.runId) ?? 0) : 0;
                           if (items.length === 0 && refund === 0) {
                             return (
@@ -496,7 +511,25 @@ export default function AdminUsageDashboard() {
                               ) : null}
                             </div>
                           );
-                        })() : null}
+                        })() : (
+                          <div style={{ padding: '4px 2px 10px 24px', background: 'var(--bg-subtle, #f8fafc)' }}>
+                            {featRows.slice().sort((a, b) => (a.kind === 'charge' ? 0 : 1) - (b.kind === 'charge' ? 0 : 1)).map((r, ii) => (
+                              <div key={ii} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '4px 0', fontSize: 12.5, borderTop: ii ? '1px dashed var(--border)' : 'none' }}>
+                                <div style={{ color: r.kind === 'adjust' ? 'var(--success)' : 'var(--text-secondary)' }}>
+                                  {r.kind === 'adjust' ? (r.note || '환불') : (r.note || '차감')}
+                                  {r.kind === 'adjust' ? <span style={{ color: 'var(--text-muted)' }}> (조정)</span> : null}
+                                </div>
+                                <div style={{ whiteSpace: 'nowrap', color: Number(r.tokens) < 0 ? 'var(--danger)' : 'var(--success)' }}>
+                                  {Number(r.tokens) > 0 ? '+' : ''}{fmtTok(Number(r.tokens))} 토큰
+                                </div>
+                              </div>
+                            ))}
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '6px 0 2px', fontSize: 12.5, fontWeight: 700, borderTop: '1px solid var(--border)' }}>
+                              <div style={{ color: 'var(--text)' }}>합계 (net)</div>
+                              <div style={{ whiteSpace: 'nowrap', color: isZeroCharge(g.kind, g.tokens) ? 'var(--danger)' : (g.tokens < 0 ? 'var(--danger)' : 'var(--text)') }}>{fmtGroupTokens(g.kind, g.tokens)} 토큰</div>
+                            </div>
+                          </div>
+                        )) : null}
                       </div>
                     );
                   })}
