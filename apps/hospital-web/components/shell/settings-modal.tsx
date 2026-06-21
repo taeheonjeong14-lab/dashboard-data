@@ -30,6 +30,14 @@ const fmtGroupTokens = (kind: string, tokens: number) =>
 // 상세 내역 조회 범위 — 최근 1년.
 const DETAIL_DAYS = 365;
 
+// 토큰 구매 상품 — base(기본) + bonus(추가 적립)로 분리 표기(많이 살수록 매력적으로).
+const TOKEN_PACKAGES: { id: string; base: number; bonus: number; bonusPct: number; price: number; tag?: string }[] = [
+  { id: 'p1', base: 1200, bonus: 0, bonusPct: 0, price: 100000 },
+  { id: 'p2', base: 2400, bonus: 72, bonusPct: 3, price: 200000 },
+  { id: 'p3', base: 4800, bonus: 240, bonusPct: 5, price: 400000, tag: '최대 적립' },
+];
+const fmtWon = (v: number) => v.toLocaleString('ko-KR');
+
 // 한 작업(run) 안의 기능들 → 대표 라벨. 진료케이스(블로그 4단계) > 건강검진 > 이미지 > 평가 > 추출 순.
 const CASE_FEATS = new Set(['blog_causal', 'blog_detail', 'blog_outline', 'blog_post', 'blog_images']);
 function groupLabel(feats: Set<string>): string {
@@ -127,6 +135,8 @@ export function SettingsModal({ open, onClose, initialTab }: { open: boolean; on
   const [hospital, setHospital] = useState<HospitalSettings | null>(null);
 
   const [openMonths, setOpenMonths] = useState<Set<string>>(new Set());
+  const [selectedPkg, setSelectedPkg] = useState('p2');
+  const [purchaseNotice, setPurchaseNotice] = useState(false);
   const [usageSub, setUsageSub] = useState<'buy' | 'history'>('buy');
   const [overview, setOverview] = useState<Overview | null>(null);
   const [loadingOverview, setLoadingOverview] = useState(false);
@@ -424,16 +434,68 @@ export function SettingsModal({ open, onClose, initialTab }: { open: boolean; on
                         <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-muted)' }}>토큰</span>
                       </span>
                     </div>
-                    {/* 충전 — 준비 중 */}
-                    <div style={{ minHeight: '24vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12, textAlign: 'center' }}>
-                      <span style={{ display: 'inline-flex', width: 48, height: 48, borderRadius: 14, background: 'var(--bg-raised)', alignItems: 'center', justifyContent: 'center' }}>
-                        <Coins size={22} style={{ color: 'var(--text-muted)' }} />
-                      </span>
-                      <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)' }}>준비 중입니다</div>
-                      <p style={{ margin: 0, fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.7 }}>
-                        토큰 구매(충전)는 결제 연동(PG) 후 제공됩니다.
-                      </p>
+                    {/* 상품 선택 */}
+                    <div style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text-secondary)' }}>충전 상품 선택</div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                      {TOKEN_PACKAGES.map((p) => {
+                        const sel = selectedPkg === p.id;
+                        return (
+                          <button
+                            key={p.id}
+                            type="button"
+                            onClick={() => setSelectedPkg(p.id)}
+                            style={{
+                              position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
+                              padding: '15px 16px', textAlign: 'left', cursor: 'pointer',
+                              border: `1.5px solid ${sel ? 'var(--accent)' : 'var(--border-strong)'}`,
+                              borderRadius: 12, background: sel ? 'var(--accent-subtle)' : 'var(--bg)',
+                              transition: 'border-color 0.12s, background 0.12s',
+                            }}
+                          >
+                            {p.tag ? (
+                              <span style={{ position: 'absolute', top: -9, left: 14, fontSize: 10.5, fontWeight: 800, color: '#fff', background: 'var(--accent)', padding: '2px 8px', borderRadius: 999 }}>
+                                🔥 {p.tag}
+                              </span>
+                            ) : null}
+                            <div style={{ minWidth: 0 }}>
+                              <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--text)', lineHeight: 1.3 }}>
+                                {fmtTok(p.base)}<span style={{ fontSize: 12.5, fontWeight: 600 }}> 토큰</span>
+                                {p.bonus > 0 ? (
+                                  <span style={{ color: 'var(--accent)' }}> + {fmtTok(p.bonus)}<span style={{ fontSize: 12.5, fontWeight: 600 }}> 토큰</span></span>
+                                ) : null}
+                              </div>
+                              {p.bonus > 0 ? (
+                                <span style={{ display: 'inline-block', marginTop: 6, fontSize: 11.5, fontWeight: 800, color: 'var(--accent)', background: sel ? 'var(--bg)' : 'var(--accent-subtle)', padding: '3px 9px', borderRadius: 999 }}>
+                                  🎁 {p.bonusPct}% 추가 적립
+                                </span>
+                              ) : (
+                                <span style={{ display: 'inline-block', marginTop: 6, fontSize: 11.5, color: 'var(--text-muted)' }}>기본 구성</span>
+                              )}
+                            </div>
+                            <div style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                              <div style={{ fontSize: 17, fontWeight: 800, color: 'var(--text)' }}>{fmtWon(p.price)}<span style={{ fontSize: 12, fontWeight: 600 }}> 원</span></div>
+                            </div>
+                          </button>
+                        );
+                      })}
                     </div>
+
+                    {purchaseNotice ? (
+                      <p style={{ margin: 0, fontSize: 13, padding: '8px 12px', borderRadius: 'var(--radius)', background: 'var(--accent-subtle)', color: 'var(--accent)', border: '1px solid var(--accent)' }}>
+                        결제 연동(PG) 준비 중입니다. 곧 카드 결제로 구매할 수 있어요.
+                      </p>
+                    ) : null}
+
+                    <button
+                      type="button"
+                      onClick={() => setPurchaseNotice(true)}
+                      style={{ marginTop: 2, padding: '12px 16px', fontSize: 14.5, fontWeight: 700, color: '#fff', background: 'var(--accent)', border: 'none', borderRadius: 'var(--radius)', cursor: 'pointer' }}
+                    >
+                      구매하기
+                    </button>
+                    <p style={{ margin: 0, fontSize: 11.5, color: 'var(--text-muted)', textAlign: 'center' }}>
+                      추가 적립 토큰은 결제 즉시 잔액에 함께 충전됩니다.
+                    </p>
                   </div>
                 )}
 
