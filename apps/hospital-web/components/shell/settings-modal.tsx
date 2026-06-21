@@ -434,21 +434,26 @@ export function SettingsModal({ open, onClose, initialTab }: { open: boolean; on
                 <>
                 {/* 날짜별/카테고리별 사용량 */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 2 }}>
-                    {(['day', 'week', 'month'] as Gran[]).map((g) => (
-                      <button
-                        key={g}
-                        type="button"
-                        onClick={() => setGran(g)}
-                        style={{
-                          padding: '2px 7px', fontSize: 12, fontWeight: gran === g ? 700 : 500,
-                          color: gran === g ? 'var(--text)' : 'var(--text-muted)',
-                          background: 'transparent', border: 'none', borderRadius: 6, cursor: 'pointer',
-                        }}
-                      >
-                        {GRAN_LABEL[g]}
-                      </button>
-                    ))}
+                  <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                    <div style={{ display: 'inline-flex', gap: 2, padding: 3, background: 'var(--bg-subtle)', borderRadius: 8, border: '1px solid var(--border)' }}>
+                      {(['day', 'week', 'month'] as Gran[]).map((g) => (
+                        <button
+                          key={g}
+                          type="button"
+                          onClick={() => setGran(g)}
+                          style={{
+                            padding: '4px 12px', fontSize: 12.5, fontWeight: gran === g ? 700 : 500,
+                            color: gran === g ? 'var(--text)' : 'var(--text-muted)',
+                            background: gran === g ? 'var(--bg)' : 'transparent',
+                            border: 'none', borderRadius: 6, cursor: 'pointer',
+                            boxShadow: gran === g ? '0 1px 2px rgba(0,0,0,0.08)' : 'none',
+                            transition: 'background 0.12s, color 0.12s',
+                          }}
+                        >
+                          {GRAN_LABEL[g]}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                   {loadingOverview && !overview ? (
                     <p style={{ margin: 0, fontSize: 13, color: 'var(--text-muted)' }}>불러오는 중…</p>
