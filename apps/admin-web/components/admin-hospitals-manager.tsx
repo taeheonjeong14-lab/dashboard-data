@@ -443,6 +443,36 @@ export default function AdminHospitalsManager() {
     }
   }
 
+  // 토큰 지급 — 병원 귀속(core.hospitals.token_balance). billing.token_grant.
+  async function grantTokens() {
+    const id = String(selectedId || '').trim();
+    if (!id) return;
+    const input = window.prompt(`"${form.name || id}"에 지급할 토큰 수를 입력하세요 (병원 잔액에 추가)`);
+    if (input == null) return;
+    const amount = Math.trunc(Number(input.trim()));
+    if (!Number.isFinite(amount) || amount <= 0) {
+      setMessage('지급 토큰 수는 양의 정수여야 합니다.');
+      return;
+    }
+    setLoading(true);
+    setMessage('');
+    try {
+      const res = await fetch(`/api/admin/hospitals/${encodeURIComponent(id)}/tokens`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ amount }),
+      });
+      const data = (await res.json()) as { success?: boolean; balance?: number; error?: string };
+      if (!res.ok || !data.success) throw new Error(data.error || '토큰 지급 실패');
+      if (typeof data.balance === 'number') setSelectedBalance(data.balance);
+      setMessage(`토큰 ${amount.toLocaleString()} 지급 완료 (현재 잔액: ${Math.round(data.balance ?? 0).toLocaleString()} 토큰)`);
+    } catch (e) {
+      setMessage(`토큰 지급 실패: ${formatSupabaseError(e)}`);
+    } finally {
+      setLoading(false);
+    }
+  }
+
   async function uploadHospitalAsset(assetType: 'logo' | 'seal', file: File | undefined) {
     const hospitalId = String(selectedId || form.id || '').trim();
     if (!hospitalId) {
@@ -870,6 +900,18 @@ export default function AdminHospitalsManager() {
               </div>
             ) : null}
           </TabPanel>
+
+          {selectedId ? (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '10px 12px', borderRadius: 8, background: 'var(--bg-raised)', border: '1px solid var(--border)' }}>
+              <span style={{ fontSize: 12.5, color: 'var(--text-secondary)' }}>
+                토큰 잔액 <b style={{ color: 'var(--text)' }}>{Math.round(selectedBalance).toLocaleString()}</b> 토큰
+              </span>
+              <button type="button" onClick={() => void grantTokens()} disabled={loading}
+                style={{ padding: '7px 14px', fontSize: 13, fontWeight: 700, borderRadius: 6, border: 'none', background: 'var(--accent)', color: '#fff', cursor: loading ? 'default' : 'pointer' }}>
+                토큰 지급
+              </button>
+            </div>
+          ) : null}
 
           <div className="adminLegacyModalActions" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
             <button type="submit" className="adminLegacyPrimaryBtn" disabled={loading}>

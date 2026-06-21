@@ -259,33 +259,6 @@ export default function AdminUsersConsole() {
     }
   }
 
-  async function grantTokens(userId: string) {
-    const input = window.prompt('지급할 토큰 수를 입력하세요 (1토큰=100원)');
-    if (input == null) return;
-    const amount = Math.trunc(Number(input.trim()));
-    if (!Number.isFinite(amount) || amount <= 0) {
-      setMessage('토큰 수는 양의 정수여야 합니다.');
-      return;
-    }
-    setLoading(true);
-    setMessage('');
-    try {
-      const res = await fetch(`/api/admin/users/${encodeURIComponent(userId)}/tokens`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ amount }),
-      });
-      const data = (await res.json()) as { success?: boolean; balance?: number; error?: string };
-      if (!res.ok || !data.success) throw new Error(data.error || '토큰 지급 실패');
-      setMessage(`토큰 ${amount} 지급 완료 (현재 잔액: ${data.balance ?? '?'})`);
-      await refresh();
-    } catch (e) {
-      setMessage(`토큰 지급 실패: ${e instanceof Error ? e.message : String(e)}`);
-    } finally {
-      setLoading(false);
-    }
-  }
-
   async function sendPasswordReset(email: string | null | undefined) {
     if (!email) {
       setMessage('이메일이 없는 사용자입니다.');
@@ -445,9 +418,6 @@ export default function AdminUsersConsole() {
                         거절
                       </button>
                     ) : null}
-                    <button type="button" style={btnSecondary} onClick={() => void grantTokens(selectedUser.id)} disabled={loading}>
-                      토큰 지급
-                    </button>
                     <button type="button" style={btnSecondary} onClick={() => void sendPasswordReset(selectedUser.email)} disabled={loading}>
                       비밀번호 재설정 메일
                     </button>
