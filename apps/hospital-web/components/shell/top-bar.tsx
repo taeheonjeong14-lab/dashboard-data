@@ -21,6 +21,17 @@ export function TopBar({ userName, hospitalName, tokenBalance, isMaster = false 
   const [settingsOpen, setSettingsOpen] = useState(false);
   // 설정 모달을 어느 탭으로 열지 — 토큰 박스 클릭 시 '토큰 사용량'으로 바로 진입.
   const [settingsTab, setSettingsTab] = useState<'basic' | 'usage'>('basic');
+
+  // 알림(토큰 부족 등) 클릭 → 설정의 토큰 관리 탭 열기. (종/홈 박스가 커스텀 이벤트로 호출)
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const tab = (e as CustomEvent<{ tab?: string }>).detail?.tab;
+      setSettingsTab(tab === 'usage' ? 'usage' : 'basic');
+      setSettingsOpen(true);
+    };
+    window.addEventListener('hospital:open-settings', handler);
+    return () => window.removeEventListener('hospital:open-settings', handler);
+  }, []);
   // 데모용 마스킹: 다른 병원에 데모할 때 상단바의 사용자 이름·병원명만 흐리게 가린다.
   // 1순위) 환경변수 NEXT_PUBLIC_DEMO_MASK=1 이면 서버 렌더부터 "항상" 마스킹(로그아웃/리다이렉트/새로고침 무관).
   // 2순위) URL ?demo=1 로 켜고 ?demo=0 로 끔(localStorage 기억). env 가 켜져 있으면 토글은 무시.

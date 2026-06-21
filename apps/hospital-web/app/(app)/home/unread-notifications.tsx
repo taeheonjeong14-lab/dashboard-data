@@ -64,7 +64,12 @@ export function UnreadNotifications() {
   const onClick = async (n: Noti) => {
     setItems((a) => a.filter((x) => x.id !== n.id));
     await fetch('/api/notifications', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: n.id }) });
-    if (n.link) router.push(n.link);
+    // 토큰 부족/지급 알림 → 설정의 토큰 관리(구매)로. 그 외는 link 이동.
+    if (n.type === 'token_low' || n.type === 'token_granted') {
+      window.dispatchEvent(new CustomEvent('hospital:open-settings', { detail: { tab: 'usage' } }));
+    } else if (n.link) {
+      router.push(n.link);
+    }
   };
 
   // 로딩 전에는 깜빡임 방지를 위해 숨김
@@ -120,7 +125,7 @@ export function UnreadNotifications() {
                 </div>
                 {n.body && <p style={{ margin: '3px 0 0', fontSize: 12.5, color: 'var(--text-secondary)', lineHeight: 1.45, overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>{n.body}</p>}
               </div>
-              {n.link && <ChevronRight size={16} className="homeArrow" style={{ flexShrink: 0, marginTop: 3 }} />}
+              {(n.link || n.type === 'token_low' || n.type === 'token_granted') && <ChevronRight size={16} className="homeArrow" style={{ flexShrink: 0, marginTop: 3 }} />}
             </button>
           );
         })}
