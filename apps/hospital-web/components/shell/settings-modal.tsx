@@ -433,7 +433,8 @@ export function SettingsModal({ open, onClose, initialTab }: { open: boolean; on
                 <>
                 {/* 날짜별/카테고리별 사용량 */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                  <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>토큰 사용량</span>
                     <div style={{ display: 'inline-flex', gap: 2, padding: 3, background: 'var(--bg-subtle)', borderRadius: 8, border: '1px solid var(--border)' }}>
                       {(['day', 'week', 'month'] as Gran[]).map((g) => (
                         <button
@@ -463,7 +464,7 @@ export function SettingsModal({ open, onClose, initialTab }: { open: boolean; on
                       <BarChart data={chartData} margin={{ top: 8, right: 8, bottom: 4, left: 0 }}>
                         <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
                         <XAxis dataKey="date" tick={{ fontSize: 11 }} tickFormatter={(d: string) => bucketTick(d, gran)} />
-                        <YAxis tick={{ fontSize: 11 }} width={40} label={{ value: '토큰', angle: -90, position: 'insideLeft', fontSize: 11 }} />
+                        <YAxis tick={{ fontSize: 11 }} width={36} />
                         <Tooltip formatter={(v) => `${fmtTok(Number(v))} 토큰`} contentStyle={{ fontSize: 12 }} />
                         <Legend wrapperStyle={{ fontSize: 11 }} />
                         {featureKeys.map((fk) => (
