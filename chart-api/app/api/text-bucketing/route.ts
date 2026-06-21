@@ -3072,9 +3072,11 @@ export async function POST(request: NextRequest) {
     const vaccinationRecords = parseVaccinationRecordsFromBucketLines(
       buckets.vaccination.map((line) => ({ text: line.text ?? "" })),
     );
+    stage = "afterVaccination";
     const responsePayloadWithVaccination = { ...responsePayload, vaccinationRecords };
 
     console.log("[text-bucketing] saveParseRun 시작: hospitalId=%s chartBodyByDate=%d labGroups=%d", hospitalId, responsePayload.chartBodyByDate.length, responsePayload.labItemsByDate.length);
+    stage = "saveParseRun";
     const saved = await saveParseRun({
       fileName: sourceFileName || "report.pdf",
       chartType,

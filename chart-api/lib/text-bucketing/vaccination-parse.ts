@@ -130,7 +130,7 @@ function tryHorizontalRow(text: string, recordType: VaccinationRecordType): Pars
 
 export function parseVaccinationRecordsFromBucketLines(lines: Array<{ text: string }>): ParsedVaccinationRecord[] {
   const trimmed: LineIn[] = lines
-    .map((l) => ({ text: l.text.replace(/\s+/g, ' ').trim() }))
+    .map((l) => ({ text: (l?.text ?? '').replace(/\s+/g, ' ').trim() }))
     .filter((l) => l.text.length > 0);
 
   const out: ParsedVaccinationRecord[] = [];
