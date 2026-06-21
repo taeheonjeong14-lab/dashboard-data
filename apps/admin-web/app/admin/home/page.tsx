@@ -51,7 +51,7 @@ const GROUPS: Group[] = [
       { href: '/admin/registrations', label: '병원 심사', desc: '신규 병원·마스터 가입을 심사합니다.', icon: ClipboardCheck },
       { href: '/admin/users/users', label: '사용자 관리', desc: '사용자 계정과 권한을 관리합니다.', icon: Users },
       { href: '/admin/users/hospitals', label: '병원 관리', desc: '병원 정보와 연결을 관리합니다.', icon: Building2 },
-      { href: '/admin/usage', label: '사용량', desc: '병원별 토큰 사용·지급 내역을 봅니다.', icon: Gauge },
+      { href: '/admin/usage', label: '토큰 관리', desc: '병원별 토큰 사용·지급 내역과 충전 주문을 봅니다.', icon: Gauge },
     ],
   },
 ];
