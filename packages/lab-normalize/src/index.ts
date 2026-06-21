@@ -251,10 +251,10 @@ function cbcDifferentialCanonical(raw: string): string | null {
 export type LabCanonicalizeSpecies = 'dog' | 'cat';
 
 export function canonicalizeLabItemName(
-  rawName: string,
+  rawName: string | null | undefined,
   species?: LabCanonicalizeSpecies | null,
 ): string {
-  const raw = foldOcrHomoglyphs(rawName.trim());
+  const raw = foldOcrHomoglyphs((rawName ?? '').trim());
   if (!raw) return '';
 
   for (const rule of PRIORITY_RULES) {
@@ -681,9 +681,9 @@ export function detectSpeciesProfile(raw: string | null | undefined): SpeciesPro
   return 'dog';
 }
 
-export function labItemCategory(itemName: string, species?: SpeciesProfile): LabCategory {
+export function labItemCategory(itemName: string | null | undefined, species?: SpeciesProfile): LabCategory {
   const canonical = canonicalizeLabItemName(itemName, species);
-  const key = ITEM_TO_CATEGORY[canonical] ?? ITEM_TO_CATEGORY[itemName.trim()];
+  const key = ITEM_TO_CATEGORY[canonical] ?? ITEM_TO_CATEGORY[(itemName ?? '').trim()];
   if (key) return CATEGORY_BY_KEY.get(key)!;
   return CATEGORY_BY_KEY.get('other')!;
 }
