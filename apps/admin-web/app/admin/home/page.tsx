@@ -73,7 +73,7 @@ export default async function AdminHomePage() {
   const dateStr = new Intl.DateTimeFormat('ko-KR', { timeZone: 'Asia/Seoul', month: 'long', day: 'numeric', weekday: 'long' }).format(now);
 
   // 대기(할 일) 카운트 — 실패해도 홈은 그린다.
-  let pending = { reportRequested: 0, caseRequested: 0, caseInProgress: 0, registrations: 0 };
+  let pending = { reportRequested: 0, caseRequested: 0, caseInProgress: 0, registrations: 0, tokenOrders: 0 };
   try { pending = await getAdminPendingCounts(); } catch { /* noop */ }
   // 처리할 작업 목록 — 상태별로 분리, 클릭 시 이동 위치도 상태별로 다름.
   //  · 요청(추출만 됨)은 차트 목록에서 작업 시작 / 작업 중은 진료케이스 메뉴에서 이어서.
@@ -82,6 +82,7 @@ export default async function AdminHomePage() {
     { label: '진료케이스', sub: '요청', n: pending.caseRequested, href: '/admin/chart-data?type=블로그&stage=요청' },
     { label: '진료케이스', sub: '작업 중', n: pending.caseInProgress, href: '/admin/case-blog?stage=writing' },
     { label: '병원 심사', sub: '대기', n: pending.registrations, href: '/admin/registrations' },
+    { label: '토큰 충전', sub: '입금 확인', n: pending.tokenOrders, href: '/admin/usage' },
   ].filter((t) => t.n > 0);
   const todoTotal = todos.reduce((s, t) => s + t.n, 0);
 

@@ -64,8 +64,8 @@ export function UnreadNotifications() {
   const onClick = async (n: Noti) => {
     setItems((a) => a.filter((x) => x.id !== n.id));
     await fetch('/api/notifications', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: n.id }) });
-    // 토큰 부족/지급 알림 → 설정의 토큰 관리(구매)로. 그 외는 link 이동.
-    if (n.type === 'token_low' || n.type === 'token_granted') {
+    // 토큰 부족 알림만 → 설정의 토큰 관리(충전)로. 지급 완료 등은 읽음 처리만.
+    if (n.type === 'token_low') {
       window.dispatchEvent(new CustomEvent('hospital:open-settings', { detail: { tab: 'usage' } }));
     } else if (n.link) {
       router.push(n.link);
@@ -125,7 +125,7 @@ export function UnreadNotifications() {
                 </div>
                 {n.body && <p style={{ margin: '3px 0 0', fontSize: 12.5, color: 'var(--text-secondary)', lineHeight: 1.45, overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>{n.body}</p>}
               </div>
-              {(n.link || n.type === 'token_low' || n.type === 'token_granted') && <ChevronRight size={16} className="homeArrow" style={{ flexShrink: 0, marginTop: 3 }} />}
+              {(n.link || n.type === 'token_low') && <ChevronRight size={16} className="homeArrow" style={{ flexShrink: 0, marginTop: 3 }} />}
             </button>
           );
         })}

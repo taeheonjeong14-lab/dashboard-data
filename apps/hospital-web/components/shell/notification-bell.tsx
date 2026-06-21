@@ -59,8 +59,8 @@ export function NotificationBell() {
       setItems((a) => a.map((x) => (x.id === n.id ? { ...x, read: true } : x)));
     }
     setOpen(false);
-    // 토큰 부족 알림 → 설정의 토큰 관리(구매)로. 그 외는 link 이동.
-    if (n.type === 'token_low' || n.type === 'token_granted') {
+    // 토큰 부족 알림만 → 설정의 토큰 관리(충전)로. 지급 완료 등은 읽음 처리만.
+    if (n.type === 'token_low') {
       window.dispatchEvent(new CustomEvent('hospital:open-settings', { detail: { tab: 'usage' } }));
     } else if (n.link) {
       router.push(n.link);
