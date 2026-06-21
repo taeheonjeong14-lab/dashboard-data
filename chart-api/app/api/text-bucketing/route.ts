@@ -3168,9 +3168,13 @@ export async function POST(request: NextRequest) {
       console.error("[text-bucketing] OpenAI API error:", JSON.stringify(openAiDetails));
     }
     const message = error instanceof Error ? error.message : "Unknown error";
+    const stack = error instanceof Error && error.stack ? error.stack : "";
+    console.error("[text-bucketing] pipeline failed:", stack || message);
     return Response.json(
       {
         error: `Text bucket pipeline failed: ${message}`,
+        // 디버그(임시): 정확한 크래시 위치 확인용 — 잡고 나면 제거.
+        stack: stack.split("\n").slice(0, 8).join("\n"),
         ...(exposeOpenAiErrorDetailsInResponse() && openAiDetails ? { openAiError: openAiDetails } : {}),
       },
       { status: 500 },
