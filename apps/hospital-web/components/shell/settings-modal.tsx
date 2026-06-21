@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo, useCallback, type FormEvent } from 'react
 import { X, User, CreditCard, KeyRound, Coins, Users, Wallet } from 'lucide-react';
 import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { createClient } from '@/lib/supabase/client';
-import { inputStyle, primaryPillStyle, SegmentedToggle } from '@/lib/form-styles';
+import { inputStyle, primaryPillStyle } from '@/lib/form-styles';
 import { MembersPanel } from './members-panel';
 import { SubscriptionPanel } from './subscription-panel';
 
@@ -43,7 +43,6 @@ const fmtGroupTokens = (kind: string, tokens: number) =>
 type Gran = 'day' | 'week' | 'month';
 const GRAN_DAYS: Record<Gran, number> = { day: 30, week: 182, month: 365 };
 const GRAN_LABEL: Record<Gran, string> = { day: '일간', week: '주간', month: '월간' };
-const GRAN_BY_LABEL: Record<string, Gran> = { 일간: 'day', 주간: 'week', 월간: 'month' };
 function weekStartKey(dateStr: string): string {
   const d = new Date(`${dateStr}T00:00:00`);
   d.setDate(d.getDate() + (d.getDay() === 0 ? -6 : 1 - d.getDay())); // 그 주의 월요일
@@ -435,12 +434,22 @@ export function SettingsModal({ open, onClose, initialTab }: { open: boolean; on
                 <>
                 {/* 날짜별/카테고리별 사용량 */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                  <SegmentedToggle
-                    options={['일간', '주간', '월간']}
-                    value={GRAN_LABEL[gran]}
-                    onChange={(v) => setGran(GRAN_BY_LABEL[v] ?? 'day')}
-                    padX={16}
-                  />
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 2 }}>
+                    {(['day', 'week', 'month'] as Gran[]).map((g) => (
+                      <button
+                        key={g}
+                        type="button"
+                        onClick={() => setGran(g)}
+                        style={{
+                          padding: '2px 7px', fontSize: 12, fontWeight: gran === g ? 700 : 500,
+                          color: gran === g ? 'var(--text)' : 'var(--text-muted)',
+                          background: 'transparent', border: 'none', borderRadius: 6, cursor: 'pointer',
+                        }}
+                      >
+                        {GRAN_LABEL[g]}
+                      </button>
+                    ))}
+                  </div>
                   {loadingOverview && !overview ? (
                     <p style={{ margin: 0, fontSize: 13, color: 'var(--text-muted)' }}>불러오는 중…</p>
                   ) : chartData.length === 0 ? (
