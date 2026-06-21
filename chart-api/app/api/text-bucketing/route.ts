@@ -2328,6 +2328,7 @@ async function loadCoreHospitalRow(
   return row;
 }
 
+let saveSubStage = ""; // 디버그(임시): saveParseRun 내부 단계 추적
 async function saveParseRun(params: {
   fileName: string;
   chartType: ChartKind;
@@ -2405,6 +2406,7 @@ async function saveParseRun(params: {
     parseRunId = runRow.id as string;
     const runCreatedAt = runRow.created_at as string;
 
+    saveSubStage = "chartRows";
     let chartRowsInserted: Array<{ id: string; date_time: string; row_order: number | null }> = [];
     if (params.chartBodyByDate.length > 0) {
       const chartRows = params.chartBodyByDate.map((group, index) => ({
@@ -2425,6 +2427,7 @@ async function saveParseRun(params: {
       chartRowsInserted = chartInserted as Array<{ id: string; date_time: string; row_order: number | null }>;
     }
 
+    saveSubStage = "labRows";
     const labRows = params.labItemsByDate.flatMap((group, groupIndex) =>
       group.items.map((item, itemIndex) => ({
         parse_run_id: parseRunId,
@@ -2446,6 +2449,7 @@ async function saveParseRun(params: {
     }
 
     if (params.vaccinationRecords.length > 0) {
+      saveSubStage = "vacRows";
       const vacRows = params.vaccinationRecords.map((r, index) => ({
         parse_run_id: parseRunId,
         record_type: r.recordType,
@@ -2462,6 +2466,7 @@ async function saveParseRun(params: {
     }
 
     if (params.vitals.length > 0) {
+      saveSubStage = "vitalRows";
       const vitalRows = params.vitals.map((row, index) => ({
         parse_run_id: parseRunId,
         chart_by_date_id: findNearestChartRowId(
@@ -2486,6 +2491,7 @@ async function saveParseRun(params: {
     }
 
     if (params.physicalExamItems.length > 0) {
+      saveSubStage = "physicalRows";
       const physicalRows = params.physicalExamItems.map((item, index) => ({
         parse_run_id: parseRunId,
         chart_by_date_id: findNearestChartRowId(
@@ -2517,6 +2523,7 @@ async function saveParseRun(params: {
       }
     }
 
+    saveSubStage = "planRows";
     const planRows = chartRowsInserted.flatMap((row, groupIndex) => {
       const matched = params.chartBodyByDate.find((group) => group.dateTime === row.date_time);
       if (!matched || !(matched.planText ?? "").trim()) return [];
@@ -2542,6 +2549,7 @@ async function saveParseRun(params: {
       }
     }
 
+    saveSubStage = "finalizeBasicInfo";
     const basicFinal = finalizeBasicInfoBirthAndAge(params.chartType, params.basicInfoParsed, {
       chartBodyByDate: params.chartBodyByDate,
       labItemsByDate: params.labItemsByDate,
@@ -2563,6 +2571,7 @@ async function saveParseRun(params: {
       throw new Error(`result_basic_info insert failed: ${basicInfoError.message}`);
     }
 
+    saveSubStage = "friendlyId";
     const friendlyId = await assignFriendlyIdToParseRun(supabase, parseRunId, runCreatedAt, {
       hospitalId: hospitalRow.id as string,
       hospitalSlug: ((hospitalRow.code as string | null) ?? hospitalRow.slug) as string,
@@ -3189,7 +3198,7 @@ export async function POST(request: NextRequest) {
       {
         error: `Text bucket pipeline failed: ${message}`,
         // 디버그(임시): 정확한 크래시 위치 확인용 — 잡고 나면 제거.
-        stage,
+        stage: stage === "saveParseRun" ? `saveParseRun:${saveSubStage}` : stage,
         stack: stack.split("\n").slice(0, 8).join("\n"),
         ...(exposeOpenAiErrorDetailsInResponse() && openAiDetails ? { openAiError: openAiDetails } : {}),
       },
