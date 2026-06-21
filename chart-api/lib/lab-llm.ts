@@ -24,19 +24,21 @@ function normalizeNumericString(token: string) {
 
 function toLabItems(parsed: LlmLabItem[]): LabItem[] {
   return parsed.map((item, index) => {
-    const parsedValue = Number.parseFloat(normalizeNumericString(item.valueText));
+    // LLM 이 itemName/valueText 를 null 로 줄 수 있어 가드(널 .trim/.replace 크래시 방지).
+    const valueText = (item.valueText ?? '').trim();
+    const parsedValue = Number.parseFloat(normalizeNumericString(valueText));
     return {
       page: 0,
       rowY: index,
-      itemName: item.itemName.trim(),
+      itemName: (item.itemName ?? '').trim(),
       value: Number.isFinite(parsedValue) ? parsedValue : null,
-      valueText: item.valueText.trim(),
+      valueText,
       unit: item.unit?.trim() || null,
       referenceRange: item.referenceRange?.trim() || null,
       flag: item.flag,
       rawRow: '',
     };
-  });
+  }).filter((it) => it.itemName.length > 0);
 }
 
 export async function extractLabItemsWithLlm({
