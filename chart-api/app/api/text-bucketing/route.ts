@@ -2940,7 +2940,18 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    stage = "flatLabItems";
     const flatLabItems = labItemsByDate.flatMap((group) => group.items);
+    stage = "groupLabByDate";
+    const labByDateForPayload = groupLabByDate(buckets.lab);
+    stage = "chartDebugGroups";
+    const chartDebugGroups = chartBodyByDate.map((group) => {
+      const fullLines = [...(group.bodyText ? group.bodyText.split(/\r?\n/) : []), ...(group.planText ? group.planText.split(/\r?\n/) : [])]
+        .map((line) => (line ?? "").trim())
+        .filter(Boolean);
+      return { dateTime: group.dateTime, planDetected: group.planDetected, planLineScores: buildPlanLineScores(fullLines) };
+    });
+    stage = "responsePayload";
     const unmatchedLabItems = labDebugEnabled
       ? (() => {
           const groupedText = labLineGroups.map((group) => ({
@@ -3010,7 +3021,7 @@ export async function POST(request: NextRequest) {
       },
       basicInfoParsed: parsedBasicInfo,
       chartBodyByDate,
-      labByDate: groupLabByDate(buckets.lab),
+      labByDate: labByDateForPayload,
       labItemsByDate,
       labItems: flatLabItems.map((item) => ({
         itemName: item.itemName,
@@ -3053,21 +3064,13 @@ export async function POST(request: NextRequest) {
         : {}),
       ocrDebug: ocr.debug ?? null,
       chartDebug: {
-        groups: chartBodyByDate.map((group) => {
-          const fullLines = [...(group.bodyText ? group.bodyText.split(/\r?\n/) : []), ...(group.planText ? group.planText.split(/\r?\n/) : [])]
-            .map((line) => line.trim())
-            .filter(Boolean);
-          return {
-            dateTime: group.dateTime,
-            planDetected: group.planDetected,
-            planLineScores: buildPlanLineScores(fullLines),
-          };
-        }),
+        groups: chartDebugGroups,
       },
     };
 
+    stage = "vaccination";
     const vaccinationRecords = parseVaccinationRecordsFromBucketLines(
-      buckets.vaccination.map((line) => ({ text: line.text })),
+      buckets.vaccination.map((line) => ({ text: line.text ?? "" })),
     );
     const responsePayloadWithVaccination = { ...responsePayload, vaccinationRecords };
 
