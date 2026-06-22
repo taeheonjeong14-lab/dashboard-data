@@ -72,15 +72,15 @@ export async function POST(request: NextRequest) {
   try {
     const srvc = createServiceRoleClient();
 
-    // 병원명(메시지 변수). 못 찾으면 '동물병원'.
+    // 병원명(메시지 변수). 못 찾으면 '동물병원'. (core.hospitals 의 병원명 컬럼은 name)
     let hospitalName = '동물병원';
     const { data: hospital } = await srvc
       .schema('core')
       .from('hospitals')
-      .select('name_ko')
+      .select('name')
       .eq('id', hospitalId)
       .single();
-    if (hospital?.name_ko && String(hospital.name_ko).trim()) hospitalName = String(hospital.name_ko).trim();
+    if (hospital?.name && String(hospital.name).trim()) hospitalName = String(hospital.name).trim();
 
     // WL 버튼 링크 — 운영 도메인(NEXT_PUBLIC_SITE_URL)을 베이스로 토큰 경로를 붙인다(템플릿 등록 도메인과 일치).
     const base = (process.env.NEXT_PUBLIC_SITE_URL || new URL(request.url).origin).replace(/\/$/, '');

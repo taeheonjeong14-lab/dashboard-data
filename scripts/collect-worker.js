@@ -613,6 +613,17 @@ async function processAlimtalkOutbox() {
         .eq("status", "queued")
         .select("id");
       if (!claimed || claimed.length === 0) continue;
+      // 진단: 실제로 알리고에 싣는 핵심 필드 확인(템플릿/강조제목/버튼).
+      console.log(
+        "[collect-worker] 발송 시도:",
+        JSON.stringify({
+          id: row.id,
+          tpl: row.template_code,
+          emtitle: row.emphasis_title ?? null,
+          buttons: Array.isArray(row.buttons) ? row.buttons.map((b) => `${b.type}:${b.name}`) : row.buttons,
+          msgHead: String(row.message || "").slice(0, 40),
+        }),
+      );
       let result;
       try {
         result = await sendOneAlimtalk(row);
