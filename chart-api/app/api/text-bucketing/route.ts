@@ -1812,10 +1812,131 @@ function mapLabItemsToDateGroups(
   return mapped;
 }
 
+/** 우리엔PMS 청구코드: 영문+숫자(AA001, WC00483) 또는 숫자-숫자(85176-109792) */
+const WOORIEN_PLAN_CODE = /^(?:[A-Z]{1,4}\d{2,}|\d{4,}-\d{3,})$/i;
+const WOORIEN_PLAN_HEADER_TOKEN = /^(?:plan|코드|항목명|수량|일투|일수|총투|route|dose)$/i;
+const WOORIEN_PLAN_ROUTE = /^(?:po|iv|im|sc|sq|ip|io|oral|topical|경구|피하|정맥|근육)$/i;
+/** 줄바꿈으로 끝에 밀려난 약물 함량 토큰(예: "5mg") — 단위가 mg/ml 등일 때만 */
+const WOORIEN_STRENGTH_TOKEN = /^\d+(?:[.,]\d+)?(?:mg|mcg|ug|µg|g|kg|ml|l|iu)$/i;
+
+/**
+ * 우리엔PMS Plan 표 파서.
+ * 헤더(코드 | 항목명 | 수량 | 일투 | 일수 | 총투 | Route | Dose)를 우리 표로 매핑:
+ *   코드→code, 항목명→treatmentPrescription(처방), 수량 숫자→qty(수)·단위→unit(단),
+ *   일수→day(일), 총투→total(계), Route→route(경로). 일투·Dose는 별도 칼럼 없음(미저장).
+ * OCR/텍스트레이어가 한 행을 여러 줄로 쪼개므로(코드 줄에서 새 행 시작) 줄을 다시 묶어 파싱한다.
+ */
+function parseWoorienPlanRows(planText: string): ParsedPlanRow[] {
+  const rawLines = planText.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+
+  // 모든 토큰이 헤더 토큰인 줄(예: "Plan", "코드", "일투 일수 총투")은 제거
+  const dataLines = rawLines.filter((line) => {
+    const toks = line.split(/\s+/).filter(Boolean);
+    return toks.length > 0 && !toks.every((t) => WOORIEN_PLAN_HEADER_TOKEN.test(t));
+  });
+
+  // 코드로 시작하는 줄에서 새 레코드 시작, 그 외는 직전 레코드에 이어붙임(줄바꿈 복구)
+  const records: string[] = [];
+  let buffer: string[] = [];
+  const flush = () => {
+    if (buffer.length > 0) records.push(buffer.join(" ").replace(/\s+/g, " ").trim());
+    buffer = [];
+  };
+  for (const line of dataLines) {
+    const first = line.split(/\s+/)[0] ?? "";
+    if (WOORIEN_PLAN_CODE.test(first) && buffer.length > 0) flush();
+    buffer.push(line);
+  }
+  flush();
+
+  const rows: ParsedPlanRow[] = [];
+  for (const record of records) {
+    const allTokens = record.split(/\s+/).filter(Boolean);
+    const code = allTokens[0] ?? "";
+    if (!WOORIEN_PLAN_CODE.test(code)) continue;
+
+    let tokens = allTokens.slice(1);
+
+    // Dose: 끝의 괄호 (…) — 별도 칼럼 없으므로 제거만(raw 에 원문 유지)
+    let rest = tokens.join(" ");
+    const doseMatch = rest.match(/\s*\(([^)]*)\)\s*$/);
+    if (doseMatch && doseMatch.index !== undefined) {
+      rest = rest.slice(0, doseMatch.index).trim();
+    }
+    tokens = rest.split(/\s+/).filter(Boolean);
+
+    // Route(경로)
+    let route = "";
+    const routeIdx = tokens.findIndex((t) => WOORIEN_PLAN_ROUTE.test(t));
+    if (routeIdx >= 0) {
+      route = (tokens[routeIdx] ?? "").toUpperCase();
+      tokens = tokens.filter((_, i) => i !== routeIdx);
+    }
+
+    // 줄바꿈으로 끝에 밀려난 함량(예: "5mg") → 이름 접미사로 보관
+    let strengthSuffix = "";
+    if (tokens.length > 0 && WOORIEN_STRENGTH_TOKEN.test(tokens[tokens.length - 1] ?? "")) {
+      strengthSuffix = tokens.pop()!;
+    }
+
+    // 끝의 정수 run = [일투, 일수, 총투]. 3개 이상이면 마지막 3개를 채택.
+    const trailingInts: string[] = [];
+    while (tokens.length > 0 && /^\d+$/.test(tokens[tokens.length - 1] ?? "")) {
+      trailingInts.unshift(tokens.pop()!);
+    }
+    let day = "";
+    let total = "";
+    if (trailingInts.length >= 3) {
+      day = trailingInts[trailingInts.length - 2] ?? "";
+      total = trailingInts[trailingInts.length - 1] ?? "";
+    }
+
+    // 수량(수+단): 남은 토큰 끝에서 추출
+    let qty = "";
+    let unit = "";
+    const lastTok = tokens[tokens.length - 1] ?? "";
+    const prevTok = tokens[tokens.length - 2] ?? "";
+    const fused = lastTok.match(/^(\d+(?:[.,]\d+)?)([^\d\s].*)$/); // "1회"
+    if (/^\d+(?:[.,]\d+)?$/.test(prevTok) && /^[^\d\s]/.test(lastTok)) {
+      // "14 일", "4500 mg" — 숫자 + 분리된 단위
+      qty = prevTok;
+      unit = lastTok;
+      tokens = tokens.slice(0, -2);
+    } else if (fused) {
+      // "1회" — 숫자+단위 붙음
+      qty = fused[1] ?? "";
+      unit = fused[2] ?? "";
+      tokens = tokens.slice(0, -1);
+    } else if (/^\d+(?:[.,]\d+)?$/.test(lastTok)) {
+      qty = lastTok;
+      tokens = tokens.slice(0, -1);
+    }
+
+    let treatmentPrescription = tokens.join(" ").trim();
+    if (strengthSuffix) treatmentPrescription = `${treatmentPrescription} ${strengthSuffix}`.trim();
+
+    rows.push({
+      code,
+      treatmentPrescription,
+      qty,
+      unit,
+      day,
+      total,
+      route,
+      signId: "",
+      raw: record,
+    });
+  }
+  return rows;
+}
+
 function parsePlanRows(planText: string | null | undefined, chartKind: ChartKind = "intovet"): ParsedPlanRow[] {
   planText = planText ?? "";
   if (chartKind === "plusvet") {
     return parsePlusVetPlanRows(planText) as ParsedPlanRow[];
+  }
+  if (chartKind === "woorien_pms") {
+    return parseWoorienPlanRows(planText);
   }
   if (chartKind === "efriends") {
     const lines = planText
@@ -2206,10 +2327,33 @@ function findPlanStartIndex(lines: string[], chartKind: ChartKind): number {
     }
     return -1;
   }
+  if (chartKind === "woorien_pms") {
+    return findWoorienPlanStartIndex(lines);
+  }
   if (chartKind === "plusvet" || chartKind === "other") {
     return findPlusVetPlanStartIndex(lines);
   }
   return findIntoVetStylePlanStartIndex(lines);
+}
+
+/**
+ * 우리엔PMS Plan 헤더: `Plan` 단독 줄 뒤에 한글 표 헤더(코드/항목명/수량/일투/일수/총투, Route/Dose)가
+ * 한 줄씩 또는 묶여서(`일투 일수 총투`) 따라온다. 그 토큰들이 충분히 나오면 `Plan` 줄을 시작점으로 본다.
+ */
+function findWoorienPlanStartIndex(lines: string[]): number {
+  const headerToken = /^(?:코드|항목명|수량|일투|일수|총투|route|dose)$/i;
+  for (let i = 0; i < lines.length; i += 1) {
+    const cur = (lines[i] ?? "").trim().replace(/\s+/g, " ");
+    if (!/^plan:?$/i.test(cur)) continue;
+    let score = 0;
+    for (let j = i + 1; j < Math.min(lines.length, i + 10); j += 1) {
+      for (const part of (lines[j] ?? "").trim().split(/\s+/)) {
+        if (headerToken.test(part)) score += 1;
+      }
+    }
+    if (score >= 3) return i;
+  }
+  return -1;
 }
 
 function buildPlanLineScores(lines: string[]) {
