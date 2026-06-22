@@ -34,11 +34,13 @@ function buildMessage(scheduledLabel: string, hospitalName: string): string {
   ].join('\n');
 }
 
-// "2026-04-08" / ISO → "2026년 4월 8일". 값이 없으면 빈 문자열.
+// "2026-04-08" / ISO → "2026.04.08". 값이 없으면 빈 문자열.
+// 공백 없는 형식: 템플릿이 "#{예약일} #{동물병원명}"처럼 변수가 인접해, 예약일에 공백이 있으면
+// 카카오 변수 경계 판별이 깨져 "템플릿 불일치"가 날 수 있다.
 function formatScheduledLabel(raw: string): string {
   const m = (raw ?? '').match(/(\d{4})-(\d{1,2})-(\d{1,2})/);
   if (!m) return '';
-  return `${m[1]}년 ${Number(m[2])}월 ${Number(m[3])}일`;
+  return `${m[1]}.${String(Number(m[2])).padStart(2, '0')}.${String(Number(m[3])).padStart(2, '0')}`;
 }
 
 export async function POST(request: NextRequest) {
@@ -54,6 +56,8 @@ export async function POST(request: NextRequest) {
   const scheduledLabel = formatScheduledLabel(String(body.scheduledDate ?? ''));
   if (!token) return NextResponse.json({ error: 'token required' }, { status: 400 });
   if (!phone) return NextResponse.json({ error: '올바른 휴대폰 번호를 입력해 주세요.' }, { status: 400 });
+  // 템플릿(UI_8364)의 #{예약일}은 빈 값이면 카카오에서 "템플릿 불일치"로 거절됨 → 비면 발송 자체를 막는다.
+  if (!scheduledLabel) return NextResponse.json({ error: '내원 예정일이 없어 발송할 수 없습니다. 사전문진에 내원 예정일을 설정해 주세요.' }, { status: 400 });
 
   // 로그인 + 병원 확인(과금 귀속 대상). hospital_id 는 클라이언트를 신뢰하지 않고 세션에서 가져온다.
   const supabase = await createClient();
