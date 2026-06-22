@@ -132,8 +132,13 @@ export default async function HomePage() {
         </section>
       ))}
         </main>
-        {/* 읽지 않은 알림 — 우측 세로 컬럼(데스크톱) / 메뉴 아래(모바일) */}
+        {/* 읽지 않은 알림 — 우측 세로 컬럼(데스크톱) / 메뉴 아래(모바일).
+            제목은 메뉴 그룹 제목(h2)과 동일 스타일 → 박스가 메뉴 카드와 같은 높이에서 시작. */}
         <aside className="homeAside">
+          <h2 style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '0 0 13px', fontSize: 13, fontWeight: 700, color: 'var(--text-secondary)', letterSpacing: '0.01em' }}>
+            <span style={{ display: 'inline-flex', width: 4, height: 14, borderRadius: 2, background: 'var(--accent)' }} />
+            알림
+          </h2>
           <UnreadNotifications />
         </aside>
       </div>
