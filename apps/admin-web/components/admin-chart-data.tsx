@@ -465,6 +465,7 @@ export default function AdminChartData() {
           ) : selected ? (
             <div style={{ maxHeight: 'calc(100vh - 140px)', overflowY: 'auto', minHeight: 0 }}>
               <AdminRunExtractionDetail
+                key={selected.id}
                 runId={selected.id}
                 embedded
                 onDelete={() => void deleteRun(selected)}

@@ -1672,7 +1672,7 @@ export function AdminHealthCheckupWorkspace({
             </button>
           </div>
           <div style={{ flex: 1, overflowY: 'auto', padding: '16px' }}>
-            <AdminRunExtractionDetail runId={runId} embedded />
+            <AdminRunExtractionDetail key={runId} runId={runId} embedded />
           </div>
         </div>
       </dialog>

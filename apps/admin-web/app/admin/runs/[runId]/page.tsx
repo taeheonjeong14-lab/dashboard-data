@@ -4,7 +4,7 @@ export default async function AdminRunDetailPage({ params }: { params: Promise<{
   const { runId } = await params;
   return (
     <div className="adminMainSingleGutter">
-      <AdminRunExtractionDetail runId={runId} embedded={false} />
+      <AdminRunExtractionDetail key={runId} runId={runId} embedded={false} />
     </div>
   );
 }
