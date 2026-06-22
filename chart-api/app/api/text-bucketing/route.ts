@@ -952,70 +952,122 @@ function mergeVitalsWithPhysicalExamItems(
   return [...merged.values()].sort((a, b) => a.dateTime.localeCompare(b.dateTime));
 }
 
+type WoorienVitalCol = "date" | "time" | "weight" | "temperature" | "bp" | "heartRate" | "sign";
+
+/** 우리엔 Vital 헤더 토큰 분류. 단위 괄호(`(Kg)` 등)는 'unit', 미상은 null. */
+function classifyWoorienVitalToken(token: string): WoorienVitalCol | "unit" | null {
+  const t = token.trim();
+  if (!t) return null;
+  if (/^\(.*\)$/.test(t)) return "unit";
+  if (t === "날짜") return "date";
+  if (t === "시간") return "time";
+  if (/sign/i.test(t)) return "sign";
+  if (/BW/i.test(t)) return "weight";
+  if (/BT/i.test(t)) return "temperature";
+  if (/BP/i.test(t)) return "bp";
+  if (/HR/i.test(t)) return "heartRate";
+  return null;
+}
+
+/** 줄의 모든 토큰이 헤더 라벨/단위면 헤더 줄(레이아웃 A: 한 줄, B: 한 칸씩 분리 모두 대응). */
+function isWoorienVitalHeaderLine(text: string): boolean {
+  const tokens = text.trim().split(/\s+/).filter(Boolean);
+  if (tokens.length === 0) return false;
+  return tokens.every((tok) => classifyWoorienVitalToken(tok) !== null);
+}
+
 /**
- * 우리엔PMS Vital Check 표.
- * 헤더: `날짜 시간 BW (Kg) BT (C) BP (mmHg) HR (/min) Sign` (BW/BT/BP/HR 순서는 가변 → 헤더에서 읽음)
- * 데이터: `2024-10-26 10:01 6.9 0 0 0 스탭` — 날짜시각 뒤 값들을 헤더 컬럼 순서대로 매핑.
- * 매핑: BW→체중, BT→체온, BP→혈압(수축), HR→심박수. (호흡수 칼럼은 우리엔에 없음)
- * placeholder 0 은 normalizeVitalValue 가 null 처리. 헤더 위 그래프 텍스트 줄(6.9- 등)은 자연히 무시됨.
+ * 우리엔PMS Vital Check 표. LLM 추출이 표를 한 줄로 합치기도(레이아웃 A) 셀마다 한 줄씩 쪼개기도(B) 한다.
+ * → 헤더 라벨 줄들의 **연속 구간**에서 컬럼 순서(날짜·시간·BW·BT·BP·HR·Sign 등)를 읽고,
+ *   그 뒤 데이터 토큰을 한 줄로 펼쳐 날짜 토큰마다 한 행씩 컬럼 순서대로 매핑한다.
+ * 매핑: BW→체중, BT→체온, BP→혈압(수축), HR→심박수. (호흡수 칼럼 없음, Sign 무시)
+ * placeholder 0 은 normalizeVitalValue 가 null 처리. 헤더 위 그래프 텍스트(6.9-, 날짜 등)는 자연히 제외됨.
  */
 function parseWoorienVitalsFromLines(lines: OrderedLine[]): ParsedVitalRow[] {
   const values: ParsedVitalRow[] = [];
 
-  const countVitalCols = (text: string) =>
-    (/\bBW\b/i.test(text) ? 1 : 0) +
-    (/\bBT\b/i.test(text) ? 1 : 0) +
-    (/\bBP\b/i.test(text) ? 1 : 0) +
-    (/\bHR\b/i.test(text) ? 1 : 0);
+  // 1) 헤더 라벨 줄의 연속 구간 중 BW/BT/BP/HR 가 2개 이상 들어간 run 을 찾는다.
+  let runStart = -1;
+  let runEnd = -1;
+  for (let i = 0; i < lines.length; i += 1) {
+    if (!isWoorienVitalHeaderLine(lines[i].text)) continue;
+    let j = i;
+    const cols = new Set<WoorienVitalCol>();
+    while (j < lines.length && isWoorienVitalHeaderLine(lines[j].text)) {
+      for (const tok of lines[j].text.trim().split(/\s+/)) {
+        const cls = classifyWoorienVitalToken(tok);
+        if (cls && cls !== "unit") cols.add(cls);
+      }
+      j += 1;
+    }
+    const vitalCount =
+      (cols.has("weight") ? 1 : 0) +
+      (cols.has("temperature") ? 1 : 0) +
+      (cols.has("bp") ? 1 : 0) +
+      (cols.has("heartRate") ? 1 : 0);
+    if (vitalCount >= 2) {
+      runStart = i;
+      runEnd = j;
+      break;
+    }
+    i = j; // 이 run 은 헤더가 아니므로 건너뜀
+  }
+  if (runStart < 0) return values;
 
-  const headerIdx = lines.findIndex((line) => countVitalCols(line.text) >= 2);
-  if (headerIdx < 0) return values;
-
-  // 헤더에서 값 칼럼 순서 파악
-  type VitalCol = "weight" | "temperature" | "bp" | "heartRate";
-  const columns: VitalCol[] = [];
-  const colRegex = /\b(BW|BT|BP|HR)\b/gi;
-  let m: RegExpExecArray | null;
-  while ((m = colRegex.exec(lines[headerIdx].text)) !== null) {
-    const key = (m[1] ?? "").toUpperCase();
-    if (key === "BW") columns.push("weight");
-    else if (key === "BT") columns.push("temperature");
-    else if (key === "BP") columns.push("bp");
-    else if (key === "HR") columns.push("heartRate");
+  // 2) 컬럼 순서 추출
+  const columns: WoorienVitalCol[] = [];
+  for (let i = runStart; i < runEnd; i += 1) {
+    for (const tok of lines[i].text.trim().split(/\s+/)) {
+      const cls = classifyWoorienVitalToken(tok);
+      if (cls && cls !== "unit") columns.push(cls);
+    }
   }
   if (columns.length === 0) return values;
+  const dateColPos = columns.indexOf("date");
 
+  // 3) 데이터 토큰을 펼침(stop 키워드 전까지)
   const stopPattern = /(vaccination|접종|plan|subjective|objective|진단\s*검사|검체\s*검사|chart\s*image)/i;
-  for (let i = headerIdx + 1; i < lines.length; i += 1) {
+  const dataTokens: string[] = [];
+  for (let i = runEnd; i < lines.length; i += 1) {
     const text = lines[i].text.trim();
     if (!text) continue;
     if (stopPattern.test(text)) break;
-
-    const dm = text.match(/^(20\d{2}[./-]\d{1,2}[./-]\d{1,2}\s+[0-2]?\d:[0-5]\d)\s+(.+)$/);
-    if (!dm) continue;
-
-    const tokens = dm[2].trim().split(/\s+/).filter(Boolean);
-    const row: ParsedVitalRow = {
-      dateTime: dm[1].trim(),
-      weight: null,
-      temperature: null,
-      respiratoryRate: null,
-      heartRate: null,
-      bpSystolic: null,
-      bpDiastolic: null,
-      rawText: text,
-    };
-    for (let c = 0; c < columns.length; c += 1) {
-      const tok = tokens[c];
-      if (tok === undefined) break;
-      const val = normalizeVitalValue(tok);
-      if (columns[c] === "weight") row.weight = val;
-      else if (columns[c] === "temperature") row.temperature = val;
-      else if (columns[c] === "heartRate") row.heartRate = val;
-      else if (columns[c] === "bp") row.bpSystolic = val;
-    }
-    values.push(row);
+    for (const tok of text.split(/\s+/)) if (tok) dataTokens.push(tok);
   }
+
+  // 4) 날짜 토큰마다 한 행 시작, 컬럼 순서대로 매핑
+  const isDateToken = (t: string) => /^20\d{2}[./-]\d{1,2}[./-]\d{1,2}$/.test(t);
+  const flushRow = (buf: string[]) => {
+    if (buf.length === 0) return;
+    const get = (col: WoorienVitalCol) => {
+      const pos = columns.indexOf(col);
+      return pos >= 0 ? buf[pos] : undefined;
+    };
+    const dateVal = get("date") ?? "";
+    const timeVal = get("time") ?? "";
+    const dateTime = `${dateVal} ${timeVal}`.trim();
+    if (!dateTime) return;
+    values.push({
+      dateTime,
+      weight: normalizeVitalValue(get("weight")),
+      temperature: normalizeVitalValue(get("temperature")),
+      respiratoryRate: null,
+      heartRate: normalizeVitalValue(get("heartRate")),
+      bpSystolic: normalizeVitalValue(get("bp")),
+      bpDiastolic: null,
+      rawText: buf.join(" "),
+    });
+  };
+
+  let buffer: string[] = [];
+  for (const tok of dataTokens) {
+    if (isDateToken(tok) && (dateColPos <= 0 ? buffer.length > 0 : buffer.length >= columns.length)) {
+      flushRow(buffer);
+      buffer = [];
+    }
+    buffer.push(tok);
+  }
+  flushRow(buffer);
 
   return values;
 }
