@@ -6,7 +6,7 @@ import { useHospital } from '@/components/shell/hospital-context';
 import { CenteredSpinner } from '@/components/ui/loading-spinner';
 import { StickyHeader } from '@/components/ui/sticky-header';
 import { ddxGet, ddxPost, DdxApiForbiddenError } from '@/lib/ddx-api';
-import { inputStyle, textareaStyle, SegmentedToggle, ghostBtnStyle, kakaoPillStyle, primaryPillStyle } from '@/lib/form-styles';
+import { inputStyle, textareaStyle, SegmentedToggle, primaryPillStyle } from '@/lib/form-styles';
 import { Modal } from '@/components/ui/modal';
 import {
   SessionDetailView,
@@ -255,10 +255,8 @@ function SendModal({ userId, origin, onClose, onCreated }: {
   const [visitType, setVisitType] = useState('초진');
   const [previousChart, setPreviousChart] = useState('');
   const [submitting, setSubmitting] = useState(false);
-  const [sendingKakao, setSendingKakao] = useState(false);
   const [err, setErr] = useState('');
   const [created, setCreated] = useState<{ id: string; token?: string | null } | null>(null);
-  const [kakaoMsg, setKakaoMsg] = useState('');
 
   const shareUrl = created && origin && created.token ? `${origin}/survey/${created.token}` : '';
 
@@ -291,34 +289,12 @@ function SendModal({ userId, origin, onClose, onCreated }: {
     else setErr(e instanceof Error ? e.message : '사전문진 생성 중 오류가 발생했습니다.');
   };
 
-  // "발송 링크 생성" — 세션만 생성하고 다음 화면(링크 + 발송)으로.
+  // "발송 링크 생성" — 세션만 생성하고 다음 화면(링크 복사 + 카카오 발송)으로.
   const submit = async () => {
     setSubmitting(true);
     try { await createSession(); }
     catch (e) { handleCreateError(e); }
     finally { setSubmitting(false); }
-  };
-
-  // "카카오톡 보내기" — 세션 생성 직후 곧바로 알림톡 발송까지 한 번에.
-  const submitAndSendKakao = async () => {
-    setSendingKakao(true);
-    setKakaoMsg('');
-    try {
-      const session = await createSession();
-      if (!session?.token) return; // 검증 실패/생성 실패는 setErr 로 이미 표시됨
-      const res = await fetch('/api/surveys/send-kakao', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token: session.token, phone: contact, patientName, guardianName }),
-      });
-      const data = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string; queued?: boolean; message?: string };
-      if (!res.ok || !data.ok) { setErr(data.error ?? '알림톡 발송에 실패했습니다.'); return; }
-      setKakaoMsg(data.queued ? (data.message ?? '발송이 요청되었습니다. 곧 전송됩니다.') : '카카오 알림톡을 전송했습니다.');
-    } catch (e) {
-      handleCreateError(e);
-    } finally {
-      setSendingKakao(false);
-    }
   };
 
   return (
@@ -328,30 +304,16 @@ function SendModal({ userId, origin, onClose, onCreated }: {
       footer={created ? (
         <button type="button" onClick={onClose} style={primaryPillStyle()}>완료</button>
       ) : (
-        <>
-          <button type="button" onClick={submit} disabled={submitting || sendingKakao} style={ghostBtnStyle}
-            onMouseEnter={(e) => { if (!(submitting || sendingKakao)) e.currentTarget.style.color = 'var(--text)'; }}
-            onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-secondary)'; }}>
-            {submitting ? '생성 중…' : '발송 링크 생성'}
-          </button>
-          <button type="button" onClick={submitAndSendKakao} disabled={submitting || sendingKakao} style={kakaoPillStyle(submitting || sendingKakao)}>
-            <svg width="17" height="17" viewBox="0 0 24 24" aria-hidden="true" style={{ display: 'block' }}>
-              <path fill={submitting || sendingKakao ? 'var(--text-muted)' : '#3c1e1e'} d="M12 3C6.477 3 2 6.486 2 10.79c0 2.79 1.86 5.236 4.65 6.61-.205.73-.74 2.64-.847 3.05-.133.51.187.503.394.366.163-.108 2.6-1.766 3.65-2.48.51.075 1.034.114 1.553.114 5.523 0 10-3.486 10-7.79C22 6.486 17.523 3 12 3z" />
-            </svg>
-            {sendingKakao ? '발송 중…' : '카카오톡 보내기'}
-          </button>
-        </>
+        <button type="button" onClick={submit} disabled={submitting} style={primaryPillStyle(submitting)}>
+          {submitting ? '생성 중…' : '발송 링크 생성'}
+        </button>
       )}
     >
       {created ? (
         <div style={{ display: 'grid', gap: 14 }}>
-          {kakaoMsg && (
-            <div style={{ padding: '10px 12px', background: 'var(--success-subtle, #e6f6ec)', border: '1px solid var(--success)', borderRadius: 'var(--radius)', color: 'var(--success)', fontSize: 12.5 }}>
-              {kakaoMsg}
-            </div>
-          )}
           <p style={{ margin: 0, fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
-            아래 작성 링크를 보호자에게 전달하세요. 보호자가 작성을 완료하면 자동으로 AI 사전 분석이 진행됩니다.
+            발송 링크가 생성되었습니다. 아래에서 <b>링크를 복사</b>하거나 <b>카카오톡으로 발송</b>하세요.
+            보호자가 작성을 완료하면 자동으로 AI 사전 분석이 진행됩니다.
           </p>
           <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '10px 14px', background: 'var(--bg-subtle)', border: '1px solid var(--border)', borderRadius: 'var(--radius)' }}>
             <span style={{ flex: 1, minWidth: 0, fontSize: 12.5, color: 'var(--text)', wordBreak: 'break-all', lineHeight: 1.6 }}>{shareUrl || '링크 생성 실패'}</span>
