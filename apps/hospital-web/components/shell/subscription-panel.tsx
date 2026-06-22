@@ -30,6 +30,17 @@ export function SubscriptionPanel() {
 
   const act = async (productCode: string, action: 'subscribe' | 'cancel') => {
     if (action === 'cancel' && !confirm('구독을 취소할까요? 이미 결제한 기간까지는 계속 이용할 수 있어요.')) return;
+    if (action === 'subscribe') {
+      const prod = data?.products.find((p) => p.code === productCode);
+      const name = prod?.name ?? '운영 패키지';
+      const priceTxt = prod?.price_tokens != null ? `${fmt(prod.price_tokens)}토큰` : '';
+      const balTxt = data?.balance != null ? `현재 잔액 ${fmt(data.balance)}토큰. ` : '';
+      if (!confirm(
+        `${name}을(를) 구독할까요?\n\n` +
+        `지금 첫 결제로 ${priceTxt}이 즉시 차감되고, 이후 매월 ${priceTxt}이 자동 결제됩니다.\n` +
+        `${balTxt}언제든 취소할 수 있으며, 취소해도 이미 결제한 기간까지는 계속 이용할 수 있어요.`
+      )) return;
+    }
     setBusy(true); setMsg(null);
     try {
       const res = await fetch('/api/subscriptions', {
