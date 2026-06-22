@@ -1,5 +1,5 @@
 import type { ChartKind } from '@/lib/text-bucketing/chart-kind';
-import { isVisitContextLine } from '@/lib/text-bucketing/chart-dates';
+import { isVisitContextLine, extractWoorienLooseVisitDateTime } from '@/lib/text-bucketing/chart-dates';
 
 /**
  * 상단 환자/병원 블록이 끝나고 본 차트가 시작됐다고 볼 조건.
@@ -13,6 +13,14 @@ export function shouldEndBasicInfo(lineText: string, kind: ChartKind): boolean {
     if (/^(check list|soap history|laboratory result)\b/i.test(t)) return true;
     if (/\bradiology\s+result\b/i.test(t)) return true;
     if (/^date\s*:\s*20\d{2}[./-]\d{1,2}[./-]\d{1,2}\b/i.test(t)) return true;
+  }
+  if (kind === 'woorien_pms') {
+    const t = lineText.replace(/\s+/g, ' ').trim();
+    // SOAP 섹션 시작 마커(S.O.A.P / SOAP) — 기본정보 종료
+    if (/^s\.?\s*o\.?\s*a\.?\s*p\.?$/i.test(t)) return true;
+    // 방문 헤더(날짜 [오전/오후] 시각 [유형]) — 기본정보 종료
+    if (extractWoorienLooseVisitDateTime(lineText)) return true;
+    return false;
   }
   if (kind === 'intovet') return false;
   const t = lineText.trim();
@@ -48,6 +56,11 @@ export function isDiagnosisTrendSectionTitle(lineText: string): boolean {
 export function isLabSectionHeader(normalizedLine: string, originalLine: string, kind: ChartKind): boolean {
   if (kind === 'plusvet') return false;
   if (normalizedLine.includes('lab examination')) return true;
+  if (kind === 'woorien_pms') {
+    const t = originalLine.replace(/\s+/g, ' ').trim();
+    if (/^lab$/i.test(t)) return true; // 우리엔 검사 섹션 시작 마커
+    if (/^검사명\s+결과값\s+단위/.test(t)) return true; // 검사 표 헤더
+  }
   if (kind === 'intovet') return false;
   /** eFriends PDF: Idexx 표는 `Laboratory Result` / `Laboratory Result (by Item)` 블록 — chartBody와 분리 */
   if (kind === 'efriends' && normalizedLine.includes('laboratory result')) return true;

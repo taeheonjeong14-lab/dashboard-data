@@ -630,7 +630,8 @@ function groupChartBodyByDate(lines: BucketedLine[], chartKind: ChartKind): Char
       JSON.stringify([...groups.keys()]),
     );
   } else if (woorienSubjectiveAnchored) {
-    // 우리엔PMS: "날짜시각 줄 바로 다음(1~2줄 내)에 Subjective" 가 진짜 진료 시각이다.
+    // 우리엔PMS: "날짜시각 줄 다음(1~3줄 내)에 Subjective" 가 진짜 진료 시각이다.
+    // (날짜 줄과 Subjective 사이에 `Sign : 담당자` 등이 끼기도 함)
     // 날짜시각 줄(방문 헤더 + Chart Image/Device 블록의 EXIF 영상시각)은 모두 본문에서 제외하고,
     // 그 중 Subjective 가 곧 따라오는 줄만 새 방문 그룹의 키로 삼는다.
     let visitIdx = 0;
@@ -639,9 +640,9 @@ function groupChartBodyByDate(lines: BucketedLine[], chartKind: ChartKind): Char
       const line = linesToGroup[i];
       const dateTime = extractWoorienLooseVisitDateTime(line.text);
       if (dateTime) {
-        const n1 = linesToGroup[i + 1]?.text.trim() ?? "";
-        const n2 = linesToGroup[i + 2]?.text.trim() ?? "";
-        const subjectiveFollows = /^subjective\b/i.test(n1) || /^subjective\b/i.test(n2);
+        const subjectiveFollows = [1, 2, 3].some((d) =>
+          /^subjective\b/i.test(linesToGroup[i + d]?.text.trim() ?? ""),
+        );
         if (subjectiveFollows) {
           visitIdx += 1;
           let key = dateTime;
