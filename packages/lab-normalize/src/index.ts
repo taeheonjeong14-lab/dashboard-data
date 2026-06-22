@@ -11,9 +11,11 @@ type CanonicalRule = {
 const PRIORITY_RULES: CanonicalRule[] = [
   { canonical: 'ALB/GLOB', pattern: /ALBUMIN\s*\/\s*GLOBULIN/i },
   { canonical: 'ALB/GLOB', pattern: /ALB\s*\/\s*GLOB(?:ULIN)?/i },
+  { canonical: 'ALB/GLOB', pattern: /ALB\s*\/\s*GLB\b/i },
   { canonical: 'ALB/GLOB', pattern: /ALB\s*\/\s*GL\b/i },
   { canonical: 'ALB/GLOB', pattern: /(?:^|[^A-Z0-9%])A\s*\/\s*G(?:\b|\s*(?:R|ratio|비))/i },
   { canonical: 'BUN/CREA', pattern: /BUN\s*\/\s*CREA/i },
+  { canonical: 'BUN/CREA', pattern: /BUN\s*\/\s*CRE\b/i },
   { canonical: 'BUN/CREA', pattern: /BUN\s*\/\s*CR\b/i },
   { canonical: 'BUN/CREA', pattern: /(?:^|[^A-Z0-9])B\s*\/\s*C(?:\b|\s*(?:R|ratio|비))/i },
   { canonical: 'NA/K', pattern: /NA\s*\/\s*K/i },
@@ -65,7 +67,21 @@ const DIRECT_ALIASES: Record<string, string> = {
   FSAA: 'SAA',
   혈액CRP: 'CRP',
   HEMOGLOBIN: 'HGB',
+  HB: 'HGB', // Hb(Hemoglobin) → 괄호 제거 후 "HB"
   HEMATOCRIT: 'HCT',
+  // 옛 효소 명칭 (GPT=ALT, GOT=AST)
+  ALTGPT: 'ALT',
+  GPT: 'ALT',
+  ASTGOT: 'AST',
+  GOT: 'AST',
+  // 총단백 / 총콜레스테롤 표기 변형
+  TPRO: 'TP',
+  TPROT: 'TP',
+  TPROTEIN: 'TP',
+  TOTALPROTEIN: 'TP',
+  TCHOL: 'CHOL',
+  TCHOLESTEROL: 'CHOL',
+  TOTALCHOLESTEROL: 'CHOL',
   PLATELETS: 'PLT',
   PLATLETS: 'PLT',
   LYMPHS: 'LYM',
