@@ -321,7 +321,7 @@ function SendModal({ userId, origin, onClose, onCreated }: {
           </div>
           {created.token && (
             <div style={{ padding: '12px 14px', background: 'var(--bg-subtle)', border: '1px solid var(--border)', borderRadius: 'var(--radius)' }}>
-              <SurveyKakaoSend token={created.token} defaultPhone={contact} patientName={patientName} guardianName={guardianName} />
+              <SurveyKakaoSend token={created.token} defaultPhone={contact} patientName={patientName} guardianName={guardianName} scheduledDate={scheduledDate} />
             </div>
           )}
         </div>

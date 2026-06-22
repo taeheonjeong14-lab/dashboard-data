@@ -31,6 +31,7 @@ export type SessionDetail = {
   guardianName: string | null;
   contact: string | null;
   visitType: string | null;
+  scheduledDate?: string | null;
   previousChartText?: string | null;
   status: string;
   token: string;
@@ -150,6 +151,7 @@ export function SessionDetailView({ detail, origin, hideShareLink = false }: {
             defaultPhone={detail.contact ?? ''}
             patientName={detail.patientName ?? ''}
             guardianName={detail.guardianName ?? ''}
+            scheduledDate={detail.scheduledDate ?? ''}
           />
         </div>
       )}
@@ -387,8 +389,8 @@ export function CopyBtn({ text, label }: { text: string; label: string }) {
 
 // 사전문진 작성 링크를 보호자에게 카카오 알림톡으로 발송. 작성 링크(/survey/[token])는 매번 바뀌지만
 // 템플릿 WL 버튼은 도메인만 고정 등록 → 발송 시 전체 URL 을 linkMo 로 넣어도 통과한다.
-export function SurveyKakaoSend({ token, defaultPhone, patientName, guardianName }: {
-  token: string; defaultPhone: string; patientName: string; guardianName: string;
+export function SurveyKakaoSend({ token, defaultPhone, patientName, guardianName, scheduledDate }: {
+  token: string; defaultPhone: string; patientName: string; guardianName: string; scheduledDate?: string;
 }) {
   const [phone, setPhone] = useState(formatPhone(defaultPhone));
   const [sending, setSending] = useState(false);
@@ -403,7 +405,7 @@ export function SurveyKakaoSend({ token, defaultPhone, patientName, guardianName
       const res = await fetch('/api/surveys/send-kakao', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token, phone, patientName, guardianName }),
+        body: JSON.stringify({ token, phone, patientName, guardianName, scheduledDate: scheduledDate ?? '' }),
       });
       const data = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string; queued?: boolean; message?: string };
       if (!res.ok || !data.ok) throw new Error(data.error ?? '발송에 실패했습니다.');

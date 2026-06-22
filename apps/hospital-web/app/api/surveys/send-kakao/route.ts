@@ -16,18 +16,29 @@ function normalizePhone(raw: string): string {
   return /^01[0-9]{8,9}$/.test(local) ? local : '';
 }
 
-// 승인된 사전문진 템플릿 본문에 변수를 치환한 전체 텍스트. 템플릿과 글자까지 일치해야 발송됨.
-function buildMessage(guardianName: string, patientName: string, hospitalName: string): string {
+// 승인 템플릿(UI_8364) 본문에 변수를 치환한 전체 텍스트. 고정 텍스트가 등록 템플릿과 글자까지 일치해야 발송됨.
+// 변수: #{예약일}→scheduledLabel, #{동물병원명}→hospitalName.
+function buildMessage(scheduledLabel: string, hospitalName: string): string {
   return [
-    `안녕하세요, ${guardianName} 보호자님.`,
+    '안녕하세요, 보호자님.',
     '',
-    `${hospitalName} 방문 전 작성하시는 사전문진 안내드립니다.`,
-    `아래 '사전문진 작성하기' 버튼을 눌러 ${patientName}의 증상과 상태를 미리 작성해 주세요.`,
+    `${scheduledLabel} ${hospitalName} 예약이 확인되었습니다.`,
     '',
-    '작성해 주신 내용은 진료 시 수의사에게 전달되어 더 정확하고 빠른 진료에 도움이 됩니다.',
+    '내원 전 아이의 상태를 미리 확인하기 위해 간단한 사전문진을 부탁드립니다.',
+    '',
+    '문진은 약 3분 정도 소요되며, 작성해 주신 내용을 바탕으로 저희 의료진이 보다 세심하게 진료를 준비할 수 있도록 하겠습니다.(씨익)',
+    '',
+    '아래 링크를 통해 사전문진 작성해주세요.',
     '',
     '감사합니다.',
   ].join('\n');
+}
+
+// "2026-04-08" / ISO → "2026년 4월 8일". 값이 없으면 빈 문자열.
+function formatScheduledLabel(raw: string): string {
+  const m = (raw ?? '').match(/(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (!m) return '';
+  return `${m[1]}년 ${Number(m[2])}월 ${Number(m[3])}일`;
 }
 
 export async function POST(request: NextRequest) {
@@ -40,8 +51,7 @@ export async function POST(request: NextRequest) {
 
   const token = String(body.token ?? '').trim();
   const phone = normalizePhone(String(body.phone ?? ''));
-  const patientNameIn = String(body.patientName ?? '').trim();
-  const guardianNameIn = String(body.guardianName ?? '').trim();
+  const scheduledLabel = formatScheduledLabel(String(body.scheduledDate ?? ''));
   if (!token) return NextResponse.json({ error: 'token required' }, { status: 400 });
   if (!phone) return NextResponse.json({ error: '올바른 휴대폰 번호를 입력해 주세요.' }, { status: 400 });
 
@@ -72,17 +82,14 @@ export async function POST(request: NextRequest) {
       .single();
     if (hospital?.name_ko && String(hospital.name_ko).trim()) hospitalName = String(hospital.name_ko).trim();
 
-    const patientName = patientNameIn || '환자';
-    const guardianName = guardianNameIn || '고객';
-
     // WL 버튼 링크 — 운영 도메인(NEXT_PUBLIC_SITE_URL)을 베이스로 토큰 경로를 붙인다(템플릿 등록 도메인과 일치).
     const base = (process.env.NEXT_PUBLIC_SITE_URL || new URL(request.url).origin).replace(/\/$/, '');
     const surveyUrl = `${base}/survey/${encodeURIComponent(token)}`;
 
-    // 템플릿 등록 버튼 순서와 정확히 일치해야 함: ① 채널 추가(AC) ② 사전문진 작성하기(WL).
+    // 템플릿(UI_8364) 등록 버튼 순서·이름과 정확히 일치해야 함: ① 채널 추가(AC) ② 사전문진 바로가기(WL).
     const buttons = [
       { type: 'AC', name: '채널 추가' },
-      { type: 'WL', name: '사전문진 작성하기', linkMo: surveyUrl, linkPc: surveyUrl },
+      { type: 'WL', name: '사전문진 바로가기', linkMo: surveyUrl, linkPc: surveyUrl },
     ];
 
     const { data: ins, error: insErr } = await srvc
@@ -95,7 +102,8 @@ export async function POST(request: NextRequest) {
         receiver: phone,
         template_code: SURVEY_TEMPLATE_CODE,
         subject: '사전문진 안내',
-        message: buildMessage(guardianName, patientName, hospitalName),
+        emphasis_title: `${hospitalName} 사전문진`,
+        message: buildMessage(scheduledLabel, hospitalName),
         buttons,
         pdf_url: null,
       })

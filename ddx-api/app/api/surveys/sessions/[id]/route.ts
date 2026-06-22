@@ -36,6 +36,7 @@ export async function GET(
         guardianName: true,
         contact: true,
         visitType: true,
+        scheduledDate: true,
         previousChartText: true,
         status: true,
         token: true,
