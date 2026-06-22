@@ -694,6 +694,13 @@ const CHART_TABS: { key: ChartTabKey; label: string }[] = [
   { key: 'debug', label: '디버그' },
 ];
 
+/** 접종·기생충 유형(recordType) 표시 라벨 */
+const VACCINATION_TYPE_LABELS: Record<string, string> = {
+  preventive: '예방접종',
+  ectoparasite: '외부기생충',
+};
+const vaccinationTypeLabel = (t: string) => VACCINATION_TYPE_LABELS[t] ?? t;
+
 /**
  * 병원이 업로드한 원본 PDF 버튼. 1개면 바로 새 탭, 여러 개면 드롭다운에서 선택.
  * (다중 PDF는 추출 시 메모리에서만 merge되고 저장되지 않으므로 원본 개별 파일을 그대로 연다.)
@@ -1556,7 +1563,7 @@ export function AdminRunExtractionDetail({
               text={result.vaccinationRecords
                 .map(
                   (v) =>
-                    `${v.recordType}\t${v.doseOrder}\t${v.productName}\t${v.administeredDate ?? ''}\t${v.sign ?? ''}`,
+                    `${vaccinationTypeLabel(v.recordType)}\t${v.doseOrder}\t${v.productName}\t${v.administeredDate ?? ''}\t${v.sign ?? ''}`,
                 )
                 .join('\n')
               }
@@ -1603,8 +1610,8 @@ export function AdminRunExtractionDetail({
                             );
                           }}
                         >
-                          <option value="preventive">preventive</option>
-                          <option value="ectoparasite">ectoparasite</option>
+                          <option value="preventive">예방접종</option>
+                          <option value="ectoparasite">외부기생충</option>
                         </select>
                       </td>
                       <td style={{ padding: 4 }}>
@@ -1653,7 +1660,7 @@ export function AdminRunExtractionDetail({
                     </>
                   ) : (
                     <>
-                      <td style={{ padding: 6 }}>{v.recordType}</td>
+                      <td style={{ padding: 6 }}>{vaccinationTypeLabel(v.recordType)}</td>
                       <td style={{ padding: 6 }}>{v.doseOrder}</td>
                       <td style={{ padding: 6 }}>{v.productName}</td>
                       <td style={{ padding: 6 }}>{v.administeredDate ?? '—'}</td>
