@@ -65,7 +65,7 @@ const summaryStyle: CSSProperties = {
   letterSpacing: '0.01em',
 };
 
-type Tab = 'chartBody' | 'basicInfo' | 'lab' | 'labItems';
+type Tab = 'chartBody' | 'basicInfo' | 'lab' | 'vitals' | 'labItems';
 
 export function BucketDebugPanel({ runId }: { runId: string }) {
   const [data, setData] = useState<BucketDebugData | null>(null);
@@ -96,6 +96,7 @@ export function BucketDebugPanel({ runId }: { runId: string }) {
     { key: 'chartBody', label: '차트 본문 (날짜별)', count: data?.chartBodyByDate.length },
     { key: 'basicInfo', label: '기본정보 버킷', count: data?.bucketLines.basicInfo.length },
     { key: 'lab', label: '검사 버킷 raw', count: data?.bucketLines.lab.length },
+    { key: 'vitals', label: '바이탈 버킷', count: data?.bucketLines.vitals.length },
     { key: 'labItems', label: '추출 검사항목', count: data?.labItems.length },
   ];
 
@@ -201,6 +202,21 @@ export function BucketDebugPanel({ runId }: { runId: string }) {
                 ) : (
                   <pre style={{ margin: 0, padding: '8px 10px', fontSize: 11, lineHeight: 1.7, background: 'var(--bg-subtle)', border: '1px solid var(--border)', borderRadius: 4, whiteSpace: 'pre-wrap', wordBreak: 'break-all', maxHeight: 500, overflowY: 'auto' }}>
                     {data.bucketLines.lab.map((line, i) => (
+                      <span key={i} style={{ display: 'block', borderBottom: '1px solid var(--bg-subtle)', paddingBottom: 1 }}>{line}</span>
+                    ))}
+                  </pre>
+                )}
+              </div>
+            )}
+
+            {/* 바이탈 버킷 탭 */}
+            {activeTab === 'vitals' && (
+              <div>
+                {data.bucketLines.vitals.length === 0 ? (
+                  <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: 0 }}>바이탈 버킷이 비어있습니다 — 버케팅 규칙이 바이탈 섹션을 찾지 못했을 수 있습니다.</p>
+                ) : (
+                  <pre style={{ margin: 0, padding: '8px 10px', fontSize: 11, lineHeight: 1.7, background: 'var(--bg-subtle)', border: '1px solid var(--border)', borderRadius: 4, whiteSpace: 'pre-wrap', wordBreak: 'break-all', maxHeight: 500, overflowY: 'auto' }}>
+                    {data.bucketLines.vitals.map((line, i) => (
                       <span key={i} style={{ display: 'block', borderBottom: '1px solid var(--bg-subtle)', paddingBottom: 1 }}>{line}</span>
                     ))}
                   </pre>
