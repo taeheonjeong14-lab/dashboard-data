@@ -62,7 +62,7 @@ export function UnreadNotifications() {
   // 안읽음이 없으면 칸은 유지하고 "모두 확인" 메시지를 표시
   if (items.length === 0) {
     return (
-      <section style={{ marginBottom: 28, borderRadius: 'var(--radius-lg)', border: '1px solid var(--accent)', background: 'var(--bg)', boxShadow: '0 6px 18px var(--accent-subtle)' }}>
+      <section style={{ marginBottom: 28, borderRadius: 'var(--radius-lg)', border: '1px solid var(--accent)', background: 'var(--accent-subtle)', boxShadow: '0 6px 18px var(--accent-subtle)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '18px' }}>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--text)' }}>읽지 않은 알림이 없어요</div>
@@ -77,7 +77,7 @@ export function UnreadNotifications() {
   const more = items.length - visible.length;
 
   return (
-    <section style={{ marginBottom: 28, borderRadius: 'var(--radius-lg)', border: '1px solid var(--accent)', background: 'var(--bg)', overflow: 'hidden', boxShadow: '0 6px 18px var(--accent-subtle)' }}>
+    <section style={{ marginBottom: 28, borderRadius: 'var(--radius-lg)', border: '1px solid var(--accent)', background: 'var(--accent-subtle)', overflow: 'hidden', boxShadow: '0 6px 18px var(--accent-subtle)' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 18px', borderBottom: '1px solid var(--border)', background: 'var(--accent-subtle)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>읽지 않은 알림</span>
