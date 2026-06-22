@@ -952,7 +952,76 @@ function mergeVitalsWithPhysicalExamItems(
   return [...merged.values()].sort((a, b) => a.dateTime.localeCompare(b.dateTime));
 }
 
+/**
+ * 우리엔PMS Vital Check 표.
+ * 헤더: `날짜 시간 BW (Kg) BT (C) BP (mmHg) HR (/min) Sign` (BW/BT/BP/HR 순서는 가변 → 헤더에서 읽음)
+ * 데이터: `2024-10-26 10:01 6.9 0 0 0 스탭` — 날짜시각 뒤 값들을 헤더 컬럼 순서대로 매핑.
+ * 매핑: BW→체중, BT→체온, BP→혈압(수축), HR→심박수. (호흡수 칼럼은 우리엔에 없음)
+ * placeholder 0 은 normalizeVitalValue 가 null 처리. 헤더 위 그래프 텍스트 줄(6.9- 등)은 자연히 무시됨.
+ */
+function parseWoorienVitalsFromLines(lines: OrderedLine[]): ParsedVitalRow[] {
+  const values: ParsedVitalRow[] = [];
+
+  const countVitalCols = (text: string) =>
+    (/\bBW\b/i.test(text) ? 1 : 0) +
+    (/\bBT\b/i.test(text) ? 1 : 0) +
+    (/\bBP\b/i.test(text) ? 1 : 0) +
+    (/\bHR\b/i.test(text) ? 1 : 0);
+
+  const headerIdx = lines.findIndex((line) => countVitalCols(line.text) >= 2);
+  if (headerIdx < 0) return values;
+
+  // 헤더에서 값 칼럼 순서 파악
+  type VitalCol = "weight" | "temperature" | "bp" | "heartRate";
+  const columns: VitalCol[] = [];
+  const colRegex = /\b(BW|BT|BP|HR)\b/gi;
+  let m: RegExpExecArray | null;
+  while ((m = colRegex.exec(lines[headerIdx].text)) !== null) {
+    const key = (m[1] ?? "").toUpperCase();
+    if (key === "BW") columns.push("weight");
+    else if (key === "BT") columns.push("temperature");
+    else if (key === "BP") columns.push("bp");
+    else if (key === "HR") columns.push("heartRate");
+  }
+  if (columns.length === 0) return values;
+
+  const stopPattern = /(vaccination|접종|plan|subjective|objective|진단\s*검사|검체\s*검사|chart\s*image)/i;
+  for (let i = headerIdx + 1; i < lines.length; i += 1) {
+    const text = lines[i].text.trim();
+    if (!text) continue;
+    if (stopPattern.test(text)) break;
+
+    const dm = text.match(/^(20\d{2}[./-]\d{1,2}[./-]\d{1,2}\s+[0-2]?\d:[0-5]\d)\s+(.+)$/);
+    if (!dm) continue;
+
+    const tokens = dm[2].trim().split(/\s+/).filter(Boolean);
+    const row: ParsedVitalRow = {
+      dateTime: dm[1].trim(),
+      weight: null,
+      temperature: null,
+      respiratoryRate: null,
+      heartRate: null,
+      bpSystolic: null,
+      bpDiastolic: null,
+      rawText: text,
+    };
+    for (let c = 0; c < columns.length; c += 1) {
+      const tok = tokens[c];
+      if (tok === undefined) break;
+      const val = normalizeVitalValue(tok);
+      if (columns[c] === "weight") row.weight = val;
+      else if (columns[c] === "temperature") row.temperature = val;
+      else if (columns[c] === "heartRate") row.heartRate = val;
+      else if (columns[c] === "bp") row.bpSystolic = val;
+    }
+    values.push(row);
+  }
+
+  return values;
+}
+
 function parseVitalsFromLines(lines: OrderedLine[], chartKind: ChartKind): ParsedVitalRow[] {
+  if (chartKind === "woorien_pms") return parseWoorienVitalsFromLines(lines);
   const values: ParsedVitalRow[] = [];
   const start = lines.findIndex((line) =>
     /일시/.test(line.text) &&
