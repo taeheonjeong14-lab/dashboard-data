@@ -36,7 +36,7 @@ export async function GET(
         guardianName: true,
         contact: true,
         visitType: true,
-        scheduledDate: true,
+        scheduledDate: true, // 사전문진 알림톡 #{예약일} 변수(목록 상세 재발송)용
         previousChartText: true,
         status: true,
         token: true,
