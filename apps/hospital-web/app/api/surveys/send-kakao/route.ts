@@ -7,7 +7,7 @@ import { createServiceRoleClient } from '@/lib/supabase/service-role';
 // 꺼내 알리고로 보낸다(워커/과금 그대로 재사용). 사전문진은 run 이 없으므로 run_id·pdf_url 은 비운다.
 export const runtime = 'nodejs';
 
-const SURVEY_TEMPLATE_CODE = process.env.ALIGO_TPL_CODE_SURVEY || 'UI_SURVEY';
+const SURVEY_TEMPLATE_CODE = process.env.ALIGO_TPL_CODE_SURVEY || 'UI_8364';
 
 /** 숫자만 남긴 수신번호(01012345678). 유효하지 않으면 빈 문자열. */
 function normalizePhone(raw: string): string {
