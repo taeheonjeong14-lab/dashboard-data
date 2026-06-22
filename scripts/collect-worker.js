@@ -620,7 +620,7 @@ async function processAlimtalkOutbox() {
           id: row.id,
           tpl: row.template_code,
           emtitle: row.emphasis_title ?? null,
-          buttons: Array.isArray(row.buttons) ? row.buttons.map((b) => `${b.type}:${b.name}`) : row.buttons,
+          buttons: Array.isArray(row.buttons) ? row.buttons.map((b) => `${b.type}:${b.name}:${b.linkMo || ""}`) : row.buttons,
           msgHead: String(row.message || "").slice(0, 40),
         }),
       );
