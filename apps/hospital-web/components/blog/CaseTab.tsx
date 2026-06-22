@@ -8,7 +8,7 @@ import { CenteredSpinner } from '@/components/ui/loading-spinner';
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
-type ChartType = 'intovet' | 'plusvet' | 'efriends' | 'other';
+type ChartType = 'intovet' | 'plusvet' | 'efriends' | 'woorien_pms' | 'other';
 
 type Stage =
   | 'idle'
@@ -51,6 +51,7 @@ const CHART_TYPE_LABELS: Record<ChartType, string> = {
   intovet: 'IntoVet EMR',
   plusvet: 'PlusVet EMR',
   efriends: 'eFriends EMR',
+  woorien_pms: '우리엔 PMS',
   other: '기타',
 };
 
