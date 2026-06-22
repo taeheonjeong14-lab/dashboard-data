@@ -8,7 +8,7 @@ import { CenteredSpinner } from '@/components/ui/loading-spinner';
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
-type ChartType = 'intovet' | 'plusvet' | 'efriends' | 'woorien_pms' | 'other';
+type ChartType = 'intovet' | 'plusvet' | 'efriends' | 'woorien_pms';
 
 type Stage =
   | 'idle'
@@ -52,7 +52,6 @@ const CHART_TYPE_LABELS: Record<ChartType, string> = {
   plusvet: 'PlusVet EMR',
   efriends: 'eFriends EMR',
   woorien_pms: '우리엔 PMS',
-  other: '기타',
 };
 
 // 케이스 개요 — 차트에 나와있지 않은 내용을 한 줄씩 채운다. 주질환명·동반질환명은 숏필드.

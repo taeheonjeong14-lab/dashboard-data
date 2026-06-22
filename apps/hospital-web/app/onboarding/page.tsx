@@ -7,10 +7,10 @@ import Image from 'next/image';
 const DEFAULT_T1 = '환자를 내 아이처럼';
 const DEFAULT_T2 = '최고의 진료로 보답하겠습니다';
 const CHART_TYPES = [
-  { v: 'woorien_pms', l: '우리엔PMS' },
   { v: 'intovet', l: '인투벳' },
+  { v: 'plusvet', l: '플러스벳' },
   { v: 'efriends', l: '이프렌즈' },
-  { v: '', l: '기타/모름' },
+  { v: 'woorien_pms', l: '우리엔PMS' },
 ];
 type StepKey = 'intro' | 'nameEn' | 'chart' | 'vetCount' | 'slogan' | 'color' | 'logo' | 'keywords' | 'competitors' | 'review';
 const STEPS: StepKey[] = ['intro', 'nameEn', 'chart', 'vetCount', 'slogan', 'color', 'logo', 'keywords', 'competitors', 'review'];
