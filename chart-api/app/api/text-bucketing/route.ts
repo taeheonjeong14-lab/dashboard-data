@@ -24,6 +24,7 @@ import {
   extractChartBodyDateKey,
   extractEfriendsVisitDateKey,
   extractLabDateTime,
+  extractWoorienLooseVisitDateTime,
 } from "@/lib/text-bucketing/chart-dates";
 import { runGoogleVisionOcr, type OcrRow } from "@/lib/google-vision";
 import { extractOrderedLinesFromPdf, getOpenAiOrderedLinesModel } from "@/lib/report-llm";
@@ -422,6 +423,43 @@ function parseEfriendsBasicInfoFromText(block: string): ParsedBasicInfo {
   };
 }
 
+/**
+ * 우리엔PMS Medical Record 기본정보 — `라벨: 값` 한 줄 단위 포맷.
+ * 라벨이 우리 DB 필드와 다름:
+ *   동물이름 → patientName(환자명), 종류 → species(종), 품종 → breed(품종).
+ * 보호자명은 우리엔 Medical Record에 없으므로 항상 null(빈칸 유지).
+ */
+function parseWoorienPmsBasicInfoFromText(block: string): ParsedBasicInfo {
+  const lines = block
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  const pick = (labels: string[]): string | null => {
+    for (const line of lines) {
+      for (const label of labels) {
+        const re = new RegExp(`^${label}\\s*[:：]\\s*(.+)$`);
+        const m = line.match(re);
+        if (m?.[1]) {
+          const v = m[1].trim();
+          if (v) return v;
+        }
+      }
+    }
+    return null;
+  };
+
+  return {
+    hospitalName: null,
+    ownerName: null,
+    patientName: pick(["동물이름", "동물명"]),
+    species: pick(["종류", "종"]),
+    breed: pick(["품종"]),
+    birth: pick(["생일", "생년월일"]),
+    sex: normalizeBasicInfoSex(pick(["성별"])),
+  };
+}
+
 function parseBasicInfoFromText(
   fullText: string,
   chartKind: ChartKind = "intovet",
@@ -451,6 +489,14 @@ function parseBasicInfoFromText(
     // eFriends는 basicInfo 라인이 흩어질 수 있어 전체 텍스트를 우선 사용.
     const block = fullText;
     return withNormalizedSpeciesBreed(parseEfriendsBasicInfoFromText(block));
+  }
+
+  if (chartKind === "woorien_pms") {
+    const block =
+      basicInfoLines && basicInfoLines.length > 0
+        ? basicInfoLines.map((l) => l.text).join("\n")
+        : fullText;
+    return withNormalizedSpeciesBreed(parseWoorienPmsBasicInfoFromText(block));
   }
 
   const lines = fullText
@@ -554,6 +600,8 @@ function groupChartBodyByDate(lines: BucketedLine[], chartKind: ChartKind): Char
   // 직전까지 본 가장 최근 "4자리 연도" 날짜시각(랩 표의 2자리연도 26.xx 는 제외됨)을 그 진료의 키로 쓴다.
   const plusvetSubjectiveAnchored =
     chartKind === "plusvet" && linesToGroup.some((l) => /^subjective\b/i.test(l.text.trim()));
+  const woorienSubjectiveAnchored =
+    chartKind === "woorien_pms" && linesToGroup.some((l) => /^subjective\b/i.test(l.text.trim()));
 
   if (plusvetSubjectiveAnchored) {
     let pendingDate: string | null = null;
@@ -578,6 +626,37 @@ function groupChartBodyByDate(lines: BucketedLine[], chartKind: ChartKind): Char
     }
     console.log(
       "[groupChartBodyByDate] plusvet subjectiveAnchored visits=%d keys=%s",
+      visitIdx,
+      JSON.stringify([...groups.keys()]),
+    );
+  } else if (woorienSubjectiveAnchored) {
+    // 우리엔PMS: "날짜시각 줄 바로 다음(1~2줄 내)에 Subjective" 가 진짜 진료 시각이다.
+    // 날짜시각 줄(방문 헤더 + Chart Image/Device 블록의 EXIF 영상시각)은 모두 본문에서 제외하고,
+    // 그 중 Subjective 가 곧 따라오는 줄만 새 방문 그룹의 키로 삼는다.
+    let visitIdx = 0;
+    let started = false;
+    for (let i = 0; i < linesToGroup.length; i += 1) {
+      const line = linesToGroup[i];
+      const dateTime = extractWoorienLooseVisitDateTime(line.text);
+      if (dateTime) {
+        const n1 = linesToGroup[i + 1]?.text.trim() ?? "";
+        const n2 = linesToGroup[i + 2]?.text.trim() ?? "";
+        const subjectiveFollows = /^subjective\b/i.test(n1) || /^subjective\b/i.test(n2);
+        if (subjectiveFollows) {
+          visitIdx += 1;
+          let key = dateTime;
+          if (groups.has(key)) key = `${key} (${visitIdx})`;
+          currentKey = key;
+          groups.set(currentKey, []);
+          started = true;
+        }
+        continue; // 날짜시각 줄은 본문에 넣지 않음(EXIF 영상시각·헤더 누수 방지)
+      }
+      if (!started) continue; // 첫 방문 헤더 이전 줄(기본정보 잔여 등)은 버림
+      groups.get(currentKey)?.push(line);
+    }
+    console.log(
+      "[groupChartBodyByDate] woorien subjectiveAnchored visits=%d keys=%s",
       visitIdx,
       JSON.stringify([...groups.keys()]),
     );

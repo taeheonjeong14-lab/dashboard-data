@@ -105,8 +105,35 @@ export function extractPlusVetVisitDateKey(text: string): string | null {
   return hit.dateTime;
 }
 
+/**
+ * 우리엔PMS 차트 본문 방문 헤더 — `YYYY-MM-DD HH:MM` 단독 줄(대시 구분자, 초 없음)만 인정.
+ * "Chart Image"/"Device" 블록에 박힌 영상·기기 EXIF 촬영시각이 가짜 방문으로 잡히는 것을 막는다.
+ * (예: 점 구분 `2024.10.26 10:23`, 초 포함 `2004.10.25 10:23:48`, 혼합 `2024-11.01 12:06:28`)
+ */
+export function extractWoorienVisitDateKey(text: string): string | null {
+  const t = text.replace(/\s+/g, ' ').trim();
+  const m = t.match(/^(20\d{2})-(\d{1,2})-(\d{1,2})\s+([0-2]?\d:[0-5]\d)$/);
+  if (!m) return null;
+  return `${normalizeYmdParts(m[1] ?? '', m[2] ?? '', m[3] ?? '')} ${m[4]}`;
+}
+
+/**
+ * 우리엔PMS: 날짜+시각 단독 줄을 **형식 무관**(점·대시·초 포함)으로 잡아 `YYYY-MM-DD HH:MM`로 정규화.
+ * 본문에서 날짜시각 줄(방문 헤더 + EXIF 영상시각)을 식별·제거하는 용도. 방문 키 여부는
+ * 호출부에서 "바로 다음 줄이 Subjective인가"로 판별한다.
+ */
+export function extractWoorienLooseVisitDateTime(text: string): string | null {
+  const t = text.replace(/\s+/g, ' ').trim();
+  const m = t.match(
+    /^(?:\[)?\s*(20\d{2})[./-](\d{1,2})[./-](\d{1,2})\s+([0-2]?\d:[0-5]\d)(?::[0-5]\d)?\s*\]?$/,
+  );
+  if (!m) return null;
+  return `${normalizeYmdParts(m[1] ?? '', m[2] ?? '', m[3] ?? '')} ${m[4]}`;
+}
+
 /** 차트 본문을 날짜별로 나눌 때 사용하는 앵커 */
 export function extractChartBodyDateKey(text: string, kind: ChartKind): string | null {
+  if (kind === 'woorien_pms') return extractWoorienVisitDateKey(text);
   const iv = extractIntoVetDateTime(text);
   if (kind === 'intovet') return iv;
   return iv ?? extractLabDateTime(text);
