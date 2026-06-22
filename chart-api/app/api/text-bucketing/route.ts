@@ -1433,7 +1433,76 @@ function isLabVerticalNoiseLine(s: string): boolean {
   return false;
 }
 
+/** 우리엔 검사 표 헤더 라벨 줄(검사명/결과값 단위/MIN/MAX/Description) */
+const WOORIEN_LAB_HEADER_LINE = /^(?:검사명|결과값\s*단위|결과값|단위|min|max|description)$/i;
+/** 우리엔 검사 항목 종료 = Description(플래그) 줄 */
+const WOORIEN_LAB_FLAG_LINE = /^(?:high|low|normal)$/i;
+
+/**
+ * 우리엔PMS 검사 표 — 항목당 세로 줄 단위.
+ *   검사명 / "값 단위"(예 "33.0 X10*3/L") / MIN / MAX / Description(플래그)
+ * 비율 항목(BUN/CRE, ALB/GLB 등)은 MIN/MAX 가 없어 3줄(검사명 / 값 / 플래그)인 경우도 있음.
+ * 매핑: 검사명→itemName(원문), 값→valueText, 단위→unit, MIN·MAX→referenceRange("MIN - MAX"),
+ *       Description→flag. (정규화·카테고리는 상위 파이프라인이 원문 기준으로 처리)
+ * 날짜/Sign/헤더 줄은 무시. 같은 날짜에 표가 여러 개여도(헤더 반복) 그대로 처리됨.
+ */
+function parseWoorienLabItemsFromGroupLines(lines: BucketedLine[]): LabItem[] {
+  const items: LabItem[] = [];
+  const isNum = (s: string | undefined) => !!s && /^[-+]?\d+(?:[.,]\d+)?$/.test(s.trim());
+
+  const skip = (t: string) =>
+    /^20\d{2}[./-]\d{1,2}[./-]\d{1,2}$/.test(t) || // 날짜
+    /^sign\s*[:：]/i.test(t) || // Sign : 담당자
+    WOORIEN_LAB_HEADER_LINE.test(t);
+
+  let buffer: Array<{ text: string; page: number }> = [];
+  for (const line of lines) {
+    const t = (line.text ?? "").trim();
+    if (!t || skip(t)) continue;
+
+    if (WOORIEN_LAB_FLAG_LINE.test(t)) {
+      // buffer = [검사명, "값 단위", (MIN), (MAX)]
+      if (buffer.length >= 2) {
+        const name = buffer[0]!.text;
+        const valueLine = buffer[1]!.text;
+        const vm = valueLine.match(/^([<>]?\s*[-+]?\d+(?:[.,]\d+)?)\s*(.*)$/);
+        const valueText = (vm ? vm[1]! : valueLine).replace(/\s+/g, "");
+        const unitRaw = vm ? (vm[2] ?? "").trim() : "";
+        const minTok = buffer[2]?.text.trim();
+        const maxTok = buffer[3]?.text.trim();
+        const referenceRange =
+          isNum(minTok) && isNum(maxTok)
+            ? `${minTok} - ${maxTok}`
+            : isNum(minTok)
+              ? minTok!
+              : null;
+        const valueNum = Number.parseFloat(valueText.replace(/[<>]/g, "").replace(",", "."));
+        items.push({
+          page: buffer[0]!.page,
+          rowY: 0,
+          itemName: name,
+          value: Number.isFinite(valueNum) ? valueNum : null,
+          valueText,
+          unit: unitRaw || null,
+          referenceRange,
+          flag: t.toLowerCase() as LabItem["flag"],
+          rawRow: [...buffer.map((b) => b.text), t].join(" "),
+        });
+      }
+      buffer = [];
+      continue;
+    }
+
+    buffer.push({ text: t, page: line.page });
+  }
+
+  return items;
+}
+
 function parseLabItemsFromGroupLines(lines: BucketedLine[], chartKind: ChartKind = "intovet"): LabItem[] {
+  if (chartKind === "woorien_pms") {
+    return parseWoorienLabItemsFromGroupLines(lines);
+  }
   if (chartKind === "plusvet") {
     const pv = parsePlusVetLabBucketLines(lines);
     const uniquePv = new Map<string, LabItem>();
