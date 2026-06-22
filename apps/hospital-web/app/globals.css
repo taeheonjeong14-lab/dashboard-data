@@ -78,6 +78,17 @@ textarea {
 .homeCard .homeArrow { color: var(--text-muted); transition: color .16s ease, transform .16s ease; }
 .homeCard:hover .homeArrow { color: var(--accent); transform: translateX(3px); }
 
+/* 홈 본문 레이아웃 — 데스크톱: 메뉴(좌, 넓게) + 알림 세로 컬럼(우, 고정폭).
+   모바일: 한 줄로 쌓이되 메뉴가 먼저 와서 항상 보이고 알림은 아래로 내려감(DOM 순서 = 메뉴→알림). */
+.homeBody { display: grid; grid-template-columns: 1fr; gap: 22px; align-items: start; }
+.homeMain { min-width: 0; }
+.homeAside { min-width: 0; }
+@media (min-width: 920px) {
+  .homeBody { grid-template-columns: minmax(0, 1fr) 320px; gap: 26px; }
+  /* 알림 컬럼은 메뉴 스크롤 중에도 보이도록 상단 고정 */
+  .homeAside { position: sticky; top: 16px; }
+}
+
 /* 홈 진입 시 카드/섹션이 순차적으로 부드럽게 나타남 */
 @keyframes homeRise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
 .homeRise { animation: homeRise .4s ease both; }

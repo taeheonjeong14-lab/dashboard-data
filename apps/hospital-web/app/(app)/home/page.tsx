@@ -75,7 +75,7 @@ export default async function HomePage() {
   const dateStr = new Intl.DateTimeFormat('ko-KR', { timeZone: 'Asia/Seoul', month: 'long', day: 'numeric', weekday: 'long' }).format(now);
 
   return (
-    <div style={{ maxWidth: 980, margin: '0 auto' }}>
+    <div style={{ maxWidth: 1100, margin: '0 auto' }}>
       {/* 히어로 인사 헤더 */}
       <div className="homeRise" style={{ position: 'relative', overflow: 'hidden', borderRadius: 'var(--radius-lg)', padding: '34px 30px', marginBottom: 26, background: 'linear-gradient(135deg, var(--accent-subtle) 0%, var(--bg) 62%)', border: '1px solid var(--border)' }}>
         {/* 우상단 부드러운 장식 글로우 */}
@@ -95,9 +95,9 @@ export default async function HomePage() {
         </div>
       </div>
 
-      {/* 읽지 않은 알림 (있을 때만 표시) */}
-      <UnreadNotifications />
-
+      {/* 본문: 메뉴(좌) + 알림 세로 컬럼(우). 모바일은 메뉴 먼저, 알림은 아래로. */}
+      <div className="homeBody">
+        <main className="homeMain">
       {GROUPS.map((g, gi) => (
         <section key={g.title} className="homeRise" style={{ marginBottom: 26, animationDelay: `${0.05 + gi * 0.06}s` }}>
           <h2 style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '0 0 13px', fontSize: 13, fontWeight: 700, color: 'var(--text-secondary)', letterSpacing: '0.01em' }}>
@@ -131,6 +131,12 @@ export default async function HomePage() {
           </div>
         </section>
       ))}
+        </main>
+        {/* 읽지 않은 알림 — 우측 세로 컬럼(데스크톱) / 메뉴 아래(모바일) */}
+        <aside className="homeAside">
+          <UnreadNotifications />
+        </aside>
+      </div>
     </div>
   );
 }
