@@ -55,7 +55,6 @@ type FormBody = {
     searchad_secret_key_encrypted?: string;
     googleads_customer_id?: string;
     googleads_refresh_token_encrypted?: string;
-    intake_survey_enabled?: boolean;
     barun_plan_enabled?: boolean;
     barun_plan_start?: string;
     barun_plan_end?: string;
@@ -153,16 +152,6 @@ export async function POST(request: Request) {
     const resolvedHospitalId = String(hospitalId || payload.id || '').trim();
     if (!resolvedHospitalId) {
       throw new Error('hospital_id를 확인할 수 없습니다.');
-    }
-
-    // 사전문진 연동 플래그 — 컬럼이 아직 없을 수 있어 메인 upsert와 분리해 방어적으로 저장
-    {
-      const { error: flagErr } = await supabase
-        .schema('core')
-        .from('hospitals')
-        .update({ intake_survey_enabled: !!hospitalForm.intake_survey_enabled })
-        .eq('id', resolvedHospitalId);
-      if (flagErr) console.warn('intake_survey_enabled 저장 생략(컬럼 미존재 가능):', flagErr.message);
     }
 
     // 바른반려연구소 플랜 — 컬럼이 아직 없을 수 있어 분리해 방어적으로 저장

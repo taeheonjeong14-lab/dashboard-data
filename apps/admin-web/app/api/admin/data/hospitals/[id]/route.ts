@@ -70,20 +70,6 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
 
     const ads = await fetchHospitalAdsColumns(supabase, hospitalId);
 
-    // 컬럼이 아직 없을 수 있으므로 방어적으로 조회 (마이그레이션 전이면 false)
-    let intakeSurveyEnabled = false;
-    {
-      const r = await supabase
-        .schema('core')
-        .from('hospitals')
-        .select('intake_survey_enabled')
-        .eq('id', hospitalId)
-        .maybeSingle();
-      if (!r.error) {
-        intakeSurveyEnabled = (r.data as { intake_survey_enabled?: boolean } | null)?.intake_survey_enabled === true;
-      }
-    }
-
     // 바른반려연구소 플랜 — 컬럼 미존재 가능성 대비 방어적 조회
     let barunEnabled = false;
     let barunStart = '';
@@ -168,7 +154,6 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
       naver_login_pw: naverLoginPw,
       wish_keywords: wishKeywords,
       wish_competitors: wishCompetitors,
-      intake_survey_enabled: intakeSurveyEnabled,
       barun_plan_enabled: barunEnabled,
       barun_plan_start: barunStart,
       barun_plan_end: barunEnd,

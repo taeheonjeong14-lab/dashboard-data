@@ -34,15 +34,8 @@ export async function GET(request: NextRequest) {
   try {
     const svc = createServiceRoleClient();
 
-    // 1) 연동 on/off (컬럼 없으면 false)
-    let enabled = false;
-    {
-      const r = await svc.schema('core').from('hospitals').select('intake_survey_enabled').eq('id', hospitalId).maybeSingle();
-      if (!r.error) enabled = (r.data as { intake_survey_enabled?: boolean } | null)?.intake_survey_enabled === true;
-    }
-    if (!enabled) return NextResponse.json({ enabled: false, matches: [] });
-
-    // 2) ddx-api 매칭 조회
+    // 사전문진↔초진 접수 연동은 항상 켜짐(병원별 토글 폐지). 바로 매칭 조회로 진행.
+    // ddx-api 매칭 조회
     let all: Match[] = [];
     try {
       const res = await fetch(`${DDX_API}/api/survey/match?hospitalId=${encodeURIComponent(hospitalId)}&contact=${encodeURIComponent(contact)}`);

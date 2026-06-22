@@ -54,7 +54,6 @@ const EMPTY_FORM = {
   searchad_secret_key_encrypted: '',
   googleads_customer_id: '',
   googleads_refresh_token_encrypted: '',
-  intake_survey_enabled: false,
   barun_plan_enabled: false,
   barun_plan_start: '',
   barun_plan_end: '',
@@ -109,7 +108,6 @@ const FORM_SECTIONS = [
   { key: 'branding', title: '병원 BI/CI' },
   { key: 'keyword', title: '키워드' },
   { key: 'competitor', title: '경쟁병원' },
-  { key: 'intake', title: '서비스 구성' },
   { key: 'blog', title: '블로그 컨텐츠' },
   { key: 'crawler', title: '데이터 수집' },
   { key: 'database', title: '데이터베이스 관리' },
@@ -859,19 +857,6 @@ export default function AdminHospitalsManager() {
                 </DataCard>
               ))}
             </div>
-          </TabPanel>
-
-          {/* 🤖 사전문진·초진 접수 */}
-          <TabPanel active={activeTab === 'intake'}>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--text-secondary)', cursor: 'pointer' }}>
-              <input
-                type="checkbox"
-                checked={form.intake_survey_enabled}
-                onChange={(e) => setForm((f) => ({ ...f, intake_survey_enabled: e.target.checked }))}
-                style={{ width: 16, height: 16, flexShrink: 0 }}
-              />
-              초진 접수 ↔ 사전문진 연동 사용 (연락처로 매칭해 겹치는 질문 자동 스킵·프리필)
-            </label>
           </TabPanel>
 
           {/* 🗄️ 데이터베이스 관리 — 시스템 내부에서 병원을 식별/관리하기 위한 값 */}
