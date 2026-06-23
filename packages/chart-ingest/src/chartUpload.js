@@ -419,11 +419,17 @@ export async function executeChartUpload({
     await updateRunProgress(supabase, runId, {
       metadata: { stage: currentStage },
     });
-    // rebuild_chart_for_run_full = 기존 재빌드 + 신규환자 전 구간 보정(업로드 순서 무관).
+    // 1) 기존 재빌드(매출·방문·고객마스터·범위 KPI)
     const { data: rebuildResult, error: rebuildError } = await supabase
       .schema("analytics")
-      .rpc("rebuild_chart_for_run_full", { p_run_id: runId });
-    throwDbError(rebuildError, "rebuild_chart_for_run_full rpc");
+      .rpc("rebuild_chart_for_run", { p_run_id: runId });
+    throwDbError(rebuildError, "rebuild_chart_for_run rpc");
+
+    // 2) 신규환자 전 구간 보정 — 별도 statement 로 분리(둘을 한 statement 로 묶으면 statement timeout 57014).
+    const { error: recomputeError } = await supabase
+      .schema("analytics")
+      .rpc("recompute_new_customers_for_run", { p_run_id: runId });
+    throwDbError(recomputeError, "recompute_new_customers_for_run rpc");
 
     currentStage = "finalizing";
     const { error: doneError } = await supabase
