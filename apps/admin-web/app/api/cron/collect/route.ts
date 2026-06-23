@@ -76,6 +76,7 @@ export async function GET(request: NextRequest) {
     if (sc.scope === 'hospitals' && (sc.hospital_ids?.length ?? 0) > 0) {
       rows = (sc.hospital_ids as string[]).map((hid) => ({
         hospital_id: hid,
+        origin: 'schedule',
         ...(filter ? { steps_filter: filter } : {}),
         ...searchadCols,
         ...campaignCols,
@@ -83,6 +84,7 @@ export async function GET(request: NextRequest) {
     } else {
       // 전체 병원 = hospital_id 없는 배치 잡 1건 (워커가 collect-all-batch 실행)
       rows = [{
+        origin: 'schedule',
         ...(filter ? { steps_filter: filter } : {}),
         ...searchadCols,
         ...campaignCols,

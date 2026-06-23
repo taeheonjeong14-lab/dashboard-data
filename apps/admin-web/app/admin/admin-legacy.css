@@ -186,6 +186,91 @@
   line-height: 1.4;
 }
 
+/* ── 스피너 (수집 진행 중 표시) ───────────────── */
+@keyframes adminSpin { to { transform: rotate(360deg); } }
+.adminSpin { animation: adminSpin 0.9s linear infinite; }
+
+/* ── 데이터 수집 허브: 경영 대시보드(hospital-ui)와 동일한 헤더+언더라인 탭 ── */
+.adminDataHubHeader {
+  position: sticky;
+  top: var(--topbar-height);
+  z-index: 20;
+  background: var(--bg-subtle);
+  margin-top: calc(-1 * var(--admin-content-pad, 28px));
+  padding-top: var(--admin-content-pad, 28px);
+  padding-bottom: 0;
+}
+
+.adminDataTabRow {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid var(--border);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.adminDataTabRow::-webkit-scrollbar { display: none; }
+
+.adminDataTab {
+  appearance: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: none;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-muted);
+  padding: 9px 12px;
+  margin-bottom: -1px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+.adminDataTab:hover { color: var(--text); }
+.adminDataTabActive { color: var(--accent); font-weight: 600; border-bottom-color: var(--accent); }
+
+.adminDataTabBody {
+  padding-top: 20px;
+}
+
+/* 데이터 자동 수집 탭: 좌측 수집 대상 선택 + 우측 진행 상황 (인셋, 풀블리드 아님) */
+.adminCollectGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  gap: 28px;
+  align-items: start;
+}
+.adminCollectHospitals { min-width: 0; }
+.adminCollectOptions {
+  min-width: 0;
+  display: grid;
+  gap: 16px;
+  align-content: start;
+}
+
+@media (max-width: 860px) {
+  .adminCollectGrid { grid-template-columns: 1fr; }
+}
+
+/* 경영통계 탭: 좌측 제출 내역 패널 + 우측 업로드 콘솔 */
+.adminDataSplit {
+  display: grid;
+  grid-template-columns: 320px minmax(0, 1fr);
+  gap: 20px;
+  align-items: start;
+}
+.adminDataSplitRail {
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: var(--bg);
+}
+.adminDataSplitMain { min-width: 0; }
+
+@media (max-width: 960px) {
+  .adminDataSplit { grid-template-columns: 1fr; }
+}
+
 /* ── Details 마커 숨김 ────────────────────────── */
 details > summary::-webkit-details-marker { display: none; }
 

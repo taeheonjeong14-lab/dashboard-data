@@ -3,7 +3,7 @@ import { requireAdminSession } from '@/lib/require-admin';
 import { createClient } from '@/lib/supabase/server';
 import { getAdminPendingCounts } from '@/lib/admin-pending-counts';
 import {
-  BarChart2, FileSpreadsheet, RefreshCw, FileText, HeartPulse, Newspaper,
+  BarChart2, RefreshCw, FileText, HeartPulse, Newspaper,
   ClipboardList, ClipboardCheck, Users, Building2, Gauge, ChevronRight,
   ListTodo, CheckCircle2,
   type LucideIcon,
@@ -26,8 +26,7 @@ const GROUPS: Group[] = [
     title: '경영분석',
     items: [
       { href: '/admin/performance', label: '대시보드', desc: '병원별 매출·신규·광고 지표를 분석합니다.', icon: BarChart2 },
-      { href: '/admin/data-upload?section=stats', label: '경영통계 수집', desc: '병원 경영통계 제출분을 수집·정리합니다.', icon: FileSpreadsheet },
-      { href: '/admin/data-upload?section=collect', label: '데이터 수집', desc: '외부 데이터를 수집·동기화합니다.', icon: RefreshCw },
+      { href: '/admin/data-upload', label: '데이터 수집', desc: '경영통계 업로드·자동 수집·스케줄·수집 내역을 한 곳에서.', icon: RefreshCw },
     ],
   },
   {

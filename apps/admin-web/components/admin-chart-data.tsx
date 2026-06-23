@@ -501,7 +501,7 @@ export default function AdminChartData() {
             <button type="button" className="adminLegacySmallBtn" onClick={() => setUploadModalOpen(false)}>닫기</button>
           </div>
           <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
-            {uploadModalOpen && <AdminDataUpload />}
+            {uploadModalOpen && <AdminDataUpload variant="extract" />}
           </div>
         </div>
       </dialog>

@@ -89,6 +89,7 @@ export async function POST(request: Request) {
     .insert(
       validated.map(({ hospital_id, steps_filter, searchad_start_date, searchad_end_date, searchad_campaign_ids }) => ({
         hospital_id,
+        origin: 'manual',
         ...(steps_filter ? { steps_filter } : {}),
         ...(searchad_start_date ? { searchad_start_date, searchad_end_date } : {}),
         ...(searchad_campaign_ids ? { searchad_campaign_ids } : {}),

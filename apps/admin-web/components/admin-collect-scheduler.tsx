@@ -49,7 +49,17 @@ function scheduleSummary(s: Schedule, hospitals: HospitalOpt[]): string {
   return `${when} · ${scope} · ${steps}`;
 }
 
-export default function AdminCollectScheduler({ hospitals, open, onClose }: { hospitals: HospitalOpt[]; open: boolean; onClose: () => void }) {
+export default function AdminCollectScheduler({
+  hospitals,
+  open = false,
+  onClose,
+  inline = false,
+}: {
+  hospitals: HospitalOpt[];
+  open?: boolean;
+  onClose?: () => void;
+  inline?: boolean;
+}) {
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -72,7 +82,7 @@ export default function AdminCollectScheduler({ hospitals, open, onClose }: { ho
     }
   }, []);
 
-  useEffect(() => { if (open) void load(); }, [open, load]);
+  useEffect(() => { if (open || inline) void load(); }, [open, inline, load]);
 
   const startNew = () => { setDraft(emptyDraft()); setEditingId('new'); };
   const startEdit = (s: Schedule) => {
@@ -125,15 +135,10 @@ export default function AdminCollectScheduler({ hospitals, open, onClose }: { ho
     await load();
   };
 
-  if (!open) return null;
-  return (
-    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-      <div onClick={(e) => e.stopPropagation()} style={{ width: 'min(92vw, 560px)', maxHeight: '88vh', display: 'flex', flexDirection: 'column', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 12, boxShadow: '0 12px 40px rgba(0,0,0,0.18)', overflow: 'hidden' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 18px', borderBottom: '1px solid var(--border)' }}>
-          <h2 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: 'var(--text)' }}>⏱ 자동 수집 스케줄 {schedules.length > 0 ? `(${schedules.length})` : ''}</h2>
-          <button type="button" onClick={onClose} aria-label="닫기" style={{ border: 0, background: 'transparent', fontSize: 20, lineHeight: 1, cursor: 'pointer', color: 'var(--text-muted)' }}>×</button>
-        </div>
-        <div style={{ padding: 16, display: 'grid', gap: 12, overflowY: 'auto' }}>
+  if (!inline && !open) return null;
+
+  const body = (
+    <div style={{ padding: 16, display: 'grid', gap: 12, overflowY: 'auto' }}>
           {error && <div style={{ fontSize: 12.5, color: 'var(--danger)' }}>{error}</div>}
 
           {/* 목록 */}
@@ -233,6 +238,30 @@ export default function AdminCollectScheduler({ hospitals, open, onClose }: { ho
             매시 정각에 해당 시각의 스케줄이 수집 잡으로 자동 생성되고, 워커가 실행합니다. (전체 병원은 배치 1건)
           </p>
         </div>
+  );
+
+  if (inline) {
+    return (
+      <div style={{ maxWidth: 640 }}>
+        <h2 style={{ margin: '0 0 4px', fontSize: 16, fontWeight: 700, color: 'var(--text)' }}>
+          자동 수집 스케줄 {schedules.length > 0 ? `(${schedules.length})` : ''}
+        </h2>
+        <p style={{ margin: '0 0 6px', fontSize: 12.5, color: 'var(--text-muted)' }}>
+          지정한 시각마다 자동으로 데이터를 수집합니다. 결과는 &lsquo;수집 내역&rsquo; 탭에서 확인할 수 있어요.
+        </p>
+        {body}
+      </div>
+    );
+  }
+
+  return (
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ width: 'min(92vw, 560px)', maxHeight: '88vh', display: 'flex', flexDirection: 'column', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 12, boxShadow: '0 12px 40px rgba(0,0,0,0.18)', overflow: 'hidden' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 18px', borderBottom: '1px solid var(--border)' }}>
+          <h2 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: 'var(--text)' }}>⏱ 자동 수집 스케줄 {schedules.length > 0 ? `(${schedules.length})` : ''}</h2>
+          <button type="button" onClick={onClose} aria-label="닫기" style={{ border: 0, background: 'transparent', fontSize: 20, lineHeight: 1, cursor: 'pointer', color: 'var(--text-muted)' }}>×</button>
+        </div>
+        {body}
       </div>
     </div>
   );

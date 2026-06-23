@@ -9,7 +9,6 @@ import {
   HeartPulse,
   Users,
   Building2,
-  FileSpreadsheet,
   RefreshCw,
   ClipboardList,
   ClipboardCheck,
@@ -40,18 +39,10 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { href: '/admin/performance', label: '대시보드', icon: BarChart2, matchPrefix: '/admin/performance' },
       {
-        href: '/admin/data-upload?section=stats',
-        label: '경영통계 수집',
-        icon: FileSpreadsheet,
-        matchPrefix: '/admin/data-upload',
-        section: 'stats',
-      },
-      {
-        href: '/admin/data-upload?section=collect',
+        href: '/admin/data-upload',
         label: '데이터 수집',
         icon: RefreshCw,
         matchPrefix: '/admin/data-upload',
-        section: 'collect',
       },
     ],
   },

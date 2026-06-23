@@ -7,9 +7,23 @@ import { FormEvent, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { useChartExtraction } from '@/components/chart-extraction-provider';
-import AdminDataConsole from '@/components/admin-data-console';
 import AdminCollectScheduler from '@/components/admin-collect-scheduler';
-import { Upload } from 'lucide-react';
+import CollectHistoryPanel from '@/components/collect-history-panel';
+import AdminStatsUpload from '@/components/admin-stats-upload';
+import {
+  Upload,
+  FileText,
+  MapPin,
+  Search,
+  TrendingUp,
+  Star,
+  CheckCircle2,
+  XCircle,
+  AlertTriangle,
+  Loader2,
+  Clock,
+  type LucideIcon,
+} from 'lucide-react';
 
 const COLLECT_STEPS = [
   { key: 'blog_metrics', label: '블로그 일별 지표' },
@@ -21,30 +35,28 @@ const COLLECT_STEPS = [
 
 type StepKey = (typeof COLLECT_STEPS)[number]['key'];
 
-function IndeterminateCheckbox({
-  checked,
-  indeterminate,
-  onChange,
-  style,
-}: {
-  checked: boolean;
-  indeterminate: boolean;
-  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
-  style?: CSSProperties;
-}) {
-  const ref = useRef<HTMLInputElement>(null);
-  useEffect(() => {
-    if (ref.current) ref.current.indeterminate = indeterminate;
-  }, [indeterminate]);
-  return <input ref={ref} type="checkbox" checked={checked} onChange={onChange} style={style} />;
-}
+// 수집 항목별 아이콘 — 트리·진행률에서 종류를 한눈에 구분
+const STEP_ICON: Record<StepKey, LucideIcon> = {
+  blog_metrics: FileText,
+  smartplace: MapPin,
+  keyword_rank: Search,
+  searchad: TrendingUp,
+  place_reviews: Star,
+};
 
 const MAX_PDF_BYTES = 30 * 1024 * 1024;
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
 const MAX_IMAGES = 50;
 const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 
-type UploadSection = 'pdf' | 'stats' | 'collect';
+type DataTab = 'stats' | 'collect' | 'schedule' | 'history';
+
+const DATA_TABS: { key: DataTab; label: string }[] = [
+  { key: 'stats', label: '경영통계 수집' },
+  { key: 'collect', label: '데이터 자동 수집' },
+  { key: 'schedule', label: '자동 수집 스케줄' },
+  { key: 'history', label: '수집 내역' },
+];
 
 type CollectStepResult = { index: number; total: number; name: string; durationSec: number; error?: string; hospitalId?: string | null; hospitalName?: string | null };
 type CollectLastSuccess = Record<string, Record<string, string>>; // hospitalId → { stepKey → "YYYY-MM-DD" }
@@ -73,34 +85,64 @@ type CollectHistoryItem = {
   updated_at?: string | null;
 };
 
-function formatKst(iso: string): string {
-  return new Date(iso).toLocaleString('ko-KR', {
-    timeZone: 'Asia/Seoul',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
+type JobStatus = 'pending' | 'running' | 'done' | 'failed';
+
+type StatusVisual = { icon: LucideIcon; label: string; color: string; bg: string; border: string; spin?: boolean };
+
+function statusVisual(status: JobStatus, stale: boolean): StatusVisual {
+  if (stale)
+    return { icon: AlertTriangle, label: '중단 추정', color: 'var(--warning)', bg: 'var(--warning-subtle)', border: 'rgba(217,119,6,0.35)' };
+  switch (status) {
+    case 'done':
+      return { icon: CheckCircle2, label: '수집 완료', color: 'var(--success)', bg: 'var(--success-subtle)', border: 'rgba(22,163,74,0.25)' };
+    case 'failed':
+      return { icon: XCircle, label: '수집 실패', color: 'var(--danger)', bg: 'var(--danger-subtle)', border: 'rgba(185,28,28,0.25)' };
+    case 'running':
+      return { icon: Loader2, label: '수집 중', color: 'var(--accent)', bg: 'var(--accent-subtle)', border: 'rgba(29,78,216,0.22)', spin: true };
+    default:
+      return { icon: Clock, label: '대기 중', color: 'var(--text-muted)', bg: 'var(--bg-subtle)', border: 'var(--border)' };
+  }
 }
 
-function durationSec(start: string | null, end: string | null): string {
-  if (!start || !end) return '-';
-  const sec = Math.round((new Date(end).getTime() - new Date(start).getTime()) / 1000);
-  return sec >= 60 ? `${Math.floor(sec / 60)}분 ${sec % 60}초` : `${sec}초`;
+// 상태 칩(pill) — 이모지 대신 lucide 아이콘 + 토큰 색으로 통일
+function StatusBadge({ status, stale, size = 'md' }: { status: JobStatus; stale: boolean; size?: 'sm' | 'md' }) {
+  const v = statusVisual(status, stale);
+  const Icon = v.icon;
+  const sm = size === 'sm';
+  return (
+    <span
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 5,
+        padding: sm ? '2px 8px' : '4px 11px',
+        borderRadius: 999,
+        background: v.bg,
+        border: `1px solid ${v.border}`,
+        color: v.color,
+        fontSize: sm ? 11 : 12.5,
+        fontWeight: 700,
+        whiteSpace: 'nowrap',
+        lineHeight: 1.3,
+      }}
+    >
+      <Icon size={sm ? 12 : 14} className={v.spin ? 'adminSpin' : undefined} />
+      {v.label}
+    </span>
+  );
 }
 
-const STATUS_LABEL: Record<string, string> = {
-  pending: '대기 중',
-  running: '수집 중',
-  done: '완료',
-  failed: '실패',
-};
-const STATUS_COLOR: Record<string, string> = {
-  pending: 'var(--text-muted)',
-  running: 'var(--accent)',
-  done: 'var(--success)',
-  failed: 'var(--danger)',
-};
+// 마지막 수집일을 컴팩트하게: 오늘/어제/N일 전, 7일 이상이면 stale(갱신 필요)
+function relDay(dateStr: string): { text: string; stale: boolean } {
+  const d = new Date(dateStr + 'T00:00:00');
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const diff = Math.round((today.getTime() - d.getTime()) / 86_400_000);
+  if (diff <= 0) return { text: '오늘', stale: false };
+  if (diff === 1) return { text: '어제', stale: false };
+  if (diff < 7) return { text: `${diff}일 전`, stale: false };
+  return { text: `${d.getMonth() + 1}/${d.getDate()}`, stale: true };
+}
 
 // 워커가 이 시간 이상 updated_at을 갱신하지 않으면 '중단 추정'으로 본다.
 // 워커는 30초마다 하트비트로 updated_at을 갱신하므로, 3분(=6하트비트 누락)이면 죽은 것으로 판단.
@@ -177,10 +219,9 @@ function SearchadCoverage({ jobId }: { jobId: string }) {
   );
 }
 
-export default function AdminDataUpload() {
+export default function AdminDataUpload({ variant = 'data' }: { variant?: 'data' | 'extract' } = {}) {
   const searchParams = useSearchParams();
-  const [section, setSection] = useState<UploadSection>('pdf');
-  const [schedulerOpen, setSchedulerOpen] = useState(false);
+  const [tab, setTab] = useState<DataTab>('stats');
   const { startExtract, status, lastRunId, error: extractError } = useChartExtraction();
   const [localError, setLocalError] = useState<string | null>(null);
   const [chartType, setChartType] = useState<string>('intovet');
@@ -199,13 +240,15 @@ export default function AdminDataUpload() {
   const [imageAnalysisError, setImageAnalysisError] = useState<string | null>(null);
   const prevLastRunId = useRef<string | null>(null);
 
-  // selection: Map<hospitalId, Set<StepKey>> — 병원별 선택된 수집 항목
-  const [selection, setSelection] = useState<Map<string, Set<StepKey>>>(new Map());
+  // 선택 모델: 병원 다중 선택 + 수집 데이터 종류(공통 적용). 병원이 많아도 확장 가능.
+  const [selectedHospitals, setSelectedHospitals] = useState<Set<string>>(new Set());
+  const [selectedSteps, setSelectedSteps] = useState<Set<StepKey>>(new Set(COLLECT_STEPS.map((s) => s.key)));
+  const [hospitalQuery, setHospitalQuery] = useState('');
   const [collectSubmitting, setCollectSubmitting] = useState(false);
   const [collectJobs, setCollectJobs] = useState<CollectJob[]>([]);
   const [collectError, setCollectError] = useState<string | null>(null);
+  // 진행 중 잡 감지용으로만 사용(목록 표시는 '수집 내역' 탭으로 이동).
   const [collectHistory, setCollectHistory] = useState<CollectHistoryItem[]>([]);
-  const [historyLoading, setHistoryLoading] = useState(false);
   const [collectLastSuccess, setCollectLastSuccess] = useState<CollectLastSuccess | null>(null);
   // SearchAd 기간 지정(선택). 비우면 기존 자동(빠진 날짜) 수집.
   const [searchadStart, setSearchadStart] = useState('');
@@ -216,49 +259,55 @@ export default function AdminDataUpload() {
   const [campaignError, setCampaignError] = useState<Record<string, string>>({});
   const [campaignSel, setCampaignSel] = useState<Map<string, Set<string>>>(new Map());
   const [campaignOpen, setCampaignOpen] = useState<Set<string>>(new Set());
-  // 수집 이력 아이템 클릭 시 상세 로그(output)를 펼쳐 보여준다. (한 번에 하나만)
-  const [expandedHistoryId, setExpandedHistoryId] = useState<string | null>(null);
-  const [historyDetail, setHistoryDetail] = useState<CollectJob | null>(null);
-  const [historyDetailLoading, setHistoryDetailLoading] = useState(false);
 
-  const totalSelected = Array.from(selection.values()).reduce((sum, s) => sum + s.size, 0);
-  const totalPossible = hospitals.length * COLLECT_STEPS.length;
-  const isAllSelected = totalPossible > 0 && totalSelected === totalPossible;
-  const isAnySelected = totalSelected > 0;
-  // SearchAd 단계가 하나라도 선택됐을 때만 기간 입력을 노출/적용한다.
-  const anySearchadSelected = Array.from(selection.values()).some((s) => s.has('searchad'));
+  const hospitalQ = hospitalQuery.trim().toLowerCase();
+  const filteredHospitals = hospitalQ
+    ? hospitals.filter((h) => (h.name_ko ?? '').toLowerCase().includes(hospitalQ))
+    : hospitals;
+  const isAnySelected = selectedHospitals.size > 0 && selectedSteps.size > 0;
+  const allFilteredSelected =
+    filteredHospitals.length > 0 && filteredHospitals.every((h) => selectedHospitals.has(h.id));
+  // SearchAd 항목이 선택됐을 때만 기간/캠페인 입력을 노출/적용한다.
+  const anySearchadSelected = selectedSteps.has('searchad');
   const searchadDateIncomplete =
     anySearchadSelected && Boolean(searchadStart) !== Boolean(searchadEnd);
   const searchadDateInvalid =
     anySearchadSelected && !!searchadStart && !!searchadEnd && searchadStart > searchadEnd;
 
-  function toggleAll(checked: boolean) {
-    setSelection(
-      checked
-        ? new Map(hospitals.map((h) => [h.id, new Set(COLLECT_STEPS.map((s) => s.key))]))
-        : new Map(),
-    );
-  }
-
-  function toggleHospital(hid: string, checked: boolean) {
-    setSelection((prev) => {
-      const next = new Map(prev);
-      if (checked) next.set(hid, new Set(COLLECT_STEPS.map((s) => s.key)));
-      else next.delete(hid);
+  function toggleHospital(hid: string) {
+    setSelectedHospitals((prev) => {
+      const next = new Set(prev);
+      if (next.has(hid)) next.delete(hid);
+      else next.add(hid);
       return next;
     });
   }
 
-  function toggleStep(hid: string, step: StepKey, checked: boolean) {
-    setSelection((prev) => {
-      const next = new Map(prev);
-      const steps = new Set(prev.get(hid) ?? []);
-      if (checked) steps.add(step);
-      else steps.delete(step);
-      if (steps.size === 0) next.delete(hid);
-      else next.set(hid, steps);
+  function toggleAllFilteredHospitals() {
+    setSelectedHospitals((prev) => {
+      const next = new Set(prev);
+      if (allFilteredSelected) for (const h of filteredHospitals) next.delete(h.id);
+      else for (const h of filteredHospitals) next.add(h.id);
       return next;
     });
+  }
+
+  function toggleStep(step: StepKey) {
+    setSelectedSteps((prev) => {
+      const next = new Set(prev);
+      if (next.has(step)) next.delete(step);
+      else next.add(step);
+      return next;
+    });
+  }
+
+  // 병원별 마지막 수집(여러 항목 중 가장 최근)일 — 선택 목록에서 신선도 신호로 표시
+  function hospitalLastSuccess(hid: string): { text: string; stale: boolean } | null {
+    const m = collectLastSuccess?.[hid];
+    if (!m) return null;
+    const dates = Object.values(m).filter(Boolean);
+    if (dates.length === 0) return null;
+    return relDay(dates.reduce((a, b) => (a > b ? a : b)));
   }
 
   useEffect(() => {
@@ -292,10 +341,19 @@ export default function AdminDataUpload() {
   }, []);
 
   useEffect(() => {
-    const s = searchParams.get('section');
-    if (s === 'stats') setSection('stats');
-    else if (s === 'collect') setSection('collect');
+    const s = searchParams.get('tab') ?? searchParams.get('section');
+    if (s === 'stats' || s === 'collect' || s === 'schedule' || s === 'history') setTab(s);
   }, [searchParams]);
+
+  function selectTab(key: DataTab) {
+    setTab(key);
+    if (typeof window !== 'undefined') {
+      const url = new URL(window.location.href);
+      url.searchParams.set('tab', key);
+      url.searchParams.delete('section');
+      window.history.replaceState(null, '', url.toString());
+    }
+  }
 
   const isExtractRunning = status === 'running';
 
@@ -381,14 +439,13 @@ export default function AdminDataUpload() {
   }
 
   async function loadHistory() {
-    setHistoryLoading(true);
     try {
       const res = await fetch('/api/admin/collect/jobs', { credentials: 'include' });
       if (!res.ok) return;
       const data = (await res.json()) as { jobs: CollectHistoryItem[] };
       setCollectHistory(data.jobs ?? []);
-    } finally {
-      setHistoryLoading(false);
+    } catch {
+      /* 무시 */
     }
   }
 
@@ -410,60 +467,14 @@ export default function AdminDataUpload() {
     }
   }
 
-  // 이력 아이템을 펼치면 그 잡의 전체 output을 불러온다(목록 응답엔 output이 없음).
-  async function toggleHistoryDetail(id: string) {
-    if (expandedHistoryId === id) {
-      setExpandedHistoryId(null);
-      setHistoryDetail(null);
-      return;
-    }
-    setExpandedHistoryId(id);
-    setHistoryDetail(null);
-    setHistoryDetailLoading(true);
-    try {
-      const res = await fetch(`/api/admin/collect/status/${id}`, { credentials: 'include' });
-      if (res.ok) setHistoryDetail((await res.json()) as CollectJob);
-    } catch {
-      /* 무시 — 아래에서 "로그 없음" 처리 */
-    } finally {
-      setHistoryDetailLoading(false);
-    }
-  }
-
+  // 진행 상황은 '수집 내역' 탭에서 폴링한다. 여기서는 병원 신선도 표시용 last-success만 로드.
   useEffect(() => {
-    if (section !== 'collect') return;
-    void loadHistory();
-    // 진행 중인 잡을 패널로 복원 — 새로고침/다른 세션에서도 진행률 바가 보이도록.
-    // collectJobs가 비어 있을 때만 시드하고, progress 등 상세는 폴링 effect가 곧 채운다.
-    void (async () => {
-      try {
-        const res = await fetch('/api/admin/collect/jobs', { credentials: 'include' });
-        if (!res.ok) return;
-        const data = (await res.json()) as { jobs: CollectHistoryItem[] };
-        const active = (data.jobs ?? []).filter((j) => j.status === 'pending' || j.status === 'running');
-        if (active.length === 0) return;
-        setCollectJobs((prev) =>
-          prev.length > 0
-            ? prev
-            : active.map((j) => ({
-                id: j.id,
-                hospital_id: j.hospital_id,
-                status: j.status,
-                output: null,
-                steps: j.steps,
-                upserts: j.upserts,
-                updated_at: j.updated_at,
-              })),
-        );
-      } catch {
-        /* 복원 실패는 무시 */
-      }
-    })();
+    if (tab !== 'collect') return;
     fetch('/api/admin/collect/last-success', { credentials: 'include' })
       .then((r) => r.ok ? r.json() : null)
       .then((d) => { if (d) setCollectLastSuccess(d as CollectLastSuccess); })
       .catch(() => {});
-  }, [section]);
+  }, [tab]);
 
   // 병원의 SearchAd 캠페인 목록을 네이버에서 불러온다(선택 수집용).
   async function loadCampaigns(hid: string) {
@@ -517,22 +528,20 @@ export default function AdminDataUpload() {
     setCollectError(null);
     try {
       const useSearchadRange = !!searchadStart && !!searchadEnd && !searchadDateInvalid;
-      const jobs = Array.from(selection.entries())
-        .filter(([, steps]) => steps.size > 0)
-        .map(([hospitalId, steps]) => {
-          const stepArr = Array.from(steps);
-          const camp = campaignSel.get(hospitalId);
-          return {
-            hospitalId,
-            steps: stepArr,
-            ...(useSearchadRange && stepArr.includes('searchad')
-              ? { searchadStart, searchadEnd }
-              : {}),
-            ...(stepArr.includes('searchad') && camp && camp.size > 0
-              ? { searchadCampaignIds: Array.from(camp) }
-              : {}),
-          };
-        });
+      const stepArr = Array.from(selectedSteps);
+      const jobs = Array.from(selectedHospitals).map((hospitalId) => {
+        const camp = campaignSel.get(hospitalId);
+        return {
+          hospitalId,
+          steps: stepArr,
+          ...(useSearchadRange && stepArr.includes('searchad')
+            ? { searchadStart, searchadEnd }
+            : {}),
+          ...(stepArr.includes('searchad') && camp && camp.size > 0
+            ? { searchadCampaignIds: Array.from(camp) }
+            : {}),
+        };
+      });
       const res = await fetch('/api/admin/collect/run', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -548,28 +557,9 @@ export default function AdminDataUpload() {
         setCollectError(data.error ?? '수집 요청 생성에 실패했습니다.');
         return;
       }
-      setCollectJobs((prev) => {
-        const newOnes = data.jobs!.map((j) => ({
-          id: j.id,
-          hospital_id: j.hospitalId,
-          status: 'pending' as const,
-          output: null,
-          steps: null,
-          upserts: null,
-        }));
-        const newIds = new Set(newOnes.map((j) => j.id));
-        // 기존에 진행 중(대기/수집 중)인 잡은 유지하고, 새 잡을 뒤에 추가(중복 id 제거).
-        const keptActive = prev.filter(
-          (j) => (j.status === 'pending' || j.status === 'running') && !newIds.has(j.id),
-        );
-        return [...keptActive, ...newOnes];
-      });
       void loadHistory();
-      // 수집 요청 성공 시 화면을 한 번 새로고침(서버에 잡 저장 완료 → 새로고침 후 히스토리 폴링이 진행 중 잡을 다시 표시).
-      if (typeof window !== 'undefined') {
-        window.location.reload();
-        return;
-      }
+      // 진행 상황은 '수집 내역' 탭에서 본다 — 요청 성공 시 그 탭으로 이동.
+      selectTab('history');
     } catch (e) {
       setCollectError(e instanceof Error ? e.message : '알 수 없는 오류');
     } finally {
@@ -610,10 +600,10 @@ export default function AdminDataUpload() {
     (h) => h.status === 'pending' || h.status === 'running',
   );
   useEffect(() => {
-    if (section !== 'collect' || !hasActiveCollectJobs) return;
+    if (tab !== 'collect' || !hasActiveCollectJobs) return;
     const timer = setInterval(() => void loadHistory(), 3_000);
     return () => clearInterval(timer);
-  }, [section, hasActiveCollectJobs]);
+  }, [tab, hasActiveCollectJobs]);
 
   const error = localError ?? (status === 'error' ? extractError : null);
   const canSubmit =
@@ -648,152 +638,118 @@ export default function AdminDataUpload() {
     transition: 'border-color 0.15s, background 0.15s',
   };
 
-  return section === 'collect' ? (
-    <div className="adminLayout2WithMain" style={{ gridTemplateColumns: '360px minmax(0, 1fr)' }}>
-      <AdminCollectScheduler hospitals={hospitals} open={schedulerOpen} onClose={() => setSchedulerOpen(false)} />
-      <aside className="adminLayoutSecondaryRail" style={{ width: 360, maxWidth: 360, overflowY: 'auto' }}>
-        <div style={{ padding: '14px 14px 24px' }}>
-                <div style={{ display: 'grid', gap: 16 }}>
-                  {/* 3단계 트리 체크박스 */}
+  const renderCollect = () => (
+    <div className="adminCollectGrid">
+      <div className="adminCollectHospitals">
+                  {/* 병원 선택 (다중) */}
                   {hospitalsLoading ? (
                     <p style={{ margin: 0, fontSize: 13, color: 'var(--text-muted)' }}>병원 목록 불러오는 중…</p>
                   ) : hospitalsError ? (
                     <p style={{ margin: 0, fontSize: 13, color: 'var(--danger)' }}>{hospitalsError}</p>
                   ) : (
-                    <div style={{ border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
-                      {/* 1단계: 전체 선택 */}
-                      <label
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 8,
-                          padding: '10px 14px',
-                          background: 'var(--border)',
-                          borderBottom: '1px solid var(--border-strong)',
-                          cursor: 'pointer',
-                          fontSize: 13,
-                          fontWeight: 700,
-                          color: 'var(--text)',
-                          userSelect: 'none',
-                        }}
-                      >
-                        <IndeterminateCheckbox
-                          checked={isAllSelected}
-                          indeterminate={!isAllSelected && isAnySelected}
-                          onChange={(e) => toggleAll(e.target.checked)}
-                        />
-                        전체 병원 / 전체 항목
-                        <span style={{ fontWeight: 400, color: 'var(--text-muted)', marginLeft: 2, fontSize: 12 }}>
-                          ({selection.size}/{hospitals.length}개 병원)
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                        <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>병원</span>
+                        <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                          {selectedHospitals.size}/{hospitals.length} 선택
                         </span>
-                      </label>
-
-                      {/* 2단계: 병원 목록 + 3단계: 항목 */}
-                      <div style={{ maxHeight: 360, overflowY: 'auto' }}>
-                        {hospitals.map((h, hi) => {
-                          const hSteps = selection.get(h.id);
-                          const hChecked = (hSteps?.size ?? 0) === COLLECT_STEPS.length;
-                          const hIndeterminate = (hSteps?.size ?? 0) > 0 && !hChecked;
-                          const isLast = hi === hospitals.length - 1;
-                          return (
-                            <div key={h.id} style={{ borderBottom: isLast ? 'none' : '1px solid var(--border)' }}>
-                              {/* 병원 행 */}
-                              <label
-                                style={{
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  gap: 8,
-                                  padding: '9px 14px 9px 28px',
-                                  background: 'var(--bg-subtle)',
-                                  borderBottom: '1px solid var(--bg-subtle)',
-                                  cursor: 'pointer',
-                                  fontSize: 13,
-                                  fontWeight: 600,
-                                  color: 'var(--text-secondary)',
-                                  userSelect: 'none',
-                                }}
-                              >
-                                <IndeterminateCheckbox
-                                  checked={hChecked}
-                                  indeterminate={hIndeterminate}
-                                  onChange={(e) => toggleHospital(h.id, e.target.checked)}
-                                />
-                                {h.name_ko}
-                              </label>
-                              {/* 항목 행들 */}
-                              {COLLECT_STEPS.map((step, si) => (
+                      </div>
+                      <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius)', overflow: 'hidden', background: 'var(--bg)' }}>
+                        {/* 검색 + 전체선택 */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 11px', borderBottom: '1px solid var(--border)' }}>
+                          <Search size={14} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+                          <input
+                            value={hospitalQuery}
+                            onChange={(e) => setHospitalQuery(e.target.value)}
+                            placeholder="병원 검색"
+                            style={{ flex: 1, minWidth: 0, border: 'none', outline: 'none', background: 'transparent', font: 'inherit', fontSize: 13, color: 'var(--text)' }}
+                          />
+                          {filteredHospitals.length > 0 && (
+                            <button
+                              type="button"
+                              onClick={toggleAllFilteredHospitals}
+                              style={{ flexShrink: 0, fontSize: 12, fontWeight: 600, color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+                            >
+                              {allFilteredSelected ? '전체 해제' : '전체 선택'}
+                            </button>
+                          )}
+                        </div>
+                        {/* 병원 리스트 */}
+                        <div style={{ maxHeight: 440, overflowY: 'auto' }}>
+                          {filteredHospitals.length === 0 ? (
+                            <p style={{ margin: 0, padding: 14, fontSize: 12.5, color: 'var(--text-muted)', textAlign: 'center' }}>일치하는 병원이 없습니다.</p>
+                          ) : (
+                            filteredHospitals.map((h, hi) => {
+                              const checked = selectedHospitals.has(h.id);
+                              const fresh = hospitalLastSuccess(h.id);
+                              return (
                                 <label
-                                  key={step.key}
+                                  key={h.id}
                                   style={{
                                     display: 'flex',
                                     alignItems: 'center',
-                                    gap: 8,
-                                    padding: '7px 14px 7px 48px',
-                                    borderBottom:
-                                      si < COLLECT_STEPS.length - 1 ? '1px solid var(--bg-subtle)' : 'none',
+                                    gap: 9,
+                                    padding: '8px 12px',
+                                    borderTop: hi ? '1px solid var(--border)' : 'none',
                                     cursor: 'pointer',
-                                    fontSize: 12,
-                                    color: 'var(--text-secondary)',
                                     userSelect: 'none',
+                                    background: checked ? 'var(--accent-subtle)' : 'transparent',
                                   }}
                                 >
-                                  <input
-                                    type="checkbox"
-                                    checked={hSteps?.has(step.key) ?? false}
-                                    onChange={(e) => toggleStep(h.id, step.key, e.target.checked)}
-                                  />
-                                  <span style={{ flex: 1 }}>{step.label}</span>
-                                  {collectLastSuccess?.[h.id]?.[step.key] && (
-                                    <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 4, whiteSpace: 'nowrap' }}>
-                                      {new Date(collectLastSuccess[h.id][step.key] + 'T00:00:00').toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' })}
+                                  <input type="checkbox" checked={checked} onChange={() => toggleHospital(h.id)} />
+                                  <span style={{ flex: 1, fontSize: 13, fontWeight: checked ? 600 : 500, color: checked ? 'var(--accent)' : 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                    {h.name_ko}
+                                  </span>
+                                  {fresh && (
+                                    <span title="가장 최근 수집일" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, color: fresh.stale ? 'var(--warning)' : 'var(--text-muted)', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                                      {fresh.stale && <span style={{ width: 5, height: 5, borderRadius: 999, background: 'var(--warning)' }} />}
+                                      {fresh.text}
                                     </span>
                                   )}
                                 </label>
-                              ))}
-                              {selection.get(h.id)?.has('searchad') && (
-                                <div style={{ padding: '6px 14px 10px 48px', borderTop: '1px solid var(--bg-subtle)', background: 'var(--bg-raised)' }}>
-                                  <button
-                                    type="button"
-                                    onClick={() => toggleCampaignOpen(h.id)}
-                                    style={{ fontSize: 12, fontWeight: 600, color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
-                                  >
-                                    {campaignOpen.has(h.id) ? '▴' : '▾'} SearchAd 캠페인{' '}
-                                    {(campaignSel.get(h.id)?.size ?? 0) > 0 ? `(${campaignSel.get(h.id)!.size}개 선택)` : '(전체)'}
-                                  </button>
-                                  {campaignOpen.has(h.id) && (
-                                    <div style={{ marginTop: 6 }}>
-                                      {campaignLoading[h.id] ? (
-                                        <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>캠페인 불러오는 중…</span>
-                                      ) : campaignError[h.id] ? (
-                                        <span style={{ fontSize: 12, color: 'var(--danger)' }}>{campaignError[h.id]}</span>
-                                      ) : (campaignLists[h.id] ?? []).length === 0 ? (
-                                        <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>캠페인이 없습니다.</span>
-                                      ) : (
-                                        <>
-                                          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>아무것도 선택하지 않으면 전체 캠페인을 수집합니다.</div>
-                                          {campaignLists[h.id].map((c) => (
-                                            <label key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--text-secondary)', padding: '3px 0', cursor: 'pointer' }}>
-                                              <input
-                                                type="checkbox"
-                                                checked={campaignSel.get(h.id)?.has(c.id) ?? false}
-                                                onChange={(e) => toggleCampaign(h.id, c.id, e.target.checked)}
-                                              />
-                                              <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.name || c.id}</span>
-                                              {c.type && <span style={{ fontSize: 10, color: 'var(--text-muted)', flexShrink: 0 }}>{c.type}</span>}
-                                            </label>
-                                          ))}
-                                        </>
-                                      )}
-                                    </div>
-                                  )}
-                                </div>
-                              )}
-                            </div>
-                          );
-                        })}
+                              );
+                            })
+                          )}
+                        </div>
                       </div>
                     </div>
                   )}
+      </div>
+
+      <div className="adminCollectOptions">
+                  {/* 수집할 데이터 종류 (선택 병원 공통 적용) */}
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 8 }}>수집할 데이터</div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                      {COLLECT_STEPS.map((step) => {
+                        const StepIcon = STEP_ICON[step.key];
+                        const on = selectedSteps.has(step.key);
+                        return (
+                          <button
+                            key={step.key}
+                            type="button"
+                            onClick={() => toggleStep(step.key)}
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: 6,
+                              padding: '7px 11px',
+                              borderRadius: 999,
+                              fontSize: 12.5,
+                              fontWeight: 600,
+                              cursor: 'pointer',
+                              border: `1px solid ${on ? 'var(--accent)' : 'var(--border-strong)'}`,
+                              background: on ? 'var(--accent-subtle)' : 'var(--bg)',
+                              color: on ? 'var(--accent)' : 'var(--text-secondary)',
+                            }}
+                          >
+                            <StepIcon size={13} />
+                            {step.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
 
                   {/* SearchAd 기간 지정 (searchad 선택 시만) */}
                   {anySearchadSelected && (
@@ -837,6 +793,58 @@ export default function AdminDataUpload() {
                     </div>
                   )}
 
+                  {/* SearchAd 캠페인 — 선택 병원별(선택, 비우면 전체) */}
+                  {anySearchadSelected && selectedHospitals.size > 0 && (
+                    <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '12px 14px', background: 'var(--bg-subtle)' }}>
+                      <p style={{ margin: '0 0 4px', fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)' }}>
+                        SearchAd 캠페인 <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>(병원별 선택, 비우면 전체)</span>
+                      </p>
+                      <div style={{ display: 'grid', gap: 2 }}>
+                        {hospitals.filter((h) => selectedHospitals.has(h.id)).map((h) => (
+                          <div key={h.id} style={{ borderTop: '1px solid var(--border)', paddingTop: 6, marginTop: 4 }}>
+                            <button
+                              type="button"
+                              onClick={() => toggleCampaignOpen(h.id)}
+                              style={{ display: 'flex', alignItems: 'center', gap: 6, width: '100%', fontSize: 12.5, fontWeight: 600, color: 'var(--text-secondary)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+                            >
+                              <span style={{ color: 'var(--accent)', flexShrink: 0 }}>{campaignOpen.has(h.id) ? '▴' : '▾'}</span>
+                              <span style={{ flex: 1, textAlign: 'left', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{h.name_ko}</span>
+                              <span style={{ fontWeight: 400, color: 'var(--text-muted)', flexShrink: 0 }}>
+                                {(campaignSel.get(h.id)?.size ?? 0) > 0 ? `${campaignSel.get(h.id)!.size}개` : '전체'}
+                              </span>
+                            </button>
+                            {campaignOpen.has(h.id) && (
+                              <div style={{ marginTop: 6, paddingLeft: 16 }}>
+                                {campaignLoading[h.id] ? (
+                                  <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>캠페인 불러오는 중…</span>
+                                ) : campaignError[h.id] ? (
+                                  <span style={{ fontSize: 12, color: 'var(--danger)' }}>{campaignError[h.id]}</span>
+                                ) : (campaignLists[h.id] ?? []).length === 0 ? (
+                                  <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>캠페인이 없습니다.</span>
+                                ) : (
+                                  <>
+                                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>아무것도 선택하지 않으면 전체 캠페인을 수집합니다.</div>
+                                    {campaignLists[h.id].map((c) => (
+                                      <label key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--text-secondary)', padding: '3px 0', cursor: 'pointer' }}>
+                                        <input
+                                          type="checkbox"
+                                          checked={campaignSel.get(h.id)?.has(c.id) ?? false}
+                                          onChange={(e) => toggleCampaign(h.id, c.id, e.target.checked)}
+                                        />
+                                        <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.name || c.id}</span>
+                                        {c.type && <span style={{ fontSize: 10, color: 'var(--text-muted)', flexShrink: 0 }}>{c.type}</span>}
+                                      </label>
+                                    ))}
+                                  </>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                   {/* 수집 시작 버튼 */}
                   <div>
                     <button
@@ -847,334 +855,27 @@ export default function AdminDataUpload() {
                     >
                       {collectSubmitting
                         ? '요청 중…'
-                        : `수집 시작 (${selection.size}개 병원)`}
+                        : `수집 시작 (병원 ${selectedHospitals.size} · 항목 ${selectedSteps.size})`}
                     </button>
                     {!isAnySelected && !hospitalsLoading && (
                       <p style={{ margin: '6px 0 0', fontSize: 12, color: 'var(--text-muted)' }}>
-                        병원과 항목을 하나 이상 선택해 주세요.
+                        병원과 수집할 데이터를 하나 이상 선택해 주세요.
                       </p>
                     )}
-                  </div>
-
-                  {/* 자동 수집 스케줄 — 모달로 설정 */}
-                  <div style={{ borderTop: '1px solid var(--border)', paddingTop: 14 }}>
-                    <button
-                      type="button"
-                      onClick={() => setSchedulerOpen(true)}
-                      style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, width: '100%', padding: '10px', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius, 8px)', background: '#fff', color: 'var(--text-secondary)', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
-                    >
-                      ⏱ 자동 수집 스케줄
-                    </button>
-                  </div>
-
-                </div>
-              </div>
-            </aside>
-            <div className="adminLayoutMainPane">
-              <div className="adminLayoutMainColumnInset">
-
-              {collectError && (
-                <div
-                  className="adminLegacyBlockBleed"
-                  style={{ color: 'var(--danger)', borderBottom: '1px solid rgba(185,28,28,0.25)' }}
-                >
-                  <p style={{ margin: 0, fontSize: 14 }}>{collectError}</p>
-                </div>
-              )}
-
-              {collectJobs.map((collectJob) => {
-                const stale = isJobStale(collectJob.status, collectJob.updated_at);
-                return (
-                <div key={collectJob.id} style={{ marginTop: 16 }}>
-                  {/* 병원명 + 상태 배너 */}
-                  <div
-                    style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      padding: '8px 12px',
-                      marginBottom: 14,
-                      borderRadius: 6,
-                      background: stale ? 'var(--warning-subtle)' : collectJob.status === 'done' ? 'var(--success-subtle)' : collectJob.status === 'failed' ? 'var(--danger-subtle)' : 'var(--accent-subtle)',
-                      border: `1px solid ${stale ? 'rgba(217,119,6,0.35)' : collectJob.status === 'done' ? 'rgba(22,163,74,0.2)' : collectJob.status === 'failed' ? 'rgba(185,28,28,0.2)' : 'rgba(29,78,216,0.2)'}`,
-                    }}
-                  >
-                    <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>
-                      {hospitals.find((h) => h.id === collectJob.hospital_id)?.name_ko ?? collectJob.hospital_id ?? '병원'}
-                    </span>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <span style={{ fontSize: 13, fontWeight: 700, color: stale ? 'var(--warning)' : collectJob.status === 'done' ? 'var(--success)' : collectJob.status === 'failed' ? 'var(--danger)' : 'var(--accent)' }}>
-                        {stale ? '⚠️ 워커 응답 없음 (중단 추정)' : collectJob.status === 'done' ? '✓ 수집 완료' : collectJob.status === 'failed' ? '✗ 수집 실패' : collectJob.status === 'pending' ? '대기 중 (곧 시작)' : '⋯ 수집 실행 중'}
-                      </span>
-                      {stale && (
-                        <button
-                          type="button"
-                          onClick={() => void cancelJob(collectJob.id)}
-                          style={{ fontSize: 12, fontWeight: 600, color: '#fff', background: 'var(--warning)', border: 'none', borderRadius: 5, padding: '4px 10px', cursor: 'pointer' }}
-                        >
-                          종료
-                        </button>
-                      )}
-                    </span>
-                  </div>
-                  {stale && (
-                    <p style={{ margin: '-6px 0 14px', fontSize: 12, color: 'var(--warning)', lineHeight: 1.5 }}>
-                      워커가 3분 이상 응답이 없습니다. 워커 컴퓨터가 꺼졌거나 멈췄을 수 있어요. 이미 수집된 날짜는 저장돼 있으니, 워커를 다시 켠 뒤 수집을 다시 시작하면 이어집니다.
-                    </p>
-                  )}
-                  {(stale || collectJob.status === 'failed') && (
-                    <div className="adminLegacyBlockBleed" style={{ marginBottom: 14 }}>
-                      <SearchadCoverage jobId={collectJob.id} />
-                    </div>
-                  )}
-
-                  {/* 데이터 종류별 진행률 바 */}
-                  {(() => {
-                    const filter = collectJob.steps_filter;
-                    const stepKeys = (filter && filter.length > 0
-                      ? COLLECT_STEPS.filter((s) => filter.includes(s.key))
-                      : COLLECT_STEPS
-                    );
-                    const doneNames = new Set(
-                      (collectJob.steps ?? []).filter((s) => !s.error).map((s) => s.name),
-                    );
-                    return (
-                      <div className="adminLegacyBlockBleed">
-                        <p style={{ margin: '0 0 10px', fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)' }}>진행률</p>
-                        <div style={{ display: 'grid', gap: 12 }}>
-                          {stepKeys.map((s) => {
-                            const p = collectJob.progress?.[s.key];
-                            const stepDone = doneNames.has(s.label);
-                            const total = p?.total ?? 0;
-                            const done = stepDone ? (total || 1) : (p?.done ?? 0);
-                            const pct = stepDone ? 100 : total > 0 ? Math.min(100, Math.round((done / total) * 100)) : 0;
-                            const running = collectJob.status === 'running' && !stepDone && (p?.done ?? 0) > 0;
-                            const statusText = stepDone
-                              ? '완료'
-                              : running
-                                ? `${done.toLocaleString()}/${total.toLocaleString()}${p?.label ? ` · ${p.label}` : ''}`
-                                : collectJob.status === 'running'
-                                  ? '대기'
-                                  : '-';
-                            return (
-                              <div key={s.key}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                                  <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{s.label}</span>
-                                  <span style={{ fontSize: 12, color: stepDone ? 'var(--success)' : 'var(--text-muted)' }}>
-                                    {statusText}{!stepDone && pct > 0 ? ` (${pct}%)` : ''}
-                                  </span>
-                                </div>
-                                <div style={{ height: 8, borderRadius: 4, background: 'var(--border)', overflow: 'hidden' }}>
-                                  <div
-                                    style={{
-                                      width: `${pct}%`,
-                                      height: '100%',
-                                      background: stepDone ? 'var(--success)' : 'var(--accent)',
-                                      transition: 'width 0.4s ease',
-                                    }}
-                                  />
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    );
-                  })()}
-
-                  {/* 수집 결과 요약 */}
-                  {collectJob.upserts && collectJob.upserts.length > 0 && (
-                    <div className="adminLegacyBlockBleed">
-                      <p style={{ margin: '0 0 10px', fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)' }}>
-                        수집 결과{collectJob.status === 'running' ? ' (진행 중)' : ''}
+                    {collectError && (
+                      <p style={{ margin: '8px 0 0', fontSize: 12.5, color: 'var(--danger)', lineHeight: 1.5 }}>
+                        {collectError}
                       </p>
-                      <div style={{ display: 'grid', gap: 8, background: 'var(--bg-subtle)', border: '1px solid var(--border)', borderRadius: 8, padding: '12px 14px' }}>
-                        {collectJob.upserts.map((u) => (
-                          <div key={u.label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 13, color: 'var(--text)' }}>
-                            <span>{u.label}</span>
-                            <span style={{ fontWeight: 700, color: 'var(--accent)', background: 'var(--accent-subtle)', padding: '2px 8px', borderRadius: 4, fontSize: 12 }}>
-                              {u.count.toLocaleString()}건
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* 실행 단계 */}
-                  {collectJob.steps && collectJob.steps.length > 0 && (() => {
-                    const steps = collectJob.steps!;
-                    const isBatch = steps.some((s) => s.hospitalId != null);
-
-                    const renderStepRow = (s: CollectStepResult) => (
-                      <li key={`${s.hospitalId ?? ''}-${s.index}-${s.name}`} style={{ fontSize: 13, padding: '4px 0', borderBottom: '1px solid rgba(15,23,42,0.05)' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <span style={{ color: s.error ? 'var(--danger)' : 'var(--text-secondary)' }}>
-                            <span style={{ color: s.error ? 'var(--danger)' : 'var(--success)', marginRight: 6 }}>{s.error ? '✗' : '✓'}</span>
-                            {s.index}. {s.name}
-                          </span>
-                          <span style={{ color: 'var(--text-muted)', fontSize: 12, flexShrink: 0, marginLeft: 8 }}>{s.durationSec.toFixed(1)}s</span>
-                        </div>
-                        {s.error && <p style={{ margin: '3px 0 0 18px', fontSize: 12, color: 'var(--danger)', lineHeight: 1.4 }}>{s.error}</p>}
-                      </li>
-                    );
-
-                    if (!isBatch) {
-                      return (
-                        <div className="adminLegacyBlockBleed">
-                          <p style={{ margin: '0 0 10px', fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)' }}>
-                            실행 단계{collectJob.status === 'running' ? ' (진행 중)' : ''}
-                          </p>
-                          <ol style={{ margin: 0, padding: 0, listStyle: 'none', display: 'grid', gap: 4 }}>{steps.map(renderStepRow)}</ol>
-                        </div>
-                      );
-                    }
-
-                    // 병원별로 그룹핑
-                    const groups: { hospitalId: string; hospitalName: string | null; steps: CollectStepResult[] }[] = [];
-                    const idxMap = new Map<string, number>();
-                    for (const s of steps) {
-                      const hid = s.hospitalId ?? '__none__';
-                      if (!idxMap.has(hid)) {
-                        idxMap.set(hid, groups.length);
-                        groups.push({ hospitalId: hid, hospitalName: s.hospitalName ?? null, steps: [] });
-                      }
-                      groups[idxMap.get(hid)!].steps.push(s);
-                    }
-
-                    return (
-                      <div className="adminLegacyBlockBleed">
-                        <p style={{ margin: '0 0 10px', fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)' }}>
-                          실행 단계{collectJob.status === 'running' ? ' (진행 중)' : ''}
-                        </p>
-                        <div style={{ display: 'grid', gap: 6 }}>
-                          {groups.map((g) => {
-                            const anyFail = g.steps.some((s) => s.error);
-                            const doneCount = g.steps.filter((s) => !s.error).length;
-                            return (
-                              <div key={g.hospitalId} style={{ border: `1px solid ${anyFail ? 'rgba(185,28,28,0.3)' : 'var(--border)'}`, borderRadius: 6, overflow: 'hidden' }}>
-                                <div style={{ background: anyFail ? 'var(--danger-subtle)' : 'var(--bg-subtle)', padding: '6px 12px', fontSize: 12, fontWeight: 600, color: anyFail ? 'var(--danger)' : 'var(--text-secondary)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                  <span>{g.hospitalName ?? g.hospitalId}</span>
-                                  <span style={{ fontWeight: 400, color: anyFail ? 'var(--danger)' : 'var(--success)', fontSize: 11 }}>{doneCount}/{g.steps.length} 완료</span>
-                                </div>
-                                <ol style={{ margin: 0, padding: '2px 12px', listStyle: 'none', display: 'grid', gap: 0 }}>{g.steps.map(renderStepRow)}</ol>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    );
-                  })()}
-
-                  {/* 상세 로그 — 완료/실패 시만 */}
-                  {(collectJob.status === 'done' || collectJob.status === 'failed') && (
-                    <details className="adminMainAccordion">
-                      <summary className="adminAccordionSummary" style={{ cursor: 'pointer', fontWeight: 600, fontSize: 13, listStyle: 'none', padding: '12px 0' }}>
-                        상세 로그 보기
-                      </summary>
-                      <pre style={{ margin: '8px 0 16px', fontSize: 11, lineHeight: 1.6, color: 'var(--text-secondary)', background: 'var(--bg-subtle)', border: '1px solid var(--border)', borderRadius: 6, padding: 14, overflow: 'auto', maxHeight: 400, whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
-                        {collectJob.output}
-                      </pre>
-                    </details>
-                  )}
-                </div>
-                );
-              })}
-
-              {/* 수집 이력 */}
-              <div className="adminLegacyBlockBleed" style={{ marginTop: 24 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-                  <p style={{ margin: 0, fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)' }}>최근 수집 이력</p>
-                  <button
-                    type="button"
-                    onClick={() => void loadHistory()}
-                    disabled={historyLoading}
-                    style={{ fontSize: 12, color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
-                  >
-                    {historyLoading ? '불러오는 중…' : '새로고침'}
-                  </button>
-                </div>
-                {collectHistory.length === 0 ? (
-                  <p style={{ margin: 0, fontSize: 13, color: 'var(--text-muted)' }}>수집 이력이 없습니다.</p>
-                ) : (
-                  <div style={{ display: 'grid', gap: 6 }}>
-                    {collectHistory.map((h) => {
-                      const hospitalName = hospitals.find((x) => x.id === h.hospital_id)?.name_ko ?? h.hospital_id ?? '전체 병원';
-                      const upserts = h.upserts ?? [];
-                      const failedSteps = (h.steps ?? []).filter((s) => s.error);
-                      const hasDetails = upserts.length > 0 || failedSteps.length > 0;
-                      const hStale = isJobStale(h.status, h.updated_at);
-                      return (
-                        <div
-                          key={h.id}
-                          onClick={() => void toggleHistoryDetail(h.id)}
-                          style={{ padding: '10px 12px', background: 'var(--bg-subtle)', border: `1px solid ${failedSteps.length > 0 ? 'rgba(185,28,28,0.25)' : 'var(--border)'}`, borderRadius: 6, fontSize: 12, cursor: 'pointer' }}
-                        >
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: hasDetails || expandedHistoryId === h.id ? 8 : 0 }}>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                              <span style={{ fontWeight: 600, color: 'var(--text)' }}>{hospitalName}</span>
-                              <span style={{ color: 'var(--text-muted)' }}>
-                                {formatKst(h.created_at)}
-                                {h.finished_at && ` · ${durationSec(h.started_at, h.finished_at)}`}
-                              </span>
-                            </div>
-                            <span style={{ display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap', marginLeft: 8 }}>
-                              <span style={{ fontWeight: 700, color: hStale ? 'var(--warning)' : STATUS_COLOR[h.status] }}>{hStale ? '⚠️ 중단 추정' : STATUS_LABEL[h.status]}</span>
-                              <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>{expandedHistoryId === h.id ? '▴ 로그' : '▾ 로그'}</span>
-                            </span>
-                          </div>
-                          {failedSteps.length > 0 && (
-                            <div style={{ display: 'grid', gap: 4, borderTop: '1px solid rgba(185,28,28,0.2)', paddingTop: 7, marginBottom: upserts.length > 0 ? 8 : 0 }}>
-                              {failedSteps.map((s) => (
-                                <div key={`${s.index}-${s.name}`} style={{ color: 'var(--danger)' }}>
-                                  <span style={{ fontWeight: 600 }}>✗ {s.index}. {s.name}</span>
-                                  {s.error && <span style={{ color: 'var(--danger)', marginLeft: 6 }}>— {s.error}</span>}
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                          {upserts.length > 0 && (
-                            <div style={{ display: 'grid', gap: 3, borderTop: '1px solid var(--border)', paddingTop: 7 }}>
-                              {upserts.map((u) => (
-                                <div key={u.label} style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-secondary)' }}>
-                                  <span>{u.label}</span>
-                                  <span style={{ fontWeight: 600, color: u.skipped ? 'var(--text-muted)' : 'var(--accent)' }}>
-                                    {u.skipped
-                                      ? '이미 최신'
-                                      : `${u.count.toLocaleString()}건${u.dateRange ? ` (${u.dateRange})` : ''}`}
-                                  </span>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                          {expandedHistoryId === h.id && (
-                            <div
-                              onClick={(e) => e.stopPropagation()}
-                              style={{ borderTop: '1px solid var(--border)', marginTop: 8, paddingTop: 8, cursor: 'default' }}
-                            >
-                              <SearchadCoverage jobId={h.id} />
-                              <div style={{ marginTop: 10 }} />
-                              {historyDetailLoading ? (
-                                <p style={{ margin: 0, fontSize: 12, color: 'var(--text-muted)' }}>로그 불러오는 중…</p>
-                              ) : historyDetail?.output ? (
-                                <pre style={{ margin: 0, fontSize: 11, lineHeight: 1.6, color: 'var(--text-secondary)', background: '#fff', border: '1px solid var(--border)', borderRadius: 6, padding: 12, overflow: 'auto', maxHeight: 400, whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
-                                  {historyDetail.output}
-                                </pre>
-                              ) : (
-                                <p style={{ margin: 0, fontSize: 12, color: 'var(--text-muted)' }}>저장된 로그가 없습니다.</p>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
+                    )}
+                    <p style={{ margin: '10px 0 0', fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.5 }}>
+                      시작하면 <strong>수집 내역</strong> 탭에서 진행 상황을 확인할 수 있어요.
+                    </p>
                   </div>
-                )}
-              </div>
-              </div>
-            </div>
-          </div>
-        ) : section === 'pdf' ? (
+      </div>
+    </div>
+  );
+
+  const renderPdf = () => (
           <div className="adminLayoutMainPane">
             <div className="adminLayoutMainColumnInset">
               <div className="adminLegacyBlockBleed">
@@ -1363,30 +1064,46 @@ export default function AdminDataUpload() {
               )}
             </div>
           </div>
-        ) : (
-          <div className="adminLayoutMainPane">
-            <div className="adminLayoutMainColumnInset">
-              <header style={{ marginBottom: 20 }}>
-                <h1
-                  style={{
-                    fontSize: 22,
-                    margin: '0 0 8px',
-                    fontWeight: 700,
-                    color: 'var(--text)',
-                    letterSpacing: '-0.02em',
-                  }}
-                >
-                  경영통계 업로드
-                </h1>
-                <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: 14, lineHeight: 1.55 }}>
-                  병원별 실적·엑셀 업로드 및 차트 종류별 안내는 아래 콘솔에서 처리합니다. (기존 <strong>통계</strong>{' '}
-                  메뉴에 있던 화면과 동일합니다.)
-                </p>
-              </header>
-              <div className="adminMainSingleGutter" style={{ paddingTop: 0, maxWidth: 1280 }}>
-                <AdminDataConsole mode="performance" />
-              </div>
-            </div>
-          </div>
-        );
+  );
+
+  const renderStats = () => (
+    <AdminStatsUpload
+      hospitals={hospitals}
+      hospitalsLoading={hospitalsLoading}
+      hospitalsError={hospitalsError}
+    />
+  );
+
+  if (variant === 'extract') return renderPdf();
+
+  return (
+    <div>
+      <div className="adminDataHubHeader">
+        <div style={{ marginBottom: 16 }}>
+          <h1 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: 'var(--text)' }}>데이터 수집</h1>
+          <p style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--text-secondary)' }}>
+            경영통계 업로드와 자동 수집·스케줄·수집 내역을 한 곳에서 관리합니다.
+          </p>
+        </div>
+        <div className="adminDataTabRow">
+          {DATA_TABS.map((t) => (
+            <button
+              key={t.key}
+              type="button"
+              onClick={() => selectTab(t.key)}
+              className={tab === t.key ? 'adminDataTab adminDataTabActive' : 'adminDataTab'}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="adminDataTabBody">
+        {tab === 'stats' && renderStats()}
+        {tab === 'collect' && renderCollect()}
+        {tab === 'schedule' && <AdminCollectScheduler hospitals={hospitals} inline />}
+        {tab === 'history' && <CollectHistoryPanel hospitals={hospitals} />}
+      </div>
+    </div>
+  );
 }
