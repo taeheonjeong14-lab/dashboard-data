@@ -16,25 +16,23 @@ require("dotenv").config();
 const CONFIG_PATH = path.join(__dirname, "..", "config.json");
 const ADMIN_BASE = "https://admin.blog.naver.com";
 const { getKstYesterdayString, computeMetricRange, INITIAL_BACKFILL_DAYS } = require("./lib/metricDateRange");
+const { jitter, maybeLongRest, humanize } = require("./lib/human");
 
 function loadConfig() {
   return JSON.parse(fs.readFileSync(CONFIG_PATH, "utf8"));
 }
 
-// 사람처럼 보이는 랜덤 대기(고정 간격은 봇 신호). 로그인 세션이라 균일한 패턴이 계정 보안체크를 부를 수 있어
-// 페이지 이동·페이지네이션 사이를 랜덤화한다. LOGIN_COLLECT_DELAY_MIN_MS/MAX_MS 로 전역 조정.
-function jitter(minMs, maxMs) {
-  const lo = Number(process.env.LOGIN_COLLECT_DELAY_MIN_MS) || minMs;
-  const hi = Number(process.env.LOGIN_COLLECT_DELAY_MAX_MS) || maxMs;
-  const ms = Math.floor(lo + Math.random() * Math.max(0, hi - lo));
-  return new Promise((r) => setTimeout(r, ms));
-}
-
-function resolveChromePort(config, hospitalId) {
+// hospitalPorts[hid] 는 숫자(단일) 또는 단계별 객체({ blog, place, default }) 둘 다 허용.
+// 단독 실행 시 kind='blog' 로 블로그 계정 포트를 고른다. (collect-all 이 env로 포트를 주면 그게 최우선)
+function resolveChromePort(config, hospitalId, kind) {
   const envPort = Number(process.env.COLLECT_CHROME_DEBUGGING_PORT || "");
   if (Number.isFinite(envPort) && envPort > 0) return envPort;
   const byHospital = config?.hospitalPorts?.[hospitalId];
-  const parsedHospital = typeof byHospital === "number" ? byHospital : Number(byHospital);
+  let raw = byHospital;
+  if (byHospital && typeof byHospital === "object") {
+    raw = kind && byHospital[kind] != null ? byHospital[kind] : byHospital.default;
+  }
+  const parsedHospital = typeof raw === "number" ? raw : Number(raw);
   if (Number.isFinite(parsedHospital) && parsedHospital > 0) return parsedHospital;
   const fallback = config?.chrome?.debuggingPort ?? 9222;
   const parsedFallback = typeof fallback === "number" ? fallback : Number(fallback);
@@ -101,7 +99,8 @@ function parseTableRows(body) {
 /** startDate까지 이전 버튼을 눌러가며 모든 페이지 수집 */
 async function scrapeWithPagination(page, url, label, startDate) {
   await page.goto(url, { waitUntil: "domcontentloaded", timeout: 45000 });
-  await jitter(3500, 5500);
+  await jitter(4000, 7000);
+  await humanize(page);
 
   const allRows = [];
 
@@ -132,7 +131,9 @@ async function scrapeWithPagination(page, url, label, startDate) {
 
     if (click % 10 === 0) console.log("%s 이전 이동 중... (%d번째, minDate=%s)", label, click + 1, minDate);
     await prevBtn.click();
-    await jitter(1300, 2600);
+    await jitter(1500, 3500);
+    await humanize(page);
+    await maybeLongRest(`${label} ${minDate}`);
   }
 
   return allRows;
@@ -230,7 +231,7 @@ async function main() {
     hospitalId: null,
     hospitalName: null,
   }));
-  const port = resolveChromePort(config, hospitalId);
+  const port = resolveChromePort(config, hospitalId, "blog");
 
   const endDate = getKstYesterdayString();
   const maxMetric = await fetchMaxBlogMetricDate(supabase, id);

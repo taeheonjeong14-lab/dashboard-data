@@ -12,6 +12,7 @@
 const { spawnSync } = require("child_process");
 const fs = require("fs");
 const path = require("path");
+const { shuffle } = require("./lib/human");
 
 const ROOT = path.resolve(__dirname, "..");
 const CONFIG_PATH = path.join(ROOT, "config.json");
@@ -28,7 +29,8 @@ function loadHospitalIdsFromConfig() {
 
 function main() {
   const fromArgs = process.argv.slice(2).map((s) => s.trim()).filter(Boolean);
-  const ids = fromArgs.length > 0 ? fromArgs : loadHospitalIdsFromConfig();
+  // 인자로 순서를 지정하면 그대로, 기본 배치(config 로드)면 병원 순서를 섞어 패턴을 줄인다.
+  const ids = fromArgs.length > 0 ? fromArgs : shuffle(loadHospitalIdsFromConfig());
   if (ids.length === 0) {
     console.error("실행할 hospital_id 가 없습니다. config.json hospitalPorts 또는 인자를 확인하세요.");
     process.exit(1);

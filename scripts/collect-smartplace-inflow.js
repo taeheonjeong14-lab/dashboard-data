@@ -15,25 +15,23 @@ require("dotenv").config();
 
 const CONFIG_PATH = path.join(__dirname, "..", "config.json");
 const { getKstYesterdayString, computeMetricRange, INITIAL_BACKFILL_DAYS } = require("./lib/metricDateRange");
+const { jitter, maybeLongRest, humanize, shuffle } = require("./lib/human");
 
 function loadConfig() {
   return JSON.parse(fs.readFileSync(CONFIG_PATH, "utf8"));
 }
 
-// 사람처럼 보이는 랜덤 대기(고정 간격은 봇 신호). 로그인 세션이라 균일한 패턴이 계정 보안체크를 부를 수 있어
-// 일자별 페이지 이동 사이를 랜덤화한다. LOGIN_COLLECT_DELAY_MIN_MS/MAX_MS 로 전역 조정.
-function jitter(minMs, maxMs) {
-  const lo = Number(process.env.LOGIN_COLLECT_DELAY_MIN_MS) || minMs;
-  const hi = Number(process.env.LOGIN_COLLECT_DELAY_MAX_MS) || maxMs;
-  const ms = Math.floor(lo + Math.random() * Math.max(0, hi - lo));
-  return new Promise((r) => setTimeout(r, ms));
-}
-
-function resolveChromePort(config, hospitalId) {
+// hospitalPorts[hid] 는 숫자(단일) 또는 단계별 객체({ blog, place, default }) 둘 다 허용.
+// 단독 실행 시 kind='place' 로 플레이스 계정 포트를 고른다. (collect-all 이 env로 포트를 주면 그게 최우선)
+function resolveChromePort(config, hospitalId, kind) {
   const envPort = Number(process.env.COLLECT_CHROME_DEBUGGING_PORT || "");
   if (Number.isFinite(envPort) && envPort > 0) return envPort;
   const byHospital = config?.hospitalPorts?.[hospitalId];
-  const parsedHospital = typeof byHospital === "number" ? byHospital : Number(byHospital);
+  let raw = byHospital;
+  if (byHospital && typeof byHospital === "object") {
+    raw = kind && byHospital[kind] != null ? byHospital[kind] : byHospital.default;
+  }
+  const parsedHospital = typeof raw === "number" ? raw : Number(raw);
   if (Number.isFinite(parsedHospital) && parsedHospital > 0) return parsedHospital;
   const fallback = config?.chrome?.debuggingPort ?? 9222;
   const parsedFallback = typeof fallback === "number" ? fallback : Number(fallback);
@@ -129,20 +127,25 @@ async function scrapeSmartPlaceInflow(page, statUrl, startDate, endDate) {
   const days = Math.max(0, Math.floor((new Date(endDate) - new Date(startDate)) / (24 * 3600 * 1000)));
   for (let i = 0; i <= days; i++) daysToFetch.push(addDays(startDate, i));
 
+  // 날짜 순서를 섞어 단조 증가 패턴을 줄인다(저장은 날짜 upsert라 순서 무관).
+  const orderedDays = shuffle(daysToFetch);
+
   const rows = [];
-  for (let i = 0; i < daysToFetch.length; i++) {
-    const day = daysToFetch[i];
+  for (let i = 0; i < orderedDays.length; i++) {
+    const day = orderedDays[i];
     const url = setUrlDateParams(statUrl.trim(), day, day);
     await page.goto(url, { waitUntil: "domcontentloaded", timeout: 45000 });
-    await jitter(1800, 3200);
+    await jitter(2500, 5500);
+    await humanize(page);
     const body = await getPageBody(page);
     const inflow = parsePlaceInflowSingle(body);
     rows.push({ metric_date: day, smartplace_inflow: inflow !== null ? inflow : null });
     process.stdout.write(
       "__PROGRESS__ " +
-        JSON.stringify({ step: "smartplace", done: i + 1, total: daysToFetch.length, label: day }) +
+        JSON.stringify({ step: "smartplace", done: i + 1, total: orderedDays.length, label: day }) +
         "\n"
     );
+    await maybeLongRest(`플레이스 ${day}`);
   }
   return rows;
 }
@@ -188,7 +191,7 @@ async function main() {
     hospitalName: null,
     smartplaceStatUrl: null,
   }));
-  const port = resolveChromePort(config, hospitalId);
+  const port = resolveChromePort(config, hospitalId, "place");
   const account = config.accounts && config.accounts[id];
   const smartplaceStatUrl = dbSmartplaceStatUrl || (account && account.smartplaceStatUrl) || config.smartplace?.statUrl;
   if (!smartplaceStatUrl) {

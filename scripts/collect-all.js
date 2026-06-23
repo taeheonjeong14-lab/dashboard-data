@@ -147,9 +147,16 @@ function readConfig() {
   }
 }
 
-function resolveHospitalChromePort(config, hospitalId) {
+// hospitalPorts[hid] 는 숫자(단일 포트) 또는 단계별 객체({ blog, place, default }) 둘 다 허용.
+// 네이버 아이디를 둘 쓰는 병원(블로그=계정A, 플레이스=계정B)은 단계별로 다른 포트가 필요하다.
+// kind = 'blog' | 'place' | undefined.
+function resolveHospitalChromePort(config, hospitalId, kind) {
   const byHospital = config?.hospitalPorts?.[hospitalId];
-  const parsedHospitalPort = typeof byHospital === "number" ? byHospital : Number(byHospital);
+  let raw = byHospital;
+  if (byHospital && typeof byHospital === "object") {
+    raw = (kind && byHospital[kind] != null ? byHospital[kind] : byHospital.default);
+  }
+  const parsedHospitalPort = typeof raw === "number" ? raw : Number(raw);
   if (Number.isFinite(parsedHospitalPort) && parsedHospitalPort > 0) {
     return parsedHospitalPort;
   }
@@ -365,10 +372,33 @@ async function main() {
     `병원 조회 OK — id=${resolved.hospitalId} | name=${resolved.hospitalName || "-"} | naver_blog_id=${resolved.blogId}`
   );
   const config = readConfig();
-  const configChromePort = resolveHospitalChromePort(config, resolved.hospitalId);
-  const resolvedChromePort =
-    Number.isFinite(resolved.debugPort) && resolved.debugPort > 0 ? resolved.debugPort : configChromePort;
-  emit(`병원별 Chrome 포트: ${resolvedChromePort == null ? "(미설정, 스크립트 기본값 사용)" : resolvedChromePort}`);
+  // 단계별(블로그/플레이스) Chrome 포트. 네이버 아이디를 둘 쓰는 병원은 단계마다 다른 포트(=다른 로그인 크롬)가 필요.
+  // 우선순위: config.hospitalPorts[hid] 의 단계별 객체({blog,place,default}) > DB debug_port > config 단일 포트/chrome 기본.
+  const pickPort = (kind) => {
+    const byHospital = config?.hospitalPorts?.[resolved.hospitalId];
+    if (byHospital && typeof byHospital === "object") {
+      const v = byHospital[kind] != null ? byHospital[kind] : byHospital.default;
+      const n = Number(v);
+      if (Number.isFinite(n) && n > 0) return n;
+    }
+    if (Number.isFinite(resolved.debugPort) && resolved.debugPort > 0) return resolved.debugPort;
+    return resolveHospitalChromePort(config, resolved.hospitalId, kind);
+  };
+  const blogPort = pickPort("blog");
+  const placePort = pickPort("place");
+  emit(
+    blogPort === placePort
+      ? `병원별 Chrome 포트: ${blogPort == null ? "(미설정, 스크립트 기본값 사용)" : blogPort}`
+      : `병원별 Chrome 포트(단계별 분리): 블로그=${blogPort ?? "-"} / 플레이스=${placePort ?? "-"}`
+  );
+
+  const portEnv = (p) =>
+    p == null
+      ? {}
+      : {
+          COLLECT_CHROME_DEBUGGING_PORT: String(p),
+          CHROME_DEBUGGING_PORT: process.env.CHROME_DEBUGGING_PORT || String(p),
+        };
 
   const baseEnv = {
     ...process.env,
@@ -379,13 +409,12 @@ async function main() {
     // 키워드 순위 수집 병렬 워커 수(=동시 브라우저 수). 미설정 시 2.
     // 한 IP 동시 요청이 많으면 네이버 탐지 위험 ↑ → 속도 vs 위험 절충으로 2. RANK_PARALLEL_WORKERS 로 조정.
     RANK_PARALLEL_WORKERS: process.env.RANK_PARALLEL_WORKERS || "2",
-    ...(resolvedChromePort == null
-      ? {}
-      : {
-          COLLECT_CHROME_DEBUGGING_PORT: String(resolvedChromePort),
-          CHROME_DEBUGGING_PORT: process.env.CHROME_DEBUGGING_PORT || String(resolvedChromePort),
-        }),
+    ...portEnv(blogPort), // 기본은 블로그 포트(블로그/플레이스 외 단계는 거의 쓰지 않음)
   };
+
+  // 블로그·플레이스는 각각의 (로그인) 포트로 분리해서 보낸다.
+  const blogEnv = { ...baseEnv, ...portEnv(blogPort) };
+  const placeEnv = { ...baseEnv, ...portEnv(placePort) };
 
   // 순위 수집(블로그/플레이스)은 로그인이 불필요 → 병원별(로그인) Chrome 포트를 쓰지 않고
   // 항상 비로그인 전용 포트(기본 9222)로 보낸다. 계정/봇 탐지 리스크를 낮춘다.
@@ -397,14 +426,14 @@ async function main() {
       name: "블로그 일별 지표 수집",
       command: process.execPath,
       args: [path.join(ROOT_DIR, "scripts", "collect-blog-metrics.js"), resolved.blogId],
-      options: { env: baseEnv },
+      options: { env: blogEnv },
     },
     {
       key: "smartplace",
       name: "스마트플레이스 유입 수집",
       command: process.execPath,
       args: [path.join(ROOT_DIR, "scripts", "collect-smartplace-inflow.js"), resolved.blogId],
-      options: { env: baseEnv },
+      options: { env: placeEnv },
     },
     {
       key: "keyword_rank",
