@@ -3,7 +3,7 @@
 import type { ChartHospitalOption } from '@/lib/chart-extraction/chart-admin-hospitals';
 import { parseChartAdminHospitalsResponse } from '@/lib/chart-extraction/chart-admin-hospitals';
 import type { CSSProperties } from 'react';
-import { FormEvent, useEffect, useRef, useState } from 'react';
+import { Fragment, FormEvent, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { useChartExtraction } from '@/components/chart-extraction-provider';
@@ -22,15 +22,17 @@ import {
   AlertTriangle,
   Loader2,
   Clock,
+  ShoppingCart,
+  X,
   type LucideIcon,
 } from 'lucide-react';
 
 const COLLECT_STEPS = [
-  { key: 'blog_metrics', label: '블로그 일별 지표' },
-  { key: 'smartplace', label: '스마트플레이스 유입' },
-  { key: 'keyword_rank', label: '블로그/플레이스 키워드 순위' },
-  { key: 'searchad', label: 'SearchAd 일별 성과' },
-  { key: 'place_reviews', label: '스마트플레이스 리뷰 추이' },
+  { key: 'blog_metrics', label: '블로그 일별 지표', short: '블로그 지표' },
+  { key: 'smartplace', label: '스마트플레이스 유입', short: '플레이스 유입' },
+  { key: 'keyword_rank', label: '블로그/플레이스 키워드 순위', short: '키워드 순위' },
+  { key: 'searchad', label: 'SearchAd 일별 성과', short: 'SearchAd' },
+  { key: 'place_reviews', label: '스마트플레이스 리뷰 추이', short: '리뷰 추이' },
 ] as const;
 
 type StepKey = (typeof COLLECT_STEPS)[number]['key'];
@@ -241,9 +243,11 @@ export default function AdminDataUpload({ variant = 'data' }: { variant?: 'data'
   const prevLastRunId = useRef<string | null>(null);
 
   // 선택 모델: 병원 다중 선택 + 수집 데이터 종류(공통 적용). 병원이 많아도 확장 가능.
-  const [selectedHospitals, setSelectedHospitals] = useState<Set<string>>(new Set());
-  const [selectedSteps, setSelectedSteps] = useState<Set<StepKey>>(new Set(COLLECT_STEPS.map((s) => s.key)));
-  const [hospitalQuery, setHospitalQuery] = useState('');
+  // 설정 패널: 드롭다운으로 고른 병원 + 그 병원에 담을 항목(체크)
+  const [configHospitalId, setConfigHospitalId] = useState('');
+  const [configSteps, setConfigSteps] = useState<Set<StepKey>>(new Set());
+  // 장바구니: 여러 병원의 수집 항목을 누적했다가 한꺼번에 실행. 병원 → 항목 집합.
+  const [cart, setCart] = useState<Map<string, Set<StepKey>>>(new Map());
   const [collectSubmitting, setCollectSubmitting] = useState(false);
   const [collectJobs, setCollectJobs] = useState<CollectJob[]>([]);
   const [collectError, setCollectError] = useState<string | null>(null);
@@ -258,56 +262,85 @@ export default function AdminDataUpload({ variant = 'data' }: { variant?: 'data'
   const [campaignLoading, setCampaignLoading] = useState<Record<string, boolean>>({});
   const [campaignError, setCampaignError] = useState<Record<string, string>>({});
   const [campaignSel, setCampaignSel] = useState<Map<string, Set<string>>>(new Map());
-  const [campaignOpen, setCampaignOpen] = useState<Set<string>>(new Set());
 
-  const hospitalQ = hospitalQuery.trim().toLowerCase();
-  const filteredHospitals = hospitalQ
-    ? hospitals.filter((h) => (h.name_ko ?? '').toLowerCase().includes(hospitalQ))
-    : hospitals;
-  const isAnySelected = selectedHospitals.size > 0 && selectedSteps.size > 0;
-  const allFilteredSelected =
-    filteredHospitals.length > 0 && filteredHospitals.every((h) => selectedHospitals.has(h.id));
-  // SearchAd 항목이 선택됐을 때만 기간/캠페인 입력을 노출/적용한다.
-  const anySearchadSelected = selectedSteps.has('searchad');
-  const searchadDateIncomplete =
-    anySearchadSelected && Boolean(searchadStart) !== Boolean(searchadEnd);
+  // 15일 넘게 수집되지 않으면 알림.
+  const STALE_DAYS = 15;
+
+  // 병원×항목의 마지막 수집일 → 절대일자 + 상대표기 + 경과일수
+  function lastSuccessOf(hid: string, step: StepKey): { date: string; text: string; daysAgo: number } | null {
+    const date = collectLastSuccess?.[hid]?.[step];
+    if (!date) return null;
+    const d = new Date(date + 'T00:00:00');
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const daysAgo = Math.round((today.getTime() - d.getTime()) / 86_400_000);
+    return { date, text: relDay(date).text, daysAgo };
+  }
+
+  // 15일 초과 미수집 (병원×항목) 목록 — 알림용. 오래된 순.
+  const staleAlerts = hospitals
+    .flatMap((h) =>
+      COLLECT_STEPS.flatMap((s) => {
+        const last = lastSuccessOf(h.id, s.key);
+        if (!last || last.daysAgo <= STALE_DAYS) return [];
+        return [{ hospitalId: h.id, hospitalName: h.name_ko, step: s.key, stepLabel: s.short, daysAgo: last.daysAgo }];
+      }),
+    )
+    .sort((a, b) => b.daysAgo - a.daysAgo);
+
+  const cartHospitalCount = cart.size;
+  const cartItemCount = Array.from(cart.values()).reduce((sum, set) => sum + set.size, 0);
+  const isCartEmpty = cart.size === 0;
+  const cartHasSearchad = Array.from(cart.values()).some((set) => set.has('searchad'));
+
+  const searchadDateIncomplete = cartHasSearchad && Boolean(searchadStart) !== Boolean(searchadEnd);
   const searchadDateInvalid =
-    anySearchadSelected && !!searchadStart && !!searchadEnd && searchadStart > searchadEnd;
+    cartHasSearchad && !!searchadStart && !!searchadEnd && searchadStart > searchadEnd;
 
-  function toggleHospital(hid: string) {
-    setSelectedHospitals((prev) => {
-      const next = new Set(prev);
-      if (next.has(hid)) next.delete(hid);
-      else next.add(hid);
-      return next;
-    });
+  function selectConfigHospital(hid: string) {
+    setConfigHospitalId(hid);
+    setConfigSteps(new Set()); // 병원 바꾸면 체크 초기화
   }
 
-  function toggleAllFilteredHospitals() {
-    setSelectedHospitals((prev) => {
-      const next = new Set(prev);
-      if (allFilteredSelected) for (const h of filteredHospitals) next.delete(h.id);
-      else for (const h of filteredHospitals) next.add(h.id);
-      return next;
-    });
-  }
-
-  function toggleStep(step: StepKey) {
-    setSelectedSteps((prev) => {
+  function toggleConfigStep(step: StepKey) {
+    const turningOn = !configSteps.has(step);
+    setConfigSteps((prev) => {
       const next = new Set(prev);
       if (next.has(step)) next.delete(step);
       else next.add(step);
       return next;
     });
+    // SearchAd를 켜면 그 자리에서 캠페인을 고를 수 있게 바로 목록을 불러온다.
+    if (step === 'searchad' && turningOn && configHospitalId && !campaignLists[configHospitalId] && !campaignLoading[configHospitalId]) {
+      void loadCampaigns(configHospitalId);
+    }
   }
 
-  // 병원별 마지막 수집(여러 항목 중 가장 최근)일 — 선택 목록에서 신선도 신호로 표시
-  function hospitalLastSuccess(hid: string): { text: string; stale: boolean } | null {
-    const m = collectLastSuccess?.[hid];
-    if (!m) return null;
-    const dates = Object.values(m).filter(Boolean);
-    if (dates.length === 0) return null;
-    return relDay(dates.reduce((a, b) => (a > b ? a : b)));
+  function addToCart(hid: string, steps: Iterable<StepKey>) {
+    setCart((prev) => {
+      const next = new Map(prev);
+      const set = new Set(next.get(hid) ?? []);
+      for (const s of steps) set.add(s);
+      if (set.size > 0) next.set(hid, set);
+      return next;
+    });
+  }
+
+  function addConfigToCart() {
+    if (!configHospitalId || configSteps.size === 0) return;
+    addToCart(configHospitalId, configSteps);
+    setConfigSteps(new Set());
+  }
+
+  function removeCartStep(hid: string, step: StepKey) {
+    setCart((prev) => {
+      const next = new Map(prev);
+      const set = new Set(next.get(hid) ?? []);
+      set.delete(step);
+      if (set.size === 0) next.delete(hid);
+      else next.set(hid, set);
+      return next;
+    });
   }
 
   useEffect(() => {
@@ -499,18 +532,6 @@ export default function AdminDataUpload({ variant = 'data' }: { variant?: 'data'
       setCampaignLoading((m) => ({ ...m, [hid]: false }));
     }
   }
-  function toggleCampaignOpen(hid: string) {
-    setCampaignOpen((prev) => {
-      const next = new Set(prev);
-      if (next.has(hid)) {
-        next.delete(hid);
-      } else {
-        next.add(hid);
-        if (!campaignLists[hid] && !campaignLoading[hid]) void loadCampaigns(hid);
-      }
-      return next;
-    });
-  }
   function toggleCampaign(hid: string, cid: string, checked: boolean) {
     setCampaignSel((prev) => {
       const next = new Map(prev);
@@ -528,8 +549,8 @@ export default function AdminDataUpload({ variant = 'data' }: { variant?: 'data'
     setCollectError(null);
     try {
       const useSearchadRange = !!searchadStart && !!searchadEnd && !searchadDateInvalid;
-      const stepArr = Array.from(selectedSteps);
-      const jobs = Array.from(selectedHospitals).map((hospitalId) => {
+      const jobs = Array.from(cart.entries()).map(([hospitalId, steps]) => {
+        const stepArr = Array.from(steps);
         const camp = campaignSel.get(hospitalId);
         return {
           hospitalId,
@@ -557,6 +578,7 @@ export default function AdminDataUpload({ variant = 'data' }: { variant?: 'data'
         setCollectError(data.error ?? '수집 요청 생성에 실패했습니다.');
         return;
       }
+      setCart(new Map()); // 요청 보냈으니 장바구니 비움
       void loadHistory();
       // 진행 상황은 '수집 내역' 탭에서 본다 — 요청 성공 시 그 탭으로 이동.
       selectTab('history');
@@ -638,242 +660,223 @@ export default function AdminDataUpload({ variant = 'data' }: { variant?: 'data'
     transition: 'border-color 0.15s, background 0.15s',
   };
 
-  const renderCollect = () => (
-    <div className="adminCollectGrid">
-      <div className="adminCollectHospitals">
-                  {/* 병원 선택 (다중) */}
-                  {hospitalsLoading ? (
-                    <p style={{ margin: 0, fontSize: 13, color: 'var(--text-muted)' }}>병원 목록 불러오는 중…</p>
-                  ) : hospitalsError ? (
-                    <p style={{ margin: 0, fontSize: 13, color: 'var(--danger)' }}>{hospitalsError}</p>
-                  ) : (
-                    <div>
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-                        <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>병원</span>
-                        <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                          {selectedHospitals.size}/{hospitals.length} 선택
-                        </span>
-                      </div>
-                      <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius)', overflow: 'hidden', background: 'var(--bg)' }}>
-                        {/* 검색 + 전체선택 */}
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 11px', borderBottom: '1px solid var(--border)' }}>
-                          <Search size={14} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
-                          <input
-                            value={hospitalQuery}
-                            onChange={(e) => setHospitalQuery(e.target.value)}
-                            placeholder="병원 검색"
-                            style={{ flex: 1, minWidth: 0, border: 'none', outline: 'none', background: 'transparent', font: 'inherit', fontSize: 13, color: 'var(--text)' }}
-                          />
-                          {filteredHospitals.length > 0 && (
-                            <button
-                              type="button"
-                              onClick={toggleAllFilteredHospitals}
-                              style={{ flexShrink: 0, fontSize: 12, fontWeight: 600, color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
-                            >
-                              {allFilteredSelected ? '전체 해제' : '전체 선택'}
-                            </button>
-                          )}
-                        </div>
-                        {/* 병원 리스트 */}
-                        <div style={{ maxHeight: 440, overflowY: 'auto' }}>
-                          {filteredHospitals.length === 0 ? (
-                            <p style={{ margin: 0, padding: 14, fontSize: 12.5, color: 'var(--text-muted)', textAlign: 'center' }}>일치하는 병원이 없습니다.</p>
-                          ) : (
-                            filteredHospitals.map((h, hi) => {
-                              const checked = selectedHospitals.has(h.id);
-                              const fresh = hospitalLastSuccess(h.id);
-                              return (
-                                <label
-                                  key={h.id}
-                                  style={{
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: 9,
-                                    padding: '8px 12px',
-                                    borderTop: hi ? '1px solid var(--border)' : 'none',
-                                    cursor: 'pointer',
-                                    userSelect: 'none',
-                                    background: checked ? 'var(--accent-subtle)' : 'transparent',
-                                  }}
-                                >
-                                  <input type="checkbox" checked={checked} onChange={() => toggleHospital(h.id)} />
-                                  <span style={{ flex: 1, fontSize: 13, fontWeight: checked ? 600 : 500, color: checked ? 'var(--accent)' : 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                    {h.name_ko}
-                                  </span>
-                                  {fresh && (
-                                    <span title="가장 최근 수집일" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, color: fresh.stale ? 'var(--warning)' : 'var(--text-muted)', whiteSpace: 'nowrap', flexShrink: 0 }}>
-                                      {fresh.stale && <span style={{ width: 5, height: 5, borderRadius: 999, background: 'var(--warning)' }} />}
-                                      {fresh.text}
-                                    </span>
-                                  )}
-                                </label>
-                              );
-                            })
-                          )}
-                        </div>
-                      </div>
+  const renderCollect = () => {
+    const cfgSelect: CSSProperties = {
+      width: '100%', padding: '9px 11px', borderRadius: 'var(--radius)',
+      border: '1px solid var(--border-strong)', background: 'var(--bg)',
+      color: 'var(--text)', font: 'inherit', fontSize: 14, cursor: 'pointer',
+    };
+    const secLabel: CSSProperties = { fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 8 };
+    return (
+      <div className="adminCollectGrid">
+        {/* 좌: 15일 넘게 수집되지 않은 목록 */}
+        <div className="adminCollectAlerts">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10, fontSize: 13, fontWeight: 700, color: staleAlerts.length > 0 ? 'var(--warning)' : 'var(--text)' }}>
+            <AlertTriangle size={15} style={{ color: staleAlerts.length > 0 ? 'var(--warning)' : 'var(--text-muted)' }} />
+            {STALE_DAYS}일 넘게 수집 안 된 항목{staleAlerts.length > 0 ? ` (${staleAlerts.length})` : ''}
+          </div>
+          {staleAlerts.length === 0 ? (
+            <div style={{ padding: '24px 14px', textAlign: 'center', border: '1px dashed var(--border)', borderRadius: 'var(--radius)', color: 'var(--text-muted)', fontSize: 12.5, lineHeight: 1.6 }}>
+              {collectLastSuccess ? '모든 항목이 최근에 수집되었습니다.' : '수집 기록을 불러오는 중…'}
+            </div>
+          ) : (
+            <div style={{ display: 'grid', gap: 6, maxHeight: 'calc(100vh - 230px)', overflowY: 'auto' }}>
+              {staleAlerts.map((a) => {
+                const inCart = cart.get(a.hospitalId)?.has(a.step) ?? false;
+                return (
+                  <div key={`${a.hospitalId}-${a.step}`} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, padding: '9px 11px', borderRadius: 'var(--radius)', border: '1px solid rgba(217,119,6,0.3)', background: 'var(--warning-subtle)' }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: 700, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.hospitalName}</div>
+                      <div style={{ color: 'var(--text-secondary)' }}>{a.stepLabel} · <span style={{ color: 'var(--warning)', fontWeight: 600 }}>{a.daysAgo}일 전</span></div>
                     </div>
-                  )}
-      </div>
-
-      <div className="adminCollectOptions">
-                  {/* 수집할 데이터 종류 (선택 병원 공통 적용) */}
-                  <div>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 8 }}>수집할 데이터</div>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                      {COLLECT_STEPS.map((step) => {
-                        const StepIcon = STEP_ICON[step.key];
-                        const on = selectedSteps.has(step.key);
-                        return (
-                          <button
-                            key={step.key}
-                            type="button"
-                            onClick={() => toggleStep(step.key)}
-                            style={{
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: 6,
-                              padding: '7px 11px',
-                              borderRadius: 999,
-                              fontSize: 12.5,
-                              fontWeight: 600,
-                              cursor: 'pointer',
-                              border: `1px solid ${on ? 'var(--accent)' : 'var(--border-strong)'}`,
-                              background: on ? 'var(--accent-subtle)' : 'var(--bg)',
-                              color: on ? 'var(--accent)' : 'var(--text-secondary)',
-                            }}
-                          >
-                            <StepIcon size={13} />
-                            {step.label}
-                          </button>
-                        );
-                      })}
-                    </div>
+                    <button
+                      type="button"
+                      disabled={inCart}
+                      onClick={() => addToCart(a.hospitalId, [a.step])}
+                      style={{ flexShrink: 0, fontSize: 11.5, fontWeight: 600, color: inCart ? 'var(--text-muted)' : 'var(--accent)', background: 'var(--bg)', border: `1px solid ${inCart ? 'var(--border)' : 'var(--accent)'}`, borderRadius: 6, padding: '4px 10px', cursor: inCart ? 'default' : 'pointer' }}
+                    >
+                      {inCart ? '담김' : '담기'}
+                    </button>
                   </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
 
-                  {/* SearchAd 기간 지정 (searchad 선택 시만) */}
-                  {anySearchadSelected && (
-                    <div style={{ border: '1px solid var(--border)', borderRadius: 8, padding: '12px 14px', background: 'var(--bg-subtle)' }}>
-                      <p style={{ margin: '0 0 8px', fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)' }}>
-                        SearchAd 수집 기간 <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>(선택)</span>
-                      </p>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                        <input
-                          type="date"
-                          value={searchadStart}
-                          max={searchadEnd || undefined}
-                          onChange={(e) => setSearchadStart(e.target.value)}
-                          style={{ fontSize: 13, padding: '6px 8px', border: '1px solid var(--border-strong)', borderRadius: 6, color: 'var(--text)' }}
-                        />
-                        <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>~</span>
-                        <input
-                          type="date"
-                          value={searchadEnd}
-                          min={searchadStart || undefined}
-                          onChange={(e) => setSearchadEnd(e.target.value)}
-                          style={{ fontSize: 13, padding: '6px 8px', border: '1px solid var(--border-strong)', borderRadius: 6, color: 'var(--text)' }}
-                        />
-                        {(searchadStart || searchadEnd) && (
-                          <button
-                            type="button"
-                            onClick={() => { setSearchadStart(''); setSearchadEnd(''); }}
-                            style={{ fontSize: 12, color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 4px' }}
-                          >
-                            지우기
-                          </button>
-                        )}
-                      </div>
-                      <p style={{ margin: '8px 0 0', fontSize: 12, color: searchadDateInvalid ? 'var(--danger)' : 'var(--text-muted)', lineHeight: 1.5 }}>
-                        {searchadDateInvalid
-                          ? '시작일이 종료일보다 늦습니다.'
-                          : searchadDateIncomplete
-                            ? '시작일과 종료일을 모두 선택해 주세요.'
-                            : '비워두면 빠진 날짜를 자동 수집합니다. 하루만 받으려면 시작·종료일을 같게 선택하세요.'}
-                      </p>
+        {/* 우: 데이터 수집 */}
+        <div className="adminCollectWork">
+          {/* 병원 선택 + 항목별 마지막 수집일 */}
+          <div className="adminCollectHospitals">
+            {hospitalsLoading ? (
+              <p style={{ margin: 0, fontSize: 13, color: 'var(--text-muted)' }}>병원 목록 불러오는 중…</p>
+            ) : hospitalsError ? (
+              <p style={{ margin: 0, fontSize: 13, color: 'var(--danger)' }}>{hospitalsError}</p>
+            ) : (
+              <>
+                <div style={secLabel}>병원 선택</div>
+                <select value={configHospitalId} onChange={(e) => selectConfigHospital(e.target.value)} style={cfgSelect}>
+                  <option value="">병원을 선택하세요</option>
+                  {hospitals.map((h) => (
+                    <option key={h.id} value={h.id}>{h.name_ko}</option>
+                  ))}
+                </select>
+
+                {configHospitalId && (
+                  <div style={{ marginTop: 18 }}>
+                    <div style={secLabel}>
+                      수집할 데이터 <span style={{ fontWeight: 400, color: 'var(--text-muted)', fontSize: 12 }}>· 항목별 마지막 수집일</span>
                     </div>
-                  )}
+                    <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius)', overflow: 'hidden' }}>
+                      {COLLECT_STEPS.map((step, i) => {
+                        const StepIcon = STEP_ICON[step.key];
+                        const last = lastSuccessOf(configHospitalId, step.key);
+                        const stale = !!last && last.daysAgo > STALE_DAYS;
+                        const checked = configSteps.has(step.key);
+                        const inCart = cart.get(configHospitalId)?.has(step.key) ?? false;
+                        return (
+                          <Fragment key={step.key}>
+                            <label style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 12px', borderTop: i ? '1px solid var(--border)' : 'none', cursor: 'pointer', userSelect: 'none', background: checked ? 'var(--accent-subtle)' : 'transparent' }}>
+                              <input type="checkbox" checked={checked} onChange={() => toggleConfigStep(step.key)} />
+                              <StepIcon size={15} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+                              <span style={{ flex: 1, fontSize: 13, color: 'var(--text)' }}>{step.label}</span>
+                              {inCart && <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--accent)' }}>담김</span>}
+                              {last ? (
+                                <span title={`마지막 수집 ${last.date}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, color: stale ? 'var(--warning)' : 'var(--text-muted)', whiteSpace: 'nowrap' }}>
+                                  {stale && <AlertTriangle size={12} />}
+                                  {last.text}
+                                </span>
+                              ) : (
+                                <span style={{ fontSize: 12, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>수집 이력 없음</span>
+                              )}
+                            </label>
 
-                  {/* SearchAd 캠페인 — 선택 병원별(선택, 비우면 전체) */}
-                  {anySearchadSelected && selectedHospitals.size > 0 && (
-                    <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '12px 14px', background: 'var(--bg-subtle)' }}>
-                      <p style={{ margin: '0 0 4px', fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)' }}>
-                        SearchAd 캠페인 <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>(병원별 선택, 비우면 전체)</span>
-                      </p>
-                      <div style={{ display: 'grid', gap: 2 }}>
-                        {hospitals.filter((h) => selectedHospitals.has(h.id)).map((h) => (
-                          <div key={h.id} style={{ borderTop: '1px solid var(--border)', paddingTop: 6, marginTop: 4 }}>
-                            <button
-                              type="button"
-                              onClick={() => toggleCampaignOpen(h.id)}
-                              style={{ display: 'flex', alignItems: 'center', gap: 6, width: '100%', fontSize: 12.5, fontWeight: 600, color: 'var(--text-secondary)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
-                            >
-                              <span style={{ color: 'var(--accent)', flexShrink: 0 }}>{campaignOpen.has(h.id) ? '▴' : '▾'}</span>
-                              <span style={{ flex: 1, textAlign: 'left', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{h.name_ko}</span>
-                              <span style={{ fontWeight: 400, color: 'var(--text-muted)', flexShrink: 0 }}>
-                                {(campaignSel.get(h.id)?.size ?? 0) > 0 ? `${campaignSel.get(h.id)!.size}개` : '전체'}
-                              </span>
-                            </button>
-                            {campaignOpen.has(h.id) && (
-                              <div style={{ marginTop: 6, paddingLeft: 16 }}>
-                                {campaignLoading[h.id] ? (
+                            {/* SearchAd 행을 켜면 바로 아래로 캠페인 선택 확장 */}
+                            {step.key === 'searchad' && checked && (
+                              <div style={{ borderTop: '1px solid var(--border)', background: 'var(--bg-subtle)', padding: '10px 12px 12px 40px' }}>
+                                {/* 수집 기간 */}
+                                <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 6 }}>
+                                  수집 기간 <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>(선택)</span>
+                                </div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                                  <input type="date" value={searchadStart} max={searchadEnd || undefined} onChange={(e) => setSearchadStart(e.target.value)} style={{ fontSize: 12.5, padding: '5px 7px', border: '1px solid var(--border-strong)', borderRadius: 6, color: 'var(--text)' }} />
+                                  <span style={{ fontSize: 12.5, color: 'var(--text-muted)' }}>~</span>
+                                  <input type="date" value={searchadEnd} min={searchadStart || undefined} onChange={(e) => setSearchadEnd(e.target.value)} style={{ fontSize: 12.5, padding: '5px 7px', border: '1px solid var(--border-strong)', borderRadius: 6, color: 'var(--text)' }} />
+                                  {(searchadStart || searchadEnd) && (
+                                    <button type="button" onClick={() => { setSearchadStart(''); setSearchadEnd(''); }} style={{ fontSize: 12, color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 4px' }}>지우기</button>
+                                  )}
+                                </div>
+                                <p style={{ margin: '6px 0 12px', fontSize: 11, color: (!!searchadStart && !!searchadEnd && searchadStart > searchadEnd) ? 'var(--danger)' : 'var(--text-muted)', lineHeight: 1.5 }}>
+                                  {!!searchadStart && !!searchadEnd && searchadStart > searchadEnd
+                                    ? '시작일이 종료일보다 늦습니다.'
+                                    : Boolean(searchadStart) !== Boolean(searchadEnd)
+                                      ? '시작·종료일을 모두 선택해 주세요.'
+                                      : '비워두면 빠진 날짜를 자동 수집합니다.'}
+                                </p>
+
+                                {/* 캠페인 */}
+                                <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 6 }}>
+                                  캠페인 선택{' '}
+                                  <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>
+                                    · {(campaignSel.get(configHospitalId)?.size ?? 0) > 0 ? `${campaignSel.get(configHospitalId)!.size}개 선택` : '전체'}
+                                  </span>
+                                </div>
+                                {campaignLoading[configHospitalId] ? (
                                   <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>캠페인 불러오는 중…</span>
-                                ) : campaignError[h.id] ? (
-                                  <span style={{ fontSize: 12, color: 'var(--danger)' }}>{campaignError[h.id]}</span>
-                                ) : (campaignLists[h.id] ?? []).length === 0 ? (
+                                ) : campaignError[configHospitalId] ? (
+                                  <span style={{ fontSize: 12, color: 'var(--danger)' }}>{campaignError[configHospitalId]}</span>
+                                ) : (campaignLists[configHospitalId] ?? []).length === 0 ? (
                                   <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>캠페인이 없습니다.</span>
                                 ) : (
                                   <>
                                     <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>아무것도 선택하지 않으면 전체 캠페인을 수집합니다.</div>
-                                    {campaignLists[h.id].map((c) => (
-                                      <label key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--text-secondary)', padding: '3px 0', cursor: 'pointer' }}>
-                                        <input
-                                          type="checkbox"
-                                          checked={campaignSel.get(h.id)?.has(c.id) ?? false}
-                                          onChange={(e) => toggleCampaign(h.id, c.id, e.target.checked)}
-                                        />
-                                        <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.name || c.id}</span>
-                                        {c.type && <span style={{ fontSize: 10, color: 'var(--text-muted)', flexShrink: 0 }}>{c.type}</span>}
-                                      </label>
-                                    ))}
+                                    <div style={{ maxHeight: 170, overflowY: 'auto', display: 'grid', gap: 2 }}>
+                                      {campaignLists[configHospitalId].map((c) => (
+                                        <label key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--text-secondary)', padding: '3px 0', cursor: 'pointer' }}>
+                                          <input type="checkbox" checked={campaignSel.get(configHospitalId)?.has(c.id) ?? false} onChange={(e) => toggleCampaign(configHospitalId, c.id, e.target.checked)} />
+                                          <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.name || c.id}</span>
+                                          {c.type && <span style={{ fontSize: 10, color: 'var(--text-muted)', flexShrink: 0 }}>{c.type}</span>}
+                                        </label>
+                                      ))}
+                                    </div>
                                   </>
                                 )}
                               </div>
                             )}
-                          </div>
+                          </Fragment>
+                        );
+                      })}
+                    </div>
+
+                    <button type="button" onClick={addConfigToCart} disabled={configSteps.size === 0} className="adminLegacySecondaryBtn" style={{ marginTop: 12 }}>
+                      장바구니에 담기{configSteps.size > 0 ? ` (${configSteps.size})` : ''}
+                    </button>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+
+          {/* 우: 장바구니 */}
+          <div className="adminCollectOptions">
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>
+                <ShoppingCart size={15} /> 수집 대기열{cartItemCount > 0 ? ` (${cartItemCount})` : ''}
+              </span>
+              {!isCartEmpty && (
+                <button type="button" onClick={() => setCart(new Map())} style={{ fontSize: 12, color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>비우기</button>
+              )}
+            </div>
+
+            {isCartEmpty ? (
+              <div style={{ padding: '32px 18px', textAlign: 'center', border: '1px dashed var(--border-strong)', borderRadius: 'var(--radius-lg, 12px)', background: 'var(--bg-subtle)', color: 'var(--text-muted)', fontSize: 13, lineHeight: 1.7 }}>
+                왼쪽에서 병원과 데이터를 골라<br /><strong>장바구니에 담기</strong>를 누르세요.
+              </div>
+            ) : (
+              <div style={{ display: 'grid', gap: 8 }}>
+                {Array.from(cart.entries()).map(([hid, steps]) => {
+                  const hName = hospitals.find((h) => h.id === hid)?.name_ko ?? hid;
+                  return (
+                    <div key={hid} style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '10px 12px', background: 'var(--bg)' }}>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 7 }}>{hName}</div>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+                        {COLLECT_STEPS.filter((s) => steps.has(s.key)).map((s) => (
+                          <span key={s.key} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 6px 3px 9px', borderRadius: 999, background: 'var(--accent-subtle)', color: 'var(--accent)', fontSize: 12, fontWeight: 600 }}>
+                            {s.short}
+                            <button type="button" onClick={() => removeCartStep(hid, s.key)} aria-label="제거" style={{ display: 'inline-flex', border: 'none', background: 'none', cursor: 'pointer', color: 'var(--accent)', padding: 0 }}>
+                              <X size={13} />
+                            </button>
+                          </span>
                         ))}
                       </div>
                     </div>
-                  )}
+                  );
+                })}
+              </div>
+            )}
 
-                  {/* 수집 시작 버튼 */}
-                  <div>
-                    <button
-                      type="button"
-                      className="adminLegacyPrimaryBtn"
-                      disabled={collectSubmitting || !isAnySelected || hospitalsLoading || searchadDateIncomplete || searchadDateInvalid}
-                      onClick={() => void runCollect()}
-                    >
-                      {collectSubmitting
-                        ? '요청 중…'
-                        : `수집 시작 (병원 ${selectedHospitals.size} · 항목 ${selectedSteps.size})`}
-                    </button>
-                    {!isAnySelected && !hospitalsLoading && (
-                      <p style={{ margin: '6px 0 0', fontSize: 12, color: 'var(--text-muted)' }}>
-                        병원과 수집할 데이터를 하나 이상 선택해 주세요.
-                      </p>
-                    )}
-                    {collectError && (
-                      <p style={{ margin: '8px 0 0', fontSize: 12.5, color: 'var(--danger)', lineHeight: 1.5 }}>
-                        {collectError}
-                      </p>
-                    )}
-                    <p style={{ margin: '10px 0 0', fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.5 }}>
-                      시작하면 <strong>수집 내역</strong> 탭에서 진행 상황을 확인할 수 있어요.
-                    </p>
-                  </div>
+            {/* 전체 수집 */}
+            <div style={{ marginTop: 14 }}>
+              <button type="button" className="adminLegacyPrimaryBtn" disabled={collectSubmitting || isCartEmpty || searchadDateIncomplete || searchadDateInvalid} onClick={() => void runCollect()} style={{ width: '100%' }}>
+                {collectSubmitting ? '요청 중…' : `전체 수집 시작 (병원 ${cartHospitalCount} · 항목 ${cartItemCount})`}
+              </button>
+              {collectError && (
+                <p style={{ margin: '8px 0 0', fontSize: 12.5, color: 'var(--danger)', lineHeight: 1.5 }}>{collectError}</p>
+              )}
+              {(searchadDateIncomplete || searchadDateInvalid) && (
+                <p style={{ margin: '8px 0 0', fontSize: 12, color: 'var(--danger)', lineHeight: 1.5 }}>
+                  {searchadDateInvalid ? 'SearchAd 시작일이 종료일보다 늦습니다.' : 'SearchAd 시작·종료일을 모두 선택해 주세요.'}
+                </p>
+              )}
+              <p style={{ margin: '10px 0 0', fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.5 }}>
+                시작하면 <strong>수집 내역</strong> 탭에서 진행 상황을 확인할 수 있어요.
+              </p>
+            </div>
+          </div>
+        </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   const renderPdf = () => (
           <div className="adminLayoutMainPane">

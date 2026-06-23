@@ -232,12 +232,19 @@
   padding-top: 20px;
 }
 
-/* 데이터 자동 수집 탭: 좌측 수집 대상 선택 + 우측 진행 상황 (인셋, 풀블리드 아님) */
+/* 데이터 자동 수집 탭: 좌측 15일+ 미수집 알림 + 우측 수집 작업 (인셋) */
 .adminCollectGrid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 340px;
+  grid-template-columns: 340px minmax(0, 1fr);
   gap: 28px;
   align-items: start;
+}
+.adminCollectAlerts { min-width: 0; }
+.adminCollectWork {
+  min-width: 0;
+  display: grid;
+  gap: 22px;
+  align-content: start;
 }
 .adminCollectHospitals { min-width: 0; }
 .adminCollectOptions {
