@@ -88,10 +88,11 @@ export async function POST(request: NextRequest) {
       .single();
     if (hospital?.name && String(hospital.name).trim()) hospitalName = String(hospital.name).trim();
 
-    // WL 버튼 링크 — 카카오는 등록 버튼 도메인(app.thehamm.kr)과 발송 링크 도메인이 일치해야 전달된다.
-    // 로컬/프리뷰에서 보내도 항상 운영 도메인 링크가 나가도록 고정 베이스 사용(localhost 링크 → 카카오 거절 방지).
+    // WL 버튼 링크 — 등록 버튼이 고정 링크(.../survey, 변수 없음)라 토큰을 경로에 붙이면 카카오가
+    // "템플릿 버튼 불일치"로 거절한다. 등록 경로(/survey)는 그대로 두고 토큰을 쿼리(?token=)로 붙인다.
+    // (/survey?token= 은 app/survey/page.tsx 가 /survey/[token] 으로 리다이렉트)
     const base = (process.env.SURVEY_LINK_BASE || 'https://app.thehamm.kr').replace(/\/$/, '');
-    const surveyUrl = `${base}/survey/${encodeURIComponent(token)}`;
+    const surveyUrl = `${base}/survey?token=${encodeURIComponent(token)}`;
 
     // 템플릿(UI_8603) 등록 버튼 순서·이름과 정확히 일치해야 함: ① 채널 추가(AC) ② 사전문진 바로가기(WL).
     const buttons = [
