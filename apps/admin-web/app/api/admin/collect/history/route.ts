@@ -29,6 +29,10 @@ export type CollectHistoryUnifiedItem = {
   origin?: 'manual' | 'schedule';
   upserts?: UpsertItem[];
   failedSteps?: StepItem[];
+  // 진행 중(running/pending) 항목의 단계별 진행률 표시용
+  progress?: Record<string, { done: number; total: number; label?: string | null }>;
+  stepsFilter?: string[] | null;
+  doneStepNames?: string[];
 };
 
 export async function GET() {
@@ -47,7 +51,7 @@ export async function GET() {
     supabase
       .schema('analytics')
       .from('collect_jobs')
-      .select('id, hospital_id, status, steps, upserts, origin, created_at, started_at, finished_at, updated_at')
+      .select('id, hospital_id, status, steps, upserts, origin, progress, steps_filter, created_at, started_at, finished_at, updated_at')
       .order('created_at', { ascending: false })
       .limit(40),
   ]);
@@ -81,6 +85,10 @@ export async function GET() {
     const upserts = Array.isArray(row.upserts) ? (row.upserts as UpsertItem[]) : [];
     const steps = Array.isArray(row.steps) ? (row.steps as StepItem[]) : [];
     const originRaw = String(row.origin ?? 'manual');
+    const progress = (row.progress && typeof row.progress === 'object'
+      ? (row.progress as Record<string, { done: number; total: number; label?: string | null }>)
+      : {});
+    const stepsFilter = Array.isArray(row.steps_filter) ? (row.steps_filter as string[]) : null;
     return {
       key: `auto:${String(row.id)}`,
       kind: 'auto',
@@ -93,6 +101,9 @@ export async function GET() {
       origin: originRaw === 'schedule' ? 'schedule' : 'manual',
       upserts,
       failedSteps: steps.filter((s) => s && s.error),
+      progress,
+      stepsFilter,
+      doneStepNames: steps.filter((s) => s && !s.error).map((s) => s.name),
     };
   });
 

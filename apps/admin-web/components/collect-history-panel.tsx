@@ -35,7 +35,19 @@ type HistoryItem = {
   origin?: 'manual' | 'schedule';
   upserts?: UpsertItem[];
   failedSteps?: StepItem[];
+  progress?: Record<string, { done: number; total: number; label?: string | null }>;
+  stepsFilter?: string[] | null;
+  doneStepNames?: string[];
 };
+
+// 진행률 바 라벨 매핑 (collect_jobs.progress 키 ↔ steps[].name)
+const COLLECT_STEPS: { key: string; label: string }[] = [
+  { key: 'blog_metrics', label: '블로그 일별 지표' },
+  { key: 'smartplace', label: '스마트플레이스 유입' },
+  { key: 'keyword_rank', label: '블로그/플레이스 키워드 순위' },
+  { key: 'searchad', label: 'SearchAd 일별 성과' },
+  { key: 'place_reviews', label: '스마트플레이스 리뷰 추이' },
+];
 
 function formatKst(iso: string): string {
   if (!iso) return '—';
@@ -207,6 +219,52 @@ export default function CollectHistoryPanel({ hospitals }: { hospitals: ChartHos
                   </div>
                   <Badge {...sv} />
                 </div>
+
+                {/* 진행 중 항목의 단계별 진행률 바 */}
+                {item.kind === 'auto' && (item.status === 'running' || item.status === 'pending') && (() => {
+                  const filter = item.stepsFilter;
+                  const stepKeys = filter && filter.length > 0 ? COLLECT_STEPS.filter((s) => filter.includes(s.key)) : COLLECT_STEPS;
+                  const doneNames = new Set(item.doneStepNames ?? []);
+                  return (
+                    <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid var(--border)', display: 'grid', gap: 9 }}>
+                      {stepKeys.map((s) => {
+                        const p = item.progress?.[s.key];
+                        const stepDone = doneNames.has(s.label);
+                        const total = p?.total ?? 0;
+                        const done = stepDone ? (total || 1) : (p?.done ?? 0);
+                        const pct = stepDone ? 100 : total > 0 ? Math.min(100, Math.round((done / total) * 100)) : 0;
+                        const running = item.status === 'running' && !stepDone && (p?.done ?? 0) > 0;
+                        const statusText = stepDone
+                          ? '완료'
+                          : running
+                            ? `${done.toLocaleString()}/${total.toLocaleString()}${p?.label ? ` · ${p.label}` : ''}`
+                            : '대기';
+                        return (
+                          <div key={s.key}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12.5, color: 'var(--text-secondary)' }}>
+                                {stepDone ? (
+                                  <CheckCircle2 size={13} style={{ color: 'var(--success)', flexShrink: 0 }} />
+                                ) : running ? (
+                                  <Loader2 size={13} className="adminSpin" style={{ color: 'var(--accent)', flexShrink: 0 }} />
+                                ) : (
+                                  <Clock size={13} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+                                )}
+                                {s.label}
+                              </span>
+                              <span style={{ fontSize: 11.5, color: stepDone ? 'var(--success)' : 'var(--text-muted)' }}>
+                                {statusText}{!stepDone && pct > 0 ? ` (${pct}%)` : ''}
+                              </span>
+                            </div>
+                            <div style={{ height: 6, borderRadius: 999, background: 'var(--border)', overflow: 'hidden' }}>
+                              <div style={{ width: `${pct}%`, height: '100%', borderRadius: 999, background: stepDone ? 'var(--success)' : 'var(--accent)', transition: 'width 0.4s ease' }} />
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })()}
 
                 {/* 요약 */}
                 {item.kind === 'manual_stats' ? (
