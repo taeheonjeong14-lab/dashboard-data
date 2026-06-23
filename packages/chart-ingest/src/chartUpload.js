@@ -419,10 +419,11 @@ export async function executeChartUpload({
     await updateRunProgress(supabase, runId, {
       metadata: { stage: currentStage },
     });
+    // rebuild_chart_for_run_full = 기존 재빌드 + 신규환자 전 구간 보정(업로드 순서 무관).
     const { data: rebuildResult, error: rebuildError } = await supabase
       .schema("analytics")
-      .rpc("rebuild_chart_for_run", { p_run_id: runId });
-    throwDbError(rebuildError, "rebuild_chart_for_run rpc");
+      .rpc("rebuild_chart_for_run_full", { p_run_id: runId });
+    throwDbError(rebuildError, "rebuild_chart_for_run_full rpc");
 
     currentStage = "finalizing";
     const { error: doneError } = await supabase
