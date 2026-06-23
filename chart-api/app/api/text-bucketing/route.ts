@@ -1440,61 +1440,81 @@ const WOORIEN_LAB_FLAG_LINE = /^(?:high|low|normal)$/i;
 
 /**
  * 우리엔PMS 검사 표 — 항목당 세로 줄 단위.
- *   검사명 / "값 단위"(예 "33.0 X10*3/L") / MIN / MAX / Description(플래그)
- * 비율 항목(BUN/CRE, ALB/GLB 등)은 MIN/MAX 가 없어 3줄(검사명 / 값 / 플래그)인 경우도 있음.
- * 매핑: 검사명→itemName(원문), 값→valueText, 단위→unit, MIN·MAX→referenceRange("MIN - MAX"),
- *       Description→flag. (정규화·카테고리는 상위 파이프라인이 원문 기준으로 처리)
- * 날짜/Sign/헤더 줄은 무시. 같은 날짜에 표가 여러 개여도(헤더 반복) 그대로 처리됨.
+ *   검사명 / "값 단위"(예 "11.44 10^9/L") / MIN / MAX / [Description(플래그)]
+ * 비율 항목(B/C, A/G, Na/K 등)은 단위·MIN/MAX 가 없어 2~3줄인 경우도 있음.
+ * 항목 경계: Description(high/low/normal) 줄 "또는" 다음 검사명 줄.
+ *   ※ Description 열이 비어 새 검사명이 바로 이어지는 PDF가 많다. 플래그만으로 끊으면
+ *     한 항목도 flush되지 않아 검사결과가 통째로 누락된다(이 버그를 고친다).
+ * 매핑: 검사명→itemName(원문), "값 단위"→value/valueText·unit, MIN·MAX→referenceRange.
+ * 날짜/시각/Sign/헤더/기기명 줄은 무시. 같은 날짜에 표가 여러 개여도 그대로 처리됨.
  */
 function parseWoorienLabItemsFromGroupLines(lines: BucketedLine[]): LabItem[] {
   const items: LabItem[] = [];
-  const isNum = (s: string | undefined) => !!s && /^[-+]?\d+(?:[.,]\d+)?$/.test(s.trim());
+  const isNum = (s: string | undefined) => !!s && /^[-+]?[\d,]+(?:\.\d+)?$/.test(s.trim());
+  // 값/MIN/MAX 줄: 부호·<> 후 숫자로 시작 (뒤에 단위·% 가능). 예 "11.44 10^9/L", "147 mmol/L", "0%", "31", "1,782 U/L"
+  const isValueLine = (s: string) => /^[<>]?\s*[-+]?\d/.test(s.trim());
+  // 검사명 줄: 라틴 글자로 시작 + 값 줄이 아님. 예 WBC, NEU#, Na/K, B/C, RDW_CV, P_LCC
+  const isNameLine = (s: string) => /^[A-Za-z]/.test(s.trim()) && !isValueLine(s.trim());
 
   const skip = (t: string) =>
-    /^20\d{2}[./-]\d{1,2}[./-]\d{1,2}$/.test(t) || // 날짜
+    /^\|/.test(t) || // "| 2026-05-07 오전 11:38:14" 날짜/시각 줄
+    /^20\d{2}[./-]\d{1,2}[./-]\d{1,2}/.test(t) || // 날짜
+    (/(오전|오후)/.test(t) && /\d{1,2}:\d{2}/.test(t)) || // 시각 줄
     /^sign\s*[:：]/i.test(t) || // Sign : 담당자
     WOORIEN_LAB_HEADER_LINE.test(t);
 
   let buffer: Array<{ text: string; page: number }> = [];
+
+  const flush = (flag: LabItem["flag"]) => {
+    // buffer = [검사명, "값 단위", (MIN), (MAX)]
+    if (buffer.length >= 2 && isNameLine(buffer[0]!.text)) {
+      const name = buffer[0]!.text;
+      const valueLine = buffer[1]!.text;
+      const vm = valueLine.match(/^([<>]?\s*[-+]?[\d,]+(?:\.\d+)?)\s*(.*)$/);
+      const valueText = (vm ? vm[1]! : valueLine).replace(/\s+/g, "");
+      const unitRaw = vm ? (vm[2] ?? "").trim() : "";
+      const minTok = buffer[2]?.text.trim();
+      const maxTok = buffer[3]?.text.trim();
+      const referenceRange =
+        isNum(minTok) && isNum(maxTok)
+          ? `${minTok} - ${maxTok}`
+          : isNum(minTok)
+            ? minTok!
+            : null;
+      // 콤마는 천 단위 구분자(예 "1,782" → 1782), 마침표는 소수점.
+      const valueNum = Number.parseFloat(valueText.replace(/[<>]/g, "").replace(/,/g, ""));
+      items.push({
+        page: buffer[0]!.page,
+        rowY: 0,
+        itemName: name,
+        value: Number.isFinite(valueNum) ? valueNum : null,
+        valueText,
+        unit: unitRaw || null,
+        referenceRange,
+        flag,
+        rawRow: buffer.map((b) => b.text).join(" ") + (flag !== "unknown" ? ` ${flag}` : ""),
+      });
+    }
+    buffer = [];
+  };
+
   for (const line of lines) {
     const t = (line.text ?? "").trim();
     if (!t || skip(t)) continue;
 
     if (WOORIEN_LAB_FLAG_LINE.test(t)) {
-      // buffer = [검사명, "값 단위", (MIN), (MAX)]
-      if (buffer.length >= 2) {
-        const name = buffer[0]!.text;
-        const valueLine = buffer[1]!.text;
-        const vm = valueLine.match(/^([<>]?\s*[-+]?\d+(?:[.,]\d+)?)\s*(.*)$/);
-        const valueText = (vm ? vm[1]! : valueLine).replace(/\s+/g, "");
-        const unitRaw = vm ? (vm[2] ?? "").trim() : "";
-        const minTok = buffer[2]?.text.trim();
-        const maxTok = buffer[3]?.text.trim();
-        const referenceRange =
-          isNum(minTok) && isNum(maxTok)
-            ? `${minTok} - ${maxTok}`
-            : isNum(minTok)
-              ? minTok!
-              : null;
-        const valueNum = Number.parseFloat(valueText.replace(/[<>]/g, "").replace(",", "."));
-        items.push({
-          page: buffer[0]!.page,
-          rowY: 0,
-          itemName: name,
-          value: Number.isFinite(valueNum) ? valueNum : null,
-          valueText,
-          unit: unitRaw || null,
-          referenceRange,
-          flag: t.toLowerCase() as LabItem["flag"],
-          rawRow: [...buffer.map((b) => b.text), t].join(" "),
-        });
-      }
-      buffer = [];
+      flush(t.toLowerCase() as LabItem["flag"]); // Description 플래그 = 항목 종료
       continue;
     }
-
-    buffer.push({ text: t, page: line.page });
+    if (isNameLine(t)) {
+      flush("unknown"); // 새 검사명 = 직전 항목 종료
+      buffer = [{ text: t, page: line.page }];
+      continue;
+    }
+    // 값/MIN/MAX 등 숫자 줄 — 검사명이 선행됐을 때만 수집(기기명 뒤 잔여 줄 무시)
+    if (buffer.length > 0) buffer.push({ text: t, page: line.page });
   }
+  flush("unknown"); // 마지막 항목
 
   return items;
 }
