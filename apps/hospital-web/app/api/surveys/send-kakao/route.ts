@@ -7,7 +7,7 @@ import { createServiceRoleClient } from '@/lib/supabase/service-role';
 // 꺼내 알리고로 보낸다(워커/과금 그대로 재사용). 사전문진은 run 이 없으므로 run_id·pdf_url 은 비운다.
 export const runtime = 'nodejs';
 
-const SURVEY_TEMPLATE_CODE = process.env.ALIGO_TPL_CODE_SURVEY || 'UI_8364';
+const SURVEY_TEMPLATE_CODE = process.env.ALIGO_TPL_CODE_SURVEY || 'UI_8603';
 
 /** 숫자만 남긴 수신번호(01012345678). 유효하지 않으면 빈 문자열. */
 function normalizePhone(raw: string): string {
@@ -16,15 +16,16 @@ function normalizePhone(raw: string): string {
   return /^01[0-9]{8,9}$/.test(local) ? local : '';
 }
 
-// 승인 템플릿(UI_8364) 본문에 변수를 치환한 전체 텍스트. 고정 텍스트가 등록 템플릿과 글자까지 일치해야 발송됨.
-// 변수: #{예약일}→scheduledLabel, #{동물병원명}→hospitalName.
+// 승인 템플릿(UI_8603) 본문에 변수를 치환한 전체 텍스트. 고정 텍스트가 등록 템플릿과 글자까지 일치해야 발송됨.
+// 변수: #{동물병원명}→hospitalName, #{예약일}→scheduledLabel.
+// ※ 마지막 "채널 추가하고 …" 안내 문구는 AC(채널 추가) 버튼이 카카오에서 자동으로 붙이므로 본문에 넣지 않는다.
 function buildMessage(scheduledLabel: string, hospitalName: string): string {
   return [
     '안녕하세요, 보호자님.',
     '',
-    `${scheduledLabel} ${hospitalName} 예약이 확인되었습니다.`,
+    `${hospitalName}입니다.`,
     '',
-    '내원 전 아이의 상태를 미리 확인하기 위해 간단한 사전문진을 부탁드립니다.',
+    `${scheduledLabel} 내원 예정일에 앞서 아이의 상태를 미리 확인하기 위해 간단한 사전문진을 부탁드립니다.`,
     '',
     '문진은 약 3분 정도 소요되며, 작성해 주신 내용을 바탕으로 저희 의료진이 보다 세심하게 진료를 준비할 수 있도록 하겠습니다.(씨익)',
     '',
@@ -56,7 +57,7 @@ export async function POST(request: NextRequest) {
   const scheduledLabel = formatScheduledLabel(String(body.scheduledDate ?? ''));
   if (!token) return NextResponse.json({ error: 'token required' }, { status: 400 });
   if (!phone) return NextResponse.json({ error: '올바른 휴대폰 번호를 입력해 주세요.' }, { status: 400 });
-  // 템플릿(UI_8364)의 #{예약일}은 빈 값이면 카카오에서 "템플릿 불일치"로 거절됨 → 비면 발송 자체를 막는다.
+  // 템플릿(UI_8603)의 #{예약일}은 빈 값이면 카카오에서 "템플릿 불일치"로 거절됨 → 비면 발송 자체를 막는다.
   if (!scheduledLabel) return NextResponse.json({ error: '내원 예정일이 없어 발송할 수 없습니다. 사전문진에 내원 예정일을 설정해 주세요.' }, { status: 400 });
 
   // 로그인 + 병원 확인(과금 귀속 대상). hospital_id 는 클라이언트를 신뢰하지 않고 세션에서 가져온다.
@@ -90,7 +91,7 @@ export async function POST(request: NextRequest) {
     const base = (process.env.NEXT_PUBLIC_SITE_URL || new URL(request.url).origin).replace(/\/$/, '');
     const surveyUrl = `${base}/survey/${encodeURIComponent(token)}`;
 
-    // 템플릿(UI_8364) 등록 버튼 순서·이름과 정확히 일치해야 함: ① 채널 추가(AC) ② 사전문진 바로가기(WL).
+    // 템플릿(UI_8603) 등록 버튼 순서·이름과 정확히 일치해야 함: ① 채널 추가(AC) ② 사전문진 바로가기(WL).
     const buttons = [
       { type: 'AC', name: '채널 추가' },
       { type: 'WL', name: '사전문진 바로가기', linkMo: surveyUrl, linkPc: surveyUrl },
@@ -105,7 +106,7 @@ export async function POST(request: NextRequest) {
         hospital_id: hospitalId,
         receiver: phone,
         template_code: SURVEY_TEMPLATE_CODE,
-        subject: '사전문진 안내',
+        subject: '사전문진',
         emphasis_title: `${hospitalName} 사전문진`,
         message: buildMessage(scheduledLabel, hospitalName),
         buttons,
