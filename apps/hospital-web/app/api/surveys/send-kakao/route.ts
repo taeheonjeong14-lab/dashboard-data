@@ -87,8 +87,9 @@ export async function POST(request: NextRequest) {
       .single();
     if (hospital?.name && String(hospital.name).trim()) hospitalName = String(hospital.name).trim();
 
-    // WL 버튼 링크 — 운영 도메인(NEXT_PUBLIC_SITE_URL)을 베이스로 토큰 경로를 붙인다(템플릿 등록 도메인과 일치).
-    const base = (process.env.NEXT_PUBLIC_SITE_URL || new URL(request.url).origin).replace(/\/$/, '');
+    // WL 버튼 링크 — 카카오는 등록 버튼 도메인(app.thehamm.kr)과 발송 링크 도메인이 일치해야 전달된다.
+    // 로컬/프리뷰에서 보내도 항상 운영 도메인 링크가 나가도록 고정 베이스 사용(localhost 링크 → 카카오 거절 방지).
+    const base = (process.env.SURVEY_LINK_BASE || 'https://app.thehamm.kr').replace(/\/$/, '');
     const surveyUrl = `${base}/survey/${encodeURIComponent(token)}`;
 
     // 템플릿(UI_8603) 등록 버튼 순서·이름과 정확히 일치해야 함: ① 채널 추가(AC) ② 사전문진 바로가기(WL).
