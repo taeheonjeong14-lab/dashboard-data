@@ -8,7 +8,7 @@ import { createServiceRoleClient } from '@/lib/supabase/service-role';
 export const runtime = 'nodejs';
 
 // 템플릿 코드는 코드에 고정한다. (env 오버라이드가 옛 코드로 남아 본문↔코드 불일치를 일으키던 문제 방지)
-const SURVEY_TEMPLATE_CODE = 'UI_8603';
+const SURVEY_TEMPLATE_CODE = 'UI_9061';
 
 /** 숫자만 남긴 수신번호(01012345678). 유효하지 않으면 빈 문자열. */
 function normalizePhone(raw: string): string {
@@ -17,7 +17,7 @@ function normalizePhone(raw: string): string {
   return /^01[0-9]{8,9}$/.test(local) ? local : '';
 }
 
-// 승인 템플릿(UI_8603) 본문에 변수를 치환한 전체 텍스트. 고정 텍스트가 등록 템플릿과 글자까지 일치해야 발송됨.
+// 승인 템플릿(UI_9061) 본문에 변수를 치환한 전체 텍스트. 고정 텍스트가 등록 템플릿과 글자까지 일치해야 발송됨.
 // 변수: #{동물병원명}→hospitalName, #{예약일}→scheduledLabel.
 // ※ 마지막 "채널 추가하고 …" 안내 문구는 AC(채널 추가) 버튼이 카카오에서 자동으로 붙이므로 본문에 넣지 않는다.
 function buildMessage(scheduledLabel: string, hospitalName: string): string {
@@ -58,7 +58,7 @@ export async function POST(request: NextRequest) {
   const scheduledLabel = formatScheduledLabel(String(body.scheduledDate ?? ''));
   if (!token) return NextResponse.json({ error: 'token required' }, { status: 400 });
   if (!phone) return NextResponse.json({ error: '올바른 휴대폰 번호를 입력해 주세요.' }, { status: 400 });
-  // 템플릿(UI_8603)의 #{예약일}은 빈 값이면 카카오에서 "템플릿 불일치"로 거절됨 → 비면 발송 자체를 막는다.
+  // 템플릿(UI_9061)의 #{예약일}은 빈 값이면 카카오에서 "템플릿 불일치"로 거절됨 → 비면 발송 자체를 막는다.
   if (!scheduledLabel) return NextResponse.json({ error: '내원 예정일이 없어 발송할 수 없습니다. 사전문진에 내원 예정일을 설정해 주세요.' }, { status: 400 });
 
   // 로그인 + 병원 확인(과금 귀속 대상). hospital_id 는 클라이언트를 신뢰하지 않고 세션에서 가져온다.
@@ -89,12 +89,12 @@ export async function POST(request: NextRequest) {
     if (hospital?.name && String(hospital.name).trim()) hospitalName = String(hospital.name).trim();
 
     // WL 버튼 링크 — 토큰을 경로에 붙인다(.../survey/{token}).
-    // ★전제: 템플릿의 사전문진 버튼 링크가 "변수형"(예: https://app.thehamm.kr/survey/#{token})으로 등록돼야 함.
-    //   고정 링크(.../survey)로 등록하면 카카오가 "템플릿 버튼 불일치"로 거절한다.
+    // UI_9061 의 WL 버튼이 변수형(https://app.thehamm.kr/survey/#{token})으로 등록돼 이 경로 링크와 일치함.
+    //   (고정 링크 .../survey 로 등록하면 카카오가 "템플릿 버튼 불일치"로 거절 → 변수형이어야 함)
     const base = (process.env.SURVEY_LINK_BASE || 'https://app.thehamm.kr').replace(/\/$/, '');
     const surveyUrl = `${base}/survey/${encodeURIComponent(token)}`;
 
-    // 템플릿(UI_8603) 등록 버튼 순서·이름과 정확히 일치해야 함: ① 채널 추가(AC) ② 사전문진 바로가기(WL).
+    // 템플릿(UI_9061) 등록 버튼 순서·이름과 정확히 일치해야 함: ① 채널 추가(AC) ② 사전문진 바로가기(WL).
     const buttons = [
       { type: 'AC', name: '채널 추가' },
       { type: 'WL', name: '사전문진 바로가기', linkMo: surveyUrl, linkPc: surveyUrl },
