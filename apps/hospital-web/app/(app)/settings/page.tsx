@@ -3,6 +3,7 @@
 import { useState, useEffect, type FormEvent } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { inputStyle, primaryPillStyle } from '@/lib/form-styles';
+import { PasswordInput } from '@/components/password-input';
 
 type Profile = {
   name: string;
@@ -190,8 +191,7 @@ export default function SettingsPage() {
         <SectionTitle>비밀번호 변경</SectionTitle>
         <form onSubmit={(e) => void handlePasswordSubmit(e)} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           <Field label="새 비밀번호" required>
-            <input
-              type="password"
+            <PasswordInput
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
               style={inputStyle}
@@ -199,8 +199,7 @@ export default function SettingsPage() {
             />
           </Field>
           <Field label="새 비밀번호 확인" required>
-            <input
-              type="password"
+            <PasswordInput
               value={newPasswordConfirm}
               onChange={(e) => setNewPasswordConfirm(e.target.value)}
               style={inputStyle}

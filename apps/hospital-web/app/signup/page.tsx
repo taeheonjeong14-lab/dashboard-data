@@ -4,6 +4,7 @@ import { useRef, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { createClient } from '@/lib/supabase/client';
+import { PasswordInput } from '@/components/password-input';
 import { ddxPostPublic, ddxGetPublic } from '@/lib/ddx-api';
 
 // 한국 전화번호 포맷 — 서울 02(2자리) / 그 외 지역번호·휴대폰(3자리) + 중간 3~4 + 끝 4.
@@ -377,8 +378,8 @@ export default function SignupPage() {
               </div>
             )}
             {codeMsg && <p style={{ margin: 0, fontSize: 12, color: emailVerified ? 'var(--success)' : 'var(--danger)' }}>{codeMsg}</p>}
-            <input style={box.input} type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="비밀번호 (6자 이상)" />
-            <input style={box.input} type="password" value={passwordConfirm} onChange={(e) => setPasswordConfirm(e.target.value)} placeholder="비밀번호 확인" />
+            <PasswordInput style={box.input} value={password} onChange={(e) => setPassword(e.target.value)} placeholder="비밀번호 (6자 이상)" />
+            <PasswordInput style={box.input} value={passwordConfirm} onChange={(e) => setPasswordConfirm(e.target.value)} placeholder="비밀번호 확인" />
           </>
         )}
         {step === 'review' && (

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
 import { createClient } from '@/lib/supabase/client';
+import { PasswordInput } from '@/components/password-input';
 
 export default function ResetPasswordPage() {
   const router = useRouter();
@@ -148,9 +149,8 @@ export default function ResetPasswordPage() {
           <form onSubmit={handleSubmit} style={styles.form}>
             <div style={styles.field}>
               <label htmlFor="pw" style={styles.label}>새 비밀번호</label>
-              <input
+              <PasswordInput
                 id="pw"
-                type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="6자 이상"
@@ -162,9 +162,8 @@ export default function ResetPasswordPage() {
             </div>
             <div style={styles.field}>
               <label htmlFor="pw2" style={styles.label}>새 비밀번호 확인</label>
-              <input
+              <PasswordInput
                 id="pw2"
-                type="password"
                 value={confirm}
                 onChange={(e) => setConfirm(e.target.value)}
                 placeholder="새 비밀번호 재입력"

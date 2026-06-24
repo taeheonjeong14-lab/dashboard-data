@@ -3,6 +3,7 @@
 import { useState, useEffect, type FormEvent } from 'react';
 import { X, User, KeyRound } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
+import { PasswordInput } from '@/components/password-input';
 
 type Tab = 'basic' | 'password';
 
@@ -153,13 +154,13 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
             {tab === 'password' && (
               <form onSubmit={(e) => void handlePasswordSubmit(e)} style={formStyle}>
                 <Field label="현재 비밀번호">
-                  <input type="password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} style={inputStyle} placeholder="현재 비밀번호" autoComplete="current-password" />
+                  <PasswordInput value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} style={inputStyle} placeholder="현재 비밀번호" autoComplete="current-password" />
                 </Field>
                 <Field label="새 비밀번호">
-                  <input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} style={inputStyle} placeholder="6자 이상" autoComplete="new-password" />
+                  <PasswordInput value={newPassword} onChange={(e) => setNewPassword(e.target.value)} style={inputStyle} placeholder="6자 이상" autoComplete="new-password" />
                 </Field>
                 <Field label="새 비밀번호 확인">
-                  <input type="password" value={newPasswordConfirm} onChange={(e) => setNewPasswordConfirm(e.target.value)} style={inputStyle} placeholder="새 비밀번호 재입력" autoComplete="new-password" />
+                  <PasswordInput value={newPasswordConfirm} onChange={(e) => setNewPasswordConfirm(e.target.value)} style={inputStyle} placeholder="새 비밀번호 재입력" autoComplete="new-password" />
                 </Field>
                 {pwMsg && <Msg type={pwMsg.type} text={pwMsg.text} />}
                 <button type="submit" disabled={savingPw || !currentPassword || !newPassword} style={primaryBtn(savingPw || !currentPassword || !newPassword)}>

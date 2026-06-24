@@ -2,6 +2,7 @@
 
 import { useState, type CSSProperties, type FormEvent } from 'react';
 import { signInWithPasswordAction } from './actions';
+import { PasswordInput } from '@/components/password-input';
 
 function supabaseEnv(): { url: string; anon: string } | null {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
@@ -108,8 +109,7 @@ export function AdminLoginForm({ forbidden }: Props) {
         </label>
         <label style={labelStyle}>
           <span>비밀번호</span>
-          <input
-            type="password"
+          <PasswordInput
             autoComplete="current-password"
             value={password}
             onChange={(ev) => setPassword(ev.target.value)}

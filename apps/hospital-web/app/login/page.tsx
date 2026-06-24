@@ -4,6 +4,7 @@ import { Suspense, useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
+import { PasswordInput } from '@/components/password-input';
 import { createClient } from '@/lib/supabase/client';
 
 function LoginContent() {
@@ -88,9 +89,8 @@ function LoginContent() {
 
           <div style={styles.field}>
             <label htmlFor="password" style={styles.label}>비밀번호</label>
-            <input
+            <PasswordInput
               id="password"
-              type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="••••••••"
