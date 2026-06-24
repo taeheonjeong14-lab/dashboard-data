@@ -137,9 +137,20 @@ async function scrapeSmartPlaceInflow(page, statUrl, startDate, endDate) {
     await page.goto(url, { waitUntil: "domcontentloaded", timeout: 45000 });
     await jitter(2500, 5500);
     await humanize(page);
-    const body = await getPageBody(page);
-    const inflow = parsePlaceInflowSingle(body);
-    rows.push({ metric_date: day, smartplace_inflow: inflow !== null ? inflow : null });
+    let inflow = parsePlaceInflowSingle(await getPageBody(page));
+    if (inflow === null) {
+      // 유입 데이터가 비동기로 늦게 뜨는 경우가 있어 한 번 더 기다렸다 읽는다(간헐 실패 완화).
+      await jitter(2500, 4500);
+      await humanize(page);
+      inflow = parsePlaceInflowSingle(await getPageBody(page));
+    }
+    if (inflow === null) {
+      // 그래도 못 읽으면 행을 만들지 않는다(null 저장 X).
+      // → 그 날짜는 "미수집"으로 남아 다음 수집 때 자동 재시도된다(URL/로딩 일시 문제 자가복구).
+      console.warn(`  ⚠️ ${day}: 유입값을 못 읽어 건너뜀(다음 수집에 재시도)`);
+    } else {
+      rows.push({ metric_date: day, smartplace_inflow: inflow });
+    }
     process.stdout.write(
       "__PROGRESS__ " +
         JSON.stringify({ step: "smartplace", done: i + 1, total: orderedDays.length, label: day }) +
