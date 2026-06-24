@@ -9,7 +9,7 @@ import type { PlanRow, RunDetailResponse } from '@/lib/admin-run-detail-types';
 import { StatusBadge } from '@/components/status-badge';
 import { HEALTH_CHECKUP_MAX_COVER_FIELD_CHARS, HEALTH_CHECKUP_MUST_INCLUDE_MAX_CHARS } from '@/lib/health-report-admin/limits';
 import { canonicalizeLabItemName, isRecognizedLabItem, type LabCanonicalizeSpecies } from '@/lib/chart-extraction/lab-item-normalize';
-import { labItemCategory } from '@dashboard/lab-normalize';
+import { labItemCategory, computeLabFlag } from '@dashboard/lab-normalize';
 import { speciesProfileFromBasicSpecies } from '@/lib/chart-extraction/lab-species-profile';
 import { createClient } from '@/lib/supabase/client';
 
@@ -807,6 +807,7 @@ export function AdminRunExtractionDetail({
   const [planDeletedIds, setPlanDeletedIds] = useState<string[]>([]);
   const [draftLab, setDraftLab] = useState<DraftLabGroup[] | null>(null);
   const [labDeletedIds, setLabDeletedIds] = useState<string[]>([]);
+  const [labFlagCalcNote, setLabFlagCalcNote] = useState<string | null>(null);
   const [savingSection, setSavingSection] = useState<ExtractionSection | null>(null);
 
   const [genModalOpen, setGenModalOpen] = useState(false);
@@ -1074,6 +1075,28 @@ export function AdminRunExtractionDetail({
     } finally {
       setSavingSection(null);
     }
+  }
+
+  // FLAG 계산: flag 가 'unknown'(=참고범위는 있으나 미판정)인 항목만 값↔참고범위로 계산해 채운다.
+  // 빈 값('')인 항목(참고범위 없음)은 대상에서 제외. 차트가 준 H/L(low/high/normal)은 건드리지 않음.
+  // 결과는 편집 드래프트에만 반영 → 사용자가 검토 후 저장 버튼으로 저장.
+  function computeLabFlags() {
+    if (!result) return;
+    const base = editing.lab && draftLab ? draftLab : withLabItemRawNames(result.labItemsByDate);
+    let changed = 0;
+    const next = base.map((g) => ({
+      ...g,
+      items: g.items.map((it) => {
+        if (it.flag !== 'unknown') return it;
+        const f = computeLabFlag(it.valueText, it.referenceRange);
+        if (f === 'unknown') return it;
+        changed += 1;
+        return { ...it, flag: f };
+      }),
+    }));
+    setDraftLab(deepClone(next));
+    setEditing((e) => ({ ...e, lab: true }));
+    setLabFlagCalcNote(changed > 0 ? `${changed}개 항목의 플래그를 계산했어요. 확인 후 저장하세요.` : '계산 가능한(참고범위 있고 미판정인) 항목이 없어요.');
   }
 
   async function saveLab() {
@@ -1917,24 +1940,38 @@ export function AdminRunExtractionDetail({
                 .join('\n\n')
               }
             />
+            <button
+              type="button"
+              className="adminLegacySecondaryBtn"
+              style={{ fontSize: 11, padding: '3px 8px' }}
+              title="값과 참고범위를 비교해, 미판정(unknown) 항목의 플래그를 계산해 채웁니다. 참고범위 없는 항목은 제외."
+              onClick={() => computeLabFlags()}
+            >
+              FLAG 계산
+            </button>
             <SectionEditControls
               editing={editing.lab}
               saving={savingSection === 'lab'}
               onEdit={() => {
                 setDraftLab(deepClone(withLabItemRawNames(result.labItemsByDate)));
                 setLabDeletedIds([]);
+                setLabFlagCalcNote(null);
                 setEditing((e) => ({ ...e, lab: true }));
               }}
               onSave={() => void saveLab()}
               onCancel={() => {
                 setDraftLab(null);
                 setLabDeletedIds([]);
+                setLabFlagCalcNote(null);
                 setEditing((e) => ({ ...e, lab: false }));
               }}
             />
           </span>
         </summary>
         <div style={{ borderTop: 'none' }}>
+          {labFlagCalcNote ? (
+            <div style={{ fontSize: 11, color: 'var(--accent)', padding: '4px 2px 8px' }}>{labFlagCalcNote}</div>
+          ) : null}
           {(editing.lab && draftLab ? draftLab : result.labItemsByDate).map((g, gi) => (
             <details key={g.dateTime} open style={{ borderBottom: '1px solid var(--border)', padding: '12px 0' }}>
               <summary className="chartDateRow" style={{ padding: '7px 10px', fontSize: 11, fontWeight: 800, color: 'var(--accent)', letterSpacing: '0.05em', cursor: 'pointer', listStyle: 'none', userSelect: 'none', display: 'flex', alignItems: 'center', gap: 6, background: 'var(--bg-subtle)', borderRadius: 6 }}><span className="chartDateChev" aria-hidden="true">▶</span>
@@ -2065,9 +2102,9 @@ export function AdminRunExtractionDetail({
                                 );
                               }}
                             >
-                              {(['low', 'high', 'normal', 'unknown'] as const).map((f) => (
-                                <option key={f} value={f}>
-                                  {f}
+                              {(['', 'low', 'high', 'normal', 'unknown'] as const).map((f) => (
+                                <option key={f || 'blank'} value={f}>
+                                  {f || '—'}
                                 </option>
                               ))}
                             </select>

@@ -272,7 +272,12 @@ export async function loadAdminRunDetail(runId: string): Promise<RunDetailRespon
       valueText,
       unit: r.unit != null ? String(r.unit) : null,
       referenceRange,
-      flag: refineLabFlag(normFlag(r.flag), valueText, referenceRange),
+      // 참고범위가 없어 미판정인 항목은 'unknown' 대신 빈 값으로 둔다(재계산 불가 → FLAG 계산 대상에서 제외).
+      // 참고범위가 있는데 미판정이면 'unknown' (= FLAG 계산 버튼이 값↔범위로 채울 대상).
+      flag: ((): 'low' | 'high' | 'normal' | 'unknown' | '' => {
+        const f = refineLabFlag(normFlag(r.flag), valueText, referenceRange);
+        return f === 'unknown' && !(referenceRange && referenceRange.trim()) ? '' : f;
+      })(),
     };
     const list = labByDate.get(dt) ?? [];
     list.push(item);

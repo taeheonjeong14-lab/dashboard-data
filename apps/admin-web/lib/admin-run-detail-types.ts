@@ -65,7 +65,8 @@ export type RunDetailResponse = {
       valueText: string;
       unit: string | null;
       referenceRange: string | null;
-      flag: 'low' | 'high' | 'normal' | 'unknown';
+      // '' = 참고범위가 없어 판정 불가(빈 값). 'unknown' = 범위는 있으나 미판정(=FLAG 계산 대상).
+      flag: 'low' | 'high' | 'normal' | 'unknown' | '';
     }>;
     source: 'llm' | 'rules' | 'empty';
     error: string | null;

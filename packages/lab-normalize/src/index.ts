@@ -787,3 +787,36 @@ export function refineLabFlag(
   }
   return currentFlag;
 }
+
+/** 값 텍스트에서 순수 숫자값을 뽑는다(천단위 콤마 제거). 정성결과(Positive 등)·빈값이면 null. */
+function parsePlainValue(valueText: string | null | undefined): number | null {
+  const t = (valueText ?? '').replace(/,/g, '').trim();
+  if (!t) return null;
+  const m = t.match(/^[-+]?\d+(?:\.\d+)?$/) ?? t.match(/-?\d+(?:\.\d+)?/);
+  return m ? Number.parseFloat(m[0]) : null;
+}
+
+/**
+ * 값과 참고범위를 비교해 플래그를 "사후 계산"한다(차트에 H/L 마커가 없을 때 보충용).
+ * - 부등호 값(>N, <N)은 refineLabFlag 로직 재사용.
+ * - 일반 숫자값: 값<하한→low, 값>상한→high, 범위 안→normal.
+ * - 판정 불가(값/범위 파싱 불가, 한쪽 경계만 있고 그 경계 밖도 아님)는 unknown 그대로.
+ *   ※ 호출 측은 보통 flag 가 unknown 인 항목에만 적용한다(범위 없어 빈 값인 항목은 제외).
+ */
+export function computeLabFlag(
+  valueText: string,
+  referenceRange: string | null | undefined,
+): LabFlag {
+  const ineq = refineLabFlag('unknown', valueText, referenceRange);
+  if (ineq !== 'unknown') return ineq;
+  const v = parsePlainValue(valueText);
+  if (v === null) return 'unknown';
+  const { low, high } = parseRefRange(referenceRange);
+  if (low === null && high === null) return 'unknown';
+  if (high !== null && v > high) return 'high';
+  if (low !== null && v < low) return 'low';
+  if (low !== null && high !== null) return 'normal';
+  if (high !== null && v <= high) return 'normal';
+  if (low !== null && v >= low) return 'normal';
+  return 'unknown';
+}
