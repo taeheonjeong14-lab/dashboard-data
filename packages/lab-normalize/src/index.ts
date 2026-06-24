@@ -84,6 +84,10 @@ const DIRECT_ALIASES: Record<string, string> = {
   TOTALCHOLESTEROL: 'CHOL',
   PLATELETS: 'PLT',
   PLATLETS: 'PLT',
+  // PLT-I(임피던스)·PLT-O(광학)는 같은 혈소판수의 다른 측정법 — 값이 다를 수 있어 PLT로 합치지 않고 별개로 둔다.
+  PLTI: 'PLT-I',
+  PLTO: 'PLT-O',
+
   LYMPHS: 'LYM',
   MONOS: 'MONO',
   AMY: 'AMYL',
@@ -100,7 +104,11 @@ const DIRECT_ALIASES: Record<string, string> = {
   RDWCV: 'RDW',
   RDWSD: 'RDW-SD',
   RETHE: 'RET-He',
+  RHE: 'RET-He', // Sysmex 계열 약어(망상적혈구 혈색소량, 단위 pg) → 표준 RET-He
   PLTLCR: 'PLT-LCR',
+  PLCR: 'PLT-LCR', // P-LCR / P_LCR = Platelet Large Cell Ratio(비율) → 표준 PLT-LCR
+  PLCC: 'PLT-LCC', // P-LCC / P_LCC = Platelet Large Cell Count(절대값) → 표준 PLT-LCC
+  PLTLCC: 'PLT-LCC',
   WBCBASO: 'BASO',
   'WBCBASO%': '%BASO',
   WBCEOS: 'EOS',
@@ -113,6 +121,8 @@ const DIRECT_ALIASES: Record<string, string> = {
   'WBCNEU%': '%NEU',
   PROBNP: 'proBNP',
   NTPROBNP: 'proBNP',
+  // 심장 트로포닌 I (Cardiac Troponin I) — chemistry. cTnI/cTnl(OCR)·troponin 표기 흡수.
+  CTNI: 'cTnI', CTNL: 'cTnI', TNI: 'cTnI', CTROPONIN: 'cTnI', CTROPONINI: 'cTnI', TROPONIN: 'cTnI', TROPONINI: 'cTnI',
   INS: 'INSULIN',
   PROG: 'PROGESTERONE',
   EST: 'E2',
@@ -246,6 +256,8 @@ const CBC_DIFF_BASE: Record<string, string> = {
   BASO: 'BASO', BASOS: 'BASO', BASOPHIL: 'BASO', BASOPHILS: 'BASO',
   RETIC: 'RETIC', RETICS: 'RETIC', RET: 'RETIC', RETICULOCYTE: 'RETIC', RETICULOCYTES: 'RETIC',
   GRA: 'GRA', GRAN: 'GRA', GRANS: 'GRA', GRANULOCYTE: 'GRA', GRANULOCYTES: 'GRA',
+  // 미성숙과립구(Immature Granulocytes): IMG#(절대값)→'IMG', IMG%(백분율)→'IMG(%)'
+  IMG: 'IMG', IMMATUREGRANULOCYTE: 'IMG', IMMATUREGRANULOCYTES: 'IMG',
 };
 
 function cbcDifferentialCanonical(raw: string): string | null {
@@ -304,14 +316,14 @@ export function canonicalizeLabItemName(
 const RECOGNIZED_LAB_ITEMS: ReadonlySet<string> = new Set(
   [
     // CBC
-    'WBC', 'RBC', 'HGB', 'HCT', 'PLT', 'MCV', 'MCH', 'MCHC', 'RDW', 'RDW-CV', 'RDW-SD', 'PDW', 'PDW-CV', 'MPV',
-    'NEU', 'LYM', 'MONO', 'MON', 'MID', 'GRA', 'EOS', 'BASO', 'RETIC', 'RET-He', 'IRF', 'LFR', 'MFR', 'HFR', 'PCT', 'PLT-LCR',
+    'WBC', 'RBC', 'HGB', 'HCT', 'PLT', 'PLT-I', 'PLT-O', 'MCV', 'MCH', 'MCHC', 'RDW', 'RDW-CV', 'RDW-SD', 'PDW', 'PDW-CV', 'MPV',
+    'NEU', 'LYM', 'MONO', 'MON', 'MID', 'GRA', 'IMG', 'EOS', 'BASO', 'RETIC', 'RET-He', 'IRF', 'LFR', 'MFR', 'HFR', 'PCT', 'PLT-LCR', 'PLT-LCC', 'IPF',
     '%NEU', '%LYM', '%MONO', '%EOS', '%BASO', '%RETIC', 'NRBC', 'BANDS', 'Blood smear',
-    'NEU(%)', 'LYM(%)', 'MONO(%)', 'MON(%)', 'MID(%)', 'GRA(%)', 'EOS(%)', 'BASO(%)', 'RETIC(%)',
+    'NEU(%)', 'LYM(%)', 'MONO(%)', 'MON(%)', 'MID(%)', 'GRA(%)', 'IMG(%)', 'EOS(%)', 'BASO(%)', 'RETIC(%)',
     // Chemistry
     'ALT', 'AST', 'ALP', 'GGT', 'ALB', 'TP', 'GLOB', 'ALB/GLOB', 'BUN', 'CREA', 'BUN/CREA', 'SDMA', 'GLU',
     'TBIL', 'DBIL', 'TBA', 'TCHO', 'CHOL', 'TRIG', 'AMYL', 'LIPA', 'CK', 'TLI', 'NH3', 'FRUC', 'OSM', 'OSM CA',
-    'CKMB', 'proBNP', 'NT-proBNP', 'SDH', 'GLDH',
+    'CKMB', 'proBNP', 'NT-proBNP', 'cTnI', 'SDH', 'GLDH',
     // Electrolyte
     'NA', 'K', 'CL', 'CA', 'ICA', 'PHOS', 'MG', 'NA/K', 'AG',
     // Coagulation
@@ -379,6 +391,8 @@ const ITEM_TO_CATEGORY: Record<string, string> = {
   HGB: 'cbc',
   HCT: 'cbc',
   PLT: 'cbc',
+  'PLT-I': 'cbc',
+  'PLT-O': 'cbc',
   MCV: 'cbc',
   MCH: 'cbc',
   MCHC: 'cbc',
@@ -398,6 +412,7 @@ const ITEM_TO_CATEGORY: Record<string, string> = {
   GRA: 'cbc',
   EOS: 'cbc',
   BASO: 'cbc',
+  IMG: 'cbc',
   // CBC 차등 백분율 (canonical: X(%))
   'NEU(%)': 'cbc',
   'LYM(%)': 'cbc',
@@ -405,6 +420,7 @@ const ITEM_TO_CATEGORY: Record<string, string> = {
   'MON(%)': 'cbc',
   'MID(%)': 'cbc',
   'GRA(%)': 'cbc',
+  'IMG(%)': 'cbc',
   'EOS(%)': 'cbc',
   'BASO(%)': 'cbc',
   'RETIC(%)': 'cbc',
@@ -416,6 +432,8 @@ const ITEM_TO_CATEGORY: Record<string, string> = {
   HFR: 'cbc',
   PCT: 'cbc',
   'PLT-LCR': 'cbc',
+  'PLT-LCC': 'cbc',
+  IPF: 'cbc',
   'NEU%': 'cbc',
   'LYM%': 'cbc',
   'MONO%': 'cbc',
@@ -512,6 +530,7 @@ const ITEM_TO_CATEGORY: Record<string, string> = {
   OSMCA: 'chemistry',
   OSMOLALITY: 'chemistry',
   CKMB: 'chemistry',
+  cTnI: 'chemistry',
   proBNP: 'chemistry',
   PROBNP: 'chemistry',
   'NT-proBNP': 'chemistry',

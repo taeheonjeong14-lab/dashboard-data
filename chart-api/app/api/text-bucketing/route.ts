@@ -1459,6 +1459,7 @@ function parseWoorienLabItemsFromGroupLines(lines: BucketedLine[]): LabItem[] {
     /^20\d{2}[./-]\d{1,2}[./-]\d{1,2}/.test(t) || // 날짜
     (/(오전|오후)/.test(t) && /\d{1,2}:\d{2}/.test(t)) || // 시각 줄
     /^sign\s*[:：]/i.test(t) || // Sign : 담당자
+    /[(（][^)）]*[가-힣]/.test(t) || // 기기/패널 헤더(검체종류 한글 괄호) — 예: "NX 600 (혈청)", "PT10V(혈청)". 실제 검사항목엔 한글 괄호 없음.
     WOORIEN_LAB_HEADER_LINE.test(t);
 
   const pushItem = (

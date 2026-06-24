@@ -21,7 +21,7 @@ const CBC_LAB_SHEET_FIXED: readonly string[] = [
   'PLT', 'MPV',
 ];
 const CBC_LAB_SHEET_SUPPLEMENTARY: readonly string[] = [
-  'MID', 'MID(%)', 'RDW-SD', 'PDW', 'PCT', 'PLT-LCR', 'RETIC', 'RET-He', 'IRF', 'LFR', 'MFR', 'HFR', 'NRBC', 'Blood smear',
+  'MID', 'MID(%)', 'IMG', 'IMG(%)', 'RDW-SD', 'PDW', 'PCT', 'PLT-I', 'PLT-O', 'IPF', 'PLT-LCR', 'PLT-LCC', 'RETIC', 'RET-He', 'IRF', 'LFR', 'MFR', 'HFR', 'NRBC', 'Blood smear',
 ];
 
 const CHEMISTRY_LAB_SHEET_FIXED: readonly string[] = [
@@ -29,7 +29,7 @@ const CHEMISTRY_LAB_SHEET_FIXED: readonly string[] = [
   'BUN', 'CREA', 'BUN/CREA', 'SDMA', 'AMYL', 'LIPA', 'GLU', 'CHOL', 'TRIG', 'CK', 'Ca', 'PHOS',
 ];
 const CHEMISTRY_LAB_SHEET_SUPPLEMENTARY_SHARED: readonly string[] = ['DBIL', 'TBA'];
-const CHEMISTRY_LAB_SHEET_SUPPLEMENTARY_TAIL: readonly string[] = ['TLI', 'OSM CA', 'proBNP'];
+const CHEMISTRY_LAB_SHEET_SUPPLEMENTARY_TAIL: readonly string[] = ['TLI', 'OSM CA', 'proBNP', 'cTnI'];
 
 const ELECTROLYTE_LAB_SHEET_FIXED: readonly string[] = ['Na', 'K', 'Cl', 'NA/K'];
 const ELECTROLYTE_LAB_SHEET_SUPPLEMENTARY: readonly string[] = ['iCa', 'Mg', 'AG'];
