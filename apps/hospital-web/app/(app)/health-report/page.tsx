@@ -624,9 +624,9 @@ function FormField({ label, hint, required, children }: { label: string; hint?: 
 }
 
 const selectStyle: React.CSSProperties = {
-  width: '100%', padding: '8px 2px',
-  border: 'none', borderBottom: '1px solid var(--border-strong)', borderRadius: 0,
-  background: 'transparent', color: 'var(--text)', fontSize: '13px',
+  width: '100%', padding: '8px 10px',
+  border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)',
+  backgroundColor: 'var(--bg)', color: 'var(--text)', fontSize: '13px',
   appearance: 'none',
   backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'12\' height=\'8\' viewBox=\'0 0 12 8\'%3E%3Cpath d=\'M1 1l5 5 5-5\' stroke=\'%236b7280\' stroke-width=\'1.5\' fill=\'none\' stroke-linecap=\'round\'/%3E%3C/svg%3E")',
   backgroundRepeat: 'no-repeat', backgroundPosition: 'right 10px center', paddingRight: '28px', cursor: 'pointer',
