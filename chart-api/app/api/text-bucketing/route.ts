@@ -3296,17 +3296,18 @@ export async function POST(request: NextRequest) {
       list.push({ page: row.page, text: t });
       ocrByPage.set(row.page, list);
     }
-    const UNDER_COVER_RATIO = 0.6;
+    // OCR 개입 최소화: OCR은 순서가 거칠어, Gemini(페이지별) 결과를 가급적 그대로 유지한다.
+    // Gemini가 "사실상 통째 실패한" 페이지(아래 줄 수 미만)만 OCR로 메운다. (예전 60% 룰 → 과도 개입했음)
+    const OCR_FILL_MAX_LLM_LINES = Math.max(0, Number(process.env.EXTRACT_OCR_FILL_MAX_LLM_LINES) || 2);
     const ocrReplacedPages: number[] = [];
     const allPages = [...new Set<number>([...llmCountByPage.keys(), ...ocrByPage.keys()])];
     const effectivePdfLines: OrderedLine[] = [];
     for (const page of allPages) {
       const llmCount = llmCountByPage.get(page) ?? 0;
       const ocrLines = ocrByPage.get(page) ?? [];
-      // 텍스트 레이어 사용 시엔 OCR 교체를 거의 막는다(거친 OCR 순서가 좋은 텍스트 레이어를 덮어쓰지 않도록).
-      // 텍스트가 사실상 없는 페이지(이미지 전용, <3줄)만 OCR로 메운다.
+      // 텍스트레이어/Gemini 모두 "사실상 빈 페이지"만 OCR로 메운다(개입 최소화 — OCR 순서가 거칠어서).
       const underCovered =
-        ocrLines.length >= 5 && llmCount < (usingTextLayer ? 3 : ocrLines.length * UNDER_COVER_RATIO);
+        ocrLines.length >= 5 && llmCount < (usingTextLayer ? 3 : OCR_FILL_MAX_LLM_LINES);
       if (underCovered) {
         ocrReplacedPages.push(page); // 이 페이지는 LLM이 덜 읽음 → OCR로 교체(LLM 부분분 버림)
         effectivePdfLines.push(...ocrLines);
