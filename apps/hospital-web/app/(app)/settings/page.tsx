@@ -4,6 +4,7 @@ import { useState, useEffect, type FormEvent } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { inputStyle, primaryPillStyle } from '@/lib/form-styles';
 import { PasswordInput } from '@/components/password-input';
+import { SectionTitle, FieldLabel } from '@/components/ui/typography';
 
 type Profile = {
   name: string;
@@ -218,25 +219,10 @@ export default function SettingsPage() {
   );
 }
 
-function SectionTitle({ children }: { children: React.ReactNode }) {
-  return (
-    <div>
-      <h2 style={{ margin: '0 0 12px', fontSize: 13, fontWeight: 700, color: 'var(--text)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{children}</h2>
-      <div style={{ height: 1, background: 'var(--border)' }} />
-    </div>
-  );
-}
-
 function Field({ label, hint, required, children }: { label: string; hint?: string; required?: boolean; children: React.ReactNode }) {
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
-        <label style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>
-          {label}
-          {required && <span style={{ color: 'var(--danger)', marginLeft: 3 }}>*</span>}
-        </label>
-        {hint && <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{hint}</span>}
-      </div>
+    <div>
+      <FieldLabel required={required} hint={hint}>{label}</FieldLabel>
       {children}
     </div>
   );
