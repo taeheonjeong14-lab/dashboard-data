@@ -6,6 +6,7 @@ import { useHospital } from '@/components/shell/hospital-context';
 import { CenteredSpinner } from '@/components/ui/loading-spinner';
 import { StickyHeader } from '@/components/ui/sticky-header';
 import { primaryPillStyle } from '@/lib/form-styles';
+import { SectionTitle, FieldLabel } from '@/components/ui/typography';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -461,7 +462,7 @@ export default function HealthReportPage() {
       <div style={{ width: '340px', flexShrink: 0, borderLeft: '1px solid var(--border-strong)', paddingLeft: '24px' }}>
         <div style={{ position: 'sticky', top: '24px' }}>
           <div style={{ padding: '0 0 10px' }}>
-            <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text)' }}>리포트 생성 요청</div>
+            <SectionTitle>리포트 생성 요청</SectionTitle>
             <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '2px' }}>차트 PDF를 업로드해 주세요</div>
           </div>
 
@@ -616,12 +617,7 @@ export default function HealthReportPage() {
 function FormField({ label, hint, required, children }: { label: string; hint?: string; required?: boolean; children: React.ReactNode }) {
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: '5px', marginBottom: '6px' }}>
-        <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text)' }}>
-          {label}{required && <span style={{ color: 'var(--danger)', marginLeft: '2px' }}>*</span>}
-        </label>
-        {hint && <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{hint}</span>}
-      </div>
+      <FieldLabel required={required} hint={hint}>{label}</FieldLabel>
       {children}
     </div>
   );

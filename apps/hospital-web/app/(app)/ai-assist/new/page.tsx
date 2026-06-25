@@ -7,6 +7,7 @@ import type { CSSProperties } from 'react';
 import { useHospital } from '@/components/shell/hospital-context';
 import { ddxGet, ddxPost, DdxApiForbiddenError } from '@/lib/ddx-api';
 import { inputStyle, textareaStyle, SegmentedToggle, primaryPillStyle } from '@/lib/form-styles';
+import { SectionTitle } from '@/components/ui/typography';
 
 type SessionListItem = {
   id: string;
@@ -166,7 +167,7 @@ export default function StartConsultationPage() {
 
       {/* 사전문진 선택 */}
       <div style={cardStyle}>
-        <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 4 }}>사전문진에서 시작 <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>(선택)</span></div>
+        <SectionTitle hint="(선택)" style={{ marginBottom: 4 }}>사전문진에서 시작</SectionTitle>
         <p style={{ margin: '0 0 12px', fontSize: 12, color: 'var(--text-muted)' }}>완료된 사전문진을 선택하면 답변이 진료에 반영됩니다.</p>
         {surveysLoading ? (
           <p style={{ margin: 0, fontSize: 13, color: 'var(--text-muted)' }}>불러오는 중...</p>
