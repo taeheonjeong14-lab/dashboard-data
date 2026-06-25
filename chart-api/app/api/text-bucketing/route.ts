@@ -3100,6 +3100,9 @@ export async function POST(request: NextRequest) {
     let binary: Buffer;
     let sourceFileName = "report.pdf";
     let sourceFileType = "application/pdf";
+    // 재추출(admin)용: 원본 PDF의 storage 경로를 run 에 보관한다(직접 업로드면 비어 있음 → 재추출 불가).
+    let sourceStorageBucket = "";
+    let sourceStoragePaths: string[] = [];
 
     // 직접 업로드된 파일(다중 가능) — getAll("file")
     const uploadedFiles = formData.getAll("file").filter((f): f is File => f instanceof File);
@@ -3162,6 +3165,9 @@ export async function POST(request: NextRequest) {
       if (storageFileType && storageFileType !== "application/pdf") {
         return Response.json({ error: "Text 기반 버켓팅 테스트는 PDF만 지원합니다." }, { status: 400 });
       }
+
+      sourceStorageBucket = storageBucket;
+      sourceStoragePaths = storagePaths;
 
       const supabase = getSupabaseServerClient();
       const buffers: Buffer[] = [];
@@ -3566,7 +3572,7 @@ export async function POST(request: NextRequest) {
           ? process.env.GEMINI_REPORT_MODEL ?? "gemini-2.5-flash"
           : getOpenAiOrderedLinesModel(),
       parserVersion: "text-bucket-v1",
-      rawPayload: responsePayloadWithVaccination,
+      rawPayload: { ...responsePayloadWithVaccination, sourceStorage: { bucket: sourceStorageBucket, paths: sourceStoragePaths } },
       fileBuffer: binary,
       chartBodyByDate: responsePayload.chartBodyByDate.map((group) => ({
         dateTime: group.dateTime,
