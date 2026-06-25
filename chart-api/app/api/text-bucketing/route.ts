@@ -2829,6 +2829,8 @@ async function saveParseRun(params: {
   basicInfoParsed: ParsedBasicInfo;
   /** 마스터 hospitals.id — friendly_id·기본정보 병원명에 사용 */
   hospitalId: string;
+  /** 설정 시 재추출(덮어쓰기): 기존 run/document 재사용 + 파생행 삭제 후 재삽입(run_id·friendly_id·연결 유지). */
+  replaceRunId?: string;
 }): Promise<{ runId: string; friendlyId: string }> {
   const supabase = getSupabaseServerClient();
   const hospitalRow = await loadCoreHospitalRow(supabase, params.hospitalId);
@@ -2837,43 +2839,88 @@ async function saveParseRun(params: {
   const fileHash = createHash("sha256").update(params.fileBuffer).digest("hex");
   let documentId: string | null = null;
   let parseRunId: string | null = null;
+  let existingFriendlyId: string | null = null;
+  let runCreatedAt = "";
 
   try {
-    const { data: document, error: docError } = await db
-      .from("documents")
-      .insert({
-        file_name: params.fileName,
-        file_hash: fileHash,
-        chart_type: params.chartType,
-      })
-      .select("id")
-      .single();
+    if (params.replaceRunId) {
+      // 재추출(덮어쓰기): 기존 run/document 재사용 + 파생행 삭제 후 아래에서 재삽입. run_id 유지 → 케이스 연결 보존.
+      const { data: existing, error: exErr } = await db
+        .from("parse_runs")
+        .select("id, document_id, created_at, friendly_id")
+        .eq("id", params.replaceRunId)
+        .single();
+      if (exErr || !existing) {
+        throw new Error(`재추출 대상 run 없음: ${exErr?.message ?? params.replaceRunId}`);
+      }
+      parseRunId = existing.id as string;
+      documentId = existing.document_id as string;
+      runCreatedAt = existing.created_at as string;
+      existingFriendlyId = (existing.friendly_id as string | null) ?? null;
+      // 기존 파생행 삭제 — chart_by_date_id FK 자식(vitals/physical/plan)을 chart_by_date 보다 먼저.
+      const derivedTables = [
+        "result_vitals",
+        "result_physical_exam_items",
+        "result_plan_rows",
+        "result_chart_by_date",
+        "result_lab_items",
+        "result_vaccination_records",
+        "result_basic_info",
+      ];
+      for (const t of derivedTables) {
+        const { error: delErr } = await db.from(t).delete().eq("parse_run_id", parseRunId);
+        if (delErr) throw new Error(`${t} 삭제 실패(재추출): ${delErr.message}`);
+      }
+      await db.from("documents").update({ chart_type: params.chartType, file_hash: fileHash }).eq("id", documentId);
+      const { error: updErr } = await db
+        .from("parse_runs")
+        .update({
+          status: "success",
+          provider: params.provider,
+          model: params.model,
+          parser_version: params.parserVersion,
+          raw_payload: params.rawPayload,
+          error_message: null,
+        })
+        .eq("id", parseRunId);
+      if (updErr) throw new Error(`parse_runs 갱신 실패(재추출): ${updErr.message}`);
+    } else {
+      const { data: document, error: docError } = await db
+        .from("documents")
+        .insert({
+          file_name: params.fileName,
+          file_hash: fileHash,
+          chart_type: params.chartType,
+        })
+        .select("id")
+        .single();
 
-    if (docError || !document) {
-      throw new Error(`documents insert failed: ${docError?.message ?? "unknown"}`);
+      if (docError || !document) {
+        throw new Error(`documents insert failed: ${docError?.message ?? "unknown"}`);
+      }
+      documentId = document.id as string;
+
+      const { data: runRow, error: runError } = await db
+        .from("parse_runs")
+        .insert({
+          document_id: documentId,
+          hospital_id: hospitalRow.id,
+          status: "success",
+          provider: params.provider,
+          model: params.model,
+          parser_version: params.parserVersion,
+          raw_payload: params.rawPayload,
+          error_message: null,
+        })
+        .select("id, created_at")
+        .single();
+
+      if (runError || !runRow) {
+        throw new Error(`parse_runs insert failed: ${runError?.message ?? "unknown"}`);
+      }
+      parseRunId = runRow.id as string;
+      runCreatedAt = runRow.created_at as string;
     }
-    documentId = document.id as string;
-
-    const { data: runRow, error: runError } = await db
-      .from("parse_runs")
-      .insert({
-        document_id: documentId,
-        hospital_id: hospitalRow.id,
-        status: "success",
-        provider: params.provider,
-        model: params.model,
-        parser_version: params.parserVersion,
-        raw_payload: params.rawPayload,
-        error_message: null,
-      })
-      .select("id, created_at")
-      .single();
-
-    if (runError || !runRow) {
-      throw new Error(`parse_runs insert failed: ${runError?.message ?? "unknown"}`);
-    }
-    parseRunId = runRow.id as string;
-    const runCreatedAt = runRow.created_at as string;
 
     saveSubStage = "chartRows";
     let chartRowsInserted: Array<{ id: string; date_time: string; row_order: number | null }> = [];
@@ -3041,14 +3088,18 @@ async function saveParseRun(params: {
     }
 
     saveSubStage = "friendlyId";
-    const friendlyId = await assignFriendlyIdToParseRun(supabase, parseRunId, runCreatedAt, {
+    // 재추출이면 기존 friendly_id 유지(케이스 식별자 보존). 없으면 새로 부여.
+    const friendlyId = existingFriendlyId ?? await assignFriendlyIdToParseRun(supabase, parseRunId, runCreatedAt, {
       hospitalId: hospitalRow.id as string,
       hospitalSlug: (((hospitalRow.code as string | null) ?? (hospitalRow.slug as string | null) ?? (hospitalRow.id as string) ?? "chart") as string),
     });
 
     return { runId: parseRunId, friendlyId };
   } catch (error) {
-    await rollbackParseRunArtifacts(supabase, parseRunId, documentId);
+    // 재추출(덮어쓰기)은 기존 run 을 지우면 안 됨(케이스 연결 유지) → 롤백 생략(부분 상태면 admin 재시도).
+    if (!params.replaceRunId) {
+      await rollbackParseRunArtifacts(supabase, parseRunId, documentId);
+    }
     throw error;
   }
 }
@@ -3085,6 +3136,12 @@ export async function POST(request: NextRequest) {
     // product: 호출부(processExtractJob)가 job.kind 로 넘긴 상품 코드(case_blog/health_report). 추출 차감을 상품에 귀속.
     const productRaw = formData.get("product");
     const extractProduct = typeof productRaw === "string" && productRaw.trim() ? productRaw.trim() : null;
+    // 재추출(admin): 설정 시 새 run 대신 이 run 을 덮어쓴다.
+    const replaceRunIdRaw = formData.get("replaceRunId");
+    const replaceRunId =
+      typeof replaceRunIdRaw === "string" && HOSPITAL_UUID_RE.test(replaceRunIdRaw.trim())
+        ? replaceRunIdRaw.trim()
+        : undefined;
     const extractOperationId = crypto.randomUUID();
     if (!(await hospitalHasTokens(hospitalId))) {
       return Response.json(
@@ -3572,7 +3629,7 @@ export async function POST(request: NextRequest) {
           ? process.env.GEMINI_REPORT_MODEL ?? "gemini-2.5-flash"
           : getOpenAiOrderedLinesModel(),
       parserVersion: "text-bucket-v1",
-      rawPayload: { ...responsePayloadWithVaccination, sourceStorage: { bucket: sourceStorageBucket, paths: sourceStoragePaths } },
+      rawPayload: { ...responsePayloadWithVaccination, sourceStorage: { bucket: sourceStorageBucket, paths: sourceStoragePaths, product: extractProduct } },
       fileBuffer: binary,
       chartBodyByDate: responsePayload.chartBodyByDate.map((group) => ({
         dateTime: group.dateTime,
@@ -3596,6 +3653,7 @@ export async function POST(request: NextRequest) {
       physicalExamItems,
       basicInfoParsed: responsePayload.basicInfoParsed,
       hospitalId,
+      replaceRunId,
     });
 
     console.log("[text-bucketing] saveParseRun 완료: runId=%s friendlyId=%s", saved.runId, saved.friendlyId);
