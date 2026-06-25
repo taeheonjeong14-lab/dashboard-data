@@ -24,6 +24,8 @@ export type ExtractJob = {
   token_cost: number;
   token_deducted: boolean;
   attempts: number;
+  /** 설정 시 재추출(덮어쓰기): 새 run 대신 이 run 을 덮어쓴다. */
+  replace_run_id: string | null;
 };
 
 type Srvc = ReturnType<typeof createServiceRoleClient>;
@@ -36,6 +38,8 @@ async function callChartApiExtract(job: ExtractJob): Promise<string> {
   params.set('hospitalId', job.hospital_id);
   // 추출 차감을 상품에 귀속시키기 위해 job.kind 를 상품 코드로 넘긴다.
   params.set('product', job.kind === 'blog_case' ? 'case_blog' : 'health_report');
+  // 재추출(덮어쓰기): 새 run 대신 기존 run 을 덮어쓰도록 chart-api 에 전달.
+  if (job.replace_run_id) params.set('replaceRunId', job.replace_run_id);
   const emphasis = (job.payload as { emphasis_text?: string }).emphasis_text;
   if (typeof emphasis === 'string' && emphasis) params.set('emphasisText', emphasis);
 
@@ -114,9 +118,13 @@ export async function processExtractJob(jobId: string): Promise<void> {
         .eq('id', job.id);
     }
 
-    await saveContent(srvc, job, runId);
+    // 재추출(덮어쓰기)이면 generated_run_content(유저 작성 개요/강조)는 건드리지 않는다 — 추출 데이터만 갱신.
+    if (!job.replace_run_id) {
+      await saveContent(srvc, job, runId);
+    }
 
     // 토큰 차감(성공 시 1회). token_deducted 로 중복 차감 방지. 실패해도 best-effort.
+    // 재추출은 token_cost=0 으로 적재돼 아래 조건에서 자동 스킵된다(과금 없음).
     if (job.token_cost > 0 && !job.token_deducted) {
       try {
         await srvc.schema('core').rpc('token_deduct', {
@@ -145,8 +153,9 @@ export async function processExtractJob(jobId: string): Promise<void> {
     // 케이스 이미지 자동 임포트·분석 — admin 이미지 탭을 안 열어도 백그라운드로 돌도록.
     // admin from-hospital 을 service role key 로 server-to-server 호출(멱등). ADMIN_WEB_URL 미설정 시 스킵
     // (그 경우 admin 이미지 탭 열람 시 기존 트리거가 폴백으로 동작).
+    // 재추출이면 이미 원업로드 때 임포트됨 → 스킵(중복/재분석 방지).
     const adminUrl = process.env.ADMIN_WEB_URL;
-    if (adminUrl) {
+    if (adminUrl && !job.replace_run_id) {
       try {
         await fetch(`${adminUrl}/api/admin/runs/${encodeURIComponent(runId)}/case-images/from-hospital`, {
           method: 'POST',

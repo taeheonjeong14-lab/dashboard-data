@@ -777,6 +777,37 @@ function SourcePdfMenu({ pdfs }: { pdfs: { name: string; url: string }[] }) {
   );
 }
 
+/**
+ * 재추출 버튼 — 이미 업로드된 원본 PDF 로 추출을 처음부터 다시 시도해 기존 run 을 덮어쓴다(비동기).
+ * 병원에 재업로드 요청 없이 백단 추출 실패를 admin 이 복구할 때 사용. 과금 없음.
+ */
+function ReExtractButton({ runId }: { runId: string }) {
+  const [busy, setBusy] = useState(false);
+  const onClick = async () => {
+    if (busy) return;
+    if (!window.confirm('이미 업로드된 PDF로 처음부터 재추출합니다.\n기존 추출 결과는 덮어써집니다. 진행할까요?')) return;
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/admin/runs/${encodeURIComponent(runId)}/re-extract`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) throw new Error(data.error ?? '재추출 요청 실패');
+      window.alert('재추출을 요청했습니다. 처리에 1~2분 정도 걸립니다.\n잠시 후 새로고침하면 갱신된 결과가 보입니다.');
+    } catch (e) {
+      window.alert(e instanceof Error ? e.message : '재추출 요청 실패');
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <button type="button" className="adminLegacySecondaryBtn" onClick={() => void onClick()} disabled={busy} title="업로드된 PDF로 처음부터 재추출(덮어쓰기)">
+      {busy ? '요청 중…' : '재추출'}
+    </button>
+  );
+}
+
 export function AdminRunExtractionDetail({
   runId,
   embedded = false,
@@ -1326,6 +1357,7 @@ export function AdminRunExtractionDetail({
           <Link href="/admin/chart-data" className="adminLegacySecondaryBtn">
             기록 목록
           </Link>
+          <ReExtractButton runId={runId} />
           <button type="button" className="adminLegacySecondaryBtn" onClick={() => void fetchDetail({ silent: true })}>
             새로고침
           </button>
@@ -1378,6 +1410,7 @@ export function AdminRunExtractionDetail({
               건강검진 리포트 생성
             </button>
             <CaseBlogButton runId={runId} />
+            <ReExtractButton runId={runId} />
             {onDelete && (
               <button type="button" className="adminLegacyDangerBtn" onClick={onDelete} disabled={deleting}>
                 {deleting ? '삭제 중…' : '데이터 삭제'}
