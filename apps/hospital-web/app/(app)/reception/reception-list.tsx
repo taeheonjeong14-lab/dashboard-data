@@ -168,7 +168,7 @@ export function ReceptionList({ items, hasHospital, loadError, hospitalId }: {
             <div style={{ marginBottom: 12 }}>
               <input type="search" value={query} onChange={(e) => setQuery(e.target.value)}
                 placeholder="보호자·연락처·환자 검색"
-                style={{ width: '100%', padding: '8px 2px', fontSize: 13, color: 'var(--text)', background: 'transparent', border: 'none', borderBottom: '1px solid var(--border-strong)', borderRadius: 0, outline: 'none' }} />
+                style={{ width: '100%', padding: '8px 10px', fontSize: 13, color: 'var(--text)', background: 'var(--bg)', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', outline: 'none', boxSizing: 'border-box' }} />
             </div>
 
             {filtered.length === 0 ? (

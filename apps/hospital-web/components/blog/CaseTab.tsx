@@ -4,6 +4,7 @@ import { useState, useRef, useCallback, useEffect, type DragEvent, type ChangeEv
 import { createClient } from '@/lib/supabase/client';
 import { useHospital } from '@/components/shell/hospital-context';
 import { CenteredSpinner } from '@/components/ui/loading-spinner';
+import { SectionTitle, FieldLabel } from '@/components/ui/typography';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -590,7 +591,7 @@ export function CaseTab() {
 
           {/* 케이스 개요 */}
           <div>
-            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)', marginBottom: 2 }}>케이스 개요</div>
+            <SectionTitle>케이스 개요</SectionTitle>
             <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 10 }}>차트에 나와있지 않은 내용을 한 줄씩 채워 주세요.</div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -633,12 +634,7 @@ export function CaseTab() {
 
           {/* 사진 자료 (날짜별 그룹) */}
           <div>
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: 5, marginBottom: 6 }}>
-              <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)' }}>사진 자료</label>
-              <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                선택 · 날짜별로 나눠 · 최대 {MAX_IMAGES}장{totalImageCount > 0 ? ` · 총 ${totalImageCount}/${MAX_IMAGES}장` : ''}
-              </span>
-            </div>
+            <SectionTitle hint={`선택 · 날짜별로 나눠 · 최대 ${MAX_IMAGES}장${totalImageCount > 0 ? ` · 총 ${totalImageCount}/${MAX_IMAGES}장` : ''}`}>사진 자료</SectionTitle>
             {imageError && (
               <div style={{ marginBottom: 6, fontSize: 11, color: 'var(--danger)' }}>{imageError}</div>
             )}
@@ -781,13 +777,7 @@ export function CaseTab() {
 function FormField({ label, hint, required, children }: { label: string; hint?: string; required?: boolean; children: React.ReactNode }) {
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: 5, marginBottom: 6 }}>
-        <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)' }}>
-          {label}
-          {required && <span style={{ color: 'var(--danger)', marginLeft: 2 }}>*</span>}
-        </label>
-        {hint && <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{hint}</span>}
-      </div>
+      <FieldLabel required={required} hint={hint}>{label}</FieldLabel>
       {children}
     </div>
   );
@@ -795,11 +785,10 @@ function FormField({ label, hint, required, children }: { label: string; hint?: 
 
 const inputStyle: React.CSSProperties = {
   width: '100%',
-  padding: '8px 2px',
-  border: 'none',
-  borderBottom: '1px solid var(--border-strong)',
-  borderRadius: 0,
-  background: 'transparent',
+  padding: '8px 10px',
+  border: '1px solid var(--border-strong)',
+  borderRadius: 'var(--radius)',
+  background: 'var(--bg)',
   color: 'var(--text)',
   fontSize: 13,
   outline: 'none',
@@ -821,11 +810,10 @@ const textareaStyle: React.CSSProperties = {
 
 const selectStyle: React.CSSProperties = {
   width: '100%',
-  padding: '8px 2px',
-  border: 'none',
-  borderBottom: '1px solid var(--border-strong)',
-  borderRadius: 0,
-  background: 'transparent',
+  padding: '8px 30px 8px 10px',
+  border: '1px solid var(--border-strong)',
+  borderRadius: 'var(--radius)',
+  backgroundColor: 'var(--bg)',
   color: 'var(--text)',
   fontSize: 13,
   appearance: 'none',
