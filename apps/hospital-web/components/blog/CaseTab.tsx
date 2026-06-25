@@ -49,10 +49,10 @@ const MAX_FILE_SIZE = 30 * 1024 * 1024;
 const MAX_IMAGES = 30;
 
 const CHART_TYPE_LABELS: Record<ChartType, string> = {
-  intovet: 'IntoVet EMR',
-  plusvet: 'PlusVet EMR',
-  efriends: 'eFriends EMR',
-  woorien_pms: '우리엔 PMS',
+  intovet: '인투벳',
+  plusvet: '플러스벳',
+  efriends: '이프렌즈',
+  woorien_pms: '우리엔PMS',
 };
 
 // 케이스 개요 — 차트에 나와있지 않은 내용을 한 줄씩 채운다. 주질환명·동반질환명은 숏필드.
