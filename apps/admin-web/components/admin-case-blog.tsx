@@ -87,6 +87,12 @@ function buildImageCaption(im: { examType?: unknown; bodyPart?: unknown; briefCo
   return brief || part || '';
 }
 
+/** 인과흐름 phase 의 period("2026년 05월 07일 (…)") → "YYYY-MM-DD" (이미지 examDate 와 매칭용). */
+function causalPeriodToYmd(period: unknown): string | null {
+  const m = typeof period === 'string' ? period.match(/(\d{4})\s*년\s*(\d{1,2})\s*월\s*(\d{1,2})\s*일/) : null;
+  return m ? `${m[1]}-${String(m[2]).padStart(2, '0')}-${String(m[3]).padStart(2, '0')}` : null;
+}
+
 export default function AdminCaseBlog() {
   // 홈 "처리할 작업"에서 ?stage=writing 으로 진입하면 작업 중만 자동 필터.
   const searchParams = useSearchParams();
@@ -175,10 +181,13 @@ export default function AdminCaseBlog() {
   const [caseImages, setCaseImages] = useState<CaseImage[]>([]);
   const [checked, setChecked] = useState<Set<string>>(new Set());
   const [downloading, setDownloading] = useState(false);
+  // 날짜(YYYY-MM-DD) → 그 날짜에 매칭된 인과흐름 임상단계 이름들
+  const [phasesByDate, setPhasesByDate] = useState<Map<string, string[]>>(new Map());
   useEffect(() => {
     let cancelled = false;
     setCaseImages([]);
     setChecked(new Set());
+    setPhasesByDate(new Map());
     if (!selectedId) return;
     (async () => {
       try {
@@ -198,6 +207,20 @@ export default function AdminCaseBlog() {
         for (const s of sections) {
           const fns = Array.isArray(s.imageFileNames) ? (s.imageFileNames as unknown[]).filter((x): x is string => typeof x === 'string') : [];
           for (const fn of fns) aiNames.add(fn);
+        }
+        // 인과흐름(blog_causal) phase → 날짜별 임상단계 이름 매핑(이미지 날짜 그룹 옆에 표시).
+        const causalPayload = (cData.items ?? []).find((i) => i.contentType === 'blog_causal')?.payload as
+          | { causalFlow?: { phases?: { period?: unknown; name?: unknown }[] } }
+          | undefined;
+        const phaseMap = new Map<string, string[]>();
+        for (const ph of causalPayload?.causalFlow?.phases ?? []) {
+          const ymd = causalPeriodToYmd(ph?.period);
+          const name = typeof ph?.name === 'string' ? ph.name.trim() : '';
+          if (ymd && name) {
+            const arr = phaseMap.get(ymd) ?? [];
+            arr.push(name);
+            phaseMap.set(ymd, arr);
+          }
         }
         const seen = new Set<string>();
         const raw: { fileName: string; url: string | null; aiPicked: boolean; caption: string; examDate: string | null }[] = [];
@@ -222,6 +245,7 @@ export default function AdminCaseBlog() {
         });
         if (!cancelled) {
           setCaseImages(imgs);
+          setPhasesByDate(phaseMap);
           // 기본 선택 = AI 추천 사진(다운로드 가능한 것).
           setChecked(new Set(imgs.filter((x) => x.aiPicked && x.url).map((x) => x.fileName)));
         }
@@ -510,6 +534,11 @@ export default function AdminCaseBlog() {
                       <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--accent)', marginBottom: 8, letterSpacing: '0.03em' }}>
                         {date ? date.replace(/-/g, '.') : '날짜 미지정'}
                         <span style={{ fontWeight: 400, color: 'var(--text-muted)', marginLeft: 6 }}>{dateImages.length}장</span>
+                        {date && (phasesByDate.get(date)?.length ?? 0) > 0 ? (
+                          <span style={{ fontWeight: 600, color: 'var(--text-secondary)', marginLeft: 8, fontSize: 11.5, letterSpacing: 0 }}>
+                            · {phasesByDate.get(date)!.join(' · ')}
+                          </span>
+                        ) : null}
                       </div>
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
                     {dateImages.map((im) => {
