@@ -596,69 +596,63 @@ function groupChartBodyByDate(lines: BucketedLine[], chartKind: ChartKind): Char
   const groups = new Map<string, BucketedLine[]>();
   let currentKey = "unknown";
 
-  // PlusVet: Gemini 출력의 진료 헤더 형태가 실행마다 달라(셀 단위로 쪼개지기도 함) 헤더 줄 가정은 불안정.
-  // 대신 각 진료가 "Subjective"로 시작한다는 점을 이용한다 — Subjective 줄에서 새 진료 그룹을 시작하고,
-  // 직전까지 본 가장 최근 "4자리 연도" 날짜시각(랩 표의 2자리연도 26.xx 는 제외됨)을 그 진료의 키로 쓴다.
-  // PlusVet: 가능하면 "진료 헤더"(DATE | 재진/초진/… | 담당의)에서 진료를 나눈다(가장 신뢰도 높은 경계).
-  // 헤더는 영상/검사 시각과 달리 진료유형 키워드가 있어 구분되며, Subjective 가 없는 진료
-  // (Plan 만/Objective 만 있는 날)도 독립 그룹으로 잡혀 이전 진료에 흡수되지 않는다.
-  // 헤더가 셀 단위로 쪼개져 하나도 안 잡히는 경우에만 기존 Subjective 앵커링으로 폴백한다.
-  const plusvetVisitHeaderAnchored =
-    chartKind === "plusvet" && linesToGroup.some((l) => extractPlusVetVisitDateKey(l.text.trim()) !== null);
-  const plusvetSubjectiveAnchored =
+  // PlusVet 진료 그루핑: 두 신호를 함께 쓴다(둘 중 하나라도 있으면 진료 경계).
+  //  (a) 진료 헤더(DATE | 재진/초진/… | 담당의) — Subjective 가 없는 진료(Plan만/Objective만 있는 날)도 잡는다.
+  //      (영상/검사 시각은 진료유형 키워드가 없어 자연히 제외)
+  //  (b) Subjective — 헤더가 셀로 쪼개져 (a)로 못 잡는 진료의 안정적 폴백.
+  // 헤더로 그룹을 막 열었으면 그 직후 Subjective 는 같은 진료로 본다(중복 그룹 방지).
+  const plusvetGroupable =
     chartKind === "plusvet" &&
-    !plusvetVisitHeaderAnchored &&
-    linesToGroup.some((l) => /^subjective\b/i.test(l.text.trim()));
+    linesToGroup.some(
+      (l) => extractPlusVetVisitDateKey(l.text.trim()) !== null || /^subjective\b/i.test(l.text.trim()),
+    );
   const woorienSubjectiveAnchored =
     chartKind === "woorien_pms" && linesToGroup.some((l) => /^subjective\b/i.test(l.text.trim()));
 
-  if (plusvetVisitHeaderAnchored) {
+  if (plusvetGroupable) {
+    let pendingDate: string | null = null;
     let visitIdx = 0;
+    let headerOpenedCurrent = false; // 현재 그룹이 진료 헤더로 열렸고 아직 Subjective 를 안 만남
     for (const line of linesToGroup) {
       const t = line.text.trim();
       const visitDate = extractPlusVetVisitDateKey(t);
       if (visitDate) {
+        // (a) 진료 헤더 → 무조건 새 진료 (Plan만/Objective만 있는 날도 분리됨)
         visitIdx += 1;
         let key = visitDate;
         if (groups.has(key)) key = `${key} (${visitIdx})`;
         currentKey = key;
         groups.set(currentKey, []);
-        continue; // 진료 헤더 줄은 본문에 넣지 않음(키로만 사용)
+        pendingDate = visitDate;
+        headerOpenedCurrent = true;
+        continue; // 헤더 줄은 본문에 안 넣음
       }
       if (/^(?:\[)?\s*20\d{2}[./-]\d{1,2}[./-]\d{1,2}\s+\d{1,2}:\d{2}/.test(t)) {
-        continue; // 진료 헤더가 아닌 날짜시각(랩/영상 시각)은 본문에서 제외 — 누수 방지
-      }
-      if (currentKey === "unknown") continue; // 첫 진료 헤더 이전(기본정보 등)은 버림
-      groups.get(currentKey)?.push(line);
-    }
-    console.log(
-      "[groupChartBodyByDate] plusvet visitHeaderAnchored visits=%d keys=%s",
-      visitIdx,
-      JSON.stringify([...groups.keys()]),
-    );
-  } else if (plusvetSubjectiveAnchored) {
-    let pendingDate: string | null = null;
-    let visitIdx = 0;
-    for (const line of linesToGroup) {
-      const t = line.text.trim();
-      if (/^(?:\[)?\s*20\d{2}[./-]\d{1,2}[./-]\d{1,2}\s+\d{1,2}:\d{2}/.test(t)) {
+        // 진료 헤더가 아닌 날짜시각(랩/영상 시각) — 키 후보로만 두고 본문 제외(누수 방지)
         const d = extractLabDateTime(t);
         if (d) pendingDate = d;
-        continue; // 진료 헤더(및 영상/검사 시각) 줄은 본문에 넣지 않음 — 날짜는 그룹 키로만 사용(다음 진료 헤더 누수 방지)
-      }
-      if (/^subjective\b/i.test(t)) {
-        visitIdx += 1;
-        let key = pendingDate ?? `진료 ${visitIdx}`;
-        if (groups.has(key)) key = `${key} (${visitIdx})`;
-        currentKey = key;
-        groups.set(currentKey, [line]);
         continue;
       }
-      if (currentKey === "unknown") continue; // 첫 Subjective 이전(기본정보 등)은 버림
+      if (/^subjective\b/i.test(t)) {
+        if (headerOpenedCurrent) {
+          // 방금 헤더로 연 진료의 Subjective → 같은 진료(새 그룹 X)
+          headerOpenedCurrent = false;
+          groups.get(currentKey)?.push(line);
+        } else {
+          // (b) 헤더 없이 온 Subjective → 새 진료
+          visitIdx += 1;
+          let key = pendingDate ?? `진료 ${visitIdx}`;
+          if (groups.has(key)) key = `${key} (${visitIdx})`;
+          currentKey = key;
+          groups.set(currentKey, [line]);
+        }
+        continue;
+      }
+      if (currentKey === "unknown") continue; // 첫 진료 경계 이전(기본정보 등)은 버림
       groups.get(currentKey)?.push(line);
     }
     console.log(
-      "[groupChartBodyByDate] plusvet subjectiveAnchored visits=%d keys=%s",
+      "[groupChartBodyByDate] plusvet grouped visits=%d keys=%s",
       visitIdx,
       JSON.stringify([...groups.keys()]),
     );
