@@ -64,6 +64,7 @@ const DIRECT_ALIASES: Record<string, string> = {
   PLATELETFUNC: 'Platelet func',
   OSMCA: 'OSM CA',
   CCRP: 'CRP',
+  CANINECRP: 'CRP', // Canine CRP (개 CRP) → CRP
   FSAA: 'SAA',
   혈액CRP: 'CRP',
   HEMOGLOBIN: 'HGB',
