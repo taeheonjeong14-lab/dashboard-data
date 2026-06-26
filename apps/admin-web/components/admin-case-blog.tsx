@@ -171,7 +171,7 @@ export default function AdminCaseBlog() {
   const selected = useMemo(() => items.find((it) => it.runId === selectedId) ?? null, [items, selectedId]);
 
   // 선택한 케이스의 사진 — 케이스 이미지 전체(URL·캡션) + AI 추천 여부(blog_outline 섹션 imageFileNames).
-  type CaseImage = { fileName: string; url: string | null; caption: string; aiPicked: boolean };
+  type CaseImage = { fileName: string; url: string | null; caption: string; aiPicked: boolean; examDate: string | null };
   const [caseImages, setCaseImages] = useState<CaseImage[]>([]);
   const [checked, setChecked] = useState<Set<string>>(new Set());
   const [downloading, setDownloading] = useState(false);
@@ -187,7 +187,7 @@ export default function AdminCaseBlog() {
           fetch(`/api/admin/runs/${encodeURIComponent(selectedId)}/case-images`, { credentials: 'include' }),
         ]);
         const cData = (await cRes.json()) as { items?: { contentType?: string; payload?: unknown }[] };
-        const iData = (await iRes.json()) as { images?: { fileName?: string; signedUrl?: string | null; briefComment?: string; bodyPart?: string | null; examType?: string | null }[] };
+        const iData = (await iRes.json()) as { images?: { fileName?: string; signedUrl?: string | null; briefComment?: string; bodyPart?: string | null; examType?: string | null; examDate?: string | null }[] };
         // blog_outline 저장 구조는 { outline: { sections: [...] }, caseOverview } — payload.outline.sections 가 정확.
         // (구버전 호환으로 payload.sections 도 폴백)
         const outlinePayload = (cData.items ?? []).find((i) => i.contentType === 'blog_outline')?.payload as
@@ -200,12 +200,12 @@ export default function AdminCaseBlog() {
           for (const fn of fns) aiNames.add(fn);
         }
         const seen = new Set<string>();
-        const raw: { fileName: string; url: string | null; aiPicked: boolean; caption: string }[] = [];
+        const raw: { fileName: string; url: string | null; aiPicked: boolean; caption: string; examDate: string | null }[] = [];
         for (const im of iData.images ?? []) {
           const fn = String(im.fileName ?? '');
           if (!fn || seen.has(fn)) continue;
           seen.add(fn);
-          raw.push({ fileName: fn, url: im.signedUrl ?? null, aiPicked: aiNames.has(fn), caption: buildImageCaption(im) });
+          raw.push({ fileName: fn, url: im.signedUrl ?? null, aiPicked: aiNames.has(fn), caption: buildImageCaption(im), examDate: im.examDate ?? null });
         }
         // 케이스 내 동일 캡션은 넘버링("심장 초음파검사 1", "심장 초음파검사 2") — 100% 중복 방지.
         const capCount = new Map<string, number>();
@@ -218,7 +218,7 @@ export default function AdminCaseBlog() {
             capSeen.set(caption, n);
             caption = `${caption} ${n}`;
           }
-          return { fileName: r.fileName, url: r.url, caption, aiPicked: r.aiPicked };
+          return { fileName: r.fileName, url: r.url, caption, aiPicked: r.aiPicked, examDate: r.examDate };
         });
         if (!cancelled) {
           setCaseImages(imgs);
@@ -236,6 +236,19 @@ export default function AdminCaseBlog() {
       cancelled = true;
     };
   }, [selectedId]);
+
+  // 날짜(exam_date)별 그룹 — hospital-ui에서 날짜별로 모아 제출한 사진을 admin에서도 날짜로 구분해 보여준다.
+  const groupedImages = useMemo(() => {
+    const map = new Map<string, CaseImage[]>();
+    for (const img of caseImages) {
+      const key = img.examDate ?? '';
+      const arr = map.get(key) ?? [];
+      arr.push(img);
+      map.set(key, arr);
+    }
+    const keys = Array.from(map.keys()).sort((a, b) => (a === '' ? 1 : b === '' ? -1 : a < b ? -1 : a > b ? 1 : 0));
+    return keys.map((key) => ({ date: key === '' ? null : key, images: map.get(key)! }));
+  }, [caseImages]);
 
   const toggleChecked = useCallback((fn: string) => {
     setChecked((prev) => {
@@ -491,8 +504,15 @@ export default function AdminCaseBlog() {
                     )}
                   </div>
                   {caseImages.length > 0 ? (
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
-                    {caseImages.map((im) => {
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                    {groupedImages.map(({ date, images: dateImages }) => (
+                    <div key={date ?? 'no-date'}>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--accent)', marginBottom: 8, letterSpacing: '0.03em' }}>
+                        {date ? date.replace(/-/g, '.') : '날짜 미지정'}
+                        <span style={{ fontWeight: 400, color: 'var(--text-muted)', marginLeft: 6 }}>{dateImages.length}장</span>
+                      </div>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
+                    {dateImages.map((im) => {
                       const isChecked = checked.has(im.fileName);
                       return (
                         <figure
@@ -529,6 +549,9 @@ export default function AdminCaseBlog() {
                         </figure>
                       );
                     })}
+                      </div>
+                    </div>
+                    ))}
                   </div>
                   ) : (
                     <div style={{ fontSize: 12.5, color: 'var(--text-muted)', padding: '8px 0' }}>등록된 사진이 없습니다.</div>
