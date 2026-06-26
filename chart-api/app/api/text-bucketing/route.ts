@@ -326,17 +326,36 @@ function parsePlusVetBasicInfoFromText(block: string): ParsedBasicInfo {
       continue;
     }
 
-    // Case 2: "라벨 값" 인라인 포맷 — 가장 긴 라벨부터 prefix 매칭
-    let handledInline = false;
-    for (const [label, field] of sortedLabels) {
-      if (normalized.startsWith(`${label} `)) {
-        const value = normalized.slice(label.length + 1).trim();
-        if (value && !extracted[field]) extracted[field] = value;
-        handledInline = true;
-        break;
+    // Case 2: 한 줄에 "라벨 값 [라벨 값 …]" 여러 쌍이 올 수 있다(표가 한 줄로 합쳐진 경우:
+    //  "보호자 성함 권숙자 동물명 콩"). 줄 안 모든 라벨 위치를 찾고(긴 라벨 우선·단어경계),
+    //  각 값 = 다음 라벨 직전까지로 자른다. 단일 쌍 줄도 동일하게 동작(값=줄 끝까지).
+    const labelHits: Array<{ field: string; valueStart: number; matchStart: number }> = [];
+    for (let p = 0; p < normalized.length; ) {
+      let hit: { label: string; field: string } | null = null;
+      for (const [label, field] of sortedLabels) {
+        if (
+          normalized.startsWith(label, p) &&
+          (p + label.length >= normalized.length || normalized[p + label.length] === " ")
+        ) {
+          hit = { label, field };
+          break; // 긴 라벨 우선(정렬돼 있음)
+        }
+      }
+      if (hit) {
+        labelHits.push({ field: hit.field, valueStart: p + hit.label.length, matchStart: p });
+        p += hit.label.length;
+      } else {
+        p += 1;
       }
     }
-    if (handledInline) continue;
+    if (labelHits.length > 0) {
+      for (let k = 0; k < labelHits.length; k += 1) {
+        const valueEnd = k + 1 < labelHits.length ? labelHits[k + 1].matchStart : normalized.length;
+        const value = normalized.slice(labelHits[k].valueStart, valueEnd).trim();
+        if (value && !extracted[labelHits[k].field]) extracted[labelHits[k].field] = value;
+      }
+      continue;
+    }
 
     // Case 3: 값 줄 → 큐에서 꺼내 매칭
     if (pending.length > 0) {
