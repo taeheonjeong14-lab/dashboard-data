@@ -1330,13 +1330,27 @@ function isPlusVetPlanTableHeaderLine(line: string): boolean {
   const t = line.trim().replace(/\s+/g, ' ');
   if (t.length < 12) return false;
   const lower = t.toLowerCase();
-  return (
+  // 형식 A: 항목 + (용법|경로) + 단위 + 담당의 + qty
+  if (
     t.includes('항목') &&
     (t.includes('용법') || t.includes('경로')) && // PDF마다 용법/경로 중 하나 사용
     t.includes('단위') &&
     t.includes('담당의') &&
     lower.includes('qty')
-  );
+  ) {
+    return true;
+  }
+  // 형식 B: 한국어 컬럼 헤더(qty 없음) — "항목 경로 용량 단위 일투 일수 사용량 담당의"
+  if (
+    t.includes('항목') &&
+    t.includes('경로') &&
+    t.includes('단위') &&
+    t.includes('담당의') &&
+    (t.includes('사용량') || t.includes('일투') || t.includes('일수'))
+  ) {
+    return true;
+  }
+  return false;
 }
 
 function isPlusVetPlanNextLineIndicator(next: string): boolean {
