@@ -455,28 +455,44 @@ function parseWoorienPmsBasicInfoFromText(block: string): ParsedBasicInfo {
     .map((line) => line.trim())
     .filter(Boolean);
 
+  // 우리엔 Medical Record는 한 줄에 "라벨: 값 라벨: 값 …" 여러 쌍 + 우측에 병원 주소/전화가 붙는다.
+  // (예: "동물번호: 202500500 동물이름: 라니 032-653-0119")
+  // 라벨을 줄 어디서든 찾고, 값 = 다음 라벨 직전까지로 자른 뒤, 꼬리(옆 칸 전화/주소)를 제거한다.
+  const ALL_LABELS = ["보호자번호","보호자이름","전화번호","동물번호","동물이름","종류","품종","성별","생일","생년월일","색상","RFID","현재체중","주소","동물명","종"];
+  const nextRe = new RegExp(`\\s+(?:${ALL_LABELS.join("|")})\\s*[:：]`);
   const pick = (labels: string[]): string | null => {
     for (const line of lines) {
       for (const label of labels) {
-        const re = new RegExp(`^${label}\\s*[:：]\\s*(.+)$`);
-        const m = line.match(re);
-        if (m?.[1]) {
-          const v = m[1].trim();
-          if (v) return v;
-        }
+        const m = line.match(new RegExp(`${label}\\s*[:：]\\s*`));
+        if (!m || m.index === undefined) continue;
+        const after = line.slice(m.index + m[0].length);
+        const nm = after.match(nextRe);
+        const v = (nm && nm.index !== undefined ? after.slice(0, nm.index) : after).trim();
+        if (v) return v;
       }
     }
     return null;
   };
+  // 값 뒤에 붙은 옆 칸(병원 전화/주소) 제거
+  const stripTrail = (v: string | null): string | null => {
+    if (!v) return v;
+    let out = v.replace(/\s+0?\d{1,3}-\d{3,4}-\d{4}.*$/, "");
+    out = out.replace(/\s+(?:서울|부산|대구|인천|광주|대전|울산|세종|경기|강원|충북|충남|전북|전남|경북|경남|제주)[\s\S]*$/, "");
+    return out.trim() || null;
+  };
+
+  const hospitalName = lines.find((l) => /동물(메디컬|병원|의료|클리닉)|메디컬\s*센터/.test(l)) ?? null;
+  const birthRaw = pick(["생일", "생년월일"]);
+  const birth = birthRaw ? (birthRaw.match(/\d{4}[-.]\d{1,2}[-.]\d{1,2}/)?.[0] ?? null) : null;
 
   return {
-    hospitalName: null,
-    ownerName: null,
-    patientName: pick(["동물이름", "동물명"]),
-    species: pick(["종류", "종"]),
-    breed: pick(["품종"]),
-    birth: pick(["생일", "생년월일"]),
-    sex: normalizeBasicInfoSex(pick(["성별"])),
+    hospitalName,
+    ownerName: stripTrail(pick(["보호자이름"])),
+    patientName: stripTrail(pick(["동물이름", "동물명"])),
+    species: stripTrail(pick(["종류", "종"])),
+    breed: stripTrail(pick(["품종"])),
+    birth,
+    sex: normalizeBasicInfoSex(stripTrail(pick(["성별"]))),
   };
 }
 
