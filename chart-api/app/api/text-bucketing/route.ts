@@ -28,7 +28,7 @@ import {
   extractWoorienLooseVisitDateTime,
 } from "@/lib/text-bucketing/chart-dates";
 import { runGoogleVisionOcr, type OcrRow } from "@/lib/google-vision";
-import { extractOrderedLinesFromPdf, getOpenAiOrderedLinesModel } from "@/lib/report-llm";
+import { extractOrderedLinesFromPdf, getOpenAiOrderedLinesModel, reconstructPlanRowsFromText } from "@/lib/report-llm";
 import { extractOrderedLinesFromTextLayer, isTextLayerSufficient } from "@/lib/text-bucketing/pdf-text-layer";
 import { hospitalHasTokens, chargeOperationTokens } from "@/lib/billing/token-charge";
 import { extractOpenAiErrorDetails, exposeOpenAiErrorDetailsInResponse } from "@/lib/openai-api-error";
@@ -3116,24 +3116,52 @@ async function saveParseRun(params: {
     }
 
     saveSubStage = "planRows";
-    const planRows = chartRowsInserted.flatMap((row, groupIndex) => {
+    const planRows: Array<Record<string, unknown>> = [];
+    for (const [groupIndex, row] of chartRowsInserted.entries()) {
       const matched = params.chartBodyByDate.find((group) => group.dateTime === row.date_time);
-      if (!matched || !(matched.planText ?? "").trim()) return [];
-      return parsePlanRows(matched.planText ?? "", params.chartType).map((plan, itemIndex) => ({
-        parse_run_id: parseRunId,
-        chart_by_date_id: row.id,
-        code: plan.code || null,
-        treatment_prescription: plan.treatmentPrescription || null,
-        qty: plan.qty || null,
-        unit: plan.unit || null,
-        day: plan.day || null,
-        total: plan.total || null,
-        route: plan.route || null,
-        sign_id: plan.signId || null,
-        raw_text: plan.raw,
-        row_order: groupIndex * 1000 + itemIndex,
-      }));
-    });
+      const planText = (matched?.planText ?? "").trim();
+      if (!planText) continue;
+
+      // woorien: 줄 추출이 표를 흩뜨려(긴 항목명이 줄바꿈되며 다음 코드와 섞임) 정규식 파싱이 꼬임
+      //   → Gemini 로 표 행을 구조화 복원(실패 시 정규식 파서로 폴백).
+      let parsed: ParsedPlanRow[];
+      if (params.chartType === "woorien_pms") {
+        const llm = await reconstructPlanRowsFromText(planText);
+        parsed =
+          llm && llm.length > 0
+            ? llm.map((r) => ({
+                code: r.code ?? "",
+                treatmentPrescription: r.name ?? "",
+                qty: r.qty ?? "",
+                unit: r.unit ?? "",
+                day: r.day ?? "",
+                total: r.total ?? "",
+                route: r.route ?? "",
+                signId: "",
+                raw: [r.code, r.name, r.qty, r.unit, r.day, r.total, r.route].filter(Boolean).join(" "),
+              }))
+            : parsePlanRows(planText, params.chartType);
+      } else {
+        parsed = parsePlanRows(planText, params.chartType);
+      }
+
+      parsed.forEach((plan, itemIndex) => {
+        planRows.push({
+          parse_run_id: parseRunId,
+          chart_by_date_id: row.id,
+          code: plan.code || null,
+          treatment_prescription: plan.treatmentPrescription || null,
+          qty: plan.qty || null,
+          unit: plan.unit || null,
+          day: plan.day || null,
+          total: plan.total || null,
+          route: plan.route || null,
+          sign_id: plan.signId || null,
+          raw_text: plan.raw,
+          row_order: groupIndex * 1000 + itemIndex,
+        });
+      });
+    }
     if (planRows.length > 0) {
       const { error: planError } = await db.from("result_plan_rows").insert(planRows);
       if (planError) {
