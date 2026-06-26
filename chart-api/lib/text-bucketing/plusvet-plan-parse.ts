@@ -125,9 +125,11 @@ export function parsePlusVetPlanRows(planText: string): PlusVetParsedPlanRow[] {
       i += 1;
     }
 
-    // 6) 담당의(signId): 숫자열 뒤 첫 비숫자 토큰. (다음 레코드 항목명과의 경계 = 매 행의 담당의)
+    // 6) 담당의(signId): 숫자열 뒤 첫 토큰이 "한글 이름(2~4자)"일 때만 담당의로 본다.
+    //    담당의가 누락된 표(세로 분리/Gemini 변동)에서 다음 약 이름(영어/숫자/괄호로 시작)을
+    //    담당의로 먹어 항목이 잘리는 것을 막는다. (담당의 = 짧은 한글 사람 이름)
     let signId = '';
-    if (qty && i < n && !isPureNumberToken(tokens[i]) && !isRouteToken(tokens[i])) {
+    if (qty && i < n && /^[가-힣]{2,4}$/.test(tokens[i])) {
       signId = tokens[i];
       i += 1;
     }
