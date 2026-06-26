@@ -77,7 +77,7 @@ function matchPlusVetDatetimePipeRest(text: string): { line: string; dateTime: s
 export function isPlusVetLabMachinePanelHeaderLine(text: string): boolean {
   const hit = matchPlusVetDatetimePipeRest(text);
   if (!hit) return false;
-  if (/^(재진|초진|예진|응급|검진|당일|복진|외래)\b/.test(hit.afterFirstPipe)) return false;
+  if (/^(재진|초진|예진|응급|검진|당일|복진|외래)(?![가-힣])/.test(hit.afterFirstPipe)) return false;
   if (/\bAnalysis\b/i.test(hit.line)) return true;
   if (/\bCBC\b/i.test(hit.line)) return true;
   if (/Biochemical/i.test(hit.line)) return true;
@@ -90,7 +90,7 @@ export function isPlusVetLabMachinePanelHeaderLine(text: string): boolean {
 export function isPlusVetChartVisitHeaderLine(text: string): boolean {
   const hit = matchPlusVetDatetimePipeRest(text);
   if (!hit) return false;
-  return /^(재진|초진|예진|응급|검진|당일|복진|외래)\b/.test(hit.afterFirstPipe);
+  return /^(재진|초진|예진|응급|검진|당일|복진|외래)(?![가-힣])/.test(hit.afterFirstPipe);
 }
 
 /**
@@ -101,7 +101,7 @@ export function isPlusVetChartVisitHeaderLine(text: string): boolean {
 export function extractPlusVetVisitDateKey(text: string): string | null {
   const hit = matchPlusVetDatetimePipeRest(text);
   if (!hit) return null;
-  if (!/^(재진|초진|예진|응급|검진|당일|복진|외래)\b/.test(hit.afterFirstPipe)) return null;
+  if (!/^(재진|초진|예진|응급|검진|당일|복진|외래)(?![가-힣])/.test(hit.afterFirstPipe)) return null;
   return hit.dateTime;
 }
 
