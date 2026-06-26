@@ -24,6 +24,7 @@ import {
   extractChartBodyDateKey,
   extractEfriendsVisitDateKey,
   extractLabDateTime,
+  extractPlusVetVisitDateKey,
   extractWoorienLooseVisitDateTime,
 } from "@/lib/text-bucketing/chart-dates";
 import { runGoogleVisionOcr, type OcrRow } from "@/lib/google-vision";
@@ -598,12 +599,44 @@ function groupChartBodyByDate(lines: BucketedLine[], chartKind: ChartKind): Char
   // PlusVet: Gemini 출력의 진료 헤더 형태가 실행마다 달라(셀 단위로 쪼개지기도 함) 헤더 줄 가정은 불안정.
   // 대신 각 진료가 "Subjective"로 시작한다는 점을 이용한다 — Subjective 줄에서 새 진료 그룹을 시작하고,
   // 직전까지 본 가장 최근 "4자리 연도" 날짜시각(랩 표의 2자리연도 26.xx 는 제외됨)을 그 진료의 키로 쓴다.
+  // PlusVet: 가능하면 "진료 헤더"(DATE | 재진/초진/… | 담당의)에서 진료를 나눈다(가장 신뢰도 높은 경계).
+  // 헤더는 영상/검사 시각과 달리 진료유형 키워드가 있어 구분되며, Subjective 가 없는 진료
+  // (Plan 만/Objective 만 있는 날)도 독립 그룹으로 잡혀 이전 진료에 흡수되지 않는다.
+  // 헤더가 셀 단위로 쪼개져 하나도 안 잡히는 경우에만 기존 Subjective 앵커링으로 폴백한다.
+  const plusvetVisitHeaderAnchored =
+    chartKind === "plusvet" && linesToGroup.some((l) => extractPlusVetVisitDateKey(l.text.trim()) !== null);
   const plusvetSubjectiveAnchored =
-    chartKind === "plusvet" && linesToGroup.some((l) => /^subjective\b/i.test(l.text.trim()));
+    chartKind === "plusvet" &&
+    !plusvetVisitHeaderAnchored &&
+    linesToGroup.some((l) => /^subjective\b/i.test(l.text.trim()));
   const woorienSubjectiveAnchored =
     chartKind === "woorien_pms" && linesToGroup.some((l) => /^subjective\b/i.test(l.text.trim()));
 
-  if (plusvetSubjectiveAnchored) {
+  if (plusvetVisitHeaderAnchored) {
+    let visitIdx = 0;
+    for (const line of linesToGroup) {
+      const t = line.text.trim();
+      const visitDate = extractPlusVetVisitDateKey(t);
+      if (visitDate) {
+        visitIdx += 1;
+        let key = visitDate;
+        if (groups.has(key)) key = `${key} (${visitIdx})`;
+        currentKey = key;
+        groups.set(currentKey, []);
+        continue; // 진료 헤더 줄은 본문에 넣지 않음(키로만 사용)
+      }
+      if (/^(?:\[)?\s*20\d{2}[./-]\d{1,2}[./-]\d{1,2}\s+\d{1,2}:\d{2}/.test(t)) {
+        continue; // 진료 헤더가 아닌 날짜시각(랩/영상 시각)은 본문에서 제외 — 누수 방지
+      }
+      if (currentKey === "unknown") continue; // 첫 진료 헤더 이전(기본정보 등)은 버림
+      groups.get(currentKey)?.push(line);
+    }
+    console.log(
+      "[groupChartBodyByDate] plusvet visitHeaderAnchored visits=%d keys=%s",
+      visitIdx,
+      JSON.stringify([...groups.keys()]),
+    );
+  } else if (plusvetSubjectiveAnchored) {
     let pendingDate: string | null = null;
     let visitIdx = 0;
     for (const line of linesToGroup) {

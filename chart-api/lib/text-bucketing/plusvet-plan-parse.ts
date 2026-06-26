@@ -43,6 +43,14 @@ function shouldSkipPlusVetPlanLine(t: string): boolean {
   if (/^새\s*그룹$/.test(t)) return true;
   // 한 줄 통합 헤더 (용법 or 경로 column)
   if (/항목/.test(t) && (/용법/.test(t) || /경로/.test(t)) && /qty/i.test(t)) return true;
+  // 한국어 컬럼 헤더가 한 줄에 통으로 있는 경우 — 모든 토큰이 헤더 키워드면 헤더로 본다.
+  // 예: "항목 경로 용량 단위 일투 일수 사용량 담당의" (qty 가 없어 위 조건엔 안 걸리던 형태)
+  {
+    const ws = t.split(/\s+/).filter(Boolean);
+    if (ws.length >= 3 && ws.every((w) => /^(항목|경로|용량|용법|단위|일투|일수|사용량|담당의|qty)$/i.test(w))) {
+      return true;
+    }
+  }
   // PDF에서 컬럼 헤더가 한 줄씩 분리되어 있는 경우
   if (/^(항목|경로|용량|단위|일투|일수|사용량|담당의|qty)$/i.test(t)) return true;
   return false;
