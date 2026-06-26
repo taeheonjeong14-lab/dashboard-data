@@ -529,8 +529,8 @@ export default function AdminCaseBlog() {
                   </div>
                   {caseImages.length > 0 ? (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                    {groupedImages.map(({ date, images: dateImages }) => (
-                    <div key={date ?? 'no-date'}>
+                    {groupedImages.map(({ date, images: dateImages }, gi) => (
+                    <div key={date ?? 'no-date'} style={gi > 0 ? { borderTop: '1px solid var(--border)', paddingTop: 16 } : undefined}>
                       <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--accent)', marginBottom: 8, letterSpacing: '0.03em' }}>
                         {date ? date.replace(/-/g, '.') : '날짜 미지정'}
                         <span style={{ fontWeight: 400, color: 'var(--text-muted)', marginLeft: 6 }}>{dateImages.length}장</span>
