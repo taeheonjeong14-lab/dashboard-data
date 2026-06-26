@@ -115,7 +115,8 @@ export function extractPlusVetVisitDateKey(text: string): string | null {
 export function extractWoorienLooseVisitDateTime(text: string): string | null {
   const t = text.replace(/\s+/g, ' ').trim();
   const m = t.match(
-    /^(?:\[)?\s*(20\d{2})[./-](\d{1,2})[./-](\d{1,2})\s+(?:(오전|오후|am|pm)\s*)?([0-2]?\d):([0-5]\d)(?::[0-5]\d)?\s*(?:\]|\[[^\]]*\])?\s*$/i,
+    // 끝: 줄끝 / [유형] 태그 / "내과 Sign : 김진욱" 같은 진료헤더 꼬리표(부서+Sign+담당자) 허용.
+    /^(?:\[)?\s*(20\d{2})[./-](\d{1,2})[./-](\d{1,2})\s+(?:(오전|오후|am|pm)\s*)?([0-2]?\d):([0-5]\d)(?::[0-5]\d)?\s*(?:\]|\[[^\]]*\])?\s*(?:\S.*?\bSign\b\s*[:：].*)?\s*$/i,
   );
   if (!m) return null;
   let hour = Number.parseInt(m[5] ?? '0', 10);
