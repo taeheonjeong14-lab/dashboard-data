@@ -2120,8 +2120,8 @@ function mapLabItemsToDateGroups(
   return mapped;
 }
 
-/** 우리엔PMS 청구코드: 영문+숫자(AA001, WC00483) 또는 숫자-숫자(85176-109792) */
-const WOORIEN_PLAN_CODE = /^(?:[A-Z]{1,4}\d{2,}|\d{4,}-\d{3,})$/i;
+/** 우리엔PMS 청구코드: 영문+숫자(AA001, WC00483, EVENT002) 또는 숫자-숫자(85176-109792) */
+const WOORIEN_PLAN_CODE = /^(?:[A-Z]{1,6}\d{2,}|\d{4,}-\d{3,})$/i;
 const WOORIEN_PLAN_HEADER_TOKEN = /^(?:plan|코드|항목명|수량|일투|일수|총투|route|dose)$/i;
 const WOORIEN_PLAN_ROUTE = /^(?:po|iv|im|sc|sq|ip|io|oral|topical|경구|피하|정맥|근육)$/i;
 /** 줄바꿈으로 끝에 밀려난 약물 함량 토큰(예: "5mg") — 단위가 mg/ml 등일 때만 */
