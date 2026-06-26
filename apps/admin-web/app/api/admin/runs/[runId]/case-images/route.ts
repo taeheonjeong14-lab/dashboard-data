@@ -113,7 +113,7 @@ export async function GET(
     }>(
       `SELECT id, idx, file_name, storage_path, exam_type, radiology_sub,
               has_notable_finding, is_clear_finding, brief_comment, finding_spots,
-              related_assessment_condition, exam_date, body_part, created_at
+              related_assessment_condition, exam_date::text AS exam_date, body_part, created_at
        FROM chart_pdf.parse_run_case_images
        WHERE parse_run_id = $1::uuid
        ORDER BY idx ASC`,
