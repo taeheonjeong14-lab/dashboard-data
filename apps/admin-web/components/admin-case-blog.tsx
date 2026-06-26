@@ -205,7 +205,7 @@ export default function AdminCaseBlog() {
           const fn = String(im.fileName ?? '');
           if (!fn || seen.has(fn)) continue;
           seen.add(fn);
-          raw.push({ fileName: fn, url: im.signedUrl ?? null, aiPicked: aiNames.has(fn), caption: buildImageCaption(im), examDate: im.examDate ?? null });
+          raw.push({ fileName: fn, url: im.signedUrl ?? null, aiPicked: aiNames.has(fn), caption: buildImageCaption(im), examDate: im.examDate ? String(im.examDate).slice(0, 10) : null });
         }
         // 케이스 내 동일 캡션은 넘버링("심장 초음파검사 1", "심장 초음파검사 2") — 100% 중복 방지.
         const capCount = new Map<string, number>();
