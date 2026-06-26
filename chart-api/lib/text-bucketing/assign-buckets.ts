@@ -87,16 +87,20 @@ export function assignLinesToBuckets(
     }
 
     /**
-     * PlusVet 진료 헤더: 날짜+시각 줄이고 곧(3줄 내) Subjective가 따라오면, 그건 lab 시각 앵커가 아니라
-     * 그 진료의 헤더다 → chartBody로 보낸다. 이렇게 해야 (1) 그 진료의 날짜가 chartBody 그룹 키로 잡히고
-     * (앞 진료 날짜 재사용 방지), (2) 진료 시작 시 lab 모드가 아니어서 A/P/Plan이 lab으로 새지 않는다.
+     * PlusVet 진료 헤더: 날짜+시각 줄을 chartBody로 보낸다(lab 시각 앵커가 아니라 진료 헤더로).
+     * 두 신호 중 하나면 진료 헤더로 본다:
+     *  (a) 곧(3줄 내) Subjective 가 따라옴 — 헤더가 셀로 쪼개져도 잡힘
+     *  (b) 진료 헤더 형태(`DATE | 재진/초진/… | 담당의`)임 — Subjective 가 없는 진료(Plan만/Objective만 있는 날)도 잡힘
+     * 이렇게 해야 (1) 그 진료 날짜가 chartBody 그룹 키로 잡히고(앞 진료에 흡수 방지),
+     * (2) 진료 시작 시 lab 모드가 아니어서 A/P/Plan이 lab으로 새지 않는다.
+     * 영상/검사 시각은 (a)(b) 둘 다 아니라 자연히 제외된다.
      */
     if (chartKind === 'plusvet') {
       const t0 = line.text.replace(/\s+/g, ' ').trim();
       const isDateTime = /^(?:\[)?\s*20\d{2}[./-]\d{1,2}[./-]\d{1,2}\s+\d{1,2}:\d{2}/.test(t0);
       const next3 = sanitizedLines[i + 3]?.text ?? '';
       const subjSoon = [next1, next2, next3].some((x) => /^subjective\b/i.test(x.replace(/\s+/g, ' ').trim()));
-      if (isDateTime && subjSoon) {
+      if (isDateTime && (subjSoon || isPlusVetChartVisitHeaderLine(line.text))) {
         section = 'chartBody';
         plusvetDiagnosticResultsSection = false;
         buckets.chartBody.push({ page: line.page, text: line.text, corrected: false });
