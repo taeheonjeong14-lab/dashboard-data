@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse, after } from 'next/server';
 import { requireAdminApi } from '@/lib/assert-admin-api';
 import { createServiceRoleClient } from '@/lib/supabase/service-role';
 
@@ -105,14 +105,26 @@ export async function POST(
     return NextResponse.json({ error: `재추출 잡 생성 실패: ${jobErr?.message ?? 'unknown'}` }, { status: 500 });
   }
 
-  // 4) 즉시 처리 트리거(best-effort) — 실패해도 스케줄 크론이 집어감.
-  const hospitalUrl = process.env.HOSPITAL_WEB_URL;
+  // 4) 즉시 처리 트리거 — after() 로 응답 반환 후에도 함수를 살려 트리거가 확실히 전달되게 한다.
+  //    (기존 `void fetch` fire-and-forget 은 서버리스에서 응답 직후 함수가 얼면서 요청이 끊겨,
+  //     재추출 잡이 워커에 전달되지 않고 queued 로 방치되던 원인. 실패해도 본 응답엔 영향 없음.)
+  //    ⚠ HOSPITAL_WEB_URL(+CRON_SECRET) 가 admin 프로드 env 에 설정돼야 동작. 미설정 시 워커 미트리거.
+  const hospitalUrl = process.env.HOSPITAL_WEB_URL?.replace(/\/$/, ''); // 끝 슬래시 제거(// 중복 방지)
   const cronSecret = process.env.CRON_SECRET;
   if (hospitalUrl) {
-    void fetch(`${hospitalUrl}/api/cron/process-extract-jobs`, {
-      method: 'GET',
-      headers: cronSecret ? { Authorization: `Bearer ${cronSecret}` } : {},
-    }).catch(() => {});
+    after(async () => {
+      try {
+        const r = await fetch(`${hospitalUrl}/api/cron/process-extract-jobs`, {
+          method: 'GET',
+          headers: cronSecret ? { Authorization: `Bearer ${cronSecret}` } : {},
+        });
+        if (!r.ok) console.warn(`[re-extract] 워커 트리거 응답 ${r.status}`);
+      } catch (e) {
+        console.warn('[re-extract] 워커 트리거 실패:', e instanceof Error ? e.message : String(e));
+      }
+    });
+  } else {
+    console.warn('[re-extract] HOSPITAL_WEB_URL 미설정 — 워커 즉시 트리거 생략(잡이 queued 로 남음)');
   }
 
   return NextResponse.json({ ok: true, jobId: job.id });
