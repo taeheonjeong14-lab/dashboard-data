@@ -74,14 +74,21 @@ async function loadRunSourceFiles(
       }
     }
 
-    // 폴백: admin에서 직접 올린 run은 extract_jobs 가 없고 경로가 parse_runs.raw_payload 에 들어있다.
+    // 폴백: admin 직접 업로드 run 은 extract_jobs 가 없고, 원본 경로가 raw_payload.sourceStorage 에 있다.
+    // (chart-api text-bucketing 이 저장하는 키 — 재추출 라우트도 동일하게 sourceStorage 를 읽는다.
+    //  과거엔 storagePath/storageBucket 단수 키를 읽어 admin 업로드에서 PDF 원본 버튼이 안 떴음.)
     if (pdfs.length === 0 && rawPayload && typeof rawPayload === 'object') {
-      const rp = rawPayload as { storageBucket?: unknown; storagePath?: unknown };
-      const path = typeof rp.storagePath === 'string' ? rp.storagePath : '';
-      if (path) {
-        const bucket = typeof rp.storageBucket === 'string' && rp.storageBucket ? rp.storageBucket : 'pdf-uploads';
-        const { data } = await sb.storage.from(bucket).createSignedUrl(path, SIGNED_URL_TTL);
-        if (data?.signedUrl) pdfs.push({ name: basename(path), url: data.signedUrl });
+      const ss = (rawPayload as { sourceStorage?: { bucket?: unknown; paths?: unknown } }).sourceStorage;
+      const bucket = typeof ss?.bucket === 'string' && ss.bucket ? ss.bucket : 'pdf-uploads';
+      const paths = Array.isArray(ss?.paths)
+        ? ss.paths.filter((p): p is string => typeof p === 'string' && p.length > 0)
+        : [];
+      if (paths.length) {
+        const { data } = await sb.storage.from(bucket).createSignedUrls(paths, SIGNED_URL_TTL);
+        paths.forEach((p, i) => {
+          const url = data?.[i]?.signedUrl;
+          if (url) pdfs.push({ name: basename(p), url });
+        });
       }
     }
 
