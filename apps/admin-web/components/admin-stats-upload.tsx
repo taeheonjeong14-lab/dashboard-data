@@ -117,17 +117,29 @@ export default function AdminStatsUpload({
     setIsError(false);
     try {
       const fileHash = await fileToSha256(snapshot.bytes);
+      const body = JSON.stringify({
+        hospitalId,
+        chartType,
+        sourceFileName: snapshot.name,
+        sourceFileHash: fileHash,
+        parsedRows: previewRows,
+        parseErrors: previewErrors,
+      });
+      // Vercel 요청 본문 한도(약 4.5MB). 파싱된 행 JSON 이 이를 넘으면 전송 단계에서 413/네트워크로
+      // 끊기므로 미리 막고 기간 분할을 안내한다. (엑셀은 압축돼 있어 파일 크기≠JSON 크기 → 본문 실측)
+      const MAX_UPLOAD_BODY_BYTES = 4.5 * 1024 * 1024;
+      const bodyBytes = new TextEncoder().encode(body).length;
+      if (bodyBytes > MAX_UPLOAD_BODY_BYTES) {
+        fail(
+          `업로드 데이터가 4.5MB를 초과합니다(현재 약 ${(bodyBytes / 1024 / 1024).toFixed(1)}MB). ` +
+            `한 번에 4.5MB 이하만 업로드할 수 있어요. 업로드 기간을 더 잘게 나누어 다시 시도해 주세요.`,
+        );
+        return;
+      }
       const res = await fetch('/api/admin/data/chart-upload', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          hospitalId,
-          chartType,
-          sourceFileName: snapshot.name,
-          sourceFileHash: fileHash,
-          parsedRows: previewRows,
-          parseErrors: previewErrors,
-        }),
+        body,
       });
       const data = (await res.json()) as Record<string, unknown> & { error?: string };
       if (!res.ok) throw new Error(data.error || '업로드 실패');
