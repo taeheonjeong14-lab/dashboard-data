@@ -2,6 +2,7 @@
 
 import { useState, useRef, useCallback, useEffect, type DragEvent, type ChangeEvent } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import { compressPdfIfNeeded, PdfCompressError } from '@/lib/pdf-compress';
 import { useHospital } from '@/components/shell/hospital-context';
 import { CenteredSpinner } from '@/components/ui/loading-spinner';
 import { SectionTitle, FieldLabel } from '@/components/ui/typography';
@@ -122,6 +123,7 @@ export function CaseTab() {
   const [chartType, setChartType] = useState<ChartType>('intovet');
   const [pdfFiles, setPdfFiles] = useState<File[]>([]);
   const [pdfError, setPdfError] = useState<string | null>(null);
+  const [compressing, setCompressing] = useState(false);
   const [overview, setOverview] = useState<Overview>(EMPTY_OVERVIEW);
   const [imageGroups, setImageGroups] = useState<ImageGroup[]>(() => [newImageGroup()]);
   const [imageError, setImageError] = useState<string | null>(null);
@@ -172,22 +174,40 @@ export function CaseTab() {
   }, [items, loadList]);
 
   // ----- PDF -----
-  const handlePdfFiles = useCallback((files: File[]) => {
+  const handlePdfFiles = useCallback(async (files: File[]) => {
     setPdfError(null);
-    const valid: File[] = [];
-    for (const file of files) {
-      if (file.type !== 'application/pdf') {
+    const pdfs = files.filter((f) => {
+      if (f.type !== 'application/pdf') {
         setPdfError('PDF 파일만 업로드할 수 있습니다.');
-        continue;
+        return false;
       }
-      if (file.size > MAX_FILE_SIZE) {
-        setPdfError(`각 파일은 30MB 이하여야 합니다. (${file.name}: ${formatBytes(file.size)})`);
-        continue;
+      return true;
+    });
+    const needsCompress = pdfs.some((f) => f.size > MAX_FILE_SIZE);
+    if (needsCompress) setCompressing(true);
+    const toAdd: File[] = [];
+    try {
+      for (const file of pdfs) {
+        if (file.size <= MAX_FILE_SIZE) {
+          toAdd.push(file);
+          continue;
+        }
+        // 30MB 초과 → 브라우저에서 압축 시도. 실패해도 정상 업로드엔 영향 없고, 안내만 띄운다.
+        try {
+          toAdd.push(await compressPdfIfNeeded(file, MAX_FILE_SIZE));
+        } catch (e) {
+          setPdfError(
+            e instanceof PdfCompressError && e.kind === 'too_large'
+              ? `압축해도 30MB를 초과합니다. (${file.name}) 해당 진료분 페이지만 잘라서 올려주세요.`
+              : `PDF 압축에 실패했습니다. (${file.name}) 파일을 30MB 이하로 줄여 다시 올려주세요.`,
+          );
+        }
       }
-      valid.push(file);
+    } finally {
+      if (needsCompress) setCompressing(false);
     }
-    if (valid.length > 0) {
-      setPdfFiles((prev) => [...prev, ...valid]);
+    if (toAdd.length > 0) {
+      setPdfFiles((prev) => [...prev, ...toAdd]);
       setStage('idle');
     }
   }, []);
@@ -201,7 +221,7 @@ export function CaseTab() {
       e.preventDefault();
       setIsDragging(false);
       const files = Array.from(e.dataTransfer.files ?? []);
-      if (files.length) handlePdfFiles(files);
+      if (files.length) void handlePdfFiles(files);
     },
     [handlePdfFiles],
   );
@@ -552,7 +572,7 @@ export function CaseTab() {
                 style={{ display: 'none' }}
                 onChange={(e: ChangeEvent<HTMLInputElement>) => {
                   const fs = Array.from(e.target.files ?? []);
-                  if (fs.length) handlePdfFiles(fs);
+                  if (fs.length) void handlePdfFiles(fs);
                   e.target.value = '';
                 }}
               />
@@ -586,6 +606,7 @@ export function CaseTab() {
                 </>
               )}
             </div>
+            {compressing && <div style={{ marginTop: 5, fontSize: 11, color: 'var(--accent)' }}>PDF 용량이 커서 압축 중이에요… 잠시만 기다려주세요.</div>}
             {pdfError && <div style={{ marginTop: 5, fontSize: 11, color: 'var(--danger)' }}>{pdfError}</div>}
           </FormField>
 

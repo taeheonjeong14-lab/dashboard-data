@@ -2,6 +2,7 @@
 
 import type { ChartHospitalOption } from '@/lib/chart-extraction/chart-admin-hospitals';
 import { parseChartAdminHospitalsResponse } from '@/lib/chart-extraction/chart-admin-hospitals';
+import { compressPdfIfNeeded, PdfCompressError } from '@/lib/pdf-compress';
 import type { CSSProperties } from 'react';
 import { Fragment, FormEvent, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
@@ -226,6 +227,7 @@ export default function AdminDataUpload({ variant = 'data' }: { variant?: 'data'
   const [tab, setTab] = useState<DataTab>('stats');
   const { startExtract, status, lastRunId, error: extractError } = useChartExtraction();
   const [localError, setLocalError] = useState<string | null>(null);
+  const [compressing, setCompressing] = useState(false);
   const [chartType, setChartType] = useState<string>('intovet');
   const [hospitals, setHospitals] = useState<ChartHospitalOption[]>([]);
   const [hospitalsLoading, setHospitalsLoading] = useState(true);
@@ -461,11 +463,24 @@ export default function AdminDataUpload({ variant = 'data' }: { variant?: 'data'
       setLocalError('PDF 파일을 선택해 주세요.');
       return;
     }
+    let fileToUpload = selectedFile;
     if (selectedFile.size > MAX_PDF_BYTES) {
-      setLocalError(`PDF는 ${MAX_PDF_BYTES / 1024 / 1024}MB 이하만 업로드할 수 있습니다.`);
-      return;
+      // 30MB 초과 → 브라우저에서 압축 시도. 실패해도 정상 업로드엔 영향 없고 안내만 띄운다.
+      setCompressing(true);
+      try {
+        fileToUpload = await compressPdfIfNeeded(selectedFile, MAX_PDF_BYTES);
+      } catch (e) {
+        setLocalError(
+          e instanceof PdfCompressError && e.kind === 'too_large'
+            ? `압축해도 ${MAX_PDF_BYTES / 1024 / 1024}MB를 초과합니다. 해당 진료분 페이지만 잘라서 올려주세요.`
+            : `PDF 압축에 실패했습니다. 파일을 ${MAX_PDF_BYTES / 1024 / 1024}MB 이하로 줄여 다시 올려주세요.`,
+        );
+        return;
+      } finally {
+        setCompressing(false);
+      }
     }
-    formData.set('file', selectedFile);
+    formData.set('file', fileToUpload);
     formData.delete('chartPasteText');
     formData.delete('efriendsChartBlocksJson');
     await startExtract(formData);
@@ -1028,13 +1043,18 @@ export default function AdminDataUpload({ variant = 'data' }: { variant?: 'data'
                       )}
                     </div>
 
-                    <button type="submit" className="adminLegacyPrimaryBtn" disabled={!canSubmit} style={{ width: '100%' }}>
-                      {isExtractRunning ? '처리 중…' : '실행'}
+                    <button type="submit" className="adminLegacyPrimaryBtn" disabled={!canSubmit || compressing} style={{ width: '100%' }}>
+                      {compressing ? '압축 중…' : isExtractRunning ? '처리 중…' : '실행'}
                     </button>
                   </div>
                 </form>
               </div>
 
+              {compressing && (
+                <div className="adminLegacyBlockBleed">
+                  <p style={{ margin: 0, fontSize: 13, color: 'var(--accent)' }}>PDF 용량이 커서 압축 중이에요… 잠시만 기다려주세요.</p>
+                </div>
+              )}
               {isExtractRunning && (
                 <div className="adminLegacyBlockBleed">
                   <p style={{ margin: 0, fontSize: 13, color: 'var(--accent)' }}>추출 중입니다…</p>
