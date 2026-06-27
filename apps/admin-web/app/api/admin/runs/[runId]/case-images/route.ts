@@ -406,8 +406,9 @@ export async function POST(
         { status: 500 },
       );
     }
-    // 이미지 분석 작업 토큰 차감(병원 잔액에서 1회).
-    await chargeOperationTokens(usageHospitalId, imageOperationId, 'image_analysis');
+    // 이미지 분석 작업 토큰 차감(병원 잔액에서 1회). 진료케이스 단계이므로 product='case_blog'
+    // (바른플랜이면 즉시 환불, 사용량 통계도 진료케이스로 라벨).
+    await chargeOperationTokens(usageHospitalId, imageOperationId, 'image_analysis', 'case_blog');
 
     // Upload images to Supabase Storage
     const savedImages = await Promise.all(
