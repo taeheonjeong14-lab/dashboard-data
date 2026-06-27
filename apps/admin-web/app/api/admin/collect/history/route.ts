@@ -59,6 +59,10 @@ export async function GET() {
   if (manualRes.error) return NextResponse.json({ error: manualRes.error.message }, { status: 500 });
   if (autoRes.error) return NextResponse.json({ error: autoRes.error.message }, { status: 500 });
 
+  // chart_upload_runs 는 completed/running/failed 어휘를 쓰고, UI(collect-history-panel)·collect_jobs 는
+  // done/running/failed 를 쓴다. 통일하지 않으면 'completed' 가 UI switch 의 default('대기 중')로 떨어진다.
+  const normalizeManualStatus = (s: string): string => (s === 'completed' ? 'done' : s);
+
   const manualItems: CollectHistoryUnifiedItem[] = (manualRes.data ?? []).map((r) => {
     const row = r as Record<string, unknown>;
     const startedAt = (row.started_at as string | null) ?? '';
@@ -67,7 +71,7 @@ export async function GET() {
       kind: 'manual_stats',
       id: String(row.id),
       hospitalId: (row.hospital_id as string | null) ?? null,
-      status: String(row.status ?? ''),
+      status: normalizeManualStatus(String(row.status ?? '')),
       at: startedAt,
       startedAt: (row.started_at as string | null) ?? null,
       finishedAt: (row.finished_at as string | null) ?? null,
