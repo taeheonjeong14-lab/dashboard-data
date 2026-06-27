@@ -20,6 +20,9 @@ export type RunDetailResponse = {
   run: {
     id: string;
     createdAt: string;
+    /** 마지막 추출 시각. result_basic_info 가 매 추출마다 재삽입되므로 그 created_at(=최종 추출),
+     *  없으면 run.created_at 폴백. 재추출 시 run.created_at 은 보존되므로 별도로 내려준다. */
+    extractedAt: string;
     friendlyId: string | null;
     fileName: string | null;
     chartType: RunDetailChartKind;

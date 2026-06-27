@@ -4,6 +4,37 @@ import { createServiceRoleClient } from '@/lib/supabase/service-role';
 
 export const dynamic = 'force-dynamic';
 
+// GET /api/admin/runs/[runId]/re-extract — 이 run 의 최신 재추출 잡 상태 조회(진행바 폴링용).
+// replace_run_id 로 찾으므로 jobId 없이도(페이지 새로고침 후에도) 진행 중 잡을 이어서 추적한다.
+export async function GET(
+  _request: NextRequest,
+  { params }: { params: Promise<{ runId: string }> },
+) {
+  const gate = await requireAdminApi();
+  if (!gate.ok) return gate.response;
+
+  const { runId } = await params;
+  const supabase = createServiceRoleClient();
+  const { data: job } = await supabase
+    .schema('health_report')
+    .from('extract_jobs')
+    .select('id, status, attempts, error_text, created_at, updated_at')
+    .eq('replace_run_id', runId)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (!job) return NextResponse.json({ status: null });
+  return NextResponse.json({
+    jobId: job.id,
+    status: job.status, // queued | processing | done | error
+    attempts: job.attempts,
+    errorText: job.error_text ?? null,
+    createdAt: job.created_at,
+    updatedAt: job.updated_at,
+  });
+}
+
 // POST /api/admin/runs/[runId]/re-extract
 // 이미 업로드된 원본 PDF 로 추출을 처음부터 다시 시도해 "기존 run 을 덮어쓴다"(비동기 잡).
 // 병원에 재업로드 요청을 못 하는 상황에서, admin 이 백단 추출 실패를 직접 복구하기 위함.

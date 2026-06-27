@@ -781,30 +781,121 @@ function SourcePdfMenu({ pdfs }: { pdfs: { name: string; url: string }[] }) {
  * 재추출 버튼 — 이미 업로드된 원본 PDF 로 추출을 처음부터 다시 시도해 기존 run 을 덮어쓴다(비동기).
  * 병원에 재업로드 요청 없이 백단 추출 실패를 admin 이 복구할 때 사용. 과금 없음.
  */
-function ReExtractButton({ runId }: { runId: string }) {
-  const [busy, setBusy] = useState(false);
+// 마지막 추출 시각을 "YYYY년 MM월 DD일 HH:mm"(한국시간)로 표기.
+function formatExtractedAt(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  const parts = new Intl.DateTimeFormat('ko-KR', {
+    timeZone: 'Asia/Seoul',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', hour12: false,
+  }).formatToParts(d);
+  const g = (t: string) => parts.find((p) => p.type === t)?.value ?? '';
+  return `${g('year')}년 ${g('month')}월 ${g('day')}일 ${g('hour')}:${g('minute')}`;
+}
+
+function ReExtractButton({ runId, onReloaded }: { runId: string; onReloaded?: () => void }) {
+  // 비동기 재추출(extract_jobs) 진행 표시. status 를 폴링해 진행바를 보여주고, done 시 자동 리로드.
+  const EXPECTED_MS = 90_000; // 예상 소요 ~90s (시간기반 진행바의 기준치)
+  const [phase, setPhase] = useState<'idle' | 'running' | 'done' | 'error'>('idle');
+  const [jobStatus, setJobStatus] = useState<string | null>(null);
+  const [pct, setPct] = useState(0);
+  const [errMsg, setErrMsg] = useState<string | null>(null);
+  const startRef = useRef(0);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const tickRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const clearTimers = useCallback(() => {
+    if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
+    if (tickRef.current) { clearInterval(tickRef.current); tickRef.current = null; }
+  }, []);
+
+  const finish = useCallback((ok: boolean, msg?: string) => {
+    clearTimers();
+    if (ok) {
+      setPct(100); setJobStatus('done'); setPhase('done');
+      onReloaded?.();
+      // 완료 메시지 잠깐 노출 후 정리
+      window.setTimeout(() => { setPhase('idle'); setPct(0); setJobStatus(null); }, 4000);
+    } else {
+      setPhase('error'); setErrMsg(msg ?? '재추출 실패');
+    }
+  }, [clearTimers, onReloaded]);
+
+  const startTracking = useCallback(() => {
+    clearTimers();
+    startRef.current = Date.now();
+    setPhase('running'); setErrMsg(null); setPct((p) => (p > 4 ? p : 4));
+    // 시간기반 진행(최대 92%까지 부드럽게 — 실제 완료 신호가 오면 finish 가 100% 로 채움)
+    tickRef.current = setInterval(() => {
+      const elapsed = Date.now() - startRef.current;
+      const target = Math.min(92, (elapsed / EXPECTED_MS) * 92);
+      setPct((prev) => (prev < target ? target : prev));
+    }, 600);
+    // status 폴링
+    pollRef.current = setInterval(() => {
+      void (async () => {
+        try {
+          const r = await fetch(`/api/admin/runs/${encodeURIComponent(runId)}/re-extract`, { credentials: 'include' });
+          const d = (await r.json().catch(() => ({}))) as { status?: string | null; errorText?: string | null };
+          if (d.status) setJobStatus(d.status);
+          if (d.status === 'done') finish(true);
+          else if (d.status === 'error') finish(false, d.errorText ?? '추출에 실패했습니다(재시도 소진).');
+        } catch { /* 일시 네트워크 오류는 다음 틱에서 재시도 */ }
+      })();
+    }, 2500);
+  }, [clearTimers, runId, finish]);
+
+  // 마운트 시 진행 중(queued/processing)인 잡이 있으면 이어서 추적 — 페이지 새로고침/재진입 대응.
+  useEffect(() => {
+    let alive = true;
+    void (async () => {
+      try {
+        const r = await fetch(`/api/admin/runs/${encodeURIComponent(runId)}/re-extract`, { credentials: 'include' });
+        const d = (await r.json().catch(() => ({}))) as { status?: string | null; updatedAt?: string };
+        if (!alive) return;
+        if (d.status === 'queued' || d.status === 'processing') {
+          const fresh = d.updatedAt ? Date.now() - new Date(d.updatedAt).getTime() < 10 * 60_000 : true;
+          if (fresh) { setJobStatus(d.status); startTracking(); }
+        }
+      } catch { /* noop */ }
+    })();
+    return () => { alive = false; clearTimers(); };
+  }, [runId, startTracking, clearTimers]);
+
   const onClick = async () => {
-    if (busy) return;
+    if (phase === 'running') return;
     if (!window.confirm('이미 업로드된 PDF로 처음부터 재추출합니다.\n기존 추출 결과는 덮어써집니다. 진행할까요?')) return;
-    setBusy(true);
+    setPhase('running'); setErrMsg(null); setPct(2); setJobStatus('queued');
     try {
-      const res = await fetch(`/api/admin/runs/${encodeURIComponent(runId)}/re-extract`, {
-        method: 'POST',
-        credentials: 'include',
-      });
+      const res = await fetch(`/api/admin/runs/${encodeURIComponent(runId)}/re-extract`, { method: 'POST', credentials: 'include' });
       const data = (await res.json().catch(() => ({}))) as { error?: string };
       if (!res.ok) throw new Error(data.error ?? '재추출 요청 실패');
-      window.alert('재추출을 요청했습니다. 처리에 1~2분 정도 걸립니다.\n잠시 후 새로고침하면 갱신된 결과가 보입니다.');
+      startTracking();
     } catch (e) {
-      window.alert(e instanceof Error ? e.message : '재추출 요청 실패');
-    } finally {
-      setBusy(false);
+      finish(false, e instanceof Error ? e.message : '재추출 요청 실패');
     }
   };
+
+  const running = phase === 'running';
+  const statusLabel =
+    jobStatus === 'processing' ? '추출 중…' :
+    jobStatus === 'queued' ? '대기 중…' :
+    jobStatus === 'done' ? '완료' : '준비 중…';
+
   return (
-    <button type="button" className="adminLegacySecondaryBtn" onClick={() => void onClick()} disabled={busy} title="업로드된 PDF로 처음부터 재추출(덮어쓰기)">
-      {busy ? '요청 중…' : '재추출'}
-    </button>
+    <div style={{ display: 'inline-flex', flexDirection: 'column', gap: 4, verticalAlign: 'top', minWidth: running || phase === 'done' || phase === 'error' ? 220 : undefined }}>
+      <button type="button" className="adminLegacySecondaryBtn" onClick={() => void onClick()} disabled={running} title="업로드된 PDF로 처음부터 재추출(덮어쓰기)">
+        {running ? `재추출 ${statusLabel}` : '재추출'}
+      </button>
+      {(running || phase === 'done') && (
+        <div aria-hidden style={{ height: 6, borderRadius: 4, background: '#e5e7eb', overflow: 'hidden' }}>
+          <div style={{ height: '100%', width: `${pct}%`, background: phase === 'done' ? '#16a34a' : '#2563eb', transition: 'width 0.5s ease' }} />
+        </div>
+      )}
+      {phase === 'done' && <span style={{ fontSize: 12, color: '#16a34a' }}>재추출 완료 — 결과를 갱신했습니다.</span>}
+      {phase === 'error' && <span style={{ fontSize: 12, color: '#dc2626' }}>{errMsg}</span>}
+    </div>
   );
 }
 
@@ -1357,7 +1448,7 @@ export function AdminRunExtractionDetail({
           <Link href="/admin/chart-data" className="adminLegacySecondaryBtn">
             기록 목록
           </Link>
-          <ReExtractButton runId={runId} />
+          <ReExtractButton runId={runId} onReloaded={() => void fetchDetail({ silent: true })} />
           <button type="button" className="adminLegacySecondaryBtn" onClick={() => void fetchDetail({ silent: true })}>
             새로고침
           </button>
@@ -1410,13 +1501,19 @@ export function AdminRunExtractionDetail({
               건강검진 리포트 생성
             </button>
             <CaseBlogButton runId={runId} />
-            <ReExtractButton runId={runId} />
+            <ReExtractButton runId={runId} onReloaded={() => void fetchDetail({ silent: true })} />
             {onDelete && (
               <button type="button" className="adminLegacyDangerBtn" onClick={onDelete} disabled={deleting}>
                 {deleting ? '삭제 중…' : '데이터 삭제'}
               </button>
             )}
           </span>
+        </div>
+      )}
+
+      {result.run.extractedAt && (
+        <div style={{ marginTop: -6, marginBottom: 14, fontSize: 12, color: 'var(--text-muted)' }}>
+          마지막 추출: {formatExtractedAt(result.run.extractedAt)}
         </div>
       )}
 

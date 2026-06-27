@@ -338,6 +338,12 @@ export async function loadAdminRunDetail(runId: string): Promise<RunDetailRespon
     runRow.created_at != null
       ? new Date(String(runRow.created_at)).toISOString()
       : new Date().toISOString();
+  // 마지막 추출 시각: result_basic_info 는 매 추출(재추출 포함)마다 삭제·재삽입되므로 그 created_at 이
+  // 최종 추출 시각이다. 없으면 run.created_at 폴백.
+  const extractedAt =
+    basicRow?.created_at != null
+      ? new Date(String(basicRow.created_at)).toISOString()
+      : createdAt;
 
   const sourceFiles = await loadRunSourceFiles(sb, runId, runRow.raw_payload);
 
@@ -345,6 +351,7 @@ export async function loadAdminRunDetail(runId: string): Promise<RunDetailRespon
     run: {
       id: String(runRow.id),
       createdAt,
+      extractedAt,
       friendlyId: runRow.friendly_id != null ? String(runRow.friendly_id) : null,
       fileName: doc?.file_name != null ? String(doc.file_name) : null,
       chartType,
