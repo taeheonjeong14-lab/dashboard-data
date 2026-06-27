@@ -46,6 +46,31 @@ function normalizeSpaces(s: string) {
   return s.replace(/\s+/g, ' ').trim();
 }
 
+// 라틴 동형 그리스 대문자 → 라틴. 스캔 PDF OCR/LLM이 Latin 글자 자리에 그리스 대문자를 넣는 일이
+// 잦다(예: 단위 Μ/μL·Κ/μL, 항목명 ΜΟΝΟ, 값 Ο). 소문자 μ(마이크로)는 정상 단위라 보존한다.
+const GREEK_CAP_TO_LATIN: Record<string, string> = {
+  'Α': 'A', 'Β': 'B', 'Ε': 'E', 'Ζ': 'Z', 'Η': 'H',
+  'Ι': 'I', 'Κ': 'K', 'Μ': 'M', 'Ν': 'N', 'Ο': 'O',
+  'Ρ': 'P', 'Τ': 'T', 'Υ': 'Y', 'Χ': 'X', 'Ϲ': 'C',
+};
+
+/**
+ * 추출 LLM/OCR 잔여물 정규화. 프롬프트로 라틴 전사를 강제하지만(1차 방어) 확률적이라,
+ * 파서에서도 결정적으로 한 번 더 흡수해 검사 행이 통째로 누락되는 걸 막는다.
+ *  - 값 자리의 단독 그리스 오미크론 Ο → 0 (이름 속 Ο 는 건드리지 않음)
+ *  - 라틴 동형 그리스 대문자 → 라틴 (단위·항목명 정상화)
+ *  - 꼬리 OCR 노이즈 제거: 끝의 대시런(----)·언더스코어, 아랍/히브리/키릴 잔여 토큰
+ *    (IDEXX 참고범위 막대 그래픽이 ---- 로 전사돼 화살표 없는 행의 파싱을 막던 문제)
+ */
+function normalizeOcrArtifacts(text: string): string {
+  let s = text;
+  s = s.replace(/(^|\s)Ο(?=\s|$)/g, '$10'); // 단독 오미크론 → 0
+  s = s.replace(/[ΑΒΕΖΗΙΚΜΝΟΡΤΥΧϹ]/g, (c) => GREEK_CAP_TO_LATIN[c] ?? c);
+  s = s.replace(/[\s\-–—_]+$/u, ''); // 꼬리 대시런/언더스코어
+  s = s.replace(/\s+[\p{sc=Arabic}\p{sc=Hebrew}\p{sc=Cyrillic}]+$/u, ''); // 꼬리 외래문자 잔여 토큰
+  return normalizeSpaces(s);
+}
+
 /**
  * 이전 줄에 이어 붙는 OCR/줄바꿈 (예: `↑5-5.001`, `← 5-5.001`)
  */
@@ -322,7 +347,8 @@ export function parsePlusVetLabBucketLines(lines: LineIn[]): LabItem[] {
   const untilTrend: LineIn[] = [];
   for (const row of lines) {
     if (isDiagnosisTrendSectionTitle(row.text)) break;
-    untilTrend.push(row);
+    // 추출 잔여물(그리스 동형문자·꼬리 대시 등)을 먼저 흡수 → 병합·파싱이 깨끗한 텍스트를 보게 함.
+    untilTrend.push({ page: row.page, text: normalizeOcrArtifacts(row.text) });
   }
   const merged = mergeOrphanRefRanges(mergeVerticalLabItems(mergeContinuationRows(untilTrend)));
   const items: LabItem[] = [];
