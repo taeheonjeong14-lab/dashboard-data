@@ -93,6 +93,10 @@ export async function parseWoorienPmsWorkbook(source, hospitalId) {
 
   const parsedRows = [];
   const errors = [];
+  // 같은 dedupe_key 가 한 파일 안에서 여러 번 나오면(같은 손님이 같은 날 같은 항목을 별개로 계산 등)
+  // 2번째부터 키에 #N 순번을 붙여 "파일 내 동일 거래"를 각각 보존한다. 1번째는 순번 없음 →
+  // 파일 간 동일 거래(각 파일의 1번째)는 같은 키로 그대로 병합된다(중복 누적 방지 유지).
+  const dedupeSeqCounter = new Map();
 
   for (let i = 0; i < rows.length; i += 1) {
     // Woorien PMS has a single header row at top.
@@ -142,10 +146,16 @@ export async function parseWoorienPmsWorkbook(source, hospitalId) {
     const patientBase = `${hospitalId}|${WOORIEN_PMS_CHART_TYPE}|${customerKeyNorm}|${normalizePatientName(effectivePatientName)}|${rowNo}`;
     const patientKeyNorm = await sha256Hex(patientBase);
     const normalizedTreatmentContent = normalizeTreatmentContent(treatmentContentRaw);
-    const dedupeKey =
+    const baseDedupeKey =
       !isUnknownIdentity && normalizedTreatmentContent
         ? `${serviceDate}|${normalizeOwnerName(effectiveCustomerName)}|${normalizePatientName(effectivePatientName)}|${normalizedTreatmentContent}|${finalAmountRaw}`
         : null;
+    let dedupeKey = baseDedupeKey;
+    if (baseDedupeKey) {
+      const seq = (dedupeSeqCounter.get(baseDedupeKey) || 0) + 1;
+      dedupeSeqCounter.set(baseDedupeKey, seq);
+      if (seq > 1) dedupeKey = `${baseDedupeKey}|#${seq}`;
+    }
     const rowSignature = await sha256Hex(
       `${hospitalId}|${WOORIEN_PMS_CHART_TYPE}|${serviceDate}|${customerKeyNorm}|${effectivePatientName}|${finalAmountRaw}|${rowNo}`
     );
