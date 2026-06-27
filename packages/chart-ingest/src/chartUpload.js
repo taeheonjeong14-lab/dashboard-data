@@ -463,6 +463,24 @@ export async function executeChartUpload({
       affectedDays: rebuildResult?.kpi_days ?? 0,
     };
   } catch (err) {
+    // 실패한 업로드가 새로 넣은 "유령 행" 정리.
+    // dedupe_key 가 NULL 인 행(고객정보 없는 용품 판매 등)은 충돌이 안 나 항상 새로 INSERT 되므로
+    // run_id 가 이 run 으로 확실 → 안전하게 삭제 가능. 이 행들은 병합이 안 돼, 안 지우면 재업로드/다른
+    // 업로드와 합쳐지지 못한 채 누적되어 매출을 부풀린다(과거 timeout 실패가 남긴 유령의 원인).
+    // 키 있는 행은 dedupe_key 로 병합되어 중복을 안 만들므로 그대로 둬도 숫자에 영향 없음.
+    try {
+      await supabase
+        .schema("analytics")
+        .from("chart_transactions_raw")
+        .delete()
+        .eq("run_id", runId)
+        .is("dedupe_key", null);
+    } catch (cleanupErr) {
+      console.error(
+        "[chart-ingest] 실패 run NULL-key 행 정리 실패(무시):",
+        cleanupErr?.message || cleanupErr,
+      );
+    }
     await supabase
       .schema("analytics")
       .from("chart_upload_runs")
