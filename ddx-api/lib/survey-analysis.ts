@@ -6,69 +6,74 @@ type GeminiAnalysisResult = {
     name: string;
     likelihood?: string;
     reasons?: string[];
-    tests?: string[];
+    tests?: string[];        // (구) 후방호환 — 과거 데이터의 추천 검사
+    checkpoints?: string[];  // 추가 확인 필요한 사항(물어볼 질문 + 필요한 검사)
   }>;
-  followUpQuestions: string[];
 };
 
 const SYSTEM_PROMPT = `너는 소동물 임상의로 실제로 진료하는 수의사이자, 수의과대학 교육에서 문진/차트 작성/감별진단 교육을 담당하는 전문가야.
-입력으로 주어지는 사전문진 응답(또는 Tally 사전문진 데이터)을 바탕으로, 실제 진료에 바로 쓸 수 있는 차트 요약 초안과 감별진단(DDx) 후보, 그리고 진료실에서 추가로 물어보면 좋은 질문 목록을 만들어줘.
+입력으로 주어지는 사전문진 응답(또는 Tally 사전문진 데이터)을 바탕으로, 실제 진료에 바로 쓸 수 있는 차트 요약 초안과 감별진단(DDx) 후보(후보마다 "추가 확인 필요한 사항" 포함)를 만들어줘.
 
-### 전체 목적
-- 수의사가 아이를 보기 전에 이미 머릿속에 구조화된 정보를 가지고 들어갈 수 있도록 돕기
-- 실제 진료실에서 바로 쓸 수 있는 형태의 차트 요약과 DDx, 팔로업 질문을 제안하기
+## ① 공통 가이드 — 요약·DDx 모두에 적용
+- 목적: 수의사가 환자를 보기 전에 구조화된 정보를 머릿속에 갖고 들어가도록 돕고, 진료실에서 바로 쓸 수 있는 차트 요약과 DDx(후보별 추가 확인 사항 포함)를 제안한다.
+- 보호자가 쓴 문구를 그대로 복붙하지 말고, 임상의 눈으로 한 번 해석해서 정리한다.
+- 단, 보호자가 강조한 내용(기간, 악화/호전, 특정 상황에서 심해짐 등)은 반드시 반영한다.
+- 한국어로만 작성하고, 줄바꿈은 \\n 만 사용한다.
+- 최종 출력은 맨 아래 "출력 형식"의 JSON 하나뿐. 그 외 설명·코드펜스·인사말은 절대 붙이지 않는다.
 
-### 출력해야 할 세 가지
-1) summary: 실시간 문진 요약과 동일한 형식으로, **다음 5개 항목을 반드시 번호 순서대로 고정 출력**.
-   - 1. 주요 증상
-   - 2. 발생 시점 및 지속 시간
-   - 3. 환자의 과거 병력·투약·접종
-   - 4. 식이·환경·생활
-   - 5. 그 외 특이사항
-   규칙:
-   - 사전문진에 나온 사실만 적고 추론·추가는 하지 않는다.
-   - 중복은 한 번만. 추정 표현 금지.
-   - 반드시 아래 템플릿 형태를 유지:
-     1) ...
+## ② 요약 (summary)
+차트에 바로 쓸 수 있는 요약. 아래 블록 구조를 따른다.
+**번호는 매기지 말고**, 각 블록 제목은 양옆에 별표 두 개를 붙여 굵게 표기한다(예: **기본 정보**).
 
-     2) ...
+[블록 — 위에서부터 이 순서로]
+**기본 정보**
+- 한 줄로: 이름 / 종·품종 / 나이 / 성별·중성화 (암컷이면 출산이력·마지막 생리도 함께)
 
-     3) ...
+**주된 호소 및 경과**
+- 보호자가 고른 내원 사유(주된 호소)마다 한 덩어리씩 적는다.
+- 각 호소는 "· 호소명"으로 시작하고, 그 아래에 "- " 들머리로 그 호소의 경과를 적는다:
+  발생 시점 / 진행 경과(악화·유지·호전) / 증상 양상·중증도 / 동반 증상 / 부위·좌우(해당 시)
+- 호소가 여러 개면 덩어리도 여러 개가 된다.
 
-     4) ...
+**과거력 및 투약**
+- 진단·수술 이력, 알레르기, 현재 복용 중인 약.
 
-     5) ...
-   - 한국어로만 작성하고 줄바꿈은 \\n만 사용.
+**예방**
+- 예방접종 / 기생충(심장사상충 등) 예방 상태.
 
-2) ddx: 감별진단 후보 목록  
-   - 각 항목은 { name, likelihood, reasons, tests } 형식
-   - likelihood: "높음" | "중간" | "낮음" 중 하나로 가능성 레벨
-   - reasons: 이 후보를 고려하는 근거를 bullet 형태의 한국어 문장 배열로
-   - tests: 이 후보를 좁히기 위해 도움이 될 검사(혈액/영상/기초검사 등)를 bullet 배열로
+**생활·환경**
+- 외부활동 빈도 / 동거동물 / 최근 환경 변화(사료·간식·이사·새 동물 등).
 
-3) followUpQuestions: 실제 진료실에서 보호자에게 추가로 물어보면 좋은 질문 목록  
-   - 보호자가 사전문진에서 이미 적은 내용과 **중복되는 질문은 절대 포함하지 말 것**
-   - DDx를 더 좁히거나, 치료/예후 판단에 꼭 필요한 질문 위주
-   - 각 질문은 짧고 명료한 한국어 한 문장, 물음표로 끝나야 함
-   - 3~10개 정도 생성
+**보호자 강조 및 기타**
+- 보호자가 특별히 걱정하는 점이나 위 블록에 들어가지 않는 특이사항.
 
-### 중요한 제약
-- 요약과 DDx, 질문 모두 **보호자가 쓴 문구를 그대로 복붙하지 말고**, 임상의 눈으로 한 번 해석해서 정리해 줄 것
-- 단, 보호자가 강조한 내용(기간, 악화/호전, 특정 상황에서 심해짐 등)은 반드시 반영
-- 질문 목록에는 이미 사전문진에서 물어본 질문 내용은 빼고, 부족한 부분을 메우는 질문만 포함
+요약 규칙:
+- **[가장 중요] 요약에는 사전문진 응답에 실제로 존재하는 내용만 쓴다. 사전문진에 없는 정보는 단 한 글자도 지어내거나 추론·추가하지 않는다.** 증상·수치·병명·기간 등 어떤 항목도 응답에 없으면 적지 않는다. 추정/짐작 표현 금지. (이 환각 금지 규칙은 요약에만 적용된다 — DDx·추가 질문은 임상 추론을 해도 된다.)
+- 보호자가 "없음/해당 없음"이라 답했거나 답하지 않은 항목은 **그 줄을 생략**한다(억지로 "없음"이라 쓰지 않는다).
+- 한 블록에 담을 내용이 하나도 없으면 **그 블록 제목까지 통째로 생략**한다.
+
+## ③ 예상 감별진단 (ddx) — "추가 확인 필요한 사항" 포함
+- 위 요약(사전문진 사실)을 토대로 임상 추론을 해서 감별진단 후보 목록을 만든다. (요약과 달리 여기서는 임상 추론 허용)
+- 각 항목은 { name, likelihood, reasons, checkpoints } 형식.
+- likelihood: "높음" | "중간" | "낮음" 중 하나로 가능성 레벨.
+- reasons: 이 후보를 고려하는 근거를 bullet 형태의 한국어 문장 배열로.
+- checkpoints("추가 확인 필요한 사항"): 이 후보를 확정하거나 배제하기 위해 진료실에서 추가로 확인할 항목 — 진료실에서 확인할 증상/소견이나 필요한 검사(혈액/영상/기초검사 등)를 담는다.
+  - **질문 형태("~인가요?")가 아니라, 간결한 명사형 항목으로 적는다.** 예: "식욕 부진 여부", "기침 야간 악화 여부", "흉부 방사선", "심장 청진음".
+  - 사전문진에서 이미 확인된 내용과 중복되는 항목은 넣지 않는다.
+  - 후보당 2~5개 정도.
+- 가능성이 높은 후보부터 순서대로 정렬한다.
 
 ### 출력 형식 (반드시 이 JSON 형식만, 다른 텍스트 없이)
 {
-  "summary": "차트 요약 초안 (한국어 문자열)",
+  "summary": "**기본 정보**\\n초코 / 푸들(강아지) / 3세 / 중성화 암컷\\n\\n**주된 호소 및 경과**\\n· 기침/콧물/재채기\\n- 1주일 이내 시작, 점점 심해짐\\n- 마른 기침, 밤에 심해짐\\n- 동반: 식욕 감소\\n\\n**생활·환경**\\n- 외부활동: 주 3~5회\\n- 최근 사료 변경",
   "ddx": [
     {
       "name": "감별진단 후보명",
       "likelihood": "높음",
       "reasons": ["이 후보를 고려하는 근거1", "근거2"],
-      "tests": ["추천 검사1", "추천 검사2"]
+      "checkpoints": ["식욕 부진 여부", "흉부 방사선", "심장 청진음"]
     }
-  ],
-  "followUpQuestions": ["추가로 물어볼 질문1?", "추가로 물어볼 질문2?"]
+  ]
 }`;
 
 async function callGeminiForAnalysis(payload: unknown): Promise<GeminiAnalysisResult | null> {
@@ -122,36 +127,17 @@ async function callGeminiForAnalysis(payload: unknown): Promise<GeminiAnalysisRe
   try {
     const parsed = JSON.parse(cleaned);
     const normalizeSummary = (value: unknown): string => {
-      const fallback = '1) -\n\n2) -\n\n3) -\n\n4) -\n\n5) -';
-      if (typeof value !== 'string') return fallback;
-      // 줄 앞에 모델이 이미 붙인 번호/불릿("1)", "1.", "(1)", "- ", "• " 등)을 제거.
-      // 프롬프트가 번호 출력을 지시하므로, 여기서 한 번 더 붙이면 "1) 1)"처럼 이중 번호가 된다.
-      const stripLead = (l: string) => l.replace(/^\s*(?:\(?\d{1,2}\)|\d{1,2}\.|[-*•])\s*/, '').trim();
-      const lines = value
+      if (typeof value !== 'string') return '';
+      // 모델이 낸 블록 구조(굵은 제목 **...** + 들머리)를 그대로 살리고 공백만 가볍게 정리한다.
+      return value
         .replace(/\r\n/g, '\n')
-        .split('\n')
-        .map((l) => l.trim())
-        .filter(Boolean);
-      const picked = lines.map(stripLead).filter(Boolean).slice(0, 5);
-      while (picked.length < 5) picked.push('-');
-      return [
-        `1) ${picked[0]}`,
-        '',
-        `2) ${picked[1]}`,
-        '',
-        `3) ${picked[2]}`,
-        '',
-        `4) ${picked[3]}`,
-        '',
-        `5) ${picked[4]}`,
-      ].join('\n');
+        .replace(/[ \t]+\n/g, '\n')  // 줄 끝 공백 제거
+        .replace(/\n{3,}/g, '\n\n')  // 빈 줄 3개 이상 → 2개로
+        .trim();
     };
     const result: GeminiAnalysisResult = {
       summary: normalizeSummary(parsed.summary),
       ddx: Array.isArray(parsed.ddx) ? parsed.ddx : [],
-      followUpQuestions: Array.isArray(parsed.followUpQuestions)
-        ? parsed.followUpQuestions.filter((q: unknown) => typeof q === 'string' && q.trim().length > 0)
-        : [],
     };
     return result;
   } catch (e) {
@@ -221,10 +207,6 @@ export async function analyzeSurveySessionById(sessionId: string): Promise<void>
         analysisStatus: 'done',
         draftSummary: analysis.summary || null,
         draftDdx: analysis.ddx && analysis.ddx.length > 0 ? JSON.stringify(analysis.ddx) : null,
-        followUpQuestions:
-          analysis.followUpQuestions && analysis.followUpQuestions.length > 0
-            ? analysis.followUpQuestions
-            : undefined,
       },
     });
   } catch (e) {
@@ -277,10 +259,6 @@ export async function analyzePreConsultationById(preConsultationId: string): Pro
         analysisStatus: 'done',
         draftSummary: analysis.summary || null,
         draftDdx: analysis.ddx && analysis.ddx.length > 0 ? JSON.stringify(analysis.ddx) : null,
-        followUpQuestions:
-          analysis.followUpQuestions && analysis.followUpQuestions.length > 0
-            ? analysis.followUpQuestions
-            : undefined,
       },
     });
   } catch (e) {

@@ -5,7 +5,7 @@
 
 import { useEffect, useState } from 'react';
 import type { CSSProperties } from 'react';
-import { Copy, Check, ClipboardList, FileText, Stethoscope, HelpCircle, Sparkles } from 'lucide-react';
+import { Copy, Check, ClipboardList, FileText, Stethoscope, Sparkles } from 'lucide-react';
 import { CenteredSpinner } from '@/components/ui/loading-spinner';
 import { Modal } from '@/components/ui/modal';
 import { ddxGet } from '@/lib/ddx-api';
@@ -105,7 +105,7 @@ export function AnswersModal({ detail, onClose }: { detail: SessionDetail; onClo
   );
 }
 
-export function parseDdxJson(raw: string | null | undefined): Array<{ name: string; likelihood?: string; reasons?: string[]; tests?: string[] }> | null {
+export function parseDdxJson(raw: string | null | undefined): Array<{ name: string; likelihood?: string; reasons?: string[]; tests?: string[]; checkpoints?: string[] }> | null {
   if (!raw) return null;
   try {
     const parsed = JSON.parse(raw);
@@ -133,16 +133,28 @@ function ddxCopyText(detail: SessionDetail): string {
     ddxParsed.forEach((d, i) => {
       out.push(`${i + 1}. ${d.name}${d.likelihood ? ` (가능도 ${d.likelihood})` : ''}`);
       if (Array.isArray(d.reasons)) d.reasons.forEach((r) => out.push(`  - 근거: ${r}`));
-      if (Array.isArray(d.tests)) d.tests.forEach((t) => out.push(`  - 추천 검사: ${t}`));
+      const cps = d.checkpoints?.length ? d.checkpoints : (d.tests ?? []);
+      cps.forEach((c) => out.push(`  - 확인: ${c}`));
     });
     return out.join('\n');
   }
   return detail.draftDdx?.trim() ?? '';
 }
 
-// 박스별 복사용 평문 — 추천 추가 질문만.
-function followUpsCopyText(detail: SessionDetail): string {
-  return followUpList(detail.followUpQuestions).map((q, i) => `${i + 1}. ${q}`).join('\n');
+// 요약 텍스트의 **굵게** 와 줄바꿈을 살려서 렌더(블록 제목이 **...** 로 오므로 굵게 표시).
+function renderSummaryText(text: string): React.ReactNode {
+  return text.split('\n').map((line, li) => {
+    const blank = line.trim().length === 0;
+    return (
+      <span key={li} style={{ display: 'block', minHeight: blank ? '0.55em' : undefined }}>
+        {line.split(/(\*\*[^*]+\*\*)/g).map((seg, si) =>
+          /^\*\*[^*]+\*\*$/.test(seg)
+            ? <strong key={si} style={{ fontWeight: 700 }}>{seg.slice(2, -2)}</strong>
+            : <span key={si}>{seg}</span>,
+        )}
+      </span>
+    );
+  });
 }
 
 // 가능도(높음/중간/낮음 등)를 점+색 글씨로. 한국어·영어 표기 모두 대응, 못 알아보면 회색.
@@ -173,7 +185,6 @@ export function SessionDetailView({ detail, origin, hideShareLink = false, hideA
 }) {
   const shareUrl = origin && detail.token ? `${origin}/survey/${detail.token}` : '';
   const ddxParsed = parseDdxJson(detail.draftDdx);
-  const followUps = followUpList(detail.followUpQuestions);
   const completed = detail.status === 'completed';
 
   const [qListOpen, setQListOpen] = useState(false);
@@ -233,7 +244,7 @@ export function SessionDetailView({ detail, origin, hideShareLink = false, hideA
               right={<CopyIconBtn text={detail.draftSummary ?? ''} title="요약 복사" />}
             >
               {detail.draftSummary
-                ? <p style={{ margin: 0, fontSize: 13.5, color: 'var(--text)', lineHeight: 1.75, whiteSpace: 'pre-wrap' }}>{detail.draftSummary}</p>
+                ? <div style={{ fontSize: 13.5, color: 'var(--text)', lineHeight: 1.75 }}>{renderSummaryText(detail.draftSummary)}</div>
                 : <p style={{ margin: 0, fontSize: 13, color: 'var(--text-muted)' }}>요약이 없습니다.</p>}
             </Section>
 
@@ -252,6 +263,17 @@ export function SessionDetailView({ detail, origin, hideShareLink = false, hideA
                           {d.reasons.map((r, ri) => <li key={ri}>{r}</li>)}
                         </ul>
                       )}
+                      {(() => {
+                        const cps = d.checkpoints?.length ? d.checkpoints : (d.tests ?? []);
+                        return cps.length > 0 ? (
+                          <div style={{ margin: '8px 0 0 27px', padding: '8px 11px', background: 'var(--bg-subtle)', borderRadius: 'var(--radius)' }}>
+                            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 5 }}>추가 확인 필요한 사항</div>
+                            <ul style={{ margin: 0, paddingLeft: 16, fontSize: 12, color: 'var(--text)', lineHeight: 1.6 }}>
+                              {cps.map((c, ci) => <li key={ci}>{c}</li>)}
+                            </ul>
+                          </div>
+                        ) : null;
+                      })()}
                     </div>
                   ))}
                 </div>
@@ -259,16 +281,6 @@ export function SessionDetailView({ detail, origin, hideShareLink = false, hideA
                 <pre style={{ margin: 0, fontSize: 12.5, color: 'var(--text-secondary)', whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontFamily: 'inherit', lineHeight: 1.6 }}>{detail.draftDdx}</pre>
               ) : (
                 <p style={{ margin: 0, fontSize: 13, color: 'var(--text-muted)' }}>예상 감별진단이 없습니다.</p>
-              )}
-            </Section>
-
-            <Section icon={<HelpCircle size={15} />} title="추천 추가 질문" right={<CopyIconBtn text={followUpsCopyText(detail)} title="추천 질문 복사" />}>
-              {followUps.length > 0 ? (
-                <ol style={{ margin: 0, paddingLeft: 20, fontSize: 13, color: 'var(--text)', lineHeight: 1.55, listStyleType: 'decimal' }}>
-                  {followUps.map((q, i) => <li key={i} style={{ marginTop: i === 0 ? 0 : 6 }}>{q}</li>)}
-                </ol>
-              ) : (
-                <p style={{ margin: 0, fontSize: 13, color: 'var(--text-muted)' }}>추천 추가 질문이 없습니다.</p>
               )}
             </Section>
           </>
