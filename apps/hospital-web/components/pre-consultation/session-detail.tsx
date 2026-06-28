@@ -285,7 +285,7 @@ export function SessionDetailView({ detail, origin, hideShareLink = false, hideA
               ) : detail.draftDdx ? (
                 <pre style={{ margin: 0, fontSize: 12.5, color: 'var(--text-secondary)', whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontFamily: 'inherit', lineHeight: 1.6 }}>{detail.draftDdx}</pre>
               ) : (
-                <p style={{ margin: 0, fontSize: 13, color: 'var(--text-muted)' }}>예상 감별진단이 없습니다.</p>
+                <p style={{ margin: 0, fontSize: 13, color: 'var(--text-muted)' }}>예방·관리 목적 방문으로 예상 감별진단이 필요하지 않은 것으로 보입니다.</p>
               )}
             </Section>
           </>

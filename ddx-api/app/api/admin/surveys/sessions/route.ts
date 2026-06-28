@@ -4,8 +4,12 @@ import { prisma } from '@/lib/prisma';
 import { isAdminByUserId } from '@/lib/admin';
 import {
   buildFirstVisitQuestionRows,
+  buildPrefilledPetRows,
   FOLLOW_UP_FIXED_QUESTIONS,
   buildOptionsJson,
+  isFollowUpVisit,
+  isExistingPatientVisit,
+  type ExistingPatientInfo,
   type QuestionDef,
 } from '@/lib/survey-questions';
 
@@ -61,11 +65,22 @@ export async function POST(request: NextRequest) {
     const guardianName = (body.guardianName as string | undefined)?.trim() || null;
     const contact = (body.contact as string | undefined)?.trim() || null;
     const visitType = (body.visitType as string | undefined)?.trim() || null;
+    const petSpecies = (body.petSpecies as string | undefined)?.trim() || null;
+    const petBreed = (body.petBreed as string | undefined)?.trim() || null;
+    const petSex = (body.petSex as string | undefined)?.trim() || null;
 
     const token = randomBytes(24).toString('hex');
 
-    const fixedQuestions: QuestionDef[] =
-      visitType === '재진' ? FOLLOW_UP_FIXED_QUESTIONS : buildFirstVisitQuestionRows(guardianName, patientName, contact);
+    const existingInfo: ExistingPatientInfo | undefined =
+      isExistingPatientVisit(visitType) && petSpecies && petSex
+        ? { species: petSpecies, breed: petBreed ?? undefined, sex: petSex }
+        : undefined;
+
+    const fixedQuestions: QuestionDef[] = isFollowUpVisit(visitType)
+      ? (existingInfo ? [...buildPrefilledPetRows(existingInfo), ...FOLLOW_UP_FIXED_QUESTIONS] : FOLLOW_UP_FIXED_QUESTIONS)
+      : buildFirstVisitQuestionRows(guardianName, patientName, contact, { existing: existingInfo });
+
+    const prefilledByOrder = new Map<number, string>();
 
     const session = await prisma.surveySession.create({
       data: {
@@ -75,14 +90,17 @@ export async function POST(request: NextRequest) {
         visitType,
         token,
         questions: {
-          create: fixedQuestions.map((q, idx) => ({
-            order: idx + 1,
-            source: 'fixed',
-            stage: q.category ?? 'initial', // 카테고리를 stage 로 운반(작성 화면 카테고리 인트로용)
-            text: q.text,
-            type: q.type,
-            options: buildOptionsJson(q) ?? undefined,
-          })),
+          create: fixedQuestions.map((q, idx) => {
+            if (q.prefilled && q.prefilledAnswer) prefilledByOrder.set(idx + 1, q.prefilledAnswer);
+            return {
+              order: idx + 1,
+              source: q.prefilled ? 'prefilled' : 'fixed',
+              stage: q.category ?? 'initial', // 카테고리를 stage 로 운반(작성 화면 카테고리 인트로용)
+              text: q.text,
+              type: q.type,
+              options: buildOptionsJson(q) ?? undefined,
+            };
+          }),
         },
       },
       select: {
@@ -108,6 +126,13 @@ export async function POST(request: NextRequest) {
         },
       },
     });
+
+    const prefilledAnswerRows = session.questions
+      .filter((qi) => qi.source === 'prefilled' && prefilledByOrder.has(qi.order))
+      .map((qi) => ({ sessionId: session.id, questionInstanceId: qi.id, answerText: prefilledByOrder.get(qi.order)! }));
+    if (prefilledAnswerRows.length > 0) {
+      await prisma.surveyAnswer.createMany({ data: prefilledAnswerRows });
+    }
 
     return NextResponse.json({ success: true, session });
   } catch (e) {

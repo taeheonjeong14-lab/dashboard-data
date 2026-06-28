@@ -16,6 +16,9 @@ export type QuestionDef = {
   type: QuestionType;
   /** 설문 카테고리(보호자/기본/생활/병력·예방/내원사유). 인스턴스 stage 로 운반되어 작성 화면의 카테고리 인트로에 쓰인다. */
   category?: string;
+  /** 병원이 발송 시 미리 채운 선답변 질문(기존 환자의 종/품종/성별). 보호자에겐 숨기되 분기·요약에 사용. */
+  prefilled?: boolean;
+  prefilledAnswer?: string;
   choices?: string[];
   maxSelections?: number;
   inlineWithPrev?: boolean;
@@ -380,37 +383,102 @@ function hasTrimmed(value: string | null | undefined): boolean {
   return !!(value && String(value).trim());
 }
 
+// 방문 유형(3종) 판별. 레이블: '신규환자' / '새 증상' / '경과 확인' ('초진'/'재진' 은 레거시).
+/** 경과 확인(기존 환자, 치료 중 질환 재진) — 이전 차트 기반 AI 질문 사용. */
+export function isFollowUpVisit(visitType: string | null | undefined): boolean {
+  return visitType === '경과 확인' || visitType === '재진';
+}
+/** 기존 환자(새 증상·경과 확인) — 병원이 종/품종/성별을 발송 시 입력해 선답변으로 넣는다. */
+export function isExistingPatientVisit(visitType: string | null | undefined): boolean {
+  return visitType === '새 증상' || isFollowUpVisit(visitType);
+}
+
+/** 기존 환자 발송 시 병원이 입력한 종/품종/성별. */
+export type ExistingPatientInfo = { species: string; breed?: string; sex: string };
+
+const keyOf = (q: QuestionDef) => (q as { key?: string }).key ?? '';
+const onKeyOf = (q: QuestionDef) => (q as { condition?: { onKey?: string } }).condition?.onKey;
+
+function bankQuestionByKey(key: string): QuestionDef | undefined {
+  return FIRST_VISIT_FIXED_QUESTIONS.find((q) => keyOf(q) === key);
+}
+
+/** 종/품종/성별을 "숨김 선답변" 질문(Q4·Q5·Q6)으로. 경과 확인 등 분기 없는 흐름에 주입해 요약 시그널먼트에 쓴다. */
+export function buildPrefilledPetRows(info: ExistingPatientInfo): QuestionDef[] {
+  const make = (key: string, answer: string | undefined): QuestionDef | null => {
+    const q = bankQuestionByKey(key);
+    if (!q) return null;
+    // 숨김 선답변이므로 조건/분기 정보는 떼고 답만 싣는다.
+    const { conditionalOn: _co, conditionalValue: _cv, conditionalAnswered: _ca, ...rest } = q as Record<string, unknown>;
+    void _co; void _cv; void _ca;
+    return { ...(rest as QuestionDef), category: 'basic', prefilled: true, prefilledAnswer: answer ?? '' };
+  };
+  return [make('Q4', info.species), make('Q5', info.breed), make('Q6', info.sex)].filter(Boolean) as QuestionDef[];
+}
+
 /**
  * 초진 문진표 질문 인스턴스 빌더.
- * - 생성 시 이미 받은 신원 질문(Q1 보호자 성명 / Q2 연락처 / Q3 반려 이름)은 제외한다.
- * - 카테고리 순서(보호자→기본→생활→병력·예방→내원사유)는 그대로 두고,
- *   분기 조건(conditionalOn)은 남은 목록 기준으로 질문 키(onKey)로 재계산한다.
- *   → 주소 등 질문을 추가해도 "맨 앞 N개 고정" 같은 위치 가정에 의존하지 않아 안전.
+ * - 신규: 이미 받은 신원 질문(Q1/Q2/Q3)만 제외.
+ * - 기존 환자(새 증상, opts.existing): 보호자정보·이름(Q3)·생일(Q125) 제외, 종/품종/성별(Q4/Q5/Q6)은
+ *   "숨김 선답변"으로 유지(보호자엔 안 보이지만 Q14/Q16·Q7/Q8 분기에 사용), 출산이력·마지막생리(Q7/Q8)는 다시 노출.
+ * - 제외로 조건이 가리키던 질문이 사라지면 연쇄 제외.
+ * - conditionalOn 은 남은 목록 기준 질문 키(onKey)로 재계산(위치 가정 의존 X).
  */
 export function buildFirstVisitQuestionRows(
   guardianName: string | null | undefined,
   patientName: string | null | undefined,
   contact: string | null | undefined,
+  opts?: { existing?: ExistingPatientInfo },
 ): QuestionDef[] {
-  const known: Record<string, boolean> = {
-    Q1: hasTrimmed(guardianName), // 보호자 성명
-    Q2: hasTrimmed(contact),      // 연락처
-    Q3: hasTrimmed(patientName),  // 반려 이름
-  };
-  const kept = FIRST_VISIT_FIXED_QUESTIONS.filter((q) => {
-    const key = (q as { key?: string }).key ?? '';
-    return key in known ? !known[key] : true; // 이미 받은 신원 질문은 제외
-  });
+  const existing = opts?.existing;
+  const dropped = new Set<string>();
 
-  // 남은 목록의 새 순서로 conditionalOn(번호)을 질문 키 기준으로 재계산.
+  if (existing) {
+    // 기존 환자: 보호자정보(Q1·Q2·Q126)·반려이름(Q3)·생일(Q125)은 묻지 않는다.
+    for (const k of ['Q1', 'Q2', 'Q126', 'Q3', 'Q125']) dropped.add(k);
+  } else {
+    const known: Record<string, boolean> = {
+      Q1: hasTrimmed(guardianName), Q2: hasTrimmed(contact), Q3: hasTrimmed(patientName),
+    };
+    for (const q of FIRST_VISIT_FIXED_QUESTIONS) {
+      const key = keyOf(q);
+      if (known[key]) dropped.add(key);
+    }
+  }
+
+  // 연쇄 제외: 조건이 제외된 질문을 가리키면 그 질문도 제외.
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const q of FIRST_VISIT_FIXED_QUESTIONS) {
+      const key = keyOf(q);
+      if (dropped.has(key)) continue;
+      const onKey = onKeyOf(q);
+      if (onKey && dropped.has(onKey)) { dropped.add(key); changed = true; }
+    }
+  }
+
+  const kept = FIRST_VISIT_FIXED_QUESTIONS.filter((q) => !dropped.has(keyOf(q)));
   const orderByKey = new Map<string, number>();
-  kept.forEach((q, i) => orderByKey.set((q as { key?: string }).key ?? '', i + 1));
+  kept.forEach((q, i) => orderByKey.set(keyOf(q), i + 1));
 
   return kept.map((q) => {
-    const onKey = (q as { condition?: { onKey?: string } }).condition?.onKey;
-    if (!onKey) return { ...q };
-    const onOrder = orderByKey.get(onKey);
-    return onOrder !== undefined ? { ...q, conditionalOn: onOrder } : { ...q };
+    const key = keyOf(q);
+    let out: QuestionDef = { ...q };
+    if (existing) {
+      // 종/품종/성별 → 숨김 선답변.
+      if (key === 'Q4') out = { ...out, prefilled: true, prefilledAnswer: existing.species };
+      else if (key === 'Q5') out = { ...out, prefilled: true, prefilledAnswer: existing.breed ?? '' };
+      else if (key === 'Q6') out = { ...out, prefilled: true, prefilledAnswer: existing.sex };
+      // 출산이력(Q7) 문구를 기존 환자용으로.
+      else if (key === 'Q7') out = { ...out, text: '마지막 내원 이후 출산 이력이 있나요?' };
+    }
+    const onKey = onKeyOf(q);
+    if (onKey) {
+      const onOrder = orderByKey.get(onKey);
+      if (onOrder !== undefined) out = { ...out, conditionalOn: onOrder };
+    }
+    return out;
   });
 }
 

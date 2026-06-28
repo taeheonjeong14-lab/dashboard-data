@@ -13,6 +13,7 @@ type Question = {
   type: string;
   options?: unknown;
   stage?: string | null; // 카테고리 키(guardian/basic/lifestyle/history/visit)를 운반
+  source?: string | null; // 'prefilled' 이면 병원이 미리 답한 숨김 질문(보호자에겐 안 보임)
 };
 
 // 이름 뒤 주격 조사(가/이)를 받침에 맞게 붙인다. 한글이 아니면 '가'.
@@ -270,7 +271,8 @@ export default function PublicSurveyPage() {
     };
   }, [answers, byOrder]);
 
-  const visible = useMemo(() => allQuestions.filter(isVisible), [allQuestions, isVisible]);
+  // 분기는 모든 질문(선답변 포함) 기준으로 판정하되, 화면에는 선답변(prefilled) 질문을 노출하지 않는다.
+  const visible = useMemo(() => allQuestions.filter(isVisible).filter((q) => q.source !== 'prefilled'), [allQuestions, isVisible]);
   const totalQ = visible.length;
   const clampedIdx = Math.min(currentQ, Math.max(0, totalQ - 1));
   const question = visible[clampedIdx] ?? null;
@@ -592,7 +594,6 @@ export default function PublicSurveyPage() {
 
           {question.type === 'address' && (
             <AddressField
-              accent={ac}
               base={typeof currentAnswer === 'string' ? currentAnswer : ''}
               detail={otherText[question.id] ?? ''}
               onBase={(v) => setAns(question.id, v)}
@@ -754,8 +755,8 @@ function loadDaumPostcode(): Promise<void> {
 }
 
 // 주소 입력 — "주소 검색"(다음 우편번호) + 상세주소.
-function AddressField({ accent, base, detail, onBase, onDetail }: {
-  accent: Accent; base: string; detail: string;
+function AddressField({ base, detail, onBase, onDetail }: {
+  base: string; detail: string;
   onBase: (v: string) => void; onDetail: (v: string) => void;
 }) {
   const [loading, setLoading] = useState(false);
@@ -791,7 +792,8 @@ function AddressField({ accent, base, detail, onBase, onDetail }: {
         </div>
       ) : (
         <button type="button" className="sv-press" onClick={openSearch} disabled={loading}
-          style={{ width: '100%', padding: '16px', fontSize: 16.5, fontWeight: 600, color: accent.on, background: 'var(--ac)', border: 'none', borderRadius: 12, cursor: 'pointer' }}>
+          style={{ width: '100%', padding: '15px 16px', fontSize: 16, fontWeight: 500, color: C.textSec, background: C.subtle, border: `1px solid ${C.border}`, borderRadius: 12, cursor: 'pointer', textAlign: 'left', display: 'flex', alignItems: 'center', gap: 8 }}>
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke={C.muted} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}><circle cx="11" cy="11" r="7" /><path d="m21 21-4.3-4.3" /></svg>
           {loading ? '불러오는 중…' : '주소 검색'}
         </button>
       )}

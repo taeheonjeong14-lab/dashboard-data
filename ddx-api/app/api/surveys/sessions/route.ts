@@ -5,8 +5,12 @@ import { effectiveSurveyStatus } from '@/lib/survey-expiry';
 import type { Prisma } from '@prisma/client';
 import {
   buildFirstVisitQuestionRows,
+  buildPrefilledPetRows,
   FOLLOW_UP_FIXED_QUESTIONS,
   buildOptionsJson,
+  isFollowUpVisit,
+  isExistingPatientVisit,
+  type ExistingPatientInfo,
   type QuestionDef,
 } from '@/lib/survey-questions';
 
@@ -178,6 +182,9 @@ export async function POST(request: NextRequest) {
     let visitType: string | null = null;
     let scheduledDate: Date | null = null;
     let previousChart: string | null = null;
+    let petSpecies: string | null = null;
+    let petBreed: string | null = null;
+    let petSex: string | null = null;
     if (body && typeof body === 'object' && !Array.isArray(body)) {
       const obj = body as Record<string, unknown>;
       patientName = typeof obj.patientName === 'string' && obj.patientName.trim() ? obj.patientName.trim() : null;
@@ -188,6 +195,9 @@ export async function POST(request: NextRequest) {
       const scheduledDateStr = typeof obj.scheduledDate === 'string' && obj.scheduledDate.trim() ? obj.scheduledDate.trim() : null;
       scheduledDate = scheduledDateStr ? new Date(scheduledDateStr) : null;
       previousChart = typeof obj.previousChart === 'string' && obj.previousChart.trim() ? obj.previousChart.trim() : null;
+      petSpecies = typeof obj.petSpecies === 'string' && obj.petSpecies.trim() ? obj.petSpecies.trim() : null;
+      petBreed = typeof obj.petBreed === 'string' && obj.petBreed.trim() ? obj.petBreed.trim() : null;
+      petSex = typeof obj.petSex === 'string' && obj.petSex.trim() ? obj.petSex.trim() : null;
     }
 
     if (!userId) {
@@ -207,22 +217,40 @@ export async function POST(request: NextRequest) {
     }
 
     const token = randomBytes(24).toString('hex');
-    const fixedQuestions: QuestionDef[] =
-      visitType === '재진' ? FOLLOW_UP_FIXED_QUESTIONS : buildFirstVisitQuestionRows(guardianName, patientName, contact);
+    const followUp = isFollowUpVisit(visitType);
+    // 기존 환자(새 증상·경과 확인)면 병원이 입력한 종/품종/성별을 선답변으로 사용.
+    const existingInfo: ExistingPatientInfo | undefined =
+      isExistingPatientVisit(visitType) && petSpecies && petSex
+        ? { species: petSpecies, breed: petBreed ?? undefined, sex: petSex }
+        : undefined;
 
-    const allQuestionData: Prisma.SurveyQuestionInstanceCreateWithoutSessionInput[] = fixedQuestions.map((q, idx) => ({
-      order: idx + 1,
-      source: 'fixed',
-      stage: q.category ?? 'initial', // 카테고리를 stage 로 운반(작성 화면 카테고리 인트로용)
-      text: q.text,
-      type: q.type,
-      options: buildOptionsJson(q) ?? undefined,
-    }));
+    let fixedQuestions: QuestionDef[];
+    if (followUp) {
+      // 경과 확인: 이전 차트 기반 AI 질문(아래). 종/품종/성별은 숨김 선답변으로 앞에 둔다(요약 시그널먼트용).
+      fixedQuestions = existingInfo ? [...buildPrefilledPetRows(existingInfo), ...FOLLOW_UP_FIXED_QUESTIONS] : FOLLOW_UP_FIXED_QUESTIONS;
+    } else {
+      // 신규환자(existingInfo 없음) 또는 새 증상(existingInfo 있음).
+      fixedQuestions = buildFirstVisitQuestionRows(guardianName, patientName, contact, { existing: existingInfo });
+    }
 
-    if (visitType === '재진') {
+    // 선답변(숨김) 질문의 답을 order 로 기억했다가 세션 생성 후 SurveyAnswer 로 저장.
+    const prefilledByOrder = new Map<number, string>();
+    const allQuestionData: Prisma.SurveyQuestionInstanceCreateWithoutSessionInput[] = fixedQuestions.map((q, idx) => {
+      if (q.prefilled && q.prefilledAnswer) prefilledByOrder.set(idx + 1, q.prefilledAnswer);
+      return {
+        order: idx + 1,
+        source: q.prefilled ? 'prefilled' : 'fixed', // prefilled 는 작성 화면에서 숨김
+        stage: q.category ?? 'initial', // 카테고리를 stage 로 운반(작성 화면 카테고리 인트로용)
+        text: q.text,
+        type: q.type,
+        options: buildOptionsJson(q) ?? undefined,
+      };
+    });
+
+    if (followUp) {
       if (!previousChart) {
         return NextResponse.json(
-          { success: false, error: '재진 사전문진은 이전 차트 내용이 필요합니다. (질문 생성을 위해 차트를 붙여넣어 주세요.)' },
+          { success: false, error: '경과 확인 사전문진은 이전 차트 내용이 필요합니다. (질문 생성을 위해 차트를 붙여넣어 주세요.)' },
           { status: 400 }
         );
       }
@@ -310,6 +338,14 @@ export async function POST(request: NextRequest) {
         },
       },
     });
+
+    // 선답변(숨김) 질문의 답 저장 — 보호자에겐 안 보이지만 분기·요약에 사용.
+    const prefilledAnswerRows = session.questions
+      .filter((qi) => qi.source === 'prefilled' && prefilledByOrder.has(qi.order))
+      .map((qi) => ({ sessionId: session.id, questionInstanceId: qi.id, answerText: prefilledByOrder.get(qi.order)! }));
+    if (prefilledAnswerRows.length > 0) {
+      await prisma.surveyAnswer.createMany({ data: prefilledAnswerRows });
+    }
 
     return NextResponse.json({ success: true, session });
   } catch (e) {

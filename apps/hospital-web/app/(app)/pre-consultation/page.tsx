@@ -7,6 +7,7 @@ import { CenteredSpinner } from '@/components/ui/loading-spinner';
 import { StickyHeader } from '@/components/ui/sticky-header';
 import { ddxGet, ddxPost, DdxApiForbiddenError } from '@/lib/ddx-api';
 import { inputStyle, textareaStyle, SegmentedToggle, primaryPillStyle } from '@/lib/form-styles';
+import { DOG_BREEDS, CAT_BREEDS, SEX_OPTIONS } from '@/lib/intake/form-spec';
 import { Modal } from '@/components/ui/modal';
 import {
   SessionDetailView,
@@ -311,8 +312,13 @@ function SendModal({ userId, origin, onClose, onCreated }: {
   const [guardianName, setGuardianName] = useState('');
   const [contact, setContact] = useState('');
   const [scheduledDate, setScheduledDate] = useState('');
-  const [visitType, setVisitType] = useState('초진');
+  const [visitType, setVisitType] = useState('신규환자');
+  const [petSpecies, setPetSpecies] = useState('');
+  const [petBreed, setPetBreed] = useState('');
+  const [petSex, setPetSex] = useState('');
   const [previousChart, setPreviousChart] = useState('');
+  const isExisting = visitType === '새 증상' || visitType === '경과 확인';
+  const breedOptions = petSpecies === '강아지' ? DOG_BREEDS : petSpecies === '고양이' ? CAT_BREEDS : null;
   const [submitting, setSubmitting] = useState(false);
   const [err, setErr] = useState('');
   const [created, setCreated] = useState<{ id: string; token?: string | null } | null>(null);
@@ -323,13 +329,19 @@ function SendModal({ userId, origin, onClose, onCreated }: {
   const createSession = async (): Promise<{ id: string; token?: string | null } | null> => {
     if (!contact.trim()) { setErr('연락처를 입력해 주세요.'); return null; }
     if (!scheduledDate) { setErr('내원 예정일을 선택해 주세요. (알림톡 본문에 들어갑니다)'); return null; }
-    if (visitType === '재진' && !previousChart.trim()) { setErr('재진 사전문진은 이전 차트 내용이 필요합니다.'); return null; }
+    if (visitType === '경과 확인' && !previousChart.trim()) { setErr('경과 확인 사전문진은 이전 차트 내용이 필요합니다.'); return null; }
+    if (isExisting && (!petSpecies || !petSex)) { setErr('기존 환자는 종류와 성별을 입력해 주세요.'); return null; }
     setErr('');
     const body: Record<string, string> = { userId, contact: contact.trim(), visitType };
     if (patientName.trim()) body.patientName = patientName.trim();
     if (guardianName.trim()) body.guardianName = guardianName.trim();
     if (scheduledDate) body.scheduledDate = scheduledDate;
-    if (visitType === '재진' && previousChart.trim()) body.previousChart = previousChart.trim();
+    if (visitType === '경과 확인' && previousChart.trim()) body.previousChart = previousChart.trim();
+    if (isExisting) {
+      body.petSpecies = petSpecies;
+      if (petBreed.trim()) body.petBreed = petBreed.trim();
+      body.petSex = petSex;
+    }
 
     const res = await ddxPost<{ success: boolean; session?: { id: string; token?: string | null }; error?: string }>(
       '/api/surveys/sessions', userId, body,
@@ -405,18 +417,48 @@ function SendModal({ userId, origin, onClose, onCreated }: {
             <input style={inputStyle} type="date" value={scheduledDate} onChange={(e) => setScheduledDate(e.target.value)} />
           </Field>
           <Field label="방문 유형">
-            <SegmentedToggle options={['초진', '재진']} value={visitType} onChange={setVisitType} />
+            <SegmentedToggle options={['신규환자', '새 증상', '경과 확인']} value={visitType} onChange={setVisitType} padX={14} />
           </Field>
-          {visitType === '재진' && (
+          {isExisting && (
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
+              <Field label="종류" required>
+                <select style={inputStyle} value={petSpecies} onChange={(e) => { setPetSpecies(e.target.value); setPetBreed(''); }}>
+                  <option value="">선택</option>
+                  <option value="강아지">강아지</option>
+                  <option value="고양이">고양이</option>
+                  <option value="그 외">그 외</option>
+                </select>
+              </Field>
+              <Field label="품종">
+                {breedOptions ? (
+                  <select style={inputStyle} value={petBreed} onChange={(e) => setPetBreed(e.target.value)}>
+                    <option value="">선택</option>
+                    {breedOptions.map((b) => <option key={b} value={b}>{b}</option>)}
+                  </select>
+                ) : (
+                  <input style={inputStyle} value={petBreed} onChange={(e) => setPetBreed(e.target.value)} placeholder={petSpecies ? '품종 입력' : '종류 먼저'} disabled={!petSpecies} />
+                )}
+              </Field>
+              <Field label="성별" required>
+                <select style={inputStyle} value={petSex} onChange={(e) => setPetSex(e.target.value)}>
+                  <option value="">선택</option>
+                  {SEX_OPTIONS.map((s) => <option key={s.value} value={s.label}>{s.label}</option>)}
+                </select>
+              </Field>
+            </div>
+          )}
+          {visitType === '경과 확인' && (
             <Field label="이전 차트 내용" required>
               <textarea style={{ ...textareaStyle, resize: 'vertical', minHeight: 90 }} value={previousChart} onChange={(e) => setPreviousChart(e.target.value)}
-                placeholder="지난 진료 차트를 붙여넣으면 AI가 재진 맞춤 질문을 생성합니다." rows={4} />
+                placeholder="지난 진료 차트를 붙여넣으면 AI가 경과 확인 맞춤 질문을 생성합니다." rows={4} />
             </Field>
           )}
           <p style={{ margin: '-2px 0 0', fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.5 }}>
-            {visitType === '재진'
-              ? '재진은 이전 차트를 바탕으로 AI 맞춤 질문이 생성됩니다.'
-              : '초진은 기본 사전문진 질문이 사용됩니다.'}
+            {visitType === '경과 확인'
+              ? '기존 환자 · 치료 중인 질환 재진. 이전 차트를 바탕으로 AI 맞춤 질문이 생성됩니다.'
+              : visitType === '새 증상'
+                ? '기존 환자 · 새로운 증상/질환. 보호자·환자 기본 정보는 생략하고 증상 위주로 묻습니다.'
+                : '본원 첫 내원. 전체 사전문진 질문이 사용됩니다.'}
           </p>
         </div>
       )}
