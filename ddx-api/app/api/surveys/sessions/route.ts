@@ -213,7 +213,7 @@ export async function POST(request: NextRequest) {
     const allQuestionData: Prisma.SurveyQuestionInstanceCreateWithoutSessionInput[] = fixedQuestions.map((q, idx) => ({
       order: idx + 1,
       source: 'fixed',
-      stage: 'initial',
+      stage: q.category ?? 'initial', // 카테고리를 stage 로 운반(작성 화면 카테고리 인트로용)
       text: q.text,
       type: q.type,
       options: buildOptionsJson(q) ?? undefined,

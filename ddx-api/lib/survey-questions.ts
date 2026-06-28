@@ -13,6 +13,8 @@ export type QuestionType =
 export type QuestionDef = {
   text: string;
   type: QuestionType;
+  /** 설문 카테고리(보호자/기본/생활/병력·예방/내원사유). 인스턴스 stage 로 운반되어 작성 화면의 카테고리 인트로에 쓰인다. */
+  category?: string;
   choices?: string[];
   maxSelections?: number;
   inlineWithPrev?: boolean;
@@ -74,24 +76,48 @@ type DraftQuestion = Omit<QuestionDef, 'conditionalOn'> & {
   condition?: DraftCondition;
 };
 
-function compileDraftQuestions(drafts: DraftQuestion[]): QuestionDef[] {
-  const orderByKey = new Map<string, number>();
-  for (let i = 0; i < drafts.length; i++) orderByKey.set(drafts[i].key, i + 1);
+// 설문 카테고리 — 작성 화면에서 카테고리가 바뀔 때 인트로 멘트를 띄우는 기준.
+export const SURVEY_CATEGORY_ORDER = ['guardian', 'basic', 'lifestyle', 'history', 'visit'] as const;
+export type SurveyCategory = (typeof SURVEY_CATEGORY_ORDER)[number];
 
-  return drafts.map((d) => {
-    if (!d.condition) return { ...d };
+/** 질문 키 → 카테고리. (보호자 정보 / 환자 기본 / 생활 패턴 / 과거 병력·예방 / 내원 사유) */
+export function surveyCategoryForKey(key: string): SurveyCategory {
+  if (key === 'Q1' || key === 'Q2') return 'guardian';
+  if (['Q3', 'Q4', 'Q5', 'Q6', 'Q125', 'Q7', 'Q8'].includes(key)) return 'basic';
+  if (key === 'Q18' || key === 'Q19') return 'lifestyle';
+  if (key === 'Q13' || key === 'Q17' || key.startsWith('Q14') || key.startsWith('Q15') || key.startsWith('Q16')) return 'history';
+  return 'visit'; // Q9, Q10/Q11, Q12, Q20~Q124(증상 상세)
+}
+
+function compileDraftQuestions(drafts: DraftQuestion[]): QuestionDef[] {
+  // 카테고리 순서로 안정 정렬(카테고리 내부 순서는 원본 유지) → 그 순서대로 order 부여.
+  // 분기 조건은 onKey(질문 키) 기준이라 재정렬해도 의존 관계가 유지된다.
+  const ordered = drafts
+    .map((d, i) => ({ d, i, cat: surveyCategoryForKey(d.key) }))
+    .sort((a, b) => {
+      const c = SURVEY_CATEGORY_ORDER.indexOf(a.cat) - SURVEY_CATEGORY_ORDER.indexOf(b.cat);
+      return c !== 0 ? c : a.i - b.i; // 안정 정렬
+    })
+    .map((x) => x.d);
+
+  const orderByKey = new Map<string, number>();
+  for (let i = 0; i < ordered.length; i++) orderByKey.set(ordered[i].key, i + 1);
+
+  return ordered.map((d) => {
+    const category = surveyCategoryForKey(d.key);
+    if (!d.condition) return { ...d, category };
     const onOrder = orderByKey.get(d.condition.onKey);
-    if (!onOrder) return { ...d }; // best effort
+    if (!onOrder) return { ...d, category }; // best effort
 
     if ('answered' in d.condition) {
       // conditional_select is special: it needs conditionalOn(number) to choose the right bucket.
-      if (d.type === 'conditional_select') return { ...d, conditionalOn: onOrder };
-      return { ...d, conditionalOn: onOrder, conditionalAnswered: true };
+      if (d.type === 'conditional_select') return { ...d, category, conditionalOn: onOrder };
+      return { ...d, category, conditionalOn: onOrder, conditionalAnswered: true };
     }
     if ('value' in d.condition) {
-      return { ...d, conditionalOn: onOrder, conditionalValue: d.condition.value };
+      return { ...d, category, conditionalOn: onOrder, conditionalValue: d.condition.value };
     }
-    return { ...d, conditionalOn: onOrder, conditionalValue: d.condition.anyOf.join('||') };
+    return { ...d, category, conditionalOn: onOrder, conditionalValue: d.condition.anyOf.join('||') };
   });
 }
 

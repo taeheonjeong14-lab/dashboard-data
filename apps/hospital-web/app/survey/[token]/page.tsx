@@ -12,7 +12,20 @@ type Question = {
   text: string;
   type: string;
   options?: unknown;
+  stage?: string | null; // 카테고리 키(guardian/basic/lifestyle/history/visit)를 운반
 };
+
+// 카테고리가 바뀌는 첫 질문 앞에 잠깐 띄우는 대화형 인트로 멘트.
+const CATEGORY_INTRO: Record<string, string> = {
+  guardian: '먼저 보호자님 정보를 여쭤볼게요 :)',
+  basic: '이제 우리 아이에 대해서 알려주세요!',
+  lifestyle: '아이의 평소 생활은 어떤지 알아볼게요.',
+  history: '지금까지의 건강·예방 이력을 확인할게요.',
+  visit: '마지막으로, 오늘 내원하신 이유를 자세히 들려주세요.',
+};
+
+// 마지막 질문 제출 시 잠깐 띄우는 마무리 인사(자동으로 제출로 이어짐).
+const FINAL_THANKS = '문진표를 작성해주셔서 감사합니다 :)';
 
 type ServerAnswer = {
   questionInstanceId: string;
@@ -144,6 +157,8 @@ export default function PublicSurveyPage() {
   const [answers, setAnswers] = useState<Record<string, string | string[]>>({});
   const [otherText, setOtherText] = useState<Record<string, string>>({});
   const [currentQ, setCurrentQ] = useState(0);
+  const [intro, setIntro] = useState<string | null>(null); // 카테고리 인트로 멘트(잠시 떴다가 자동으로 다음 질문)
+  const [pendingSubmit, setPendingSubmit] = useState(false); // 마무리 인사 후 자동 제출 대기
 
   const ac = useMemo(() => buildAccent(session?.hospital?.brandColor), [session]);
   const hospitalName = session?.hospital?.name?.trim() || '';
@@ -268,10 +283,32 @@ export default function PublicSurveyPage() {
     });
   };
 
+  // 해당 인덱스 질문이 "새 카테고리의 첫 질문"이면 그 카테고리 인트로 멘트를 반환.
+  const mentForIdx = (idx: number): string | null => {
+    const q = visible[idx];
+    if (!q?.stage) return null;
+    const isFirstOfCategory = idx === 0 || visible[idx - 1]?.stage !== q.stage;
+    return isFirstOfCategory ? (CATEGORY_INTRO[q.stage] ?? null) : null;
+  };
+
+  // 앞으로 이동할 때, 새 카테고리면 인트로를 잠깐 띄운다(뒤로 갈 땐 안 띄움).
+  const goToIndex = (nextIdx: number) => {
+    setCurrentQ(nextIdx);
+    const m = mentForIdx(nextIdx);
+    if (m) setIntro(m);
+  };
+
+  // intro 스텝 → survey 시작(시작/이어서/처음부터). 시작 지점이 카테고리 첫 질문이면 인트로 표시.
+  const startSurvey = (idx: number) => {
+    setCurrentQ(idx);
+    setStep('survey');
+    setIntro(mentForIdx(idx));
+  };
+
   const handleNext = () => {
     if (!canGoNext) return;
-    if (clampedIdx < totalQ - 1) setCurrentQ(clampedIdx + 1);
-    else handleSubmit();
+    if (clampedIdx < totalQ - 1) goToIndex(clampedIdx + 1);
+    else { setIntro(FINAL_THANKS); setPendingSubmit(true); } // 마무리 인사 → 자동 제출
   };
   const handlePrev = () => { if (clampedIdx > 0) setCurrentQ(clampedIdx - 1); };
 
@@ -340,6 +377,18 @@ export default function PublicSurveyPage() {
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [answers, otherText, step, token]);
+
+  // 카테고리 인트로/마무리 인사는 잠깐 떴다가(별도 버튼 없이) 자동으로 사라진다.
+  // 마무리 인사(pendingSubmit)면 사라질 때 곧바로 제출로 이어진다.
+  useEffect(() => {
+    if (!intro) return;
+    const t = setTimeout(() => {
+      setIntro(null);
+      if (pendingSubmit) { setPendingSubmit(false); handleSubmit(); }
+    }, 1800);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [intro, pendingSubmit]);
 
   // ─── 렌더 ──────────────────────────────────────────────
   if (step === 'loading') {
@@ -431,15 +480,15 @@ export default function PublicSurveyPage() {
               <p style={{ margin: '0 0 12px', fontSize: 14.5, color: C.textSec, textAlign: 'center', lineHeight: 1.6 }}>
                 이전에 작성하던 내용이 저장되어 있어요.
               </p>
-              <button type="button" className="sv-press" onClick={() => { setCurrentQ(resumeIdx); setStep('survey'); }} style={{ ...btnPrimary(false), width: '100%', padding: '17px', fontSize: 17 }}>
+              <button type="button" className="sv-press" onClick={() => startSurvey(resumeIdx)} style={{ ...btnPrimary(false), width: '100%', padding: '17px', fontSize: 17 }}>
                 이어서 작성하기
               </button>
-              <button type="button" className="sv-press" onClick={() => { setCurrentQ(0); setStep('survey'); }} style={{ width: '100%', marginTop: 10, padding: '14px', fontSize: 15, fontWeight: 600, color: C.textSec, background: 'transparent', border: 'none', cursor: 'pointer' }}>
+              <button type="button" className="sv-press" onClick={() => startSurvey(0)} style={{ width: '100%', marginTop: 10, padding: '14px', fontSize: 15, fontWeight: 600, color: C.textSec, background: 'transparent', border: 'none', cursor: 'pointer' }}>
                 처음부터 다시 보기
               </button>
             </>
           ) : (
-            <button type="button" className="sv-press" onClick={() => setStep('survey')} style={{ ...btnPrimary(false), width: '100%', padding: '17px', fontSize: 17 }}>
+            <button type="button" className="sv-press" onClick={() => startSurvey(0)} style={{ ...btnPrimary(false), width: '100%', padding: '17px', fontSize: 17 }}>
               시작하기
             </button>
           )}
@@ -450,6 +499,20 @@ export default function PublicSurveyPage() {
 
   // 설문
   if (!question) return <Screen accent={ac}><div /></Screen>;
+
+  // 카테고리 인트로: 별도 버튼 없이 잠깐 떴다가 자동으로 사라지며 다음 질문이 나타난다.
+  if (intro) {
+    return (
+      <Screen accent={ac}>
+        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: '24px 8px' }}>
+          <h2 key={intro} className="sv-intro" style={{ fontSize: 25, fontWeight: 700, letterSpacing: '-0.02em', color: C.text, lineHeight: 1.5, margin: 0 }}>
+            {intro}
+          </h2>
+        </div>
+      </Screen>
+    );
+  }
+
   const progress = totalQ > 1 ? clampedIdx / (totalQ - 1) : 0;
   const isLast = clampedIdx === totalQ - 1;
 
@@ -626,7 +689,7 @@ function Screen({ children, accent }: { children: React.ReactNode; accent: Accen
         ['--ac' as string]: accent.base, ['--ac-on' as string]: accent.on, ['--ac-tint' as string]: accent.tint,
       } as CSSProperties}
     >
-      <style>{`.sv-press{transition:transform .12s ease,opacity .12s ease}.sv-press:not(:disabled):active{transform:scale(.975)}@keyframes sv-spin{to{transform:rotate(360deg)}}`}</style>
+      <style>{`.sv-press{transition:transform .12s ease,opacity .12s ease}.sv-press:not(:disabled):active{transform:scale(.975)}@keyframes sv-spin{to{transform:rotate(360deg)}}@keyframes sv-intro-in{0%{opacity:0;transform:translateY(10px) scale(.98)}100%{opacity:1;transform:none}}.sv-intro{animation:sv-intro-in .45s cubic-bezier(.16,1,.3,1)}`}</style>
       <div style={{ width: '100%', maxWidth: 560, display: 'flex', flexDirection: 'column', padding: '22px 20px 24px' }}>
         {children}
       </div>
