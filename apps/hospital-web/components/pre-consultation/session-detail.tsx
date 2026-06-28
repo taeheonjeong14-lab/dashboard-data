@@ -266,11 +266,16 @@ export function SessionDetailView({ detail, origin, hideShareLink = false, hideA
                       {(() => {
                         const cps = d.checkpoints?.length ? d.checkpoints : (d.tests ?? []);
                         return cps.length > 0 ? (
-                          <div style={{ margin: '8px 0 0 27px', padding: '8px 11px', background: 'var(--bg-subtle)', borderRadius: 'var(--radius)' }}>
-                            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 5 }}>추가 확인 필요한 사항</div>
-                            <ul style={{ margin: 0, paddingLeft: 16, fontSize: 12, color: 'var(--text)', lineHeight: 1.6 }}>
-                              {cps.map((c, ci) => <li key={ci}>{c}</li>)}
-                            </ul>
+                          <div style={{ margin: '8px 0 0 27px', padding: '9px 12px', background: 'rgba(21, 196, 126, 0.09)', border: '1px solid rgba(21, 196, 126, 0.4)', borderRadius: 'var(--radius)' }}>
+                            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--success)', marginBottom: 6 }}>추가 확인 필요한 사항</div>
+                            <div style={{ display: 'grid', gap: 4 }}>
+                              {cps.map((c, ci) => (
+                                <div key={ci} style={{ display: 'flex', alignItems: 'flex-start', gap: 6, fontSize: 12, color: 'var(--text)', lineHeight: 1.55 }}>
+                                  <Check size={13} style={{ flexShrink: 0, marginTop: 2, color: 'var(--success)' }} />
+                                  <span>{c}</span>
+                                </div>
+                              ))}
+                            </div>
                           </div>
                         ) : null;
                       })()}
