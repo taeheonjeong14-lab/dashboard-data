@@ -485,7 +485,7 @@ export default function PublicSurveyPage() {
                 onChange={(e) => setAns(question.id, e.target.value)} placeholder="품종을 직접 입력해 주세요" style={inputStyle} />
             ) : (
               <ChoiceList options={condSelect?.list ?? []} qid={question.id} qType="conditional_select"
-                currentAnswer={currentAnswer} otherText={otherText} setAns={setAns} setOtherText={setOtherText} columns={2} />
+                currentAnswer={currentAnswer} otherText={otherText} setAns={setAns} setOtherText={setOtherText} columns={2} compact />
             )
           )}
 
@@ -550,22 +550,23 @@ export default function PublicSurveyPage() {
 }
 
 // 단일선택/품종 선택 카드 리스트 (+ 기타/그 외 직접 입력)
-function ChoiceList({ options, qid, qType, currentAnswer, otherText, setAns, setOtherText, columns = 1 }: {
+function ChoiceList({ options, qid, qType, currentAnswer, otherText, setAns, setOtherText, columns = 1, compact = false }: {
   options: string[]; qid: string; qType: string;
   currentAnswer: string | string[];
   otherText: Record<string, string>;
   setAns: (qid: string, v: string | string[]) => void;
   setOtherText: React.Dispatch<React.SetStateAction<Record<string, string>>>;
   columns?: number;
+  compact?: boolean;
 }) {
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: `repeat(${columns}, 1fr)`, gap: 7 }}>
+    <div style={{ display: 'grid', gridTemplateColumns: `repeat(${columns}, 1fr)`, gap: compact ? 6 : 7 }}>
       {options.map((opt) => {
         const active = currentAnswer === opt;
         const free = active && isFreeOption(opt, qType);
         return (
           <div key={opt} style={{ gridColumn: free ? `1 / -1` : undefined }}>
-            <button type="button" className="sv-press" onClick={() => setAns(qid, opt)} style={cardStyle(active)}>{opt}</button>
+            <button type="button" className="sv-press" onClick={() => setAns(qid, opt)} style={cardStyle(active, compact)}>{opt}</button>
             {free && (
               <input autoFocus value={otherText[qid] ?? ''} onChange={(e) => setOtherText((p) => ({ ...p, [qid]: e.target.value }))}
                 placeholder="직접 입력해 주세요" style={{ ...inputStyle, marginTop: 10 }} />
@@ -609,9 +610,9 @@ const textareaStyle: CSSProperties = {
   border: 'none', borderRadius: 12, outline: 'none', resize: 'vertical', minHeight: 120, lineHeight: 1.6,
   fontFamily: 'inherit', boxSizing: 'border-box',
 };
-function cardStyle(active: boolean): CSSProperties {
+function cardStyle(active: boolean, compact = false): CSSProperties {
   return {
-    width: '100%', padding: '15px 16px', fontSize: 16.5, fontWeight: active ? 600 : 500,
+    width: '100%', padding: compact ? '9px 12px' : '15px 16px', fontSize: compact ? 15.5 : 16.5, fontWeight: active ? 600 : 500,
     color: C.text, textAlign: 'center', background: active ? 'var(--ac-tint)' : C.subtle,
     border: `1.5px solid ${active ? 'var(--ac)' : 'transparent'}`, borderRadius: 12, cursor: 'pointer', transition: 'all .12s',
   };
