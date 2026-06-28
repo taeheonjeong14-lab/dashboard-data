@@ -8,7 +8,8 @@ export type QuestionType =
   | 'multi_choice'
   | 'scale'
   | 'conditional_select'
-  | 'pet_birthday';
+  | 'pet_birthday'
+  | 'address';
 
 export type QuestionDef = {
   text: string;
@@ -56,6 +57,7 @@ export function buildOptionsJson(q: QuestionDef): unknown {
     case 'phone':
     case 'short_text':
     case 'long_text':
+    case 'address':
       return hasCond ? cond : null;
     case 'pet_birthday':
       return { kind: 'pet_birthday' };
@@ -82,7 +84,7 @@ export type SurveyCategory = (typeof SURVEY_CATEGORY_ORDER)[number];
 
 /** 질문 키 → 카테고리. (보호자 정보 / 환자 기본 / 생활 패턴 / 과거 병력·예방 / 내원 사유) */
 export function surveyCategoryForKey(key: string): SurveyCategory {
-  if (key === 'Q1' || key === 'Q2') return 'guardian';
+  if (key === 'Q1' || key === 'Q2' || key === 'Q126') return 'guardian';
   if (['Q3', 'Q4', 'Q5', 'Q6', 'Q125', 'Q7', 'Q8'].includes(key)) return 'basic';
   if (key === 'Q18' || key === 'Q19') return 'lifestyle';
   if (key === 'Q13' || key === 'Q17' || key.startsWith('Q14') || key.startsWith('Q15') || key.startsWith('Q16')) return 'history';
@@ -153,6 +155,11 @@ const SYMPTOM_FOLLOWUP_REASONS = FIRST_VISIT_REASONS.filter(
   (reason) => reason !== '건강검진' && reason !== '예방접종/사상충예방'
 );
 
+// Q10(증상 시작 시점) 보기. 마지막 "예방·관리 차원" 보기를 고르면 증상이 없는 경우로 보고
+// Q11(악화 경과)을 노출하지 않는다(아래 Q11 조건이 이 온셋 보기들에만 매칭).
+const SYMPTOM_ONSET_OPTIONS = ['오늘', '1주일 이내', '1개월 이내', '1개월 이상', '정확히 모르겠음'];
+const NO_SYMPTOM_PREVENTIVE = '별도 증상 없이 예방 및 관리 차원으로 내원하고자 함';
+
 // 품종 보기 — @dashboard/breeds 단일 소스(상단 import). 초진 접수증(hospital-web)과 동기화됨.
 
 /** 초진 사전 문진표(고정) 질문: Q1~ + 분기 문항 */
@@ -160,6 +167,7 @@ export const FIRST_VISIT_FIXED_QUESTIONS: QuestionDef[] = compileDraftQuestions(
   // ── 공통: Q1~Q19 ────────────────────────────────────────
   { key: 'Q1', text: '보호자 성명', type: 'short_text' },
   { key: 'Q2', text: '보호자 연락처', type: 'phone' },
+  { key: 'Q126', text: '보호자님의 주소를 알려주세요.', type: 'address' },
   { key: 'Q3', text: '반려동물 이름', type: 'short_text' },
   { key: 'Q4', text: '반려동물 종류', type: 'single_choice', choices: ['강아지', '고양이', '그 외'] },
   { key: 'Q5', text: '품종', type: 'conditional_select', conditionalChoices: { '강아지': DOG_BREEDS, '고양이': CAT_BREEDS, '그 외': null }, condition: { onKey: 'Q4', answered: true } },
@@ -173,9 +181,10 @@ export const FIRST_VISIT_FIXED_QUESTIONS: QuestionDef[] = compileDraftQuestions(
   { key: 'Q9', text: '병원 내원의 이유는 무엇인가요?', type: 'multi_choice', maxSelections: 3, choiceLayout: 'two_col', choices: [...FIRST_VISIT_REASONS] as unknown as string[] },
 
   // Q10/Q11: 선택된 각 이유별로 반복(“XXX” 치환) — 이유별 1세트씩 생성
+  // Q10 에 "증상 없이 예방·관리 차원" 보기를 두고, 그 경우 Q11(악화 경과)은 노출하지 않는다.
   ...SYMPTOM_FOLLOWUP_REASONS.map((reason, idx) => ([
-    { key: `Q10_${idx + 1}`, text: `"${reason}" 증상이 언제부터 시작되었나요 혹은 언제 최초 발생하였나요?`, type: 'single_choice', choices: ['오늘', '1주일 이내', '1개월 이내', '1개월 이상', '정확히 모르겠음'], condition: { onKey: 'Q9', value: reason } as DraftCondition },
-    { key: `Q11_${idx + 1}`, text: `"${reason}" 증상이 점점 심해지고 있나요?`, type: 'single_choice', choices: ['점점 심해지는 중', '비슷하게 유지', '조금 나아짐', '잘 모르겠음'], condition: { onKey: 'Q9', value: reason } as DraftCondition },
+    { key: `Q10_${idx + 1}`, text: `"${reason}" 증상이 언제부터 시작되었나요? 혹은 언제 최초 발생하였나요?`, type: 'single_choice', choices: [...SYMPTOM_ONSET_OPTIONS, NO_SYMPTOM_PREVENTIVE], condition: { onKey: 'Q9', value: reason } as DraftCondition },
+    { key: `Q11_${idx + 1}`, text: `"${reason}" 증상이 점점 심해지고 있나요?`, type: 'single_choice', choices: ['점점 심해지는 중', '비슷하게 유지', '조금 나아짐', '잘 모르겠음'], condition: { onKey: `Q10_${idx + 1}`, anyOf: [...SYMPTOM_ONSET_OPTIONS] } as DraftCondition },
   ] as DraftQuestion[])).flat(),
 
   {
@@ -371,65 +380,38 @@ function hasTrimmed(value: string | null | undefined): boolean {
   return !!(value && String(value).trim());
 }
 
-/** 신원·연락처는 생성 시 값이 있으면 질문 자체를 넣지 않는다. (conditionalOn 은 아래에서 재매핑) */
-function buildFilteredIdentityQuestionDefs(
-  guardianName: string | null | undefined,
-  patientName: string | null | undefined,
-  contact: string | null | undefined,
-): QuestionDef[] {
-  const full = FIRST_VISIT_FIXED_QUESTIONS;
-  const guardianDef = full[0];
-  const phoneDef = full[1];
-  const petDef = full[2];
-
-  const hasG = hasTrimmed(guardianName);
-  const hasP = hasTrimmed(patientName);
-  const hasC = hasTrimmed(contact);
-
-  const needG = !hasG;
-  const needP = !hasP;
-  const needC = !hasC;
-
-  // 둘 다 이름이 비었을 때만: 성명 → 반려 이름 → 연락처 순
-  const ordered: Array<{ need: boolean; def: QuestionDef }> =
-    !hasG && !hasP
-      ? [
-          { need: needG, def: guardianDef },
-          { need: needP, def: petDef },
-          { need: needC, def: phoneDef },
-        ]
-      : [
-          { need: needG, def: guardianDef },
-          { need: needC, def: phoneDef },
-          { need: needP, def: petDef },
-        ];
-
-  return ordered.filter((x) => x.need).map((x) => x.def);
-}
-
-function remapTailConditionalOrders(q: QuestionDef, identityCount: number): QuestionDef {
-  const co = q.conditionalOn;
-  if (co === undefined) return { ...q };
-  // 초진 고정본에서 분기는 모두 4번(종류) 이후를 가리킴
-  if (co <= 3) return { ...q };
-  return { ...q, conditionalOn: identityCount + (co - 3) };
-}
-
 /**
  * 초진 문진표 질문 인스턴스 빌더.
- * 생성 시 이미 받은 보호자 성명·연락처·반려 이름은 질문으로 넣지 않는다.
- * 보호자·반려 이름이 둘 다 비었을 때만 맨 앞 순서를 성명 → 반려 이름 → 연락처로 한다.
+ * - 생성 시 이미 받은 신원 질문(Q1 보호자 성명 / Q2 연락처 / Q3 반려 이름)은 제외한다.
+ * - 카테고리 순서(보호자→기본→생활→병력·예방→내원사유)는 그대로 두고,
+ *   분기 조건(conditionalOn)은 남은 목록 기준으로 질문 키(onKey)로 재계산한다.
+ *   → 주소 등 질문을 추가해도 "맨 앞 N개 고정" 같은 위치 가정에 의존하지 않아 안전.
  */
 export function buildFirstVisitQuestionRows(
   guardianName: string | null | undefined,
   patientName: string | null | undefined,
   contact: string | null | undefined,
 ): QuestionDef[] {
-  const full = FIRST_VISIT_FIXED_QUESTIONS;
-  const identity = buildFilteredIdentityQuestionDefs(guardianName, patientName, contact);
-  const k = identity.length;
-  const tail = full.slice(3).map((q) => remapTailConditionalOrders({ ...q }, k));
-  return [...identity, ...tail];
+  const known: Record<string, boolean> = {
+    Q1: hasTrimmed(guardianName), // 보호자 성명
+    Q2: hasTrimmed(contact),      // 연락처
+    Q3: hasTrimmed(patientName),  // 반려 이름
+  };
+  const kept = FIRST_VISIT_FIXED_QUESTIONS.filter((q) => {
+    const key = (q as { key?: string }).key ?? '';
+    return key in known ? !known[key] : true; // 이미 받은 신원 질문은 제외
+  });
+
+  // 남은 목록의 새 순서로 conditionalOn(번호)을 질문 키 기준으로 재계산.
+  const orderByKey = new Map<string, number>();
+  kept.forEach((q, i) => orderByKey.set((q as { key?: string }).key ?? '', i + 1));
+
+  return kept.map((q) => {
+    const onKey = (q as { condition?: { onKey?: string } }).condition?.onKey;
+    if (!onKey) return { ...q };
+    const onOrder = orderByKey.get(onKey);
+    return onOrder !== undefined ? { ...q, conditionalOn: onOrder } : { ...q };
+  });
 }
 
 // ─── 재진 고정 질문 ──────────────────────────────────────

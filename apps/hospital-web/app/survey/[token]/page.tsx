@@ -15,14 +15,29 @@ type Question = {
   stage?: string | null; // 카테고리 키(guardian/basic/lifestyle/history/visit)를 운반
 };
 
+// 이름 뒤 주격 조사(가/이)를 받침에 맞게 붙인다. 한글이 아니면 '가'.
+function withSubjectParticle(name: string): string {
+  const c = name.charCodeAt(name.length - 1);
+  const isHangul = c >= 0xac00 && c <= 0xd7a3;
+  const hasBatchim = isHangul && (c - 0xac00) % 28 !== 0;
+  return name + (hasBatchim ? '이' : '가');
+}
+
 // 카테고리가 바뀌는 첫 질문 앞에 잠깐 띄우는 대화형 인트로 멘트.
-const CATEGORY_INTRO: Record<string, string> = {
-  guardian: '먼저 보호자님 정보를 여쭤볼게요 :)',
-  basic: '이제 우리 아이에 대해서 알려주세요!',
-  lifestyle: '아이의 평소 생활은 어떤지 알아볼게요.',
-  history: '지금까지의 건강·예방 이력을 확인할게요.',
-  visit: '마지막으로, 오늘 내원하신 이유를 자세히 들려주세요.',
-};
+// 환자 기본 정보 다음(생활/병력/내원사유)부터는 아이 이름을 넣어 더 친근하게.
+function categoryIntroMent(category: string, petName: string): string | null {
+  const name = petName.trim();
+  switch (category) {
+    case 'guardian': return '먼저 보호자님 정보를 여쭤볼게요 :)';
+    case 'basic': return '이제 우리 아이에 대해서 알려주세요!';
+    case 'lifestyle': return `${name || '아이'}의 평소 생활은 어떤지 알아볼게요.`;
+    case 'history': return `지금까지 ${name || '아이'}의 건강·예방 이력을 확인할게요.`;
+    case 'visit': return name
+      ? `마지막으로, ${withSubjectParticle(name)} 이번에 병원에 내원하려는 이유를 알아볼게요!`
+      : '마지막으로, 오늘 내원하신 이유를 자세히 들려주세요.';
+    default: return null;
+  }
+}
 
 // 마지막 질문 제출 시 잠깐 띄우는 마무리 인사(자동으로 제출로 이어짐).
 const FINAL_THANKS = '문진표를 작성해주셔서 감사합니다 :)';
@@ -178,6 +193,7 @@ export default function PublicSurveyPage() {
         }
         setSession(data.session);
         const prefill: Record<string, string | string[]> = {};
+        const otherPrefill: Record<string, string> = {}; // 주소 상세주소 등 보조 입력
         const qById = new Map(data.session.questions.map((q) => [q.id, q]));
         for (const a of data.session.answers ?? []) {
           if (!qById.has(a.questionInstanceId)) continue;
@@ -199,10 +215,23 @@ export default function PublicSurveyPage() {
             if (a.answerText != null) prefill[a.questionInstanceId] = a.answerText;
             continue;
           }
+          if (q.type === 'address') {
+            // answerJson 에 { base, detail } 로 저장. base=검색 주소, detail=상세주소(otherText).
+            const j = a.answerJson;
+            if (j && typeof j === 'object' && !Array.isArray(j)) {
+              const obj = j as { base?: unknown; detail?: unknown };
+              if (typeof obj.base === 'string' && obj.base) prefill[a.questionInstanceId] = obj.base;
+              if (typeof obj.detail === 'string' && obj.detail) otherPrefill[a.questionInstanceId] = obj.detail;
+              if (typeof obj.base === 'string') continue;
+            }
+            if (a.answerText != null) prefill[a.questionInstanceId] = a.answerText;
+            continue;
+          }
           if (Array.isArray(a.answerJson)) prefill[a.questionInstanceId] = a.answerJson as string[];
           else if (a.answerText != null) prefill[a.questionInstanceId] = a.answerText;
         }
         setAnswers(prefill);
+        setOtherText(otherPrefill);
         if (data.session.status === 'completed') setStep('already');
         else setStep('intro');
       })
@@ -210,6 +239,14 @@ export default function PublicSurveyPage() {
   }, [token]);
 
   const allQuestions = session?.questions ?? [];
+  // 인트로 멘트에 넣을 아이 이름 — 발송 시 받은 값 우선, 없으면 '반려동물 이름' 답변.
+  const petName = useMemo(() => {
+    const fromSession = session?.patientName?.trim();
+    if (fromSession) return fromSession;
+    const q = allQuestions.find((x) => x.text === '반려동물 이름');
+    const a = q ? answers[q.id] : undefined;
+    return typeof a === 'string' ? a.trim() : '';
+  }, [session, allQuestions, answers]);
   const byOrder = useMemo(() => {
     const m = new Map<number, Question>();
     for (const q of allQuestions) m.set(q.order, q);
@@ -288,7 +325,7 @@ export default function PublicSurveyPage() {
     const q = visible[idx];
     if (!q?.stage) return null;
     const isFirstOfCategory = idx === 0 || visible[idx - 1]?.stage !== q.stage;
-    return isFirstOfCategory ? (CATEGORY_INTRO[q.stage] ?? null) : null;
+    return isFirstOfCategory ? categoryIntroMent(q.stage, petName) : null;
   };
 
   // 앞으로 이동할 때, 새 카테고리면 인트로를 잠깐 띄운다(뒤로 갈 땐 안 띄움).
@@ -335,6 +372,15 @@ export default function PublicSurveyPage() {
           const date = a.trim();
           if (!date) return null;
           return { questionInstanceId: q.id, answerJson: { date }, answerText: date };
+        }
+        if (q.type === 'address') {
+          // base=검색 주소, detail=상세주소(otherText). answerText 는 합쳐서 저장.
+          if (typeof a !== 'string') return null;
+          const base = a.trim();
+          if (!base) return null;
+          const detail = otherText[q.id]?.trim() ?? '';
+          const full = detail ? `${base} ${detail}` : base;
+          return { questionInstanceId: q.id, answerJson: { base, detail }, answerText: full };
         }
         if (Array.isArray(a)) {
           if (a.length === 0) return null;
@@ -544,6 +590,16 @@ export default function PublicSurveyPage() {
               onChange={(e) => setAns(question.id, e.target.value)} placeholder="자유롭게 적어 주세요" rows={4} style={textareaStyle} />
           )}
 
+          {question.type === 'address' && (
+            <AddressField
+              accent={ac}
+              base={typeof currentAnswer === 'string' ? currentAnswer : ''}
+              detail={otherText[question.id] ?? ''}
+              onBase={(v) => setAns(question.id, v)}
+              onDetail={(v) => setOtherText((p) => ({ ...p, [question.id]: v }))}
+            />
+          )}
+
           {question.type === 'pet_birthday' && (() => {
             // 초진 접수증과 동일한 UX: 기본은 생일(date input), "생일을 모르겠어요" 체크 시 대략 나이(년) 입력.
             const raw = typeof currentAnswer === 'string' ? currentAnswer : '';
@@ -675,6 +731,74 @@ function ChoiceList({ options, qid, qType, currentAnswer, otherText, setAns, set
           </div>
         );
       })}
+    </div>
+  );
+}
+
+// 카카오(다음) 우편번호 서비스 스크립트를 필요할 때 한 번만 로드.
+let daumPostcodePromise: Promise<void> | null = null;
+function loadDaumPostcode(): Promise<void> {
+  if (typeof window === 'undefined') return Promise.reject(new Error('no window'));
+  const w = window as unknown as { daum?: { Postcode?: unknown } };
+  if (w.daum?.Postcode) return Promise.resolve();
+  if (daumPostcodePromise) return daumPostcodePromise;
+  daumPostcodePromise = new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = 'https://t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js';
+    s.async = true;
+    s.onload = () => resolve();
+    s.onerror = () => { daumPostcodePromise = null; reject(new Error('load failed')); };
+    document.head.appendChild(s);
+  });
+  return daumPostcodePromise;
+}
+
+// 주소 입력 — "주소 검색"(다음 우편번호) + 상세주소.
+function AddressField({ accent, base, detail, onBase, onDetail }: {
+  accent: Accent; base: string; detail: string;
+  onBase: (v: string) => void; onDetail: (v: string) => void;
+}) {
+  const [loading, setLoading] = useState(false);
+  const openSearch = async () => {
+    setLoading(true);
+    try {
+      await loadDaumPostcode();
+      const w = window as unknown as { daum: { Postcode: new (opts: unknown) => { open: () => void } } };
+      new w.daum.Postcode({
+        oncomplete: (data: { roadAddress?: string; jibunAddress?: string; zonecode?: string }) => {
+          const road = data.roadAddress || data.jibunAddress || '';
+          const zip = data.zonecode ? `(${data.zonecode}) ` : '';
+          onBase(`${zip}${road}`.trim());
+        },
+      }).open();
+    } catch {
+      // 우편번호 스크립트 로드 실패 — 직접 입력으로 폴백
+      const manual = typeof window !== 'undefined' ? window.prompt('주소를 직접 입력해 주세요') : '';
+      if (manual && manual.trim()) onBase(manual.trim());
+    } finally {
+      setLoading(false);
+    }
+  };
+  return (
+    <div style={{ display: 'grid', gap: 12 }}>
+      {base ? (
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '14px', background: C.subtle, borderRadius: 12 }}>
+          <span style={{ flex: 1, minWidth: 0, fontSize: 16, color: C.text, lineHeight: 1.5, wordBreak: 'keep-all' }}>{base}</span>
+          <button type="button" className="sv-press" onClick={openSearch} disabled={loading}
+            style={{ flexShrink: 0, padding: '8px 12px', fontSize: 14, fontWeight: 600, color: C.textSec, background: C.bg, border: `1px solid ${C.borderStrong}`, borderRadius: 10, cursor: 'pointer' }}>
+            다시 검색
+          </button>
+        </div>
+      ) : (
+        <button type="button" className="sv-press" onClick={openSearch} disabled={loading}
+          style={{ width: '100%', padding: '16px', fontSize: 16.5, fontWeight: 600, color: accent.on, background: 'var(--ac)', border: 'none', borderRadius: 12, cursor: 'pointer' }}>
+          {loading ? '불러오는 중…' : '주소 검색'}
+        </button>
+      )}
+      {base && (
+        <input autoFocus value={detail} onChange={(e) => onDetail(e.target.value)}
+          placeholder="상세주소 (동/호수 등)" style={inputStyle} />
+      )}
     </div>
   );
 }
