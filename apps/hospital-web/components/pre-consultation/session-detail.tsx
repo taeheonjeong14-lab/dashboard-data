@@ -5,8 +5,9 @@
 
 import { useEffect, useState } from 'react';
 import type { CSSProperties } from 'react';
-import { Copy, Check } from 'lucide-react';
+import { Copy, Check, ClipboardList, FileText, Stethoscope, HelpCircle, Sparkles } from 'lucide-react';
 import { CenteredSpinner } from '@/components/ui/loading-spinner';
+import { Modal } from '@/components/ui/modal';
 import { ddxGet } from '@/lib/ddx-api';
 import { kakaoPillStyle } from '@/lib/form-styles';
 
@@ -75,6 +76,35 @@ export function answerDisplay(a: Answer | undefined): string {
   return a.answerText ?? '';
 }
 
+/** 실제로 노출·응답된 질문만(답변 있는 것). 질문 뱅크의 미노출/미응답 항목 제외. */
+export function answeredQuestionsFromDetail(detail: SessionDetail): { q: Question; disp: string }[] {
+  return [...detail.questions]
+    .sort((a, b) => a.order - b.order)
+    .map((q) => ({ q, disp: answerDisplay(detail.answers?.find((a) => a.questionInstanceId === q.id)) }))
+    .filter((x) => x.disp.trim().length > 0);
+}
+
+/** 문진 답변 모달 — 사전문진 목록·상세 어디서든 재사용. */
+export function AnswersModal({ detail, onClose }: { detail: SessionDetail; onClose: () => void }) {
+  const answered = answeredQuestionsFromDetail(detail);
+  return (
+    <Modal title={`문진 답변${detail.patientName ? ` — ${detail.patientName}` : ''}`} onClose={onClose} maxWidth={560}>
+      {answered.length === 0 ? (
+        <p style={{ margin: 0, fontSize: 13, color: 'var(--text-muted)' }}>응답한 문진이 없습니다.</p>
+      ) : (
+        <div style={{ display: 'grid', gap: 8 }}>
+          {answered.map(({ q, disp }) => (
+            <div key={q.id} style={{ padding: '8px 10px', background: 'var(--bg-subtle)', borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}>
+              <p style={{ margin: '0 0 3px', fontSize: 11.5, fontWeight: 500, color: 'var(--text-muted)' }}>Q{q.order}. {q.text}</p>
+              <p style={{ margin: 0, fontSize: 13, fontWeight: 500, color: 'var(--text)' }}>{disp}</p>
+            </div>
+          ))}
+        </div>
+      )}
+    </Modal>
+  );
+}
+
 export function parseDdxJson(raw: string | null | undefined): Array<{ name: string; likelihood?: string; reasons?: string[]; tests?: string[] }> | null {
   if (!raw) return null;
   try {
@@ -95,68 +125,81 @@ export function followUpList(raw: unknown): string[] {
   return [];
 }
 
-// AI 사전 분석을 차트 프로그램에 바로 붙여넣을 수 있는 평문 텍스트로 합성.
-function buildAnalysisCopyText(detail: SessionDetail): string {
-  const out: string[] = [];
-  if (detail.draftSummary?.trim()) {
-    out.push('[차트 요약]');
-    out.push(detail.draftSummary.trim());
-  }
+// 박스별 복사용 평문 — 예상 감별진단(DDx)만.
+function ddxCopyText(detail: SessionDetail): string {
   const ddxParsed = parseDdxJson(detail.draftDdx);
   if (ddxParsed && ddxParsed.length > 0) {
-    if (out.length) out.push('');
-    out.push('[감별진단 (DDx)]');
+    const out: string[] = [];
     ddxParsed.forEach((d, i) => {
       out.push(`${i + 1}. ${d.name}${d.likelihood ? ` (가능도 ${d.likelihood})` : ''}`);
       if (Array.isArray(d.reasons)) d.reasons.forEach((r) => out.push(`  - 근거: ${r}`));
       if (Array.isArray(d.tests)) d.tests.forEach((t) => out.push(`  - 추천 검사: ${t}`));
     });
-  } else if (detail.draftDdx?.trim()) {
-    if (out.length) out.push('');
-    out.push('[감별진단 (DDx)]');
-    out.push(detail.draftDdx.trim());
+    return out.join('\n');
   }
-  const followUps = followUpList(detail.followUpQuestions);
-  if (followUps.length > 0) {
-    if (out.length) out.push('');
-    out.push('[추천 추가 질문]');
-    followUps.forEach((q, i) => out.push(`${i + 1}. ${q}`));
-  }
-  return out.join('\n');
+  return detail.draftDdx?.trim() ?? '';
+}
+
+// 박스별 복사용 평문 — 추천 추가 질문만.
+function followUpsCopyText(detail: SessionDetail): string {
+  return followUpList(detail.followUpQuestions).map((q, i) => `${i + 1}. ${q}`).join('\n');
+}
+
+// 가능도(높음/중간/낮음 등)를 점+색 글씨로. 한국어·영어 표기 모두 대응, 못 알아보면 회색.
+// (반투명 파스텔 배경은 쓰지 않음 — 색 점과 글씨로만 절제해서 표현)
+function likelihoodChip(raw?: string) {
+  const v = (raw ?? '').trim();
+  if (!v) return null;
+  let color = 'var(--text-muted)';
+  if (/높|high|상/i.test(v)) color = '#e5484d';
+  else if (/중|mid|medium/i.test(v)) color = '#bf6a00';
+  else if (/낮|low|하/i.test(v)) color = 'var(--text-muted)';
+  return (
+    <span style={{ flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11.5, fontWeight: 700, color }}>
+      <span style={{ width: 6, height: 6, borderRadius: '50%', background: color }} />
+      {v}
+    </span>
+  );
 }
 
 // ─── 상세 view (사전문진 메뉴 우측 / 모달 안에서 모두 사용) ──
-export function SessionDetailView({ detail, origin, hideShareLink = false }: {
+export function SessionDetailView({ detail, origin, hideShareLink = false, hideAnswersButton = false }: {
   detail: SessionDetail;
   origin: string;
   /** 모달처럼 보호자에게 다시 발송할 필요가 없는 컨텍스트에서는 상단 작성 링크 블록을 숨긴다. */
   hideShareLink?: boolean;
+  /** 목록에서 '문진 답변' 버튼을 따로 제공하는 경우(사전문진 메뉴) 상세 헤더의 버튼을 숨긴다. */
+  hideAnswersButton?: boolean;
 }) {
   const shareUrl = origin && detail.token ? `${origin}/survey/${detail.token}` : '';
   const ddxParsed = parseDdxJson(detail.draftDdx);
   const followUps = followUpList(detail.followUpQuestions);
   const completed = detail.status === 'completed';
 
+  const [qListOpen, setQListOpen] = useState(false);
+  const answeredQuestions = answeredQuestionsFromDetail(detail);
+
   return (
     <div style={{ display: 'grid', gap: 14 }}>
-      {!hideShareLink && shareUrl && (
-        <div style={{ display: 'grid', gap: 10, padding: '12px 14px', background: 'var(--bg-subtle)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', flexShrink: 0 }}>작성 링크</span>
-            <span style={{ flex: 1, minWidth: 0, fontSize: 12.5, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{shareUrl}</span>
-            <CopyBtn text={shareUrl} label="링크 복사" />
-          </div>
-          <SurveyKakaoSend
-            token={detail.token}
-            defaultPhone={detail.contact ?? ''}
-            patientName={detail.patientName ?? ''}
-            guardianName={detail.guardianName ?? ''}
-            scheduledDate={detail.scheduledDate ?? ''}
-          />
-        </div>
-      )}
-
-      <Section title="문진 정보">
+      <Section
+        title="문진 정보"
+        icon={<ClipboardList size={15} />}
+        right={
+          !hideAnswersButton && completed && answeredQuestions.length > 0 ? (
+            <button
+              type="button"
+              onClick={() => setQListOpen(true)}
+              style={{
+                padding: '5px 10px', fontSize: 12, fontWeight: 600, color: 'var(--text)',
+                background: 'var(--bg-subtle)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
+                cursor: 'pointer', whiteSpace: 'nowrap',
+              }}
+            >
+              문진 답변 {answeredQuestions.length}개 ›
+            </button>
+          ) : null
+        }
+      >
         <Row k="환자 이름" v={detail.patientName || '—'} />
         <Row k="보호자 성명" v={detail.guardianName || '—'} />
         <Row k="연락처" v={detail.contact || '—'} />
@@ -166,93 +209,73 @@ export function SessionDetailView({ detail, origin, hideShareLink = false }: {
       </Section>
 
       {completed && (
-        <Section
-          tone="accent"
-          title={
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-              <span>AI 사전 분석</span>
-              {detail.analysisStatus && (
-                <StatusBadge status={detail.analysisStatus} label={ANALYSIS_LABEL[detail.analysisStatus] ?? detail.analysisStatus} variant="analysis" />
-              )}
-            </span>
-          }
-          right={
-            detail.analysisStatus === 'done'
-              ? <CopyBtn text={buildAnalysisCopyText(detail)} label="전체 복사" />
-              : null
-          }
-        >
-          {detail.analysisStatus === 'pending' || detail.analysisStatus === 'processing' ? (
+        detail.analysisStatus === 'pending' || detail.analysisStatus === 'processing' ? (
+          <Section
+            icon={<Sparkles size={15} />}
+            title="AI 사전 분석"
+            right={<StatusBadge status={detail.analysisStatus} label={ANALYSIS_LABEL[detail.analysisStatus] ?? detail.analysisStatus} variant="analysis" />}
+          >
             <p style={{ margin: 0, fontSize: 13, color: 'var(--text-muted)' }}>AI가 사전문진을 분석하고 있습니다…</p>
-          ) : (
-            <div style={{ display: 'grid', gap: 14 }}>
-              {detail.draftSummary && (
-                <div>
-                  <p style={subHeadStyle}>요약</p>
-                  <p style={{ margin: 0, fontSize: 13, color: 'var(--text)', lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>{detail.draftSummary}</p>
-                </div>
-              )}
+          </Section>
+        ) : detail.analysisStatus === 'error' ? (
+          <Section
+            icon={<Sparkles size={15} />}
+            title="AI 사전 분석"
+            right={<StatusBadge status="error" label={ANALYSIS_LABEL.error ?? '오류'} variant="analysis" />}
+          >
+            <p style={{ margin: 0, fontSize: 13, color: 'var(--danger)' }}>분석 중 오류가 발생했습니다. 재분석을 시도해 주세요.</p>
+          </Section>
+        ) : (
+          <>
+            <Section
+              icon={<FileText size={15} />}
+              title="요약"
+              right={<CopyIconBtn text={detail.draftSummary ?? ''} title="요약 복사" />}
+            >
+              {detail.draftSummary
+                ? <p style={{ margin: 0, fontSize: 13.5, color: 'var(--text)', lineHeight: 1.75, whiteSpace: 'pre-wrap' }}>{detail.draftSummary}</p>
+                : <p style={{ margin: 0, fontSize: 13, color: 'var(--text-muted)' }}>요약이 없습니다.</p>}
+            </Section>
+
+            <Section icon={<Stethoscope size={15} />} title="예상 감별진단 (DDx)" right={<CopyIconBtn text={ddxCopyText(detail)} title="감별진단 복사" />}>
               {ddxParsed ? (
                 <div>
-                  <p style={subHeadStyle}>예상 감별진단 (DDx)</p>
-                  <div style={{ display: 'grid', gap: 8 }}>
-                    {ddxParsed.map((d, i) => (
-                      <div key={i} style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '8px 10px', background: 'var(--bg-subtle)' }}>
-                        <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>
-                          {d.name}{d.likelihood ? <span style={{ marginLeft: 6, fontSize: 11, color: 'var(--text-muted)', fontWeight: 500 }}>가능도 {d.likelihood}</span> : null}
-                        </div>
-                        {Array.isArray(d.reasons) && d.reasons.length > 0 && (
-                          <ul style={{ margin: '4px 0 0', paddingLeft: 16, fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-                            {d.reasons.map((r, ri) => <li key={ri}>{r}</li>)}
-                          </ul>
-                        )}
+                  {ddxParsed.map((d, i) => (
+                    <div key={i} style={{ padding: i === 0 ? '0 0 11px' : '11px 0', borderTop: i === 0 ? undefined : '1px solid var(--border)' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+                        <span style={{ flexShrink: 0, width: 18, height: 18, borderRadius: '50%', background: 'var(--bg-subtle)', color: 'var(--text-secondary)', fontSize: 10.5, fontWeight: 700, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>{i + 1}</span>
+                        <span style={{ flex: 1, minWidth: 0, fontSize: 13.5, fontWeight: 600, color: 'var(--text)', wordBreak: 'break-word' }}>{d.name}</span>
+                        {likelihoodChip(d.likelihood)}
                       </div>
-                    ))}
-                  </div>
+                      {Array.isArray(d.reasons) && d.reasons.length > 0 && (
+                        <ul style={{ margin: '5px 0 0', paddingLeft: 27, fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.55 }}>
+                          {d.reasons.map((r, ri) => <li key={ri}>{r}</li>)}
+                        </ul>
+                      )}
+                    </div>
+                  ))}
                 </div>
               ) : detail.draftDdx ? (
-                <div>
-                  <p style={subHeadStyle}>예상 감별진단 (DDx)</p>
-                  <pre style={{ margin: 0, fontSize: 12.5, color: 'var(--text-secondary)', whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontFamily: 'inherit', lineHeight: 1.6 }}>{detail.draftDdx}</pre>
-                </div>
-              ) : null}
-              {followUps.length > 0 && (
-                <div>
-                  <p style={subHeadStyle}>추천 추가 질문</p>
-                  <ol style={{ margin: 0, paddingLeft: 18, display: 'grid', gap: 4, fontSize: 13, color: 'var(--text)', lineHeight: 1.5 }}>
-                    {followUps.map((q, i) => <li key={i}>{q}</li>)}
-                  </ol>
-                </div>
+                <pre style={{ margin: 0, fontSize: 12.5, color: 'var(--text-secondary)', whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontFamily: 'inherit', lineHeight: 1.6 }}>{detail.draftDdx}</pre>
+              ) : (
+                <p style={{ margin: 0, fontSize: 13, color: 'var(--text-muted)' }}>예상 감별진단이 없습니다.</p>
               )}
-              {!detail.draftSummary && !detail.draftDdx && followUps.length === 0 && detail.analysisStatus === 'done' && (
-                <p style={{ margin: 0, fontSize: 13, color: 'var(--text-muted)' }}>분석 결과가 없습니다.</p>
+            </Section>
+
+            <Section icon={<HelpCircle size={15} />} title="추천 추가 질문" right={<CopyIconBtn text={followUpsCopyText(detail)} title="추천 질문 복사" />}>
+              {followUps.length > 0 ? (
+                <ol style={{ margin: 0, paddingLeft: 20, fontSize: 13, color: 'var(--text)', lineHeight: 1.55, listStyleType: 'decimal' }}>
+                  {followUps.map((q, i) => <li key={i} style={{ marginTop: i === 0 ? 0 : 6 }}>{q}</li>)}
+                </ol>
+              ) : (
+                <p style={{ margin: 0, fontSize: 13, color: 'var(--text-muted)' }}>추천 추가 질문이 없습니다.</p>
               )}
-              {detail.analysisStatus === 'error' && (
-                <p style={{ margin: 0, fontSize: 13, color: 'var(--danger)' }}>분석 중 오류가 발생했습니다. 재분석을 시도해 주세요.</p>
-              )}
-            </div>
-          )}
-        </Section>
+            </Section>
+          </>
+        )
       )}
 
-      <Section title={completed ? '문진 답변' : '문진 질문'}>
-        {detail.questions.length === 0 ? (
-          <p style={{ margin: 0, fontSize: 13, color: 'var(--text-muted)' }}>질문이 없습니다.</p>
-        ) : (
-          <div style={{ display: 'grid', gap: 8 }}>
-            {[...detail.questions].sort((a, b) => a.order - b.order).map((q) => {
-              const ans = detail.answers?.find((a) => a.questionInstanceId === q.id);
-              const disp = answerDisplay(ans);
-              return (
-                <div key={q.id} style={{ padding: '8px 10px', background: 'var(--bg-subtle)', borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}>
-                  <p style={{ margin: '0 0 3px', fontSize: 11.5, fontWeight: 500, color: 'var(--text-muted)' }}>Q{q.order}. {q.text}</p>
-                  <p style={{ margin: 0, fontSize: 13, fontWeight: 500, color: disp ? 'var(--text)' : 'var(--text-muted)' }}>{disp || '미응답'}</p>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </Section>
+      {qListOpen && <AnswersModal detail={detail} onClose={() => setQListOpen(false)} />}
     </div>
   );
 }
@@ -344,12 +367,21 @@ export function SessionDetailModal({ open, sessionIds, userId, onClose }: {
 }
 
 // ─── 공용 작은 컴포넌트(상세 view 안에서 사용) ─────────────
-export function Section({ title, right, children, tone = 'default' }: { title: React.ReactNode; right?: React.ReactNode; children: React.ReactNode; tone?: 'default' | 'accent' }) {
+export function Section({ title, right, children, tone = 'default', icon, accentBar = false }: { title: React.ReactNode; right?: React.ReactNode; children: React.ReactNode; tone?: 'default' | 'accent'; icon?: React.ReactNode; accentBar?: boolean }) {
   const isAccent = tone === 'accent';
+  const hasIcon = !!icon;
   return (
-    <div style={{ border: `1px solid ${isAccent ? 'var(--accent)' : 'var(--border)'}`, borderRadius: 'var(--radius-lg)', padding: '14px 16px', background: isAccent ? 'var(--accent-subtle)' : 'var(--bg)' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-        <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{title}</div>
+    <div style={{ position: 'relative', overflow: 'hidden', border: `1px solid ${isAccent ? 'var(--accent)' : 'var(--border)'}`, borderRadius: 'var(--radius-lg)', padding: accentBar ? '15px 17px 15px 20px' : '15px 17px', background: isAccent ? 'var(--accent-subtle)' : 'var(--bg)', boxShadow: hasIcon && !isAccent ? '0 1px 3px rgba(0, 0, 0, 0.045)' : undefined }}>
+      {accentBar && <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 3, background: 'var(--accent)' }} />}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: hasIcon ? 10 : 8 }}>
+        {hasIcon ? (
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>
+            <span style={{ display: 'inline-flex', color: 'var(--text-muted)' }}>{icon}</span>
+            {title}
+          </div>
+        ) : (
+          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{title}</div>
+        )}
         {right}
       </div>
       {children}
@@ -377,12 +409,27 @@ export function Row({ k, v, copyable = true }: { k: string; v: string; copyable?
   );
 }
 
+// 아이콘만 있는 복사 버튼 — 박스 헤더 우측에서 그 박스 내용만 복사할 때 사용. 내용이 비면 렌더 안 함.
+export function CopyIconBtn({ text, title = '복사' }: { text: string; title?: string }) {
+  const [copied, setCopied] = useState(false);
+  if (!text?.trim()) return null;
+  async function copy() {
+    try { await navigator.clipboard.writeText(text); setCopied(true); setTimeout(() => setCopied(false), 1200); } catch { /* 무시 */ }
+  }
+  return (
+    <button type="button" onClick={copy} title={title}
+      style={{ flexShrink: 0, border: 'none', background: 'transparent', cursor: 'pointer', padding: '2px 3px', display: 'inline-flex', alignItems: 'center', color: copied ? 'var(--success)' : 'var(--text-muted)' }}>
+      {copied ? <Check size={15} /> : <Copy size={15} />}
+    </button>
+  );
+}
+
 export function CopyBtn({ text, label }: { text: string; label: string }) {
   const [copied, setCopied] = useState(false);
   return (
     <button type="button" onClick={async () => { try { await navigator.clipboard.writeText(text); setCopied(true); setTimeout(() => setCopied(false), 1500); } catch { /* 무시 */ } }}
       style={{ flexShrink: 0, padding: '6px 12px', fontSize: 12.5, fontWeight: 600, cursor: 'pointer', borderRadius: 'var(--radius)', border: `1px solid ${copied ? 'var(--success)' : 'var(--border-strong)'}`, background: 'var(--bg)', color: copied ? 'var(--success)' : 'var(--text)' }}>
-      {copied ? '복사됨' : label}
+      {copied ? '복사 완료' : label}
     </button>
   );
 }

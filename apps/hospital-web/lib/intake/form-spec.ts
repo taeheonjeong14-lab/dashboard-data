@@ -163,10 +163,15 @@ export function speciesFromSurvey(v: string): Species | '' {
   return 'other';
 }
 export function sexFromSurvey(v: string): string {
-  if (!v) return '';
-  const neutered = v.includes('중성화');
-  if (v.includes('수') || v.includes('남')) return neutered ? 'male_neutered' : 'male_intact';
-  if (v.includes('암') || v.includes('여')) return neutered ? 'female_neutered' : 'female_intact';
+  const t = (v ?? '').trim();
+  if (!t) return '';
+  // 신규 사전문진은 초진접수와 동일 라벨(SEX_OPTIONS) 사용 → 정확 매칭.
+  const exact = SEX_OPTIONS.find((o) => o.label === t);
+  if (exact) return exact.value;
+  // 레거시(구 사전문진: '암컷'·'수컷'·'암컷(중성화)' 등) 호환. '중성화 X'(미중성화)는 intact 로.
+  const neutered = t.includes('중성화') && !/중성화\s*X|미중성화/.test(t);
+  if (t.includes('수') || t.includes('남')) return neutered ? 'male_neutered' : 'male_intact';
+  if (t.includes('암') || t.includes('여')) return neutered ? 'female_neutered' : 'female_intact';
   return '';
 }
 

@@ -124,12 +124,15 @@ async function callGeminiForAnalysis(payload: unknown): Promise<GeminiAnalysisRe
     const normalizeSummary = (value: unknown): string => {
       const fallback = '1) -\n\n2) -\n\n3) -\n\n4) -\n\n5) -';
       if (typeof value !== 'string') return fallback;
+      // 줄 앞에 모델이 이미 붙인 번호/불릿("1)", "1.", "(1)", "- ", "• " 등)을 제거.
+      // 프롬프트가 번호 출력을 지시하므로, 여기서 한 번 더 붙이면 "1) 1)"처럼 이중 번호가 된다.
+      const stripLead = (l: string) => l.replace(/^\s*(?:\(?\d{1,2}\)|\d{1,2}\.|[-*•])\s*/, '').trim();
       const lines = value
         .replace(/\r\n/g, '\n')
         .split('\n')
         .map((l) => l.trim())
         .filter(Boolean);
-      const picked = lines.filter((l) => !/^[-*•]\s*$/.test(l)).slice(0, 5);
+      const picked = lines.map(stripLead).filter(Boolean).slice(0, 5);
       while (picked.length < 5) picked.push('-');
       return [
         `1) ${picked[0]}`,

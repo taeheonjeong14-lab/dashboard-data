@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { after } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { analyzeSurveySessionById } from '@/lib/survey-analysis';
+import { effectiveSurveyStatus } from '@/lib/survey-expiry';
 
 async function getApprovedUser(userId: string) {
   return prisma.user.findFirst({
@@ -78,7 +79,10 @@ export async function GET(
       return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 });
     }
 
-    return NextResponse.json({ success: true, session });
+    return NextResponse.json({
+      success: true,
+      session: { ...session, status: effectiveSurveyStatus(session.status, session.scheduledDate) },
+    });
   } catch (e) {
     console.error('GET /api/surveys/sessions/[id] error:', e);
     return NextResponse.json(

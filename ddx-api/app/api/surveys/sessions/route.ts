@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { randomBytes } from 'crypto';
 import { prisma } from '@/lib/prisma';
+import { effectiveSurveyStatus } from '@/lib/survey-expiry';
 import type { Prisma } from '@prisma/client';
 import {
   buildFirstVisitQuestionRows,
@@ -113,6 +114,7 @@ export async function GET(request: NextRequest) {
 
     const sessionsWithUsed = sessions.map((s) => ({
       ...s,
+      status: effectiveSurveyStatus(s.status, s.scheduledDate), // 내원예정일+7일 지난 pending 은 expired 로 보정
       isUsed: usedSessionIds.has(s.id),
       usedAt: usedAtBySessionId[s.id] ?? null,
     }));

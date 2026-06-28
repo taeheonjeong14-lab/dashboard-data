@@ -10,7 +10,7 @@ import { inputStyle, textareaStyle, SegmentedToggle, primaryPillStyle } from '@/
 import { Modal } from '@/components/ui/modal';
 import {
   SessionDetailView,
-  Section, Row, CopyBtn, StatusBadge, SurveyKakaoSend,
+  Section, Row, CopyBtn, StatusBadge, SurveyKakaoSend, AnswersModal,
   STATUS_LABEL,
   fmtDateTime,
   type SessionDetail,
@@ -54,6 +54,8 @@ export default function PreConsultationPage() {
 
   const [modalOpen, setModalOpen] = useState(false);
   const [origin, setOrigin] = useState('');
+  const [resendFor, setResendFor] = useState<SessionListItem | null>(null);
+  const [answersDetail, setAnswersDetail] = useState<SessionDetail | null>(null);
 
   useEffect(() => { setOrigin(window.location.origin); }, []);
 
@@ -98,6 +100,16 @@ export default function PreConsultationPage() {
     if (!userId || !selectedId) { setDetail(null); return; }
     loadDetail(userId, selectedId);
   }, [userId, selectedId, loadDetail]);
+
+  // 목록의 '문진 답변' 버튼 — 해당 세션 상세를 불러와 답변 모달로 띄운다(선택 행과 독립).
+  const openAnswers = useCallback((id: string) => {
+    if (!userId) return;
+    ddxGet<{ success: boolean; session: SessionDetail }>(
+      `/api/surveys/sessions/${encodeURIComponent(id)}`, userId,
+    )
+      .then((data) => { if (data.success && data.session) setAnswersDetail(data.session); })
+      .catch(() => { /* 무시 */ });
+  }, [userId]);
 
   // 분석 진행 중이면 상세 폴링
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -190,7 +202,7 @@ export default function PreConsultationPage() {
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
                   <thead>
                     <tr style={{ background: 'var(--bg-subtle)' }}>
-                      {['발송일시', '환자', '보호자', '상태'].map((h) => (
+                      {['발송일시', '제출일시', '환자', '보호자', '상태', '액션'].map((h) => (
                         <th key={h} style={thStyle}>{h}</th>
                       ))}
                     </tr>
@@ -204,10 +216,25 @@ export default function PreConsultationPage() {
                           background: selectedId === s.id ? 'var(--accent-subtle)' : 'transparent',
                         }}>
                         <td style={tdStyle}>{fmtDateTime(s.createdAt)}</td>
+                        <td style={tdStyle}>
+                          {s.completedAt ? fmtDateTime(s.completedAt) : <span style={{ color: 'var(--text-muted)' }}>—</span>}
+                        </td>
                         <td style={{ ...tdStyle, color: 'var(--text)' }}>{s.patientName || '—'}</td>
                         <td style={tdStyle}>{s.guardianName || '—'}</td>
                         <td style={{ ...tdStyle }}>
                           <StatusBadge status={s.status} label={STATUS_LABEL[s.status] ?? s.status} />
+                        </td>
+                        <td style={tdStyle} onClick={(e) => e.stopPropagation()}>
+                          {s.status === 'pending' ? (
+                            s.token ? (
+                              <button type="button" onClick={() => setResendFor(s)} style={resendBtnStyle}>재발송</button>
+                            ) : <span style={{ color: 'var(--text-muted)' }}>—</span>
+                          ) : s.status === 'completed' ? (
+                            <button type="button" onClick={() => openAnswers(s.id)} style={answersBtnStyle}>문진 답변</button>
+                          ) : (
+                            // 만료(미제출) — 답변이 없으므로 미응답
+                            <span style={{ color: 'var(--text-muted)' }}>미응답</span>
+                          )}
                         </td>
                       </tr>
                     ))}
@@ -228,7 +255,7 @@ export default function PreConsultationPage() {
           ) : detailLoading && !detail ? (
             <Spinner />
           ) : detail ? (
-            <SessionDetailView detail={detail} origin={origin} />
+            <SessionDetailView detail={detail} origin={origin} hideAnswersButton />
           ) : (
             <div style={{ fontSize: 13, color: 'var(--text-muted)', padding: '8px 0' }}>상세를 불러오지 못했습니다.</div>
           )}
@@ -238,6 +265,38 @@ export default function PreConsultationPage() {
       {modalOpen && userId && (
         <SendModal userId={userId} origin={origin} onClose={() => setModalOpen(false)} onCreated={handleCreated} />
       )}
+
+      {resendFor && (
+        <Modal title={`재발송${resendFor.patientName ? ` — ${resendFor.patientName}` : ''}`} onClose={() => setResendFor(null)} maxWidth={480}>
+          <div style={{ display: 'grid', gap: 14 }}>
+            <p style={{ margin: 0, fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+              아래에서 <b>링크를 복사</b>하거나 <b>카카오톡으로 발송</b>하세요.
+            </p>
+            {origin && resendFor.token && (
+              <div>
+                <p style={{ margin: '0 0 6px', fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)' }}>작성 링크</p>
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '10px 14px', background: 'var(--bg-subtle)', border: '1px solid var(--border)', borderRadius: 'var(--radius)' }}>
+                  <span style={{ flex: 1, minWidth: 0, fontSize: 12.5, color: 'var(--text)', wordBreak: 'break-all', lineHeight: 1.6 }}>{`${origin}/survey/${resendFor.token}`}</span>
+                  <CopyBtn text={`${origin}/survey/${resendFor.token}`} label="복사" />
+                </div>
+              </div>
+            )}
+            {resendFor.token && (
+              <div style={{ padding: '12px 14px', background: 'var(--bg-subtle)', border: '1px solid var(--border)', borderRadius: 'var(--radius)' }}>
+                <SurveyKakaoSend
+                  token={resendFor.token}
+                  defaultPhone={resendFor.contact ?? ''}
+                  patientName={resendFor.patientName ?? ''}
+                  guardianName={resendFor.guardianName ?? ''}
+                  scheduledDate=""
+                />
+              </div>
+            )}
+          </div>
+        </Modal>
+      )}
+
+      {answersDetail && <AnswersModal detail={answersDetail} onClose={() => setAnswersDetail(null)} />}
     </div>
   );
 }
@@ -389,4 +448,15 @@ const thStyle: CSSProperties = {
 };
 const tdStyle: CSSProperties = {
   padding: '11px 12px', color: 'var(--text-secondary)', whiteSpace: 'nowrap',
+};
+const actionBtnBase: CSSProperties = {
+  padding: '5px 10px', fontSize: 12, fontWeight: 600, borderRadius: 'var(--radius)',
+  cursor: 'pointer', whiteSpace: 'nowrap', minWidth: 76, textAlign: 'center',
+};
+// 재발송(대기 중) = 진한 회색, 문진 답변(제출 완료) = success(초록) — 솔리드 톤으로 구분.
+const resendBtnStyle: CSSProperties = {
+  ...actionBtnBase, color: '#fff', background: '#4e5968', border: 'none',
+};
+const answersBtnStyle: CSSProperties = {
+  ...actionBtnBase, color: '#fff', background: 'var(--success)', border: 'none',
 };

@@ -154,7 +154,11 @@ export default function PublicSurveyPage() {
       .then((data) => {
         if (!data.success || !data.session) {
           setStep('error');
-          setErrorMsg(data.error === 'not_found' ? '문진을 찾을 수 없습니다. 링크를 다시 확인해 주세요.' : '문진을 불러오지 못했습니다.');
+          setErrorMsg(
+            data.error === 'not_found' ? '문진을 찾을 수 없습니다. 링크를 다시 확인해 주세요.'
+              : data.error === 'expired' ? '문진 작성 기간이 만료되었습니다. 병원에 문의해 주세요.'
+                : '문진을 불러오지 못했습니다.',
+          );
           return;
         }
         setSession(data.session);

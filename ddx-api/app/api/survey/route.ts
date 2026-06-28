@@ -3,6 +3,7 @@ import { after } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { analyzeSurveySessionById } from '@/lib/survey-analysis';
 import { syncSurveySessionIdentityFields } from '@/lib/survey-session-identity-sync';
+import { isSurveyExpired } from '@/lib/survey-expiry';
 
 // GET /api/survey?token=xxx — 토큰으로 세션 + 질문 조회 (공개, 로그인 불필요)
 export async function GET(request: NextRequest) {
@@ -51,6 +52,11 @@ export async function GET(request: NextRequest) {
 
     if (!session) {
       return NextResponse.json({ success: false, error: 'not_found' }, { status: 404 });
+    }
+
+    // 내원 예정일 + 7일 경과한 미제출 링크는 만료 → 작성 차단(이미 제출한 건은 그대로 열람 가능).
+    if (isSurveyExpired(session.status, session.scheduledDate)) {
+      return NextResponse.json({ success: false, error: 'expired' }, { status: 410 });
     }
 
     return NextResponse.json({ success: true, session });
