@@ -6,7 +6,7 @@ import { useHospital } from '@/components/shell/hospital-context';
 import { CenteredSpinner } from '@/components/ui/loading-spinner';
 import { StickyHeader } from '@/components/ui/sticky-header';
 import { ddxGet, ddxPost, DdxApiForbiddenError } from '@/lib/ddx-api';
-import { inputStyle, textareaStyle, SegmentedToggle, primaryPillStyle } from '@/lib/form-styles';
+import { inputStyle, textareaStyle, primaryPillStyle } from '@/lib/form-styles';
 import { DOG_BREEDS, CAT_BREEDS, SEX_OPTIONS } from '@/lib/intake/form-spec';
 import { Modal } from '@/components/ui/modal';
 import {
@@ -417,7 +417,28 @@ function SendModal({ userId, origin, onClose, onCreated }: {
             <input style={inputStyle} type="date" value={scheduledDate} onChange={(e) => setScheduledDate(e.target.value)} />
           </Field>
           <Field label="방문 유형">
-            <SegmentedToggle options={['신규환자', '새 증상', '경과 확인']} value={visitType} onChange={setVisitType} padX={14} />
+            <div style={{ display: 'grid', gap: 8 }}>
+              {[
+                { v: '신규환자', label: '신규환자', desc: '본원 첫 내원' },
+                { v: '새 증상', label: '(기존 환자) 새 증상', desc: '새로운 증상/질환' },
+                { v: '경과 확인', label: '(기존 환자) 경과 확인', desc: '치료 중인 질환 재진' },
+              ].map((o) => {
+                const on = visitType === o.v;
+                return (
+                  <button key={o.v} type="button" onClick={() => setVisitType(o.v)}
+                    style={{
+                      display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
+                      padding: '11px 14px', borderRadius: 'var(--radius)', cursor: 'pointer', textAlign: 'left',
+                      border: `1px solid ${on ? 'var(--accent)' : 'var(--border-strong)'}`,
+                      background: on ? 'var(--accent-subtle)' : 'var(--bg)',
+                      color: on ? 'var(--accent)' : 'var(--text-secondary)', fontWeight: on ? 700 : 500, fontSize: 13.5,
+                    }}>
+                    <span>{o.label}</span>
+                    <span style={{ fontSize: 11.5, color: on ? 'var(--accent)' : 'var(--text-muted)', fontWeight: 500 }}>{o.desc}</span>
+                  </button>
+                );
+              })}
+            </div>
           </Field>
           {isExisting && (
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
@@ -455,10 +476,10 @@ function SendModal({ userId, origin, onClose, onCreated }: {
           )}
           <p style={{ margin: '-2px 0 0', fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.5 }}>
             {visitType === '경과 확인'
-              ? '기존 환자 · 치료 중인 질환 재진. 이전 차트를 바탕으로 AI 맞춤 질문이 생성됩니다.'
+              ? '이전 차트를 바탕으로 AI 맞춤 질문이 생성됩니다.'
               : visitType === '새 증상'
-                ? '기존 환자 · 새로운 증상/질환. 보호자·환자 기본 정보는 생략하고 증상 위주로 묻습니다.'
-                : '본원 첫 내원. 전체 사전문진 질문이 사용됩니다.'}
+                ? '보호자·환자 기본 정보는 생략하고 증상 위주로 묻습니다.'
+                : '전체 사전문진 질문이 사용됩니다.'}
           </p>
         </div>
       )}
