@@ -1,3 +1,5 @@
+import { DOG_BREEDS, CAT_BREEDS } from '@dashboard/breeds';
+
 export type QuestionType =
   | 'short_text'
   | 'long_text'
@@ -125,17 +127,7 @@ const SYMPTOM_FOLLOWUP_REASONS = FIRST_VISIT_REASONS.filter(
   (reason) => reason !== '건강검진' && reason !== '예방접종/사상충예방'
 );
 
-// 품종 보기
-const DOG_BREEDS = [
-  '말티즈', '푸들', '말티푸', '포메라니안', '치와와', '요크셔테리어', '시츄', '비숑프리제', '페키니즈', '파피용',
-  '미니어처 핀셔', '슈나우저', '닥스훈트', '퍼그', '코카 스파니엘', '비글', '웰시 코기', '프렌치 불독', '불독', '보더 콜리',
-  '셰틀랜드 쉽독', '시바 이누', '진돗개', '골든 리트리버', '래브라도 리트리버', '저먼 셰퍼드', '로트와일러', '도베르만',
-  '시베리안 허스키', '사모예드', '믹스견', '그 외',
-];
-const CAT_BREEDS = [
-  '코리안 숏헤어', '믹스묘', '브리티시 숏헤어', '스코티시 폴드', '러시안 블루', '페르시안', '히말라얀', '벵갈', '아비시니안',
-  '샴', '버만', '랙돌', '노르웨이 숲', '메인쿤', '터키시 앙고라', '스핑크스', '데본 렉스', '코니시 렉스', '그 외',
-];
+// 품종 보기 — @dashboard/breeds 단일 소스(상단 import). 초진 접수증(hospital-web)과 동기화됨.
 
 /** 초진 사전 문진표(고정) 질문: Q1~ + 분기 문항 */
 export const FIRST_VISIT_FIXED_QUESTIONS: QuestionDef[] = compileDraftQuestions([
@@ -147,8 +139,10 @@ export const FIRST_VISIT_FIXED_QUESTIONS: QuestionDef[] = compileDraftQuestions(
   { key: 'Q5', text: '품종', type: 'conditional_select', conditionalChoices: { '강아지': DOG_BREEDS, '고양이': CAT_BREEDS, '그 외': null }, condition: { onKey: 'Q4', answered: true } },
   { key: 'Q6', text: '성별', type: 'single_choice', choices: ['암컷(중성화)', '수컷(중성화)', '암컷', '수컷'] },
   { key: 'Q125', text: '반려동물의 생일은 언제인가요?', type: 'pet_birthday' },
-  { key: 'Q7', text: '출산이력이 있나요?', type: 'single_choice', choices: ['예', '아니오'], condition: { onKey: 'Q6', value: '암컷' } },
-  { key: 'Q8', text: '마지막 생리는 언제인가요?', type: 'single_choice', choices: ['1개월 이내', '3개월 이내', '6개월 이내', '6개월 이상', '잘 모르겠음'], condition: { onKey: 'Q7', answered: true } },
+  // 출산이력: 중성화 암컷도 과거 출산 이력이 있을 수 있으므로 미중성화·중성화 암컷 모두 노출.
+  { key: 'Q7', text: '출산이력이 있나요?', type: 'single_choice', choices: ['예', '아니오'], condition: { onKey: 'Q6', anyOf: ['암컷', '암컷(중성화)'] } },
+  // 마지막 생리: 미중성화 암컷만(중성화면 생리 주기 없음). Q7 대신 Q6 직접 조건으로 분리.
+  { key: 'Q8', text: '마지막 생리는 언제인가요?', type: 'single_choice', choices: ['1개월 이내', '3개월 이내', '6개월 이내', '6개월 이상', '잘 모르겠음'], condition: { onKey: 'Q6', value: '암컷' } },
   { key: 'Q9', text: '오늘 병원에 오신 이유는 무엇인가요?', type: 'multi_choice', maxSelections: 3, choiceLayout: 'two_col', choices: [...FIRST_VISIT_REASONS] as unknown as string[] },
 
   // Q10/Q11: 선택된 각 이유별로 반복(“XXX” 치환) — 이유별 1세트씩 생성
@@ -166,19 +160,34 @@ export const FIRST_VISIT_FIXED_QUESTIONS: QuestionDef[] = compileDraftQuestions(
   },
   { key: 'Q13', text: '알레르기가 있나요?', type: 'single_choice', choices: ['있음', '없음', '잘 모르겠음'] },
 
-  // Q14: 2-step
-  { key: 'Q14_gate', text: '중성화수술 외 수술이력이나 만성질환 진단 이력이 있나요?', type: 'single_choice', choices: ['없음', '있음'] },
-  { key: 'Q14_detail', text: '수술/만성질환 이력을 모두 선택해주세요.', type: 'multi_choice', choices: [
+  // Q14: 2-step (게이트 → 상세). 만성질환/수술 이력 보기를 종(Q4)에 따라 분기 —
+  // 게이트 자체를 종별로 두어(단일 조건만으로) 종별 상세 보기를 노출한다.
+  // 강아지: 쿠싱 증후군·슬개골탈구 등 포함 / 고양이: 쿠싱·슬개골탈구 제외, 관절질환·심근증으로 대체.
+  { key: 'Q14_gate_dog', text: '중성화수술 외 수술이력이나 만성질환 진단 이력이 있나요?', type: 'single_choice', choices: ['없음', '있음'], condition: { onKey: 'Q4', value: '강아지' } },
+  { key: 'Q14_detail_dog', text: '수술/만성질환 이력을 모두 선택해주세요.', type: 'multi_choice', choices: [
     '관절수술(슬개골탈구 등)', '결석', '종양', '안과수술',
     '심장병', '만성신부전', '갑상선질환', '쿠싱 증후군', '당뇨병', '아토피',
     '그 외',
-  ], inlineWithPrev: true, condition: { onKey: 'Q14_gate', value: '있음' } },
+  ], inlineWithPrev: true, condition: { onKey: 'Q14_gate_dog', value: '있음' } },
+  { key: 'Q14_gate_cat', text: '중성화수술 외 수술이력이나 만성질환 진단 이력이 있나요?', type: 'single_choice', choices: ['없음', '있음'], condition: { onKey: 'Q4', value: '고양이' } },
+  { key: 'Q14_detail_cat', text: '수술/만성질환 이력을 모두 선택해주세요.', type: 'multi_choice', choices: [
+    '관절질환', '결석', '종양', '안과수술',
+    '심장병(심근증 등)', '만성신부전', '갑상선질환', '당뇨병', '아토피',
+    '그 외',
+  ], inlineWithPrev: true, condition: { onKey: 'Q14_gate_cat', value: '있음' } },
+  { key: 'Q14_gate_other', text: '중성화수술 외 수술이력이나 만성질환 진단 이력이 있나요?', type: 'single_choice', choices: ['없음', '있음'], condition: { onKey: 'Q4', value: '그 외' } },
+  { key: 'Q14_detail_other', text: '수술/만성질환 이력을 모두 선택해주세요.', type: 'multi_choice', choices: [
+    '결석', '종양', '심장병', '만성신부전', '당뇨병', '아토피', '그 외',
+  ], inlineWithPrev: true, condition: { onKey: 'Q14_gate_other', value: '있음' } },
 
   // Q15: 2-step
   { key: 'Q15_gate', text: '현재 복용 중인 약이 있나요?', type: 'single_choice', choices: ['없음', '있음'] },
   { key: 'Q15_detail', text: '복용 중인 약이 있다면 적어주세요.', type: 'long_text', inlineWithPrev: true, condition: { onKey: 'Q15_gate', value: '있음' } },
 
-  { key: 'Q16', text: '최근 2년 내에 진행한 예방 접종을 모두 선택해주세요', type: 'multi_choice', choices: ['접종 안함', '종합 백신', '광견병', '코로나', '기관지염', '인플루엔자', '고양이백혈병', '항체검사', '그 외'] },
+  // Q16 예방접종: Q4(종)에 따라 종별로 relevant 한 백신만 노출(강아지 전용: 코로나·기관지염·인플루엔자 / 고양이 전용: 고양이백혈병).
+  { key: 'Q16_dog', text: '최근 2년 내에 진행한 예방 접종을 모두 선택해주세요', type: 'multi_choice', choices: ['접종 안함', '종합 백신', '광견병', '코로나', '기관지염', '인플루엔자', '항체검사', '그 외'], condition: { onKey: 'Q4', value: '강아지' } },
+  { key: 'Q16_cat', text: '최근 2년 내에 진행한 예방 접종을 모두 선택해주세요', type: 'multi_choice', choices: ['접종 안함', '종합 백신', '광견병', '고양이백혈병', '항체검사', '그 외'], condition: { onKey: 'Q4', value: '고양이' } },
+  { key: 'Q16_other', text: '최근 2년 내에 진행한 예방 접종을 모두 선택해주세요', type: 'multi_choice', choices: ['접종 안함', '종합 백신', '광견병', '항체검사', '그 외'], condition: { onKey: 'Q4', value: '그 외' } },
   { key: 'Q17', text: '최근 3개월 이내 기생충 예방을 한 경우 모두 선택해주세요', type: 'multi_choice', choices: ['예방 안함', '심장사상충', '진드기', '내부기생충'] },
   { key: 'Q18', text: '거주환경이나 산책, 유치원 방문 등의 외부활동의 빈도가 어느정도인가요?', type: 'single_choice', choices: ['매일 외출하거나 실외에 거주', '주 3~5회', '주 1~2회', '거의 나가지 않음'] },
   { key: 'Q19', text: '같이 동거하는 동물이 있나요?', type: 'multi_choice', choices: ['없음', '강아지', '고양이', '그 외'] },

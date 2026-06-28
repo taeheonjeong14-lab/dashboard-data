@@ -1,6 +1,8 @@
 // 초진환자 접수증 — 질문 정의 (단일 소스)
 // docs/intake-form-questions.md 스펙을 코드로 인코딩. 위저드 UI/제출 API가 이 정의를 공유한다.
 
+import { DOG_BREEDS, CAT_BREEDS } from '@dashboard/breeds';
+
 export type Species = 'dog' | 'cat' | 'other';
 
 export type Option = { value: string; label: string };
@@ -20,17 +22,9 @@ export const SPECIES_OPTIONS: Option[] = [
   { value: 'other', label: '그 외' },
 ];
 
-export const DOG_BREEDS: string[] = [
-  '믹스', '몰티즈', '푸들', '비숑 프리제', '포메라니안', '말티푸', '시추', '요크셔테리어',
-  '토이 푸들', '치와와', '스피츠', '닥스훈트', '진돗개', '폼피츠', '베들링턴 테리어',
-  '시바이누', '골든리트리버', '프렌치불독', '코카스파니엘', '보더콜리', '래브라도리트리버',
-  '퍼그', '슈나우저', '사모예드', '기타',
-];
-
-export const CAT_BREEDS: string[] = [
-  '코리안숏헤어', '러시안블루', '페르시안', '스코티시폴드', '먼치킨', '브리티시숏헤어',
-  '샴', '아비시니안', '노르웨이숲', '랙돌', '벵갈', '메인쿤', '터키시앙고라', '스핑크스', '기타',
-];
+// 품종 목록 — @dashboard/breeds 단일 소스에서 재노출(사전문진과 동기화).
+// 마지막 '그 외' 선택 시 자유입력은 BREED_FREETEXT_VALUES('그 외' 포함)가 처리한다.
+export { DOG_BREEDS, CAT_BREEDS };
 
 export const OTHER_ANIMALS: string[] = [
   '토끼', '햄스터', '기니피그', '페럿', '고슴도치', '앵무새', '거북이', '도마뱀', '그 외',
