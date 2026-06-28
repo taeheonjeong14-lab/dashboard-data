@@ -249,7 +249,7 @@ export const FIRST_VISIT_FIXED_QUESTIONS: QuestionDef[] = compileDraftQuestions(
   { key: 'Q60', text: '[호흡곤란/숨소리 변화] 숨소리는 어떤가요?', type: 'single_choice', choices: ['쌕쌕거리는 소리', '거칠고 큰 소리', '잘 모르겠음'], condition: { onKey: 'Q59', answered: true } },
 
   // ── Q9=8 눈 이상: Q61~Q62 ──────────────────────────────
-  { key: 'Q61', text: '[눈 이상] 어떤 증상이 있나요?', type: 'multi_choice', choices: ['충혈/부음', '눈곱 증가', '눈물 증가', '눈물 감소', '시력 저하', '눈을 비빔', '눈과 눈 주변의 혹/상처', '눈을 잘 뜨지 못함', '양쪽 눈의 비대칭'], condition: { onKey: 'Q9', value: '눈 이상' } },
+  { key: 'Q61', text: '[눈 이상] 어떤 증상이 있나요?', type: 'multi_choice', choices: ['충혈/부음', '눈곱 증가', '눈물 증가', '눈물 감소', '시력 저하', '눈동자가 하얘짐', '눈을 비빔', '눈과 눈 주변의 혹/상처', '눈을 잘 뜨지 못함', '양쪽 눈의 비대칭'], condition: { onKey: 'Q9', value: '눈 이상' } },
   { key: 'Q62', text: '[눈 이상] 어느 쪽 눈을 불편해하나요?', type: 'single_choice', choices: ['왼쪽', '오른쪽', '양쪽'], condition: { onKey: 'Q61', answered: true } },
 
   // ── Q9=9 구강 문제/스케일링: Q63~Q69 ───────────────────

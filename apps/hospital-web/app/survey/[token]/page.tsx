@@ -328,6 +328,19 @@ export default function PublicSurveyPage() {
     }
   };
 
+  // 작성 중 답변을 백그라운드로 자동 저장(complete:false) — 중간에 나갔다 다시 들어와도 이어서 작성 가능.
+  // 답변/기타입력이 바뀔 때마다 디바운스 후 현재까지의 답변을 upsert 한다(제출 전이므로 complete:false).
+  useEffect(() => {
+    if (step !== 'survey' || !token) return;
+    const payload = buildPayload();
+    if (payload.length === 0) return;
+    const t = setTimeout(() => {
+      ddxPostPublic('/api/survey', { token, answers: payload, complete: false }).catch(() => { /* 자동 저장 실패는 조용히 무시 */ });
+    }, 700);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [answers, otherText, step, token]);
+
   // ─── 렌더 ──────────────────────────────────────────────
   if (step === 'loading') {
     return (
@@ -382,6 +395,13 @@ export default function PublicSurveyPage() {
   if (step === 'intro') {
     const patient = session?.patientName?.trim() || '';
     const scheduledText = formatScheduledDate(session?.scheduledDate);
+    // 이전에 작성하던 답변이 있으면 "이어서 작성하기" 제공 — 첫 미답변 질문으로 점프.
+    const answeredCount = visible.filter((q) => answerNonEmpty(answers[q.id])).length;
+    const hasProgress = answeredCount > 0;
+    const resumeIdx = (() => {
+      const i = visible.findIndex((q) => !answerNonEmpty(answers[q.id]));
+      return i === -1 ? Math.max(0, totalQ - 1) : i;
+    })();
     return (
       <Screen accent={ac}>
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
@@ -406,9 +426,23 @@ export default function PublicSurveyPage() {
           </div>
         </div>
         <div style={{ flexShrink: 0 }}>
-          <button type="button" className="sv-press" onClick={() => setStep('survey')} style={{ ...btnPrimary(false), width: '100%', padding: '17px', fontSize: 17 }}>
-            시작하기
-          </button>
+          {hasProgress ? (
+            <>
+              <p style={{ margin: '0 0 12px', fontSize: 14.5, color: C.textSec, textAlign: 'center', lineHeight: 1.6 }}>
+                이전에 작성하던 내용이 저장되어 있어요.
+              </p>
+              <button type="button" className="sv-press" onClick={() => { setCurrentQ(resumeIdx); setStep('survey'); }} style={{ ...btnPrimary(false), width: '100%', padding: '17px', fontSize: 17 }}>
+                이어서 작성하기
+              </button>
+              <button type="button" className="sv-press" onClick={() => { setCurrentQ(0); setStep('survey'); }} style={{ width: '100%', marginTop: 10, padding: '14px', fontSize: 15, fontWeight: 600, color: C.textSec, background: 'transparent', border: 'none', cursor: 'pointer' }}>
+                처음부터 다시 보기
+              </button>
+            </>
+          ) : (
+            <button type="button" className="sv-press" onClick={() => setStep('survey')} style={{ ...btnPrimary(false), width: '100%', padding: '17px', fontSize: 17 }}>
+              시작하기
+            </button>
+          )}
         </div>
       </Screen>
     );
