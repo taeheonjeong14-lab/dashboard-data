@@ -6,6 +6,7 @@ import { loadRunBasicsForPdfBasename } from '@/lib/report-source-pdf-basename';
 import { buildHealthCheckupSharePrintUrlForRequest } from '@/lib/chart-app/health-checkup-export-print-url';
 import { renderAndStoreReportPdf } from '@/lib/chart-app/report-pdf-store';
 import { normalizePhone } from '@/lib/chart-app/aligo';
+import { resolveHospitalKakao } from '@/lib/chart-app/kakao-template';
 import { getChartPgPool } from '@/lib/db';
 
 // POST /api/report/health-checkup/send-kakao — 보호자에게 건강검진 리포트를 카카오 알림톡으로 발송.
@@ -93,19 +94,33 @@ export async function POST(request: NextRequest) {
     }
 
     const pdfUrl = `${new URL(request.url).origin}/review/health-checkup/${encodeURIComponent(token)}/pdf`;
-    const templateCode = process.env.ALIGO_TPL_CODE || 'UI_6805';
     // 템플릿(UI_6805)에 등록된 버튼 순서와 정확히 일치해야 함: ① 채널 추가(AC) ② 리포트 확인하기(WL).
     const buttons = [
       { type: 'AC', name: '채널 추가' },
       { type: 'WL', name: '리포트 확인하기', linkMo: pdfUrl, linkPc: pdfUrl },
     ];
 
+    // 병원별 카카오 채널/템플릿이 설정돼 있으면 그 발신프로필·본문으로, 없으면 회사 기본 채널로 폴백.
+    // 변수: #{환자명}·#{검진일}·#{병원명}·#{token}·#{reportUrl}.
+    const resolved = hospitalId
+      ? await resolveHospitalKakao(pool, String(hospitalId), 'report', {
+          '환자명': patientName, '검진일': checkupDate, '병원명': hospitalName, token, reportUrl: pdfUrl,
+        })
+      : null;
+    const templateCode = resolved ? resolved.templateCode : (process.env.ALIGO_TPL_CODE || 'UI_6805');
+    const emphasisTitle = resolved ? resolved.emphasisTitle : `${patientName} 건강검진 리포트`;
+    const message = resolved ? resolved.message : buildMessage(patientName, checkupDate, hospitalName);
+    const buttonsToSend = resolved ? resolved.buttons : buttons;
+    const senderKey = resolved ? resolved.senderKey : null;
+    const senderPhone = resolved ? resolved.senderPhone : null;
+
     // 알리고는 고정 발신 IP 를 요구하나 chart-api(Vercel) egress IP 는 유동적 → 사무실 고정 IP 뒤의
     // 워커(collect-worker)가 발송하도록 outbox 에 적재한다. 워커가 꺼내 알리고로 보냄.
+    // sender_key 가 있으면 워커가 그 발신프로필로, 없으면 ENV(회사 기본) 로 발송.
     const ins = await pool.query<{ id: string }>(
       `INSERT INTO health_report.alimtalk_outbox
-         (status, run_id, hospital_id, receiver, template_code, subject, emphasis_title, message, buttons, pdf_url, product_code)
-       VALUES ('queued', $1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8::jsonb, $9, 'health_report')
+         (status, run_id, hospital_id, receiver, template_code, subject, emphasis_title, message, buttons, pdf_url, product_code, sender_key, sender_phone)
+       VALUES ('queued', $1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8::jsonb, $9, 'health_report', $10, $11)
        RETURNING id`,
       [
         runId,
@@ -113,10 +128,12 @@ export async function POST(request: NextRequest) {
         phone,
         templateCode,
         '우리아이 건강검진',
-        `${patientName} 건강검진 리포트`,
-        buildMessage(patientName, checkupDate, hospitalName),
-        JSON.stringify(buttons),
+        emphasisTitle,
+        message,
+        JSON.stringify(buttonsToSend),
         pdfUrl,
+        senderKey,
+        senderPhone,
       ],
     );
     const outboxId = ins.rows[0]?.id;

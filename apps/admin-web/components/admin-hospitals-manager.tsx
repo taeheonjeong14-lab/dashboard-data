@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { formatSupabaseError } from '@/lib/format-supabase-error';
+import { HospitalKakaoSection } from '@/components/admin-hospital-kakao';
 
 type HospitalListRow = { id: string; name?: string; address?: string; addressDetail?: string; address_detail?: string };
 
@@ -110,6 +111,7 @@ const FORM_SECTIONS = [
   { key: 'competitor', title: '경쟁병원' },
   { key: 'blog', title: '블로그 컨텐츠' },
   { key: 'crawler', title: '데이터 수집' },
+  { key: 'kakao', title: '카카오 채널' },
   { key: 'database', title: '데이터베이스 관리' },
 ] as const;
 type SectionKey = (typeof FORM_SECTIONS)[number]['key'];
@@ -860,6 +862,10 @@ export default function AdminHospitalsManager() {
           </TabPanel>
 
           {/* 🗄️ 데이터베이스 관리 — 시스템 내부에서 병원을 식별/관리하기 위한 값 */}
+          <TabPanel active={activeTab === 'kakao'}>
+            <HospitalKakaoSection hospitalId={selectedId} />
+          </TabPanel>
+
           <TabPanel active={activeTab === 'database'}>
             <LabeledField label="병원 코드" hint="시스템 내부에서 병원을 식별·관리하기 위한 코드">
               <input value={form.code} onChange={(e) => setForm((f) => ({ ...f, code: e.target.value }))} style={fieldStyle} />

@@ -558,8 +558,10 @@ function aligoButtonsToJson(buttons) {
 async function sendOneAlimtalk(row) {
   const apikey = process.env.ALIGO_API_KEY;
   const userid = process.env.ALIGO_USER_ID;
-  const senderkey = process.env.ALIGO_SENDER_KEY;
-  const sender = process.env.ALIGO_SENDER;
+  // 발신프로필키·발신번호: outbox 행에 있으면 그 병원 채널로, 없으면 ENV(회사 기본 채널)로 폴백.
+  // (계정은 1개라 apikey/userid·발신 IP는 그대로 공용)
+  const senderkey = (row.sender_key && String(row.sender_key).trim()) || process.env.ALIGO_SENDER_KEY;
+  const sender = (row.sender_phone && String(row.sender_phone).trim()) || process.env.ALIGO_SENDER;
   if (!apikey || !userid || !senderkey || !sender) {
     return { ok: false, code: -1, message: "워커에 ALIGO_* 환경변수가 없습니다(.env 확인)" };
   }
@@ -598,7 +600,7 @@ async function processAlimtalkOutbox() {
     const { data: rows, error } = await supabase
       .schema("health_report")
       .from("alimtalk_outbox")
-      .select("id, hospital_id, run_id, receiver, template_code, subject, emphasis_title, message, buttons, attempts, product_code")
+      .select("id, hospital_id, run_id, receiver, template_code, subject, emphasis_title, message, buttons, attempts, product_code, sender_key, sender_phone")
       .eq("status", "queued")
       .order("created_at", { ascending: true })
       .limit(5);

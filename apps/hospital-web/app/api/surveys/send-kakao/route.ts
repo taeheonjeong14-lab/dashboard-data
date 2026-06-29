@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { createServiceRoleClient } from '@/lib/supabase/service-role';
+import { resolveHospitalKakao } from '@/lib/kakao-template';
 
 // POST /api/surveys/send-kakao — 보호자에게 사전문진 작성 링크를 카카오 알림톡으로 발송.
 // 건강검진 리포트 발송과 동일하게 health_report.alimtalk_outbox 에 적재만 하고, 사무실 고정 IP 워커가
@@ -100,21 +101,32 @@ export async function POST(request: NextRequest) {
       { type: 'WL', name: '사전문진 바로가기', linkMo: surveyUrl, linkPc: surveyUrl },
     ];
 
+    // 병원별 카카오 채널/템플릿이 설정돼 있으면 그 발신프로필·본문으로, 없으면 회사 기본 채널로 폴백.
+    // 변수: #{병원명}·#{예약일}·#{token}·#{surveyUrl}. (sender_key 가 있으면 워커가 그 발신프로필로 발송)
+    const resolved = await resolveHospitalKakao(srvc, hospitalId, 'survey', {
+      '병원명': hospitalName, '예약일': scheduledLabel, token, surveyUrl,
+    });
+
+    // 단일 객체로 적재. resolved 가 있으면 병원 채널, 없으면 회사 기본 채널(폴백, sender_key=null).
+    const outboxRow = {
+      status: 'queued',
+      run_id: null,
+      hospital_id: hospitalId,
+      receiver: phone,
+      template_code: resolved ? resolved.templateCode : SURVEY_TEMPLATE_CODE,
+      subject: '사전문진',
+      emphasis_title: resolved ? resolved.emphasisTitle : `${hospitalName} 사전문진`,
+      message: resolved ? resolved.message : buildMessage(scheduledLabel, hospitalName),
+      buttons: resolved ? resolved.buttons : buttons,
+      pdf_url: null,
+      sender_key: resolved ? resolved.senderKey : null,
+      sender_phone: resolved ? resolved.senderPhone : null,
+    };
+
     const { data: ins, error: insErr } = await srvc
       .schema('health_report')
       .from('alimtalk_outbox')
-      .insert({
-        status: 'queued',
-        run_id: null,
-        hospital_id: hospitalId,
-        receiver: phone,
-        template_code: SURVEY_TEMPLATE_CODE,
-        subject: '사전문진',
-        emphasis_title: `${hospitalName} 사전문진`,
-        message: buildMessage(scheduledLabel, hospitalName),
-        buttons,
-        pdf_url: null,
-      })
+      .insert(outboxRow)
       .select('id')
       .single();
     if (insErr || !ins?.id) {
