@@ -402,20 +402,6 @@ function SendModal({ userId, origin, onClose, onCreated }: {
           {err && (
             <div style={{ padding: '10px 12px', background: 'var(--danger-subtle)', border: '1px solid var(--danger)', borderRadius: 'var(--radius)', color: 'var(--danger)', fontSize: 12.5 }}>{err}</div>
           )}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-            <Field label="환자 이름">
-              <input style={inputStyle} value={patientName} onChange={(e) => setPatientName(e.target.value)} placeholder="예: 뽀미" />
-            </Field>
-            <Field label="보호자 성명">
-              <input style={inputStyle} value={guardianName} onChange={(e) => setGuardianName(e.target.value)} placeholder="예: 홍길동" />
-            </Field>
-          </div>
-          <Field label="연락처" required>
-            <input style={inputStyle} value={contact} onChange={(e) => setContact(formatPhone(e.target.value))} placeholder="010-0000-0000" type="tel" inputMode="numeric" />
-          </Field>
-          <Field label="내원 예정일" required>
-            <input style={inputStyle} type="date" value={scheduledDate} onChange={(e) => setScheduledDate(e.target.value)} />
-          </Field>
           <Field label="방문 유형">
             <div style={{ display: 'grid', gap: 8 }}>
               {[
@@ -440,9 +426,23 @@ function SendModal({ userId, origin, onClose, onCreated }: {
               })}
             </div>
           </Field>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <Field label="환자 이름">
+              <input style={inputStyle} value={patientName} onChange={(e) => setPatientName(e.target.value)} placeholder="예: 뽀미" />
+            </Field>
+            <Field label="보호자 성명">
+              <input style={inputStyle} value={guardianName} onChange={(e) => setGuardianName(e.target.value)} placeholder="예: 홍길동" />
+            </Field>
+          </div>
+          <Field label="연락처" required>
+            <input style={inputStyle} value={contact} onChange={(e) => setContact(formatPhone(e.target.value))} placeholder="010-0000-0000" type="tel" inputMode="numeric" />
+          </Field>
+          <Field label="내원 예정일" required>
+            <input style={inputStyle} type="date" value={scheduledDate} onChange={(e) => setScheduledDate(e.target.value)} />
+          </Field>
           {isExisting && (
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
-              <Field label="종류" required>
+              <Field label="동물 분류" required>
                 <select style={inputStyle} value={petSpecies} onChange={(e) => { setPetSpecies(e.target.value); setPetBreed(''); }}>
                   <option value="">선택</option>
                   <option value="강아지">강아지</option>
@@ -457,7 +457,7 @@ function SendModal({ userId, origin, onClose, onCreated }: {
                     {breedOptions.map((b) => <option key={b} value={b}>{b}</option>)}
                   </select>
                 ) : (
-                  <input style={inputStyle} value={petBreed} onChange={(e) => setPetBreed(e.target.value)} placeholder={petSpecies ? '품종 입력' : '종류 먼저'} disabled={!petSpecies} />
+                  <input style={inputStyle} value={petBreed} onChange={(e) => setPetBreed(e.target.value)} placeholder={petSpecies ? '품종 입력' : '동물 분류 먼저'} disabled={!petSpecies} />
                 )}
               </Field>
               <Field label="성별" required>
