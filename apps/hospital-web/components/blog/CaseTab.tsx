@@ -45,7 +45,10 @@ type Overview = {
 };
 
 const CASE_IMAGE_BUCKET = 'case-image';
+// 압축 목표 + 실제 업로드 상한(이 크기 이하만 서버로 전송).
 const MAX_FILE_SIZE = 30 * 1024 * 1024;
+// PDF 원본 허용 상한 — 이보다 크면 압축 전에 거부. (압축으로 MAX_FILE_SIZE 이하까지 줄여 업로드)
+const MAX_PDF_INPUT_SIZE = 70 * 1024 * 1024;
 // 모든 날짜 그룹 통틀어 업로드 가능한 사진 최대 수(처리 시간/안정성 고려).
 const MAX_IMAGES = 30;
 
@@ -188,16 +191,20 @@ export function CaseTab() {
       }
       return true;
     });
-    const needsCompress = pdfs.some((f) => f.size > MAX_FILE_SIZE);
+    const needsCompress = pdfs.some((f) => f.size > MAX_FILE_SIZE && f.size <= MAX_PDF_INPUT_SIZE);
     if (needsCompress) setCompressing(true);
     const toAdd: File[] = [];
     try {
       for (const file of pdfs) {
+        if (file.size > MAX_PDF_INPUT_SIZE) {
+          setPdfError(`70MB를 초과하는 PDF는 올릴 수 없습니다. (${file.name}) 해당 진료분 페이지만 잘라서 올려주세요.`);
+          continue;
+        }
         if (file.size <= MAX_FILE_SIZE) {
           toAdd.push(file);
           continue;
         }
-        // 30MB 초과 → 브라우저에서 압축 시도. 실패해도 정상 업로드엔 영향 없고, 안내만 띄운다.
+        // 30MB 초과(~70MB) → 브라우저에서 압축 시도. 실패해도 정상 업로드엔 영향 없고, 안내만 띄운다.
         try {
           toAdd.push(await compressPdfIfNeeded(file, MAX_FILE_SIZE));
         } catch (e) {
@@ -244,8 +251,9 @@ export function CaseTab() {
     for (const f of ok) {
       if (f.size <= MAX_FILE_SIZE) { toAdd.push(f); continue; }
       if (f.type === 'application/pdf') {
+        if (f.size > MAX_PDF_INPUT_SIZE) { setExtraError(`70MB를 초과하는 PDF는 올릴 수 없습니다. (${f.name})`); continue; }
         try { toAdd.push(await compressPdfIfNeeded(f, MAX_FILE_SIZE)); }
-        catch { setExtraError(`PDF가 30MB를 초과합니다. (${f.name}) 해당 페이지만 잘라서 올려주세요.`); }
+        catch { setExtraError(`압축해도 PDF가 30MB를 초과합니다. (${f.name}) 해당 페이지만 잘라서 올려주세요.`); }
       } else {
         setExtraError(`이미지가 30MB를 초과합니다. (${f.name})`);
       }
@@ -658,7 +666,7 @@ export function CaseTab() {
                 <>
                   <div style={{ fontSize: 20, marginBottom: 5 }}>📄</div>
                   <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 2 }}>끌어다 놓거나 클릭하여 선택</div>
-                  <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>PDF · 최대 30MB · 여러 개 가능</div>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>PDF · 최대 70MB(초과 시 자동 압축) · 여러 개 가능</div>
                 </>
               )}
             </div>
@@ -726,7 +734,7 @@ export function CaseTab() {
                 <>
                   <div style={{ fontSize: 20, marginBottom: 5 }}>📎</div>
                   <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 2 }}>끌어다 놓거나 클릭하여 선택</div>
-                  <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>PDF · JPG · PNG 업로드 가능 · 각 최대 30MB</div>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>PDF · JPG · PNG · PDF 최대 70MB · 이미지 최대 30MB</div>
                 </>
               )}
             </div>
