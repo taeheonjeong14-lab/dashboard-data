@@ -43,6 +43,16 @@ function categoryIntroMent(category: string, petName: string): string | null {
 // 마지막 질문 제출 시 잠깐 띄우는 마무리 인사(자동으로 제출로 이어짐).
 const FINAL_THANKS = '문진표를 작성해주셔서 감사합니다 :)';
 
+// 경과 확인(재진) 방문 여부. ('경과 확인' = 현행 라벨, '재진' = 레거시)
+function isFollowUpVisitType(visitType: string | null | undefined): boolean {
+  return visitType === '경과 확인' || visitType === '재진';
+}
+// 경과 확인 설문은 시작 시 한 번, 지난 진료 이후의 변화를 살핀다는 인사를 띄운다.
+function followUpStartMent(petName: string): string {
+  const name = petName.trim() || '아이';
+  return `저번 진료 이후에 ${name}의 건강 상태에 어떤 변화가 있는지 알아볼게요!`;
+}
+
 type ServerAnswer = {
   questionInstanceId: string;
   answerText: string | null;
@@ -338,10 +348,12 @@ export default function PublicSurveyPage() {
   };
 
   // intro 스텝 → survey 시작(시작/이어서/처음부터). 시작 지점이 카테고리 첫 질문이면 인트로 표시.
+  // 경과 확인(재진) 방문은 처음부터 시작할 때(idx 0) 지난 진료 이후 변화를 살핀다는 인사를 먼저 띄운다.
   const startSurvey = (idx: number) => {
     setCurrentQ(idx);
     setStep('survey');
-    setIntro(mentForIdx(idx));
+    if (idx === 0 && isFollowUpVisitType(session?.visitType)) setIntro(followUpStartMent(petName));
+    else setIntro(mentForIdx(idx));
   };
 
   const handleNext = () => {
@@ -782,25 +794,18 @@ function AddressField({ base, detail, onBase, onDetail }: {
   };
   return (
     <div style={{ display: 'grid', gap: 12 }}>
-      {base ? (
-        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '14px', background: C.subtle, borderRadius: 12 }}>
-          <span style={{ flex: 1, minWidth: 0, fontSize: 16, color: C.text, lineHeight: 1.5, wordBreak: 'keep-all' }}>{base}</span>
-          <button type="button" className="sv-press" onClick={openSearch} disabled={loading}
-            style={{ flexShrink: 0, padding: '8px 12px', fontSize: 14, fontWeight: 600, color: C.textSec, background: C.bg, border: `1px solid ${C.borderStrong}`, borderRadius: 10, cursor: 'pointer' }}>
-            다시 검색
-          </button>
-        </div>
-      ) : (
+      <div style={{ display: 'flex', alignItems: 'stretch', gap: 8 }}>
+        <input value={base} readOnly onClick={openSearch}
+          placeholder="주소 검색 버튼을 눌러 주세요"
+          style={{ ...inputStyle, flex: 1, minWidth: 0, cursor: 'pointer' }} />
         <button type="button" className="sv-press" onClick={openSearch} disabled={loading}
-          style={{ width: '100%', padding: '15px 16px', fontSize: 16, fontWeight: 500, color: C.textSec, background: C.subtle, border: `1px solid ${C.border}`, borderRadius: 12, cursor: 'pointer', textAlign: 'left', display: 'flex', alignItems: 'center', gap: 8 }}>
-          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke={C.muted} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}><circle cx="11" cy="11" r="7" /><path d="m21 21-4.3-4.3" /></svg>
-          {loading ? '불러오는 중…' : '주소 검색'}
+          style={{ flexShrink: 0, padding: '0 16px', fontSize: 15, fontWeight: 600, color: C.textSec, background: C.subtle, border: `1px solid ${C.borderStrong}`, borderRadius: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={C.muted} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}><circle cx="11" cy="11" r="7" /><path d="m21 21-4.3-4.3" /></svg>
+          {loading ? '…' : '주소 검색'}
         </button>
-      )}
-      {base && (
-        <input autoFocus value={detail} onChange={(e) => onDetail(e.target.value)}
-          placeholder="상세주소 (동/호수 등)" style={inputStyle} />
-      )}
+      </div>
+      <input value={detail} onChange={(e) => onDetail(e.target.value)}
+        placeholder="상세주소 (동/호수 등)" style={inputStyle} />
     </div>
   );
 }
