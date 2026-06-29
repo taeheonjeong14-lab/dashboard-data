@@ -591,14 +591,27 @@ export default function AdminHospitalsManager() {
 
       <div className="adminLayoutMainPane">
         <div className="adminLayoutMainColumnInset">
-        {/* 페이지 헤더 — 선택한 병원 이름·주소 (병원에 따라 동적 변경) */}
-        <div style={{ paddingTop: 16, marginBottom: 16 }}>
-          <h1 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: 'var(--text)' }}>
-            {form.name.trim() || (selectedId ? '(이름 없음)' : '신규 병원')}
-          </h1>
-          <p style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--text-secondary)' }}>
-            {[form.address, form.addressDetail].map((s) => s.trim()).filter(Boolean).join(' ') || '주소 미입력'}
-          </p>
+        {/* 페이지 헤더 — 선택한 병원 이름·주소 + (우측) 토큰 잔액·지급 */}
+        <div style={{ paddingTop: 16, marginBottom: 16, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
+          <div style={{ minWidth: 0 }}>
+            <h1 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: 'var(--text)' }}>
+              {form.name.trim() || (selectedId ? '(이름 없음)' : '신규 병원')}
+            </h1>
+            <p style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--text-secondary)' }}>
+              {[form.address, form.addressDetail].map((s) => s.trim()).filter(Boolean).join(' ') || '주소 미입력'}
+            </p>
+          </div>
+          {selectedId ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0, padding: '8px 12px', borderRadius: 8, background: 'var(--bg-raised)', border: '1px solid var(--border)' }}>
+              <span style={{ fontSize: 12.5, color: 'var(--text-secondary)' }}>
+                토큰 잔액 <b style={{ color: 'var(--text)' }}>{Math.round(selectedBalance).toLocaleString()}</b> 토큰
+              </span>
+              <button type="button" onClick={() => void grantTokens()} disabled={loading}
+                style={{ padding: '7px 14px', fontSize: 13, fontWeight: 700, borderRadius: 6, border: 'none', background: 'var(--accent)', color: '#fff', cursor: loading ? 'default' : 'pointer' }}>
+                토큰 지급
+              </button>
+            </div>
+          ) : null}
         </div>
         {loading || message ? (
           <div className="adminLegacyStatus" style={{ marginBottom: 10, fontSize: 12 }}>
@@ -891,18 +904,6 @@ export default function AdminHospitalsManager() {
               </div>
             ) : null}
           </TabPanel>
-
-          {selectedId ? (
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '10px 12px', borderRadius: 8, background: 'var(--bg-raised)', border: '1px solid var(--border)' }}>
-              <span style={{ fontSize: 12.5, color: 'var(--text-secondary)' }}>
-                토큰 잔액 <b style={{ color: 'var(--text)' }}>{Math.round(selectedBalance).toLocaleString()}</b> 토큰
-              </span>
-              <button type="button" onClick={() => void grantTokens()} disabled={loading}
-                style={{ padding: '7px 14px', fontSize: 13, fontWeight: 700, borderRadius: 6, border: 'none', background: 'var(--accent)', color: '#fff', cursor: loading ? 'default' : 'pointer' }}>
-                토큰 지급
-              </button>
-            </div>
-          ) : null}
 
           <div className="adminLegacyModalActions" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
             <button type="submit" className="adminLegacyPrimaryBtn" disabled={loading}>
