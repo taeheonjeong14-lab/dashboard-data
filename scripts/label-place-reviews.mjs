@@ -9,7 +9,7 @@
  * env(루트 .env + apps/admin-web/.env.local 에서 자동 로드):
  *   SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY (필수)
  *   GEMINI_API_KEY (필수, admin-web/.env.local 에 있음)
- *   GEMINI_MODEL (선택, 기본 gemini-2.0-flash)
+ *   GEMINI_MODEL (선택, 기본 gemini-2.5-flash)
  *   LABEL_BATCH (선택, 기본 25) — 한 번에 Gemini 로 보낼 리뷰 수
  *
  * 실행: node scripts/label-place-reviews.mjs [hospital_id]
@@ -42,7 +42,7 @@ loadGeminiKeyFallback();
 const SUPABASE_URL = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const GEMINI_KEY = (process.env.GEMINI_API_KEY || process.env.NEXT_PUBLIC_GEMINI_API_KEY || '').trim();
-const GEMINI_MODEL = (process.env.GEMINI_MODEL || 'gemini-2.0-flash').trim();
+const GEMINI_MODEL = (process.env.GEMINI_MODEL || 'gemini-2.5-flash').trim();
 const BATCH = Number(process.env.LABEL_BATCH || '25');
 
 if (!SUPABASE_URL || !SERVICE_KEY) {
