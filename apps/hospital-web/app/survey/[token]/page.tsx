@@ -135,6 +135,19 @@ function isFreeOption(opt: string, qType: string): boolean {
   return /기타|직접\s*입력/.test(opt);
 }
 
+// "없음 / 해당 없음 / 접종 안함" 류의 배타 선택지 — 멀티초이스에서 이걸 고르면 다른 보기와 동시 선택 불가.
+// '없다'는 "기력이 없다" 같은 증상 보기와 헷갈리지 않게 단독일 때만 배타로 본다.
+function isExclusiveOption(opt: string): boolean {
+  const s = opt.replace(/\s/g, '');
+  if (s === '없다') return true;
+  return /없음|안함|해당없/.test(s);
+}
+
+// 멀티초이스 보기 정렬 — 배타 옵션(없음 류)을 맨 위로 올리고 나머지는 원래 순서 유지.
+function orderMultiChoices(choices: string[]): string[] {
+  return [...choices.filter(isExclusiveOption), ...choices.filter((c) => !isExclusiveOption(c))];
+}
+
 // pet_birthday 답변에서 "생일 모름 + 대략 나이" 케이스는 클라이언트 state 에서 마커 prefix 로 인코딩한다(객체 state 도입 회피).
 // 제출(buildPayload) 단계에서 백엔드가 기대하는 answerJson({ unknownBirthday, approximateYears }) 으로 변환된다.
 const UNKNOWN_AGE_PREFIX = 'UNKNOWN_AGE:';
@@ -193,7 +206,6 @@ export default function PublicSurveyPage() {
   const [otherText, setOtherText] = useState<Record<string, string>>({});
   const [currentQ, setCurrentQ] = useState(0);
   const [intro, setIntro] = useState<string | null>(null); // 카테고리 인트로 멘트(잠시 떴다가 자동으로 다음 질문)
-  const [pendingSubmit, setPendingSubmit] = useState(false); // 마무리 인사 후 자동 제출 대기
 
   const ac = useMemo(() => buildAccent(session?.hospital?.brandColor), [session]);
   const hospitalName = session?.hospital?.name?.trim() || '';
@@ -336,8 +348,12 @@ export default function PublicSurveyPage() {
       const cur = Array.isArray(p[qid]) ? (p[qid] as string[]) : [];
       const has = cur.includes(option);
       if (has) return { ...p, [qid]: cur.filter((v) => v !== option) };
-      if (max != null && cur.length >= max) return p; // 최대 선택 제한
-      return { ...p, [qid]: [...cur, option] };
+      // 배타 옵션(없음 류)을 고르면 나머지를 모두 해제하고 그것만 선택.
+      if (isExclusiveOption(option)) return { ...p, [qid]: [option] };
+      // 일반 옵션을 고르면 기존에 선택돼 있던 배타 옵션은 자동 해제.
+      const base = cur.filter((v) => !isExclusiveOption(v));
+      if (max != null && base.length >= max) return p; // 최대 선택 제한
+      return { ...p, [qid]: [...base, option] };
     });
   };
 
@@ -368,7 +384,9 @@ export default function PublicSurveyPage() {
   const handleNext = () => {
     if (!canGoNext) return;
     if (clampedIdx < totalQ - 1) goToIndex(clampedIdx + 1);
-    else { setIntro(FINAL_THANKS); setPendingSubmit(true); } // 마무리 인사 → 자동 제출
+    // 마지막 답변 순간 곧바로 제출(complete:true)을 전송한다. 감사 인사 애니메이션이 끝나길 기다리지 않으므로
+    // 인사 도중 보호자가 창을 닫아도 제출이 누락되지 않는다(keepalive 로 끝까지 전송 보장).
+    else { setIntro(FINAL_THANKS); handleSubmit(); }
   };
   const handlePrev = () => { if (clampedIdx > 0) setCurrentQ(clampedIdx - 1); };
 
@@ -420,11 +438,12 @@ export default function PublicSurveyPage() {
 
   const handleSubmit = async () => {
     if (!token) return;
-    setStep('submitting');
+    // step 을 'submitting' 으로 바꾸지 않는다 — 요청이 끝날 때까지 마무리 인사(FINAL_THANKS)를 그대로 보여주고,
+    // 완료되면 'done' 으로 전환한다. keepalive 로 전송 중 창을 닫아도 제출이 보장된다.
     try {
       const res = await ddxPostPublic<{ success: boolean; error?: string }>('/api/survey', {
         token, answers: buildPayload(), complete: true,
-      });
+      }, { keepalive: true });
       if (res.success) setStep('done');
       else if (res.error === 'already_completed') setStep('already');
       else { setStep('error'); setErrorMsg(res.error || '제출에 실패했습니다.'); }
@@ -447,17 +466,13 @@ export default function PublicSurveyPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [answers, otherText, step, token]);
 
-  // 카테고리 인트로/마무리 인사는 잠깐 떴다가(별도 버튼 없이) 자동으로 사라진다.
-  // 마무리 인사(pendingSubmit)면 사라질 때 곧바로 제출로 이어진다.
+  // 카테고리 인트로는 잠깐 떴다가(별도 버튼 없이) 자동으로 사라지고 다음 질문이 나타난다.
+  // 단, 마무리 인사(FINAL_THANKS)는 자동으로 닫지 않는다 — 제출 결과(done/error)가 화면을 전환할 때까지 유지.
   useEffect(() => {
-    if (!intro) return;
-    const t = setTimeout(() => {
-      setIntro(null);
-      if (pendingSubmit) { setPendingSubmit(false); handleSubmit(); }
-    }, 1800);
+    if (!intro || intro === FINAL_THANKS) return;
+    const t = setTimeout(() => setIntro(null), 1800);
     return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [intro, pendingSubmit]);
+  }, [intro]);
 
   // ─── 렌더 ──────────────────────────────────────────────
   if (step === 'loading') {
@@ -673,13 +688,15 @@ export default function PublicSurveyPage() {
               <p style={{ margin: '0 0 4px', fontSize: 14, color: C.muted }}>
                 여러 개 선택 가능{getMaxSelections(question) ? ` (최대 ${getMaxSelections(question)}개)` : ''}
               </p>
-              {getChoices(question).map((opt) => {
+              {orderMultiChoices(getChoices(question)).map((opt) => {
                 const arr = Array.isArray(currentAnswer) ? currentAnswer : [];
                 const active = arr.includes(opt);
+                // 배타 옵션(없음 류)이 선택돼 있으면 나머지 보기는 비활성화한다.
+                const disabled = arr.some(isExclusiveOption) && !isExclusiveOption(opt);
                 return (
                   <div key={opt}>
-                    <button type="button" className="sv-press" onClick={() => toggleMulti(question.id, opt, getMaxSelections(question))}
-                      style={{ ...cardStyle(active), textAlign: 'left', display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <button type="button" className="sv-press" disabled={disabled} onClick={() => toggleMulti(question.id, opt, getMaxSelections(question))}
+                      style={{ ...cardStyle(active), textAlign: 'left', display: 'flex', alignItems: 'center', gap: 12, opacity: disabled ? 0.4 : 1, cursor: disabled ? 'not-allowed' : 'pointer' }}>
                       <span style={{ width: 20, height: 20, borderRadius: 6, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: active ? 'var(--ac)' : '#e4e4e7', color: 'var(--ac-on)', fontSize: 12 }}>
                         {active ? '✓' : ''}
                       </span>

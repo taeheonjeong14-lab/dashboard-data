@@ -65,11 +65,13 @@ export async function ddxGetPublic<T>(path: string): Promise<T> {
   return res.json() as Promise<T>;
 }
 
-export async function ddxPostPublic<T>(path: string, body: object): Promise<T> {
+export async function ddxPostPublic<T>(path: string, body: object, init?: { keepalive?: boolean }): Promise<T> {
   const res = await fetch(`${DDX_API_PUBLIC}${path}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
+    // keepalive: 사용자가 제출 직후 화면을 닫아도 요청이 끝까지 전송되도록 한다(사전문진 최종 제출용).
+    keepalive: init?.keepalive,
   });
   if (!res.ok) throw await errorFromRes(res);
   return res.json() as Promise<T>;
