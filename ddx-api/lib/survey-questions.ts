@@ -153,15 +153,18 @@ export const FIRST_VISIT_REASONS = [
 ] as const;
 
 // Q10~Q12는 "증상 문진" 성격의 후속 문항이므로
-// 건강검진/예방접종(정기 방문) 사유에는 노출하지 않는다.
+// 정기/관리 목적 방문(건강검진·예방접종·동물등록/출국문의)에는 노출하지 않는다.
+const NON_SYMPTOM_REASONS = ['건강검진', '예방접종/사상충예방', '동물등록/출국문의'];
 const SYMPTOM_FOLLOWUP_REASONS = FIRST_VISIT_REASONS.filter(
-  (reason) => reason !== '건강검진' && reason !== '예방접종/사상충예방'
+  (reason) => !NON_SYMPTOM_REASONS.includes(reason)
 );
 
 // Q10(증상 시작 시점) 보기. 마지막 "예방·관리 차원" 보기를 고르면 증상이 없는 경우로 보고
 // Q11(악화 경과)을 노출하지 않는다(아래 Q11 조건이 이 온셋 보기들에만 매칭).
 const SYMPTOM_ONSET_OPTIONS = ['오늘', '1주일 이내', '1개월 이내', '1개월 이상', '정확히 모르겠음'];
 const NO_SYMPTOM_PREVENTIVE = '별도 증상 없이 예방 및 관리 차원으로 내원하고자 함';
+// "예방·관리 차원" 보기는 예방적 내원이 흔한 구강 문제/스케일링에서만 노출.
+const PREVENTIVE_ONSET_REASONS = ['구강 문제/스케일링'];
 
 // 품종 보기 — @dashboard/breeds 단일 소스(상단 import). 초진 접수증(hospital-web)과 동기화됨.
 
@@ -186,7 +189,7 @@ export const FIRST_VISIT_FIXED_QUESTIONS: QuestionDef[] = compileDraftQuestions(
   // Q10/Q11: 선택된 각 이유별로 반복(“XXX” 치환) — 이유별 1세트씩 생성
   // Q10 에 "증상 없이 예방·관리 차원" 보기를 두고, 그 경우 Q11(악화 경과)은 노출하지 않는다.
   ...SYMPTOM_FOLLOWUP_REASONS.map((reason, idx) => ([
-    { key: `Q10_${idx + 1}`, text: `"${reason}" 증상이 언제부터 시작되었나요? 혹은 언제 최초 발생하였나요?`, type: 'single_choice', choices: [...SYMPTOM_ONSET_OPTIONS, NO_SYMPTOM_PREVENTIVE], condition: { onKey: 'Q9', value: reason } as DraftCondition },
+    { key: `Q10_${idx + 1}`, text: `"${reason}" 증상이 언제부터 시작되었나요? 혹은 언제 최초 발생하였나요?`, type: 'single_choice', choices: PREVENTIVE_ONSET_REASONS.includes(reason) ? [...SYMPTOM_ONSET_OPTIONS, NO_SYMPTOM_PREVENTIVE] : [...SYMPTOM_ONSET_OPTIONS], condition: { onKey: 'Q9', value: reason } as DraftCondition },
     { key: `Q11_${idx + 1}`, text: `"${reason}" 증상이 점점 심해지고 있나요?`, type: 'single_choice', choices: ['점점 심해지는 중', '비슷하게 유지', '조금 나아짐', '잘 모르겠음'], condition: { onKey: `Q10_${idx + 1}`, anyOf: [...SYMPTOM_ONSET_OPTIONS] } as DraftCondition },
   ] as DraftQuestion[])).flat(),
 
