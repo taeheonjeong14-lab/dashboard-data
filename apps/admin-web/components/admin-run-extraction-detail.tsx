@@ -669,7 +669,9 @@ export function CaseImagesSection({ runId, onAddAnalysis }: { runId: string; onA
   );
 }
 
-type ChartTabKey = 'caseOverview' | 'emphasis' | 'basic' | 'vaccination' | 'chart' | 'plan' | 'lab' | 'vitals' | 'exam' | 'images' | 'debug';
+type ChartTabKey = 'caseOverview' | 'emphasis' | 'additionalDocs' | 'basic' | 'vaccination' | 'chart' | 'plan' | 'lab' | 'vitals' | 'exam' | 'images' | 'debug';
+
+type AdditionalDoc = { filename?: string; path?: string; bucket?: string; mime_type?: string; text?: string; error?: string };
 
 // 진료케이스(blog_case) 케이스개요 표시용 라벨 — hospital-ui 작성 순서.
 const CASE_OVERVIEW_LABELS: { key: string; label: string }[] = [
@@ -953,6 +955,7 @@ export function AdminRunExtractionDetail({
   const [activeTab, setActiveTab] = useState<ChartTabKey>('basic');
   // hospital-ui 에서 작성한 케이스개요(진료케이스) / 강조사항(건강검진).
   const [caseOverview, setCaseOverview] = useState<Record<string, string> | null>(null);
+  const [additionalDocs, setAdditionalDocs] = useState<AdditionalDoc[]>([]);
   const [emphasisText, setEmphasisText] = useState('');
   const imgModalRef = useRef<HTMLDialogElement>(null);
   const imgFileInputRef = useRef<HTMLInputElement>(null);
@@ -966,8 +969,10 @@ export function AdminRunExtractionDetail({
         const data = (await res.json().catch(() => ({}))) as { items?: { contentType?: string; payload?: unknown }[] };
         if (cancelled || !res.ok) return;
         const items = data.items ?? [];
-        const blog = items.find((i) => i.contentType === 'blog_case')?.payload as { overview?: Record<string, unknown> } | undefined;
+        const blog = items.find((i) => i.contentType === 'blog_case')?.payload as { overview?: Record<string, unknown>; additional_docs?: unknown } | undefined;
         const notes = items.find((i) => i.contentType === 'hospital_notes')?.payload as { emphasis_text?: unknown } | undefined;
+        const docs = Array.isArray(blog?.additional_docs) ? (blog.additional_docs as AdditionalDoc[]) : [];
+        setAdditionalDocs(docs);
         const rawOverview = blog?.overview;
         const overview = rawOverview && typeof rawOverview === 'object'
           ? Object.fromEntries(Object.entries(rawOverview).map(([k, v]) => [k, typeof v === 'string' ? v : '']))
@@ -1412,10 +1417,12 @@ export function AdminRunExtractionDetail({
   // 진료케이스면 케이스개요, 건강검진이면 강조사항 탭을 맨 끝(디버그 좌측)에 추가.
   const hasCaseOverview = !!caseOverview && CASE_OVERVIEW_LABELS.some(({ key }) => (caseOverview[key] ?? '').trim());
   const hasEmphasis = emphasisText.trim().length > 0;
+  const hasAdditionalDocs = additionalDocs.length > 0;
   const tabs: { key: ChartTabKey; label: string }[] = [
     ...CHART_TABS.filter((t) => t.key !== 'debug'),
     ...(hasCaseOverview ? [{ key: 'caseOverview' as ChartTabKey, label: '케이스개요' }] : []),
     ...(hasEmphasis ? [{ key: 'emphasis' as ChartTabKey, label: '강조사항' }] : []),
+    ...(hasAdditionalDocs ? [{ key: 'additionalDocs' as ChartTabKey, label: '추가 자료' }] : []),
     ...CHART_TABS.filter((t) => t.key === 'debug'),
   ];
 
@@ -1587,6 +1594,56 @@ export function AdminRunExtractionDetail({
         </summary>
         <div style={{ padding: '8px 2px', fontSize: 13, color: 'var(--text)', whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>
           {emphasisText.trim() || '작성된 강조사항이 없습니다.'}
+        </div>
+      </details>
+
+      {/* 추가 자료 (외부 검사 결과서 등 · 병원 업로드 → LLM 텍스트 추출) — 전체 너비 */}
+      <details open style={{ ...sectionStyle, gridColumn: '1 / -1', display: activeTab === 'additionalDocs' ? undefined : 'none' }}>
+        <summary style={summaryStyle} onClick={(e) => e.preventDefault()}>
+          <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>추가 자료 <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>(병원 업로드 · LLM 추출 텍스트)</span></span>
+        </summary>
+        <div style={{ display: 'grid', gap: 18, padding: '8px 2px' }}>
+          {additionalDocs.length === 0 ? (
+            <span style={{ fontSize: 13, color: 'var(--text-muted)', fontStyle: 'italic' }}>업로드된 추가 자료가 없습니다.</span>
+          ) : (
+            additionalDocs.map((d, i) => (
+              <div key={`${d.path ?? ''}-${i}`} style={{ display: 'grid', gap: 6 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <span style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text)', wordBreak: 'break-all' }}>{d.filename || `파일 ${i + 1}`}</span>
+                  {d.path && d.bucket ? (
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        try {
+                          const res = await fetch('/api/admin/storage/sign-url', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            credentials: 'include',
+                            body: JSON.stringify({ bucket: d.bucket, path: d.path }),
+                          });
+                          const data = (await res.json().catch(() => ({}))) as { url?: string; error?: string };
+                          if (res.ok && data.url) window.open(data.url, '_blank', 'noopener');
+                          else alert(data.error || '파일을 열 수 없습니다.');
+                        } catch {
+                          alert('파일을 열 수 없습니다.');
+                        }
+                      }}
+                      style={{ flexShrink: 0, padding: '3px 10px', fontSize: 11.5, fontWeight: 600, color: 'var(--accent)', background: 'var(--accent-subtle)', border: '1px solid var(--accent)', borderRadius: 6, cursor: 'pointer' }}
+                    >
+                      원본 열기
+                    </button>
+                  ) : null}
+                </div>
+                {d.error ? (
+                  <span style={{ fontSize: 12.5, color: 'var(--danger)' }}>추출 실패: {d.error}</span>
+                ) : (
+                  <div style={{ fontSize: 13, color: (d.text ?? '').trim() ? 'var(--text)' : 'var(--text-muted)', whiteSpace: 'pre-wrap', lineHeight: 1.6, background: 'var(--bg-subtle)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '10px 12px', fontStyle: (d.text ?? '').trim() ? 'normal' : 'italic' }}>
+                    {(d.text ?? '').trim() || '추출된 텍스트가 없습니다.'}
+                  </div>
+                )}
+              </div>
+            ))
+          )}
         </div>
       </details>
 

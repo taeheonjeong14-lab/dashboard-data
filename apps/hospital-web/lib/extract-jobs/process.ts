@@ -90,6 +90,62 @@ async function saveContent(srvc: Srvc, job: ExtractJob, runId: string): Promise<
   if (error) throw new Error(`콘텐츠 저장 실패: ${error.message}`);
 }
 
+type AdditionalDocResult = { filename: string; path: string; bucket: string; mime_type: string; text: string; error?: string };
+
+// 추가 자료(외부 검사 결과서 등) — payload.additional_docs 의 각 파일을 chart-api 로 텍스트 추출.
+// 파일별 실패는 그 파일만 error 로 기록(케이스 추출은 계속). 별도 토큰 차감 없음(case_blog 과금에 포함).
+async function enrichAdditionalDocs(job: ExtractJob): Promise<AdditionalDocResult[] | null> {
+  const raw = (job.payload as { additional_docs?: unknown })?.additional_docs;
+  if (!Array.isArray(raw) || raw.length === 0) return null;
+  const out: AdditionalDocResult[] = [];
+  for (const d of raw as Array<Record<string, unknown>>) {
+    const path = String(d?.path ?? '').trim();
+    if (!path) continue;
+    const filename = String(d?.filename ?? '').trim() || path.split('/').pop() || 'document';
+    const mimeType = String(d?.mime_type ?? d?.mimeType ?? '').trim();
+    try {
+      const res = await fetch(`${CHART_API_URL}/api/content/case-doc-extract`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${CHART_API_KEY}` },
+        body: JSON.stringify({ storagePath: path, bucket: job.storage_bucket, mimeType, fileName: filename }),
+      });
+      const data = (await res.json().catch(() => ({}))) as { text?: string; error?: string };
+      if (res.ok && typeof data.text === 'string') {
+        out.push({ filename, path, bucket: job.storage_bucket, mime_type: mimeType, text: data.text });
+      } else {
+        out.push({ filename, path, bucket: job.storage_bucket, mime_type: mimeType, text: '', error: data.error || `추출 실패 (${res.status})` });
+      }
+    } catch (e) {
+      out.push({ filename, path, bucket: job.storage_bucket, mime_type: mimeType, text: '', error: e instanceof Error ? e.message : '추출 실패' });
+    }
+  }
+  return out;
+}
+
+// 재추출(덮어쓰기) 경로 — 개요/이미지는 건드리지 않고 generated_run_content payload 의 additional_docs 만 갱신.
+async function mergeAdditionalDocs(srvc: Srvc, runId: string, docs: AdditionalDocResult[]): Promise<void> {
+  const { data } = await srvc
+    .schema('health_report')
+    .from('generated_run_content')
+    .select('payload')
+    .eq('parse_run_id', runId)
+    .eq('content_type', 'blog_case')
+    .maybeSingle();
+  const base =
+    data?.payload && typeof data.payload === 'object' && !Array.isArray(data.payload)
+      ? (data.payload as Record<string, unknown>)
+      : {};
+  const next = { ...base, additional_docs: docs };
+  const { error } = await srvc
+    .schema('health_report')
+    .from('generated_run_content')
+    .upsert(
+      { parse_run_id: runId, content_type: 'blog_case', payload: next, updated_at: new Date().toISOString() },
+      { onConflict: 'parse_run_id,content_type' },
+    );
+  if (error) throw new Error(`추가 자료 저장 실패: ${error.message}`);
+}
+
 /**
  * extract_job 하나를 처리한다. after()/cron 어느 쪽에서 불려도 안전(원자적 점유 + 멱등).
  * 점유 실패(다른 워커가 처리 중/완료)면 조용히 반환.
@@ -118,9 +174,18 @@ export async function processExtractJob(jobId: string): Promise<void> {
         .eq('id', job.id);
     }
 
-    // 재추출(덮어쓰기)이면 generated_run_content(유저 작성 개요/강조)는 건드리지 않는다 — 추출 데이터만 갱신.
+    // 추가 자료(외부 검사 결과서) 텍스트 추출. 파일별 실패는 그 파일만 기록(케이스는 계속 진행).
+    const enrichedDocs = await enrichAdditionalDocs(job).catch((e) => {
+      console.error('[extract-job] additional docs extract failed (non-blocking)', jobId, e);
+      return null;
+    });
+
+    // 재추출(덮어쓰기)이면 개요/이미지는 건드리지 않되, 추가 자료는 갱신한다.
     if (!job.replace_run_id) {
+      if (enrichedDocs) (job.payload as Record<string, unknown>).additional_docs = enrichedDocs;
       await saveContent(srvc, job, runId);
+    } else if (enrichedDocs) {
+      await mergeAdditionalDocs(srvc, runId, enrichedDocs);
     }
 
     // 토큰 차감(성공 시 1회). token_deducted 로 중복 차감 방지. 실패해도 best-effort.

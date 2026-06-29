@@ -38,3 +38,22 @@ export function isAllowedPdfExtractPath(path: string): boolean {
   const p = path.trim();
   return p.startsWith(`${PREFIX}/`) && !p.includes('..');
 }
+
+/** PDF·이미지 공통 업로드 파일명 정리 — 실제 확장자(pdf/jpg/jpeg/png/webp)를 보존한다. */
+export function sanitizeUploadFileName(fileName: string): string {
+  const base =
+    fileName
+      .replace(/^[\\/]+/g, '')
+      .replace(/\.\./g, '')
+      .split(/[/\\]/)
+      .pop()
+      ?.trim() || 'upload';
+  return base.replace(/[^\w.\-]+/g, '_').slice(0, 200) || 'upload';
+}
+
+/** 추가 자료(외부 검사 결과서 등) 업로드 경로 — PDF·이미지 공통, 확장자 보존. */
+export function buildExtractUploadStoragePath(fileName: string): string {
+  const id = randomUUID();
+  const name = sanitizeUploadFileName(fileName);
+  return `${PREFIX}/${yyyyMmDd()}/${id}-${name}`;
+}

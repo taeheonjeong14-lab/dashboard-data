@@ -124,6 +124,10 @@ export function CaseTab() {
   const [pdfFiles, setPdfFiles] = useState<File[]>([]);
   const [pdfError, setPdfError] = useState<string | null>(null);
   const [compressing, setCompressing] = useState(false);
+  // 추가 자료(외부 검사 결과서 등) — PDF·JPG·PNG, 여러 개.
+  const [extraDocs, setExtraDocs] = useState<File[]>([]);
+  const [extraError, setExtraError] = useState<string | null>(null);
+  const [extraDragging, setExtraDragging] = useState(false);
   const [overview, setOverview] = useState<Overview>(EMPTY_OVERVIEW);
   const [imageGroups, setImageGroups] = useState<ImageGroup[]>(() => [newImageGroup()]);
   const [imageError, setImageError] = useState<string | null>(null);
@@ -137,6 +141,7 @@ export function CaseTab() {
 
   const { hospitalId } = useHospital();
   const pdfInputRef = useRef<HTMLInputElement>(null);
+  const extraInputRef = useRef<HTMLInputElement>(null);
   const imageGroupsRef = useRef(imageGroups);
   imageGroupsRef.current = imageGroups;
 
@@ -225,6 +230,31 @@ export function CaseTab() {
     },
     [handlePdfFiles],
   );
+
+  // ----- 추가 자료(외부 검사 결과서 등) — PDF·JPG·PNG -----
+  const isExtraType = (f: File) => f.type === 'application/pdf' || /^image\/(png|jpe?g|webp)$/.test(f.type);
+  const handleExtraDocs = useCallback(async (files: File[]) => {
+    setExtraError(null);
+    const ok = files.filter((f) => {
+      if (isExtraType(f)) return true;
+      setExtraError('PDF·JPG·PNG 파일만 업로드할 수 있습니다.');
+      return false;
+    });
+    const toAdd: File[] = [];
+    for (const f of ok) {
+      if (f.size <= MAX_FILE_SIZE) { toAdd.push(f); continue; }
+      if (f.type === 'application/pdf') {
+        try { toAdd.push(await compressPdfIfNeeded(f, MAX_FILE_SIZE)); }
+        catch { setExtraError(`PDF가 30MB를 초과합니다. (${f.name}) 해당 페이지만 잘라서 올려주세요.`); }
+      } else {
+        setExtraError(`이미지가 30MB를 초과합니다. (${f.name})`);
+      }
+    }
+    if (toAdd.length) setExtraDocs((prev) => [...prev, ...toAdd]);
+  }, []);
+  const removeExtraDoc = useCallback((idx: number) => {
+    setExtraDocs((prev) => prev.filter((_, i) => i !== idx));
+  }, []);
 
   // ----- Images (날짜별 그룹) -----
   const addImagesToGroup = (groupId: string, files: File[]) => {
@@ -401,6 +431,29 @@ export function CaseTab() {
         storagePaths.push(storagePath);
       }
 
+      // 2-b) 추가 자료(외부 검사 결과서 등) 업로드 — PDF·이미지 모두 같은 업로드 URL 사용.
+      const additionalDocs: { path: string; filename: string; mimeType: string }[] = [];
+      for (let i = 0; i < extraDocs.length; i++) {
+        const f = extraDocs[i];
+        setStage('getting-url');
+        setProgressMessage('추가 자료 업로드 URL 생성 중…');
+        const urlRes = await fetch('/api/health-report/upload-url', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ fileName: f.name, fileType: f.type, fileSize: f.size }),
+        });
+        if (!urlRes.ok) {
+          const err = (await urlRes.json()) as { error?: string };
+          throw new Error(err.error ?? '추가 자료 업로드 URL 생성에 실패했습니다.');
+        }
+        const { signedUrl, storagePath } = (await urlRes.json()) as { signedUrl: string; storagePath: string; bucket: string };
+        setStage('uploading-pdf');
+        const label = extraDocs.length > 1 ? `(${i + 1}/${extraDocs.length}) ` : '';
+        setProgressMessage(`추가 자료 업로드 중… ${label}`);
+        await uploadPdf(signedUrl, f);
+        additionalDocs.push({ path: storagePath, filename: f.name, mimeType: f.type });
+      }
+
       // 3) 이미지 업로드 (submissionId 경로 — runId 없이)
       setStage('saving');
       setProgressMessage('이미지 업로드 중…');
@@ -418,6 +471,7 @@ export function CaseTab() {
           storagePaths,
           overview,
           imageGroups: imageGroupsPayload,
+          additionalDocs,
         }),
       });
       const submitData = (await submitRes.json().catch(() => ({}))) as { jobId?: string; error?: string };
@@ -428,6 +482,8 @@ export function CaseTab() {
       // 완료 — 폼 초기화
       setStage('done');
       setPdfFiles([]);
+      setExtraDocs([]);
+      setExtraError(null);
       setOverview(EMPTY_OVERVIEW);
       imageGroups.forEach((g) => g.previews.forEach((u) => URL.revokeObjectURL(u)));
       setImageGroups([newImageGroup()]);
@@ -608,6 +664,73 @@ export function CaseTab() {
             </div>
             {compressing && <div style={{ marginTop: 5, fontSize: 11, color: 'var(--accent)' }}>PDF 용량이 커서 압축 중이에요… 잠시만 기다려주세요.</div>}
             {pdfError && <div style={{ marginTop: 5, fontSize: 11, color: 'var(--danger)' }}>{pdfError}</div>}
+          </FormField>
+
+          {/* 추가 자료 (외부 검사 결과지 등) — PDF·JPG·PNG */}
+          <FormField label="추가 자료 (외부 검사 결과지 등)" hint="선택 · 여러 개 가능">
+            <div
+              onDrop={(e) => {
+                e.preventDefault();
+                setExtraDragging(false);
+                const files = Array.from(e.dataTransfer.files ?? []);
+                if (files.length && !isProcessing) void handleExtraDocs(files);
+              }}
+              onDragOver={(e) => { e.preventDefault(); if (!isProcessing) setExtraDragging(true); }}
+              onDragLeave={() => setExtraDragging(false)}
+              onClick={() => !isProcessing && extraInputRef.current?.click()}
+              style={{
+                border: `2px dashed ${extraDragging ? 'var(--accent)' : extraError ? 'var(--danger)' : 'var(--border-strong)'}`,
+                borderRadius: 'var(--radius)',
+                padding: '18px 12px',
+                textAlign: 'center',
+                cursor: isProcessing ? 'not-allowed' : 'pointer',
+                background: extraDragging ? 'var(--accent-subtle)' : 'var(--bg-subtle)',
+                transition: 'border-color 0.15s',
+              }}
+            >
+              <input
+                ref={extraInputRef}
+                type="file"
+                accept=".pdf,application/pdf,.jpg,.jpeg,.png,.webp,image/*"
+                multiple
+                style={{ display: 'none' }}
+                onChange={(e: ChangeEvent<HTMLInputElement>) => {
+                  const fs = Array.from(e.target.files ?? []);
+                  if (fs.length) void handleExtraDocs(fs);
+                  e.target.value = '';
+                }}
+              />
+              {extraDocs.length > 0 ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, textAlign: 'left' }}>
+                  {extraDocs.map((f, idx) => (
+                    <div key={idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, background: '#fff', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '6px 10px' }}>
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', wordBreak: 'break-all' }}>{f.name}</div>
+                        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 1 }}>{formatBytes(f.size)}</div>
+                      </div>
+                      {!isProcessing && (
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); removeExtraDoc(idx); }}
+                          aria-label="삭제"
+                          style={{ flexShrink: 0, width: 22, height: 22, borderRadius: '50%', border: '1px solid var(--border)', background: 'var(--bg-subtle)', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 12, lineHeight: 1 }}
+                        >
+                          ✕
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                  {!isProcessing && <div style={{ fontSize: 11, color: 'var(--accent)', marginTop: 2, textAlign: 'center' }}>+ 클릭하여 추가</div>}
+                </div>
+              ) : (
+                <>
+                  <div style={{ fontSize: 20, marginBottom: 5 }}>📎</div>
+                  <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 2 }}>끌어다 놓거나 클릭하여 선택</div>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>PDF · JPG · PNG 업로드 가능 · 각 최대 30MB</div>
+                </>
+              )}
+            </div>
+            {extraError && <div style={{ marginTop: 5, fontSize: 11, color: 'var(--danger)' }}>{extraError}</div>}
           </FormField>
 
           {/* 케이스 개요 */}

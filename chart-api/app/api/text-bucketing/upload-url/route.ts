@@ -3,7 +3,7 @@ import { chartAppAuthMiddleware } from '@/lib/chart-app/auth';
 import { getChartAppSupabaseService } from '@/lib/chart-app/supabase-service';
 import { getPdfUploadsBucket } from '@/lib/chart-app/storage-config';
 import { absolutizeSupabaseStorageUrl } from '@/lib/chart-app/supabase-url';
-import { buildPdfExtractStoragePath } from '@/lib/chart-app/upload-path';
+import { buildExtractUploadStoragePath } from '@/lib/chart-app/upload-path';
 
 const MAX_BYTES = 30 * 1024 * 1024;
 
@@ -32,8 +32,10 @@ export async function POST(request: NextRequest) {
   if (!fileName) {
     return NextResponse.json({ error: 'fileName is required' }, { status: 400 });
   }
-  if (fileType !== 'application/pdf') {
-    return NextResponse.json({ error: 'fileType must be application/pdf' }, { status: 400 });
+  // 차트 PDF + 추가 자료(외부 검사 결과서)용 — PDF 또는 이미지 허용.
+  const okType = fileType === 'application/pdf' || /^image\/(png|jpe?g|webp)$/.test(fileType);
+  if (!okType) {
+    return NextResponse.json({ error: 'fileType must be application/pdf or image/(png|jpeg|webp)' }, { status: 400 });
   }
   if (!Number.isFinite(fileSize) || fileSize <= 0 || fileSize > MAX_BYTES) {
     return NextResponse.json(
@@ -42,7 +44,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const storagePath = buildPdfExtractStoragePath(fileName);
+  const storagePath = buildExtractUploadStoragePath(fileName);
 
   try {
     const bucket = getPdfUploadsBucket();

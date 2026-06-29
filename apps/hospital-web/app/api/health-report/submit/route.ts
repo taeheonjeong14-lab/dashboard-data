@@ -30,6 +30,7 @@ type Body = {
   imageGroups?: ImageGroupInput[];
   emphasisText?: string;
   imagePaths?: string[];
+  additionalDocs?: { path?: string; filename?: string; mimeType?: string }[];
 };
 
 const str = (v: unknown): string => (typeof v === 'string' ? v.trim() : '');
@@ -95,6 +96,10 @@ export async function POST(request: NextRequest) {
       }))
       .filter((g) => g.paths.length > 0);
     const imagePaths = imageGroups.flatMap((g) => g.paths);
+    // 추가 자료(외부 검사 결과서) — 경로/파일명/mime 만 싣고, 텍스트는 워커가 추출해 채운다.
+    const additionalDocs = (Array.isArray(body.additionalDocs) ? body.additionalDocs : [])
+      .map((d) => ({ path: str(d?.path), filename: str(d?.filename), mime_type: str(d?.mimeType) }))
+      .filter((d) => d.path.length > 0);
     jobPayload = {
       overview: {
         main_disease: str(o.mainDisease),
@@ -108,6 +113,7 @@ export async function POST(request: NextRequest) {
       },
       image_paths: imagePaths,
       image_groups: imageGroups,
+      ...(additionalDocs.length > 0 ? { additional_docs: additionalDocs } : {}),
     };
   } else {
     const imagePaths = Array.isArray(body.imagePaths)
