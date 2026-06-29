@@ -93,8 +93,8 @@ async function saveContent(srvc: Srvc, job: ExtractJob, runId: string): Promise<
 type AdditionalDocResult = { filename: string; path: string; bucket: string; mime_type: string; text: string; error?: string };
 
 // 추가 자료(외부 검사 결과서 등) — payload.additional_docs 의 각 파일을 chart-api 로 텍스트 추출.
-// 파일별 실패는 그 파일만 error 로 기록(케이스 추출은 계속). 별도 토큰 차감 없음(case_blog 과금에 포함).
-async function enrichAdditionalDocs(job: ExtractJob): Promise<AdditionalDocResult[] | null> {
+// 파일별 실패는 그 파일만 error 로 기록(케이스 추출은 계속). 비전 OCR 비용은 케이스 run 에 귀속해 과금.
+async function enrichAdditionalDocs(job: ExtractJob, runId: string): Promise<AdditionalDocResult[] | null> {
   const raw = (job.payload as { additional_docs?: unknown })?.additional_docs;
   if (!Array.isArray(raw) || raw.length === 0) return null;
   const out: AdditionalDocResult[] = [];
@@ -107,7 +107,7 @@ async function enrichAdditionalDocs(job: ExtractJob): Promise<AdditionalDocResul
       const res = await fetch(`${CHART_API_URL}/api/content/case-doc-extract`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${CHART_API_KEY}` },
-        body: JSON.stringify({ storagePath: path, bucket: job.storage_bucket, mimeType, fileName: filename }),
+        body: JSON.stringify({ storagePath: path, bucket: job.storage_bucket, mimeType, fileName: filename, hospitalId: job.hospital_id, runId }),
       });
       const data = (await res.json().catch(() => ({}))) as { text?: string; error?: string };
       if (res.ok && typeof data.text === 'string') {
@@ -175,7 +175,7 @@ export async function processExtractJob(jobId: string): Promise<void> {
     }
 
     // 추가 자료(외부 검사 결과서) 텍스트 추출. 파일별 실패는 그 파일만 기록(케이스는 계속 진행).
-    const enrichedDocs = await enrichAdditionalDocs(job).catch((e) => {
+    const enrichedDocs = await enrichAdditionalDocs(job, runId).catch((e) => {
       console.error('[extract-job] additional docs extract failed (non-blocking)', jobId, e);
       return null;
     });
