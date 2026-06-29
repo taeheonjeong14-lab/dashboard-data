@@ -16,12 +16,21 @@ type Question = {
   source?: string | null; // 'prefilled' 이면 병원이 미리 답한 숨김 질문(보호자에겐 안 보임)
 };
 
-// 이름 뒤 주격 조사(가/이)를 받침에 맞게 붙인다. 한글이 아니면 '가'.
-function withSubjectParticle(name: string): string {
+// 이름 마지막 글자에 받침이 있는지(한글이 아니면 false).
+function nameHasBatchim(name: string): boolean {
   const c = name.charCodeAt(name.length - 1);
   const isHangul = c >= 0xac00 && c <= 0xd7a3;
-  const hasBatchim = isHangul && (c - 0xac00) % 28 !== 0;
-  return name + (hasBatchim ? '이' : '가');
+  return isHangul && (c - 0xac00) % 28 !== 0;
+}
+
+// 이름 뒤 주격 조사 '가'를 붙인다. 받침 있는 이름은 친근한 '이'를 넣어 'OO이가'(콩→콩이가), 없으면 'OO가'(초코→초코가).
+function withSubjectParticle(name: string): string {
+  return name + (nameHasBatchim(name) ? '이가' : '가');
+}
+
+// 이름 뒤 관형격 조사 '의'를 붙인다. 받침 있는 이름은 친근한 '이'를 넣어 'OO이의'(콩→콩이의), 없으면 'OO의'(초코→초코의).
+function withPossessive(name: string): string {
+  return name + (nameHasBatchim(name) ? '이의' : '의');
 }
 
 // 카테고리가 바뀌는 첫 질문 앞에 잠깐 띄우는 대화형 인트로 멘트.
@@ -31,8 +40,8 @@ function categoryIntroMent(category: string, petName: string): string | null {
   switch (category) {
     case 'guardian': return '먼저 보호자님 정보를 여쭤볼게요 :)';
     case 'basic': return '이제 우리 아이에 대해서 알려주세요!';
-    case 'lifestyle': return `${name || '아이'}의 평소 생활은 어떤지 알아볼게요.`;
-    case 'history': return `지금까지 ${name || '아이'}의 건강·예방 이력을 확인할게요.`;
+    case 'lifestyle': return `${withPossessive(name || '아이')} 평소 생활은 어떤지 알아볼게요.`;
+    case 'history': return `지금까지 ${withPossessive(name || '아이')} 건강·예방 이력을 확인할게요.`;
     case 'visit': return name
       ? `마지막으로, ${withSubjectParticle(name)} 이번에 병원에 내원하려는 이유를 알아볼게요!`
       : '마지막으로, 오늘 내원하신 이유를 자세히 들려주세요.';
@@ -50,7 +59,7 @@ function isFollowUpVisitType(visitType: string | null | undefined): boolean {
 // 경과 확인 설문은 시작 시 한 번, 지난 진료 이후의 변화를 살핀다는 인사를 띄운다.
 function followUpStartMent(petName: string): string {
   const name = petName.trim() || '아이';
-  return `저번 진료 이후에 ${name}의 건강 상태에 어떤 변화가 있는지 알아볼게요!`;
+  return `저번 진료 이후에 ${withPossessive(name)} 건강 상태에 어떤 변화가 있는지 알아볼게요!`;
 }
 
 type ServerAnswer = {
@@ -565,7 +574,7 @@ export default function PublicSurveyPage() {
     return (
       <Screen accent={ac}>
         <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: '24px 8px' }}>
-          <h2 key={intro} className="sv-intro" style={{ fontSize: 25, fontWeight: 700, letterSpacing: '-0.02em', color: C.text, lineHeight: 1.5, margin: 0 }}>
+          <h2 key={intro} className="sv-intro" style={{ fontSize: 25, fontWeight: 700, letterSpacing: '-0.02em', color: C.text, lineHeight: 1.5, margin: 0, wordBreak: 'keep-all' }}>
             {intro}
           </h2>
         </div>
