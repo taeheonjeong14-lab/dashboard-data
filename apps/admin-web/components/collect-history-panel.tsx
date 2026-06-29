@@ -81,6 +81,52 @@ function statusVisual(status: string): Visual {
   }
 }
 
+// 수집 실패 원시 에러("종료 코드 N. <stderr 꼬리>")를 사람이 읽을 수 있는 원인 설명으로 풀어준다.
+// 알려진 패턴이 없으면 null → 화면은 원시 에러를 그대로 보조 표기.
+function humanizeCollectError(raw?: string): string | null {
+  if (!raw) return null;
+  const e = raw.toLowerCase();
+  const has = (re: RegExp) => re.test(e);
+
+  if (has(/gemini_api_key|api[_ ]?key (not|미설정|없)|missing.*api key/)) {
+    return 'AI(Gemini) API 키가 없거나 잘못됐습니다. 워커 환경변수(GEMINI_API_KEY)를 확인하세요.';
+  }
+  if (has(/modulenotfounderror|no module named|importerror/)) {
+    return '워커 PC에 필요한 파이썬 패키지가 설치돼 있지 않습니다. (의존성 재설치 필요)';
+  }
+  if (has(/econnrefused|cannot connect|chrome|chromium|browser|devtools|9222|websocket|target page|debugging port|디버그 포트/)) {
+    return '수집용 크롬(브라우저)에 연결하지 못했습니다. 워커 PC의 크롬이 꺼져 있거나 디버그 포트가 닫혔을 수 있어요.';
+  }
+  if (has(/captcha|보안문자|robot|verify you are human|자동입력 방지/)) {
+    return '네이버 보안문자(캡차)에 막혔습니다. 사람이 한 번 로그인/인증을 거쳐야 합니다.';
+  }
+  if (has(/login|로그인|sign ?in|authentication|세션|logout|로그아웃|credential/)) {
+    return '네이버 로그인/세션이 만료됐을 수 있습니다. 계정 재로그인이 필요합니다.';
+  }
+  if (has(/429|too many requests|rate ?limit|차단|blocked|403|forbidden/)) {
+    return '네이버가 요청을 차단했거나 너무 잦은 요청으로 제한됐습니다. 잠시 후 다시 시도하세요.';
+  }
+  if (has(/timeout|timed out|etimedout|navigation timeout|시간 초과/)) {
+    return '페이지 로딩이 제한 시간을 넘겼습니다(타임아웃). 네트워크가 느리거나 페이지가 응답하지 않았어요.';
+  }
+  if (has(/selector|waiting for|element|no node found|queryselector|locator|not found.*element/)) {
+    return '페이지에서 예상한 항목을 찾지 못했습니다. 네이버 페이지 구조가 바뀌었을 수 있어요(스크래퍼 점검 필요).';
+  }
+  if (has(/enotfound|eai_again|econnreset|getaddrinfo|network|dns/)) {
+    return '네트워크 연결 오류가 발생했습니다. (일시적 연결 문제일 수 있어요)';
+  }
+  if (has(/pgrst|duplicate key|violates|relation .* does not exist|column .* does not exist|supabase|insert|upsert.*fail/)) {
+    return '수집한 데이터를 DB에 저장하는 중 오류가 발생했습니다.';
+  }
+  if (has(/spawn/)) {
+    return '수집 프로그램(스크립트) 실행 자체에 실패했습니다. (워커의 파이썬/노드 환경 문제)';
+  }
+  if (has(/no keyword|키워드(가)? 없|대상(이)? 없|빈 목록|empty/)) {
+    return '수집할 대상(키워드 등)이 없습니다. 해당 병원 설정을 확인하세요.';
+  }
+  return null;
+}
+
 function Badge({ icon: Icon, label, color, bg, border, spin }: Visual) {
   return (
     <span
@@ -279,13 +325,23 @@ export default function CollectHistoryPanel({ hospitals }: { hospitals: ChartHos
                 ) : (
                   ((item.upserts?.length ?? 0) > 0 || (item.failedSteps?.length ?? 0) > 0) && (
                     <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid var(--border)', display: 'grid', gap: 4, fontSize: 12.5 }}>
-                      {item.failedSteps?.map((s) => (
-                        <div key={`${s.index}-${s.name}`} style={{ display: 'flex', alignItems: 'center', gap: 5, color: 'var(--danger)' }}>
-                          <XCircle size={13} style={{ flexShrink: 0 }} />
-                          <span style={{ fontWeight: 600 }}>{s.name}</span>
-                          {s.error && <span>— {s.error}</span>}
-                        </div>
-                      ))}
+                      {item.failedSteps?.map((s) => {
+                        const human = humanizeCollectError(s.error);
+                        return (
+                          <div key={`${s.index}-${s.name}`} style={{ display: 'grid', gap: 2 }}>
+                            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 5, color: 'var(--danger)' }}>
+                              <XCircle size={13} style={{ flexShrink: 0, marginTop: 2 }} />
+                              <span><span style={{ fontWeight: 600 }}>{s.name}</span>{(human || s.error) && <span> — {human ?? s.error}</span>}</span>
+                            </div>
+                            {/* 풀어쓴 설명을 띄운 경우, 원시 에러는 디버깅용으로 작게 보조 표기 */}
+                            {human && s.error && (
+                              <div style={{ marginLeft: 18, fontSize: 10.5, color: 'var(--text-muted)', whiteSpace: 'pre-wrap', wordBreak: 'break-word', lineHeight: 1.4 }}>
+                                {s.error}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
                       {item.upserts?.map((u) => (
                         <div key={u.label} style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-secondary)' }}>
                           <span>{u.label}</span>
