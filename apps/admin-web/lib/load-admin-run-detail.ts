@@ -203,10 +203,11 @@ export async function loadAdminRunDetail(runId: string): Promise<RunDetailRespon
   for (const r of [docRes, basicRes, chartsRes, labsRes, plansRes, vacRes, vitalsRes, physicalRes]) {
     if (r.error) throw new Error(r.error.message);
   }
-  const hospitalWebRows = ((hospitalWebRes.data ?? []) as { content_type?: unknown; payload?: { confirmed?: unknown } }[]) ?? [];
+  const hospitalWebRows = ((hospitalWebRes.data ?? []) as { content_type?: unknown; payload?: { confirmed?: unknown; saved?: unknown } }[]) ?? [];
   const hospitalContentTypes = new Set(hospitalWebRows.map((r) => String(r.content_type ?? '')));
   const blogConfirmed = hospitalWebRows.some((r) => String(r.content_type ?? '') === 'blog_post' && r.payload?.confirmed === true);
-  const blogStage = computeBlogStage(hospitalContentTypes, blogConfirmed);
+  const blogSaved = hospitalWebRows.some((r) => String(r.content_type ?? '') === 'blog_post' && r.payload?.saved === true);
+  const blogStage = computeBlogStage(hospitalContentTypes, blogConfirmed, blogSaved);
   const healthStage = computeHealthStage(hospitalContentTypes);
   const isHealthCheckup = healthStage !== 'none';
   const isBlog = blogStage !== 'none';

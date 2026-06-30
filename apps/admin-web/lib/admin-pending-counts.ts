@@ -4,6 +4,7 @@ export type AdminPendingCounts = {
   reportRequested: number;  // 건강검진: 추출됐지만 리포트 미생성(요청)
   caseRequested: number;    // 진료케이스: 추출됐지만 작성 시작 전(요청)
   caseInProgress: number;   // 진료케이스: 작성 중(미확정)
+  caseDrafted: number;      // 진료케이스: 작성완료(확정)됐지만 네이버 저장완료 전(저장 대기)
   registrations: number;    // 심사 대기 병원 등록 신청
   tokenOrders: number;      // 토큰 충전: 입금 확인 대기 주문
 };
@@ -30,7 +31,7 @@ const CASE_WRITE_TYPES = `'blog_causal','blog_detail','blog_outline','blog_post'
  * - 병원 심사: core.hospital_registrations status='pending'.
  */
 export async function getAdminPendingCounts(): Promise<AdminPendingCounts> {
-  const [reportRequested, caseRequested, caseInProgress, registrations, tokenOrders] = await Promise.all([
+  const [reportRequested, caseRequested, caseInProgress, caseDrafted, registrations, tokenOrders] = await Promise.all([
     count(`
       SELECT count(DISTINCT j.run_id) AS n
       FROM health_report.extract_jobs j
@@ -60,8 +61,14 @@ export async function getAdminPendingCounts(): Promise<AdminPendingCounts> {
           WHERE g.parse_run_id = j.run_id AND g.content_type = 'blog_post'
             AND g.payload->>'confirmed' = 'true'
         )`),
+    count(`
+      SELECT count(DISTINCT g.parse_run_id) AS n
+      FROM health_report.generated_run_content g
+      WHERE g.content_type = 'blog_post'
+        AND g.payload->>'confirmed' = 'true'
+        AND coalesce(g.payload->>'saved', '') <> 'true'`),
     count(`SELECT count(*) AS n FROM core.hospital_registrations WHERE status = 'pending'`),
     count(`SELECT count(*) AS n FROM billing.token_orders WHERE status = 'pending'`),
   ]);
-  return { reportRequested, caseRequested, caseInProgress, registrations, tokenOrders };
+  return { reportRequested, caseRequested, caseInProgress, caseDrafted, registrations, tokenOrders };
 }

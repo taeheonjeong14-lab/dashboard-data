@@ -25,7 +25,7 @@ export async function GET() {
     type GenRow = {
       parse_run_id: string;
       content_type: string;
-      payload: { title?: string; bodyMarkdown?: string; tags?: string[]; confirmed?: unknown } | null;
+      payload: { title?: string; bodyMarkdown?: string; tags?: string[]; confirmed?: unknown; saved?: unknown } | null;
       created_at: string;
       updated_at: string;
     };
@@ -35,7 +35,7 @@ export async function GET() {
     // run 단위로 묶어 작성중/완료 판정 + blog_post 본문 확보
     type RunAgg = {
       createdAt: string; updatedAt: string;
-      post?: { title: string; body: string; tags: string[]; confirmed: boolean };
+      post?: { title: string; body: string; tags: string[]; confirmed: boolean; saved: boolean };
     };
     const byRun = new Map<string, RunAgg>();
     for (const g of gen) {
@@ -50,6 +50,7 @@ export async function GET() {
           body: typeof p.bodyMarkdown === 'string' ? p.bodyMarkdown : '',
           tags: Array.isArray(p.tags) ? p.tags.filter((t): t is string => typeof t === 'string') : [],
           confirmed: p.confirmed === true,
+          saved: p.saved === true,
         };
       }
     }
@@ -93,7 +94,9 @@ export async function GET() {
       const agg = byRun.get(rid)!;
       const run = runById.get(rid);
       const basic = basicOf(run);
-      const stage: 'writing' | 'done' = agg.post?.confirmed ? 'done' : 'writing';
+      // 작성중 → 작성완료(확정) → 저장완료(네이버 임시저장 확인)
+      const stage: 'writing' | 'drafted' | 'saved' =
+        agg.post?.confirmed ? (agg.post.saved ? 'saved' : 'drafted') : 'writing';
       return {
         runId: rid,
         friendlyId: run?.friendly_id ?? null,

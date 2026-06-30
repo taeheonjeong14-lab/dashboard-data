@@ -224,6 +224,7 @@ export function CaseBlogButton({
 
   const [genLoading, setGenLoading] = useState<null | 1 | 2 | 3 | 4 | 5>(null);
   const [confirmed, setConfirmed] = useState(false); // 블로그 글 확정됨(AI 재생성 불가)
+  const [savedFlag, setSavedFlag] = useState(false);  // 네이버 저장완료 — 수기 수정 시 보존(상태 되돌림 방지)
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [savedMsg, setSavedMsg] = useState('');
@@ -286,6 +287,7 @@ export function CaseBlogButton({
       if (normOutline) setOutline(normOutline);
       if (normBlog) setBlog(normBlog);
       setConfirmed(Boolean(bP?.confirmed));
+      setSavedFlag(Boolean(bP?.saved));
       // 저장된 단계는 서로 일관됐다고 보고 서명을 맞춰둔다(불필요한 재생성 확인 방지).
       if (normCausal && normDetail) setDetailBasis(JSON.stringify(normCausal));
       if (normCausal && normOutline) setOutlineBasis(JSON.stringify({ causal: normCausal, detail: normDetail }));
@@ -383,7 +385,7 @@ export function CaseBlogButton({
     if (!window.confirm('블로그글 확정 이후에는 수기 수정만 가능하며 AI 재생성은 불가합니다.\n\n확정할까요?')) return;
     setSaving(true); setError(null); setSavedMsg('');
     try {
-      await callSave('blog_post', { ...blog, confirmed: true });
+      await callSave('blog_post', { ...blog, confirmed: true, saved: savedFlag });
       setConfirmed(true);
       setStep(5);
     } catch (e) { setError(e instanceof Error ? e.message : '확정 실패'); setSaving(false); return; }
@@ -435,7 +437,7 @@ export function CaseBlogButton({
       if (step === 1 && causal) await callSave('blog_causal', { causalFlow: causal, caseOverview });
       else if (step === 2 && detail) await callSave('blog_detail', { detailFlow: detail, caseOverview });
       else if (step === 3 && outline) await callSave('blog_outline', { outline, caseOverview });
-      else if (step === 4 && blog) await callSave('blog_post', { ...blog, confirmed });
+      else if (step === 4 && blog) await callSave('blog_post', { ...blog, confirmed, saved: savedFlag });
       else if (step === 5 && outline) await callSave('blog_outline', { outline, caseOverview });
       setSavedMsg('저장됨');
     } catch (e) { setError(e instanceof Error ? e.message : '저장 실패'); }

@@ -16,12 +16,12 @@ type CaseBlogItem = {
   title: string;
   bodyMarkdown: string;
   tags: string[];
-  stage: 'writing' | 'done';
+  stage: 'writing' | 'drafted' | 'saved';
   createdAt: string;
   updatedAt: string;
 };
 
-function StageSticker({ stage }: { stage: 'writing' | 'done' }) {
+function StageSticker({ stage }: { stage: 'writing' | 'drafted' | 'saved' }) {
   return <StatusBadge category="blog" stage={stage} style={{ marginLeft: 6 }} />;
 }
 
@@ -54,6 +54,18 @@ const editBtnStyle: CSSProperties = {
   background: '#fff',
   color: 'var(--text-secondary)',
   border: '1px solid var(--border-strong)',
+  cursor: 'pointer',
+};
+// '저장 완료' — 흰 배경 / 빨간 테두리 / 빨간 글씨.
+const saveDoneBtnStyle: CSSProperties = {
+  flexShrink: 0,
+  padding: '3px 11px',
+  fontSize: 11.5,
+  fontWeight: 700,
+  borderRadius: 6,
+  background: '#fff',
+  color: '#dc2626',
+  border: '1px solid #dc2626',
   cursor: 'pointer',
 };
 
@@ -97,8 +109,8 @@ export default function AdminCaseBlog() {
   // 홈 "처리할 작업"에서 ?stage=writing 으로 진입하면 작업 중만 자동 필터.
   const searchParams = useSearchParams();
   const initStage = searchParams.get('stage');
-  const [stageFilter, setStageFilter] = useState<'writing' | 'done' | ''>(
-    initStage === 'writing' || initStage === 'done' ? initStage : '',
+  const [stageFilter, setStageFilter] = useState<'writing' | 'drafted' | 'saved' | ''>(
+    initStage === 'writing' || initStage === 'drafted' || initStage === 'saved' ? initStage : '',
   );
   const [items, setItems] = useState<CaseBlogItem[]>([]);
   const [loading, setLoading] = useState(false);
@@ -122,6 +134,8 @@ export default function AdminCaseBlog() {
   const clearDraft = () => { setDraftHospital(''); setDraftMonth(''); };
   const [selectedId, setSelectedId] = useState('');
   const [pseudoOpen, setPseudoOpen] = useState(false);
+  const [saveOpen, setSaveOpen] = useState(false); // '저장 완료' 확인 모달
+  const [saving, setSaving] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -313,6 +327,25 @@ export default function AdminCaseBlog() {
     }
   }
 
+  async function markSaved(runId: string) {
+    setSaving(true);
+    try {
+      const res = await fetch('/api/admin/case-blog/mark-saved', {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ runId }),
+      });
+      const data = (await res.json()) as { ok?: boolean; error?: string };
+      if (!res.ok || data.error) throw new Error(data.error ?? '저장완료 처리에 실패했습니다.');
+      setSaveOpen(false);
+      await load();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : '저장완료 처리에 실패했습니다.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
   return (
     <div className="adminLayout2WithMain">
       <aside className="adminLayoutSecondaryRail" aria-label="진료케이스 목록">
@@ -364,7 +397,7 @@ export default function AdminCaseBlog() {
               title="필터 해제"
               style={{ flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: 4, padding: '4px 8px', borderRadius: 999, border: '1px solid var(--border)', background: 'var(--accent-subtle)', color: 'var(--accent)', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
             >
-              {stageFilter === 'writing' ? '작업 중' : '완료'}만
+              {stageFilter === 'writing' ? '작성 중' : stageFilter === 'drafted' ? '작성완료' : '저장완료'}만
               <X size={12} />
             </button>
           )}
@@ -451,7 +484,14 @@ export default function AdminCaseBlog() {
                 <div style={{ minWidth: 0, fontSize: 11.5, color: 'var(--text-muted)', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace' }}>
                   {selected.friendlyId ? `진료케이스 ID · ${caseId(selected.friendlyId)}` : ''}
                 </div>
-                <div style={{ display: 'flex', flexShrink: 0, gap: 6 }}>
+                <div style={{ display: 'flex', flexShrink: 0, gap: 6, alignItems: 'center' }}>
+                  {selected.stage === 'drafted' ? (
+                    <button type="button" style={saveDoneBtnStyle} onClick={() => setSaveOpen(true)}>
+                      저장 완료
+                    </button>
+                  ) : selected.stage === 'saved' ? (
+                    <span style={{ fontSize: 11.5, fontWeight: 700, color: '#16a34a', padding: '3px 4px' }}>저장완료 ✓</span>
+                  ) : null}
                   {selected.patientName ? (
                     <button type="button" style={editBtnStyle} onClick={() => setPseudoOpen(true)}>
                       후처리 및 복사
@@ -603,6 +643,37 @@ export default function AdminCaseBlog() {
           body={selected.bodyMarkdown}
           onClose={() => setPseudoOpen(false)}
         />
+      ) : null}
+      {saveOpen && selected ? (
+        <div
+          onClick={() => !saving && setSaveOpen(false)}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{ width: 'min(92vw, 420px)', background: '#fff', borderRadius: 12, border: '1px solid var(--border)', overflow: 'hidden', boxShadow: '0 12px 40px rgba(0,0,0,0.18)' }}
+          >
+            <div style={{ padding: '20px 22px 16px' }}>
+              <h2 style={{ margin: '0 0 8px', fontSize: 16, fontWeight: 700, color: 'var(--text)' }}>네이버 블로그에 임시저장까지 완료되었나요?</h2>
+              <p style={{ margin: 0, fontSize: 13, lineHeight: 1.6, color: 'var(--text-secondary)' }}>
+                확인을 누르면 이 진료케이스 상태가 <b style={{ color: '#2563eb' }}>저장완료</b>로 변경됩니다.
+              </p>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, padding: '12px 18px', borderTop: '1px solid var(--border)' }}>
+              <button type="button" onClick={() => setSaveOpen(false)} disabled={saving} style={{ ...btnSecondary, padding: '8px 14px' }}>
+                취소
+              </button>
+              <button
+                type="button"
+                onClick={() => void markSaved(selected.runId)}
+                disabled={saving}
+                style={{ padding: '8px 18px', fontSize: 13, fontWeight: 700, borderRadius: 6, border: '1px solid #dc2626', background: saving ? '#fca5a5' : '#dc2626', color: '#fff', cursor: saving ? 'not-allowed' : 'pointer' }}
+              >
+                {saving ? '처리 중…' : '확인'}
+              </button>
+            </div>
+          </div>
+        </div>
       ) : null}
     </div>
   );

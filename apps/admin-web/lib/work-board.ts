@@ -17,10 +17,11 @@ export type WorkItem = {
   ownerName: string | null;
   patientName: string | null;
   type: WorkItemType;
-  /** 'requested' | 'writing'(블로그만) | 'done' */
+  /** 블로그: requested|writing|drafted(작성완료)|saved(저장완료) · 검진: requested|done */
   stage: BlogStage | HealthStage;
   requestedAt: string; // run 생성 시각
-  completedAt: string | null; // 완료 시각(잔여면 null)
+  completedAt: string | null; // 완료(검진 done·블로그 saved) 시각 — 그 외 null
+  draftedAt: string | null; // 블로그 작성완료(확정) 시각 — 그 외 null
 };
 
 const STATUS_CONTENT_TYPES = [
@@ -41,7 +42,9 @@ function toIso(v: unknown): string {
 type RunAgg = {
   types: Set<string>;
   blogConfirmed: boolean;
-  blogCompletedAt: string | null;   // blog_post(confirmed) updated_at
+  blogSaved: boolean;
+  blogCompletedAt: string | null;   // blog_post 저장완료 시각(payload.savedAt ?? updated_at)
+  blogDraftedAt: string | null;     // blog_post 작성완료(확정) 시각 — 미저장 상태의 updated_at
   healthCompletedAt: string | null; // health_checkup updated_at
 };
 
@@ -65,12 +68,17 @@ export async function listWorkBoardItems(): Promise<WorkItem[]> {
     const ct = String(row.content_type ?? '').trim();
     if (!rid || !ct) continue;
     let agg = byRun.get(rid);
-    if (!agg) { agg = { types: new Set(), blogConfirmed: false, blogCompletedAt: null, healthCompletedAt: null }; byRun.set(rid, agg); }
+    if (!agg) { agg = { types: new Set(), blogConfirmed: false, blogSaved: false, blogCompletedAt: null, blogDraftedAt: null, healthCompletedAt: null }; byRun.set(rid, agg); }
     agg.types.add(ct);
     if (ct === 'health_checkup') agg.healthCompletedAt = toIso(row.updated_at) || toIso(row.created_at);
     if (ct === 'blog_post') {
-      const pl = row.payload as { confirmed?: unknown } | null;
-      if (pl && pl.confirmed === true) { agg.blogConfirmed = true; agg.blogCompletedAt = toIso(row.updated_at) || toIso(row.created_at); }
+      const pl = row.payload as { confirmed?: unknown; saved?: unknown; savedAt?: unknown } | null;
+      if (pl && pl.confirmed === true) { agg.blogConfirmed = true; agg.blogDraftedAt = toIso(row.updated_at) || toIso(row.created_at); }
+      if (pl && pl.saved === true) {
+        // 저장완료 시각: payload.savedAt 우선, 없으면(구 데이터 백필) blog_post updated_at 폴백.
+        agg.blogSaved = true;
+        agg.blogCompletedAt = toIso(pl.savedAt) || toIso(row.updated_at) || toIso(row.created_at);
+      }
     }
   }
 
@@ -121,11 +129,16 @@ export async function listWorkBoardItems(): Promise<WorkItem[]> {
     };
     const healthStage = computeHealthStage(agg.types);
     if (healthStage !== 'none') {
-      items.push({ ...base, type: 'health', stage: healthStage, completedAt: healthStage === 'done' ? agg.healthCompletedAt : null });
+      items.push({ ...base, type: 'health', stage: healthStage, completedAt: healthStage === 'done' ? agg.healthCompletedAt : null, draftedAt: null });
     }
-    const blogStage = computeBlogStage(agg.types, agg.blogConfirmed);
+    const blogStage = computeBlogStage(agg.types, agg.blogConfirmed, agg.blogSaved);
     if (blogStage !== 'none') {
-      items.push({ ...base, type: 'blog', stage: blogStage, completedAt: blogStage === 'done' ? agg.blogCompletedAt : null });
+      // 블로그는 '저장완료'(saved)가 진짜 완료 — 작성완료(drafted)는 아직 잔여(네이버 저장 대기).
+      items.push({
+        ...base, type: 'blog', stage: blogStage,
+        completedAt: blogStage === 'saved' ? agg.blogCompletedAt : null,
+        draftedAt: blogStage === 'drafted' ? agg.blogDraftedAt : null,
+      });
     }
   }
   return items;

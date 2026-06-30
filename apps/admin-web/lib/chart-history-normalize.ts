@@ -14,7 +14,7 @@ export type HistoryItem = {
   healthStage: HealthStage;
 };
 
-const BLOG_STAGES = new Set(['none', 'requested', 'writing', 'done']);
+const BLOG_STAGES = new Set(['none', 'requested', 'writing', 'drafted', 'saved']);
 const HEALTH_STAGES = new Set(['none', 'requested', 'done']);
 
 export function pickNonEmptyString(...vals: unknown[]): string | null {

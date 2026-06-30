@@ -107,8 +107,9 @@ export async function listRecentParseRuns(limit = 80): Promise<ParseRunListItem[
       if (!s) { s = new Set(); typesByRun.set(rid, s); }
       s.add(ct);
     }
-    // blog_post 확정 여부(블로그 완료 판정)
+    // blog_post 확정/저장 여부(작성완료·저장완료 판정)
     const confirmedRuns = new Set<string>();
+    const savedRuns = new Set<string>();
     const { data: posts } = await supabase
       .schema('health_report')
       .from('generated_run_content')
@@ -117,12 +118,13 @@ export async function listRecentParseRuns(limit = 80): Promise<ParseRunListItem[
       .in('parse_run_id', ids);
     for (const p of posts ?? []) {
       const rid = String((p as { parse_run_id?: unknown }).parse_run_id ?? '');
-      const pl = (p as { payload?: { confirmed?: unknown } }).payload;
+      const pl = (p as { payload?: { confirmed?: unknown; saved?: unknown } }).payload;
       if (rid && pl && pl.confirmed === true) confirmedRuns.add(rid);
+      if (rid && pl && pl.saved === true) savedRuns.add(rid);
     }
     for (const it of items) {
       const types = typesByRun.get(it.id) ?? new Set<string>();
-      it.blogStage = computeBlogStage(types, confirmedRuns.has(it.id));
+      it.blogStage = computeBlogStage(types, confirmedRuns.has(it.id), savedRuns.has(it.id));
       it.healthStage = computeHealthStage(types);
       it.isBlog = it.blogStage !== 'none';
       it.isHealthCheckup = it.healthStage !== 'none';
