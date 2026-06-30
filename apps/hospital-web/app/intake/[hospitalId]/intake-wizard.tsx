@@ -155,18 +155,19 @@ export function IntakeWizard({ hospitalId, hospitalName, accent }: { hospitalId:
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
 
-  // 모바일 키보드가 하단 '다음/제출' 버튼을 가리는 문제 — 키보드가 차지한 높이만큼 버튼을 위로 띄운다.
-  const [kbInset, setKbInset] = useState(0);
+  // 모바일 키보드가 하단 '다음/제출' 버튼을 가리는 문제 —
+  // 레이아웃 높이를 "키보드를 뺀 보이는 영역 높이(visualViewport)"에 맞춰, 버튼이 키보드 바로 위에 오게 한다.
   useEffect(() => {
     const vv = window.visualViewport;
     if (!vv) return;
-    const onResize = () => setKbInset(Math.max(0, window.innerHeight - vv.height - vv.offsetTop));
-    vv.addEventListener('resize', onResize);
-    vv.addEventListener('scroll', onResize);
-    onResize();
+    const apply = () => document.documentElement.style.setProperty('--intake-vh', `${vv.height}px`);
+    vv.addEventListener('resize', apply);
+    vv.addEventListener('scroll', apply);
+    apply();
     return () => {
-      vv.removeEventListener('resize', onResize);
-      vv.removeEventListener('scroll', onResize);
+      vv.removeEventListener('resize', apply);
+      vv.removeEventListener('scroll', apply);
+      document.documentElement.style.removeProperty('--intake-vh');
     };
   }, []);
 
@@ -389,7 +390,7 @@ export function IntakeWizard({ hospitalId, hospitalName, accent }: { hospitalId:
 
       {error && <p style={{ color: C.danger, fontSize: 14, margin: '0 0 8px', flexShrink: 0 }}>{error}</p>}
 
-      <div style={{ display: 'flex', gap: 10, flexShrink: 0, paddingTop: 8, transform: kbInset ? `translateY(-${kbInset}px)` : undefined, transition: 'transform .18s ease' }}>
+      <div style={{ display: 'flex', gap: 10, flexShrink: 0, paddingTop: 8 }}>
         {clampedIdx > 0 && <button type="button" className="intake-press" onClick={back} style={btnSecondary}>이전</button>}
         {isLast ? (
           <button type="button" className="intake-press" onClick={() => void submit()} disabled={!canProceed() || submitting} style={btnPrimary(!canProceed() || submitting)}>
@@ -711,7 +712,9 @@ function QrToSelf() {
 function Screen({ children, accent }: { children: React.ReactNode; accent: Accent }) {
   return (
     <div style={{
-      minHeight: '100dvh', background: C.bg, color: C.text, display: 'flex', justifyContent: 'center',
+      // 키보드 열리면 visualViewport 높이(--intake-vh)로 줄여 하단 버튼이 키보드 위에 보이게. 없으면 100dvh.
+      height: 'var(--intake-vh, 100dvh)', overflow: 'hidden',
+      background: C.bg, color: C.text, display: 'flex', justifyContent: 'center',
       fontFamily: '"Pretendard", "Pretendard Variable", -apple-system, BlinkMacSystemFont, system-ui, sans-serif',
       ['--ac' as string]: accent.base, ['--ac-on' as string]: accent.on, ['--ac-tint' as string]: accent.tint,
     } as CSSProperties}>
