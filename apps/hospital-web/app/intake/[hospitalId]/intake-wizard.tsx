@@ -344,21 +344,6 @@ export function IntakeWizard({ hospitalId, hospitalName, accent }: { hospitalId:
         {hospitalName} · {clampedIdx + 1} / {steps.length}
       </div>
 
-      {/* 이전/다음을 상단에 — 모바일 키보드(하단)가 가리지 않도록. */}
-      <div style={{ display: 'flex', gap: 10, flexShrink: 0, margin: '12px 0 4px' }}>
-        {clampedIdx > 0 && <button type="button" className="intake-press" onClick={back} style={btnSecondary}>이전</button>}
-        {isLast ? (
-          <button type="button" className="intake-press" onClick={() => void submit()} disabled={!canProceed() || submitting} style={btnPrimary(!canProceed() || submitting)}>
-            {submitting ? '제출 중…' : '제출하기'}
-          </button>
-        ) : (
-          <button type="button" className="intake-press" onClick={next} disabled={!canProceed()} style={btnPrimary(!canProceed())}>
-            다음
-          </button>
-        )}
-      </div>
-      {error && <p style={{ color: C.danger, fontSize: 14, margin: '0 0 8px', flexShrink: 0 }}>{error}</p>}
-
       <div
         style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}
         onKeyDown={(e) => {
@@ -374,7 +359,7 @@ export function IntakeWizard({ hospitalId, hospitalName, accent }: { hospitalId:
           else next();
         }}
       >
-        <div style={{ minHeight: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '24px 2px 16vh' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'flex-start', padding: '20px 2px 24px' }}>
           <StepBody
             step={step} hospitalName={hospitalName} answers={answers}
             addrBase={addrBase} addrDetail={addrDetail}
@@ -384,6 +369,22 @@ export function IntakeWizard({ hospitalId, hospitalName, accent }: { hospitalId:
             noneSelected={noneSelected} setNoneSelected={setNoneSelected}
             matchedPetsCount={matchedPetsCount}
           />
+
+          {error && <p style={{ color: C.danger, fontSize: 14, margin: '14px 0 0' }}>{error}</p>}
+
+          {/* 이전/다음을 입력칸 바로 아래에 — 키보드가 올라와도 입력칸 근처라 함께 보인다. */}
+          <div style={{ display: 'flex', gap: 10, marginTop: 22 }}>
+            {clampedIdx > 0 && <button type="button" className="intake-press" onClick={back} style={btnSecondary}>이전</button>}
+            {isLast ? (
+              <button type="button" className="intake-press" onClick={() => void submit()} disabled={!canProceed() || submitting} style={btnPrimary(!canProceed() || submitting)}>
+                {submitting ? '제출 중…' : '제출하기'}
+              </button>
+            ) : (
+              <button type="button" className="intake-press" onClick={next} disabled={!canProceed()} style={btnPrimary(!canProceed())}>
+                다음
+              </button>
+            )}
+          </div>
         </div>
       </div>
     </Screen>
@@ -696,7 +697,8 @@ function QrToSelf() {
 function Screen({ children, accent }: { children: React.ReactNode; accent: Accent }) {
   return (
     <div style={{
-      minHeight: '100dvh', background: C.bg, color: C.text, display: 'flex', justifyContent: 'center',
+      // 키보드가 올라와도 페이지(body)가 위로 밀리지 않게 뷰포트 높이로 고정. 내부 콘텐츠만 필요 시 스크롤.
+      height: '100dvh', overflow: 'hidden', background: C.bg, color: C.text, display: 'flex', justifyContent: 'center',
       fontFamily: '"Pretendard", "Pretendard Variable", -apple-system, BlinkMacSystemFont, system-ui, sans-serif',
       ['--ac' as string]: accent.base, ['--ac-on' as string]: accent.on, ['--ac-tint' as string]: accent.tint,
     } as CSSProperties}>
