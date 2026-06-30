@@ -184,7 +184,7 @@ export const COMPLETE_TITLE = '접수 완료되었습니다';
 export const COMPLETE_BODY = '잠시 대기해 주시면 병원 담당자가 안내해 드리겠습니다.';
 
 // 개인정보처리방침 URL — 추후 제공받아 채움
-export const PRIVACY_POLICY_URL = '';
+export const PRIVACY_POLICY_URL = '/privacy';
 const PROCESSOR = '주식회사 바른반려연구소';
 
 export function consentRequiredText(hospitalName: string): string {

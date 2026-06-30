@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import type { CSSProperties } from 'react';
 import { useParams } from 'next/navigation';
 import { ddxGetPublic, ddxPostPublic } from '@/lib/ddx-api';
-import { consentRequiredText, consentMarketingText, CONSENT_REQUIRED_LABEL, CONSENT_MARKETING_LABEL } from '@/lib/intake/form-spec';
+import { consentRequiredText, consentMarketingText, CONSENT_REQUIRED_LABEL, CONSENT_MARKETING_LABEL, PRIVACY_POLICY_URL } from '@/lib/intake/form-spec';
 
 // ─── 타입 ────────────────────────────────────────────────
 type Question = {
@@ -561,6 +561,12 @@ export default function PublicSurveyPage() {
             <input type="checkbox" checked={consentMarketing} onChange={(e) => setConsentMarketing(e.target.checked)} style={{ width: 18, height: 18, accentColor: 'var(--ac)', flexShrink: 0, marginTop: 1 }} />
             <span>{CONSENT_MARKETING_LABEL}</span>
           </label>
+
+          {PRIVACY_POLICY_URL && (
+            <a href={PRIVACY_POLICY_URL} target="_blank" rel="noopener noreferrer" style={{ fontSize: 13.5, color: C.textSec, textDecoration: 'underline' }}>
+              개인정보처리방침 전문 보기
+            </a>
+          )}
         </div>
         <div style={{ display: 'flex', gap: 10, flexShrink: 0, paddingTop: 8 }}>
           <button type="button" className="sv-press" onClick={() => { setStep('survey'); setCurrentQ(Math.max(0, totalQ - 1)); }} style={btnSecondary}>이전</button>
