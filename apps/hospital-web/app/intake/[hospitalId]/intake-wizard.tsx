@@ -155,6 +155,21 @@ export function IntakeWizard({ hospitalId, hospitalName, accent }: { hospitalId:
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
 
+  // 모바일 키보드가 하단 '다음/제출' 버튼을 가리는 문제 — 키보드가 차지한 높이만큼 버튼을 위로 띄운다.
+  const [kbInset, setKbInset] = useState(0);
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const onResize = () => setKbInset(Math.max(0, window.innerHeight - vv.height - vv.offsetTop));
+    vv.addEventListener('resize', onResize);
+    vv.addEventListener('scroll', onResize);
+    onResize();
+    return () => {
+      vv.removeEventListener('resize', onResize);
+      vv.removeEventListener('scroll', onResize);
+    };
+  }, []);
+
   /** 연락처 입력 후 백그라운드로 받아오는 사전문진 매칭. 빈 배열이면 매칭 step 자체를 건너뛴다. */
   const [matches, setMatches] = useState<SurveyMatch[]>([]);
   const [matchLookupPhone, setMatchLookupPhone] = useState<string>(''); // 어떤 번호로 조회했는지(번호 바뀌면 새 조회)
@@ -344,7 +359,21 @@ export function IntakeWizard({ hospitalId, hospitalName, accent }: { hospitalId:
         {hospitalName} · {clampedIdx + 1} / {steps.length}
       </div>
 
-      <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
+      <div
+        style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}
+        onKeyDown={(e) => {
+          // 모바일에서 키보드가 '다음' 버튼을 가리는 문제 — 텍스트 입력 후 엔터(이동/확인)로 바로 넘어가게 한다.
+          if (e.key !== 'Enter') return;
+          const el = e.target as HTMLElement;
+          if (el.tagName !== 'INPUT') return;
+          const t = (el as HTMLInputElement).type;
+          if (t === 'checkbox' || t === 'radio' || t === 'button' || t === 'date') return;
+          if (!canProceed()) return;
+          e.preventDefault();
+          if (isLast) void submit();
+          else next();
+        }}
+      >
         <div style={{ minHeight: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '24px 2px 16vh' }}>
           <StepBody
             step={step} hospitalName={hospitalName} answers={answers}
@@ -360,7 +389,7 @@ export function IntakeWizard({ hospitalId, hospitalName, accent }: { hospitalId:
 
       {error && <p style={{ color: C.danger, fontSize: 14, margin: '0 0 8px', flexShrink: 0 }}>{error}</p>}
 
-      <div style={{ display: 'flex', gap: 10, flexShrink: 0, paddingTop: 8 }}>
+      <div style={{ display: 'flex', gap: 10, flexShrink: 0, paddingTop: 8, transform: kbInset ? `translateY(-${kbInset}px)` : undefined, transition: 'transform .18s ease' }}>
         {clampedIdx > 0 && <button type="button" className="intake-press" onClick={back} style={btnSecondary}>이전</button>}
         {isLast ? (
           <button type="button" className="intake-press" onClick={() => void submit()} disabled={!canProceed() || submitting} style={btnPrimary(!canProceed() || submitting)}>
