@@ -21,6 +21,7 @@ import {
 } from '@/lib/chart-app/health-report-image-placement-run';
 import { isParseRunUuid } from '@/lib/chart-app/uuid';
 import { ensureHealthCheckupReviewShareLink } from '@/lib/chart-app/review-share-link';
+import { getReportPublicBase } from '@/lib/chart-app/report-public-base';
 import { getChartPgPool } from '@/lib/db';
 import { hospitalHasTokens, chargeOperationTokens } from '@/lib/billing/token-charge';
 import { applyHealthCheckupCoverFromSource } from '@/lib/chart-app/health-checkup-cover-from-source';
@@ -844,7 +845,7 @@ export async function POST(request: NextRequest) {
         // 리포트가 생기는 즉시 외부 검토 링크를 보장한다 — admin 워크스페이스를 열지 않아도
         // hospital-ui 에 '리포트 확인' 버튼이 바로 뜨도록. (이미 있으면 만료 7일 연장·링크 유지)
         try {
-          await ensureHealthCheckupReviewShareLink(pool, runId, new URL(request.url).origin);
+          await ensureHealthCheckupReviewShareLink(pool, runId, getReportPublicBase());
         } catch (linkErr) {
           console.error('[content/generate] ensure review-share link failed (non-blocking):', linkErr);
         }

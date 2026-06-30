@@ -3,6 +3,7 @@ import { chartAppAuthMiddleware } from '@/lib/chart-app/auth';
 import { upsertGeneratedRunContent } from '@/lib/chart-app/generated-content';
 import { hashShareToken } from '@/lib/chart-app/share-token';
 import { ensureHealthCheckupReviewShareLink } from '@/lib/chart-app/review-share-link';
+import { getReportPublicBase } from '@/lib/chart-app/report-public-base';
 import { isParseRunUuid } from '@/lib/chart-app/uuid';
 import { getChartPgPool } from '@/lib/db';
 import {
@@ -47,7 +48,7 @@ export async function POST(request: NextRequest) {
     const { shareUrl, expiresAt } = await ensureHealthCheckupReviewShareLink(
       pool,
       runId,
-      new URL(request.url).origin,
+      getReportPublicBase(),
     );
     console.info('[review-share:issue] ok', {
       runId,

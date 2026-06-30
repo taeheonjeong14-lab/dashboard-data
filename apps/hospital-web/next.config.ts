@@ -6,19 +6,10 @@ import type { NextConfig } from 'next';
 /* env는 전부 비-Sensitive여야 함(GHA 프리빌드는 Sensitive 값을 pull 못 함 → NEXT_PUBLIC이 undefined로 박혀 미들웨어 크래시). */
 const repoRoot = path.join(__dirname, '..', '..');
 
-// 건강검진 외부 검토 리포트는 chart-api 가 서빙하지만, 고객에겐 브랜드 도메인(app.thehamm.kr)으로
-// 보이도록 /review/health-checkup/* 를 chart-api 로 프록시(rewrite)한다.
-const CHART_API_URL = (process.env.CHART_API_URL || 'https://chart-api-five.vercel.app').replace(/\/$/, '');
-
 const nextConfig: NextConfig = {
   transpilePackages: ['@dashboard/chart-ingest'],
   turbopack: {
     root: repoRoot,
-  },
-  async rewrites() {
-    return [
-      { source: '/review/health-checkup/:path*', destination: `${CHART_API_URL}/review/health-checkup/:path*` },
-    ];
   },
 };
 
