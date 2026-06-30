@@ -666,7 +666,7 @@ export function CaseTab() {
                 <>
                   <div style={{ fontSize: 20, marginBottom: 5 }}>📄</div>
                   <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 2 }}>끌어다 놓거나 클릭하여 선택</div>
-                  <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>PDF · 최대 70MB(초과 시 자동 압축) · 여러 개 가능</div>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>PDF · 최대 70MB · 여러 개 가능</div>
                 </>
               )}
             </div>
