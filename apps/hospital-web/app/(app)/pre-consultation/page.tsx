@@ -34,6 +34,7 @@ type SessionListItem = {
   guardianName: string | null;
   contact?: string | null;
   visitType?: string | null;
+  scheduledDate?: string | null;
   status: string;
   createdAt: string;
   completedAt?: string | null;
@@ -289,7 +290,7 @@ export default function PreConsultationPage() {
                   defaultPhone={resendFor.contact ?? ''}
                   patientName={resendFor.patientName ?? ''}
                   guardianName={resendFor.guardianName ?? ''}
-                  scheduledDate=""
+                  scheduledDate={resendFor.scheduledDate ?? ''}
                 />
               </div>
             )}
