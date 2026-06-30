@@ -7,6 +7,7 @@ import { buildHealthCheckupSharePrintUrlForRequest } from '@/lib/chart-app/healt
 import { renderAndStoreReportPdf } from '@/lib/chart-app/report-pdf-store';
 import { normalizePhone } from '@/lib/chart-app/aligo';
 import { resolveHospitalKakao } from '@/lib/chart-app/kakao-template';
+import { getReportPublicBase } from '@/lib/chart-app/report-public-base';
 import { getChartPgPool } from '@/lib/db';
 
 // POST /api/report/health-checkup/send-kakao — 보호자에게 건강검진 리포트를 카카오 알림톡으로 발송.
@@ -93,7 +94,8 @@ export async function POST(request: NextRequest) {
       console.error('[send-kakao] PDF 저장 실패(발송은 진행):', e);
     }
 
-    const pdfUrl = `${new URL(request.url).origin}/review/health-checkup/${encodeURIComponent(token)}/pdf`;
+    // 고객용 링크는 브랜드 도메인(app.thehamm.kr) — 알리고 템플릿 버튼 링크와 일치해야 발송됨.
+    const pdfUrl = `${getReportPublicBase()}/review/health-checkup/${encodeURIComponent(token)}/pdf`;
     // 템플릿(UI_6805)에 등록된 버튼 순서와 정확히 일치해야 함: ① 채널 추가(AC) ② 리포트 확인하기(WL).
     const buttons = [
       { type: 'AC', name: '채널 추가' },
