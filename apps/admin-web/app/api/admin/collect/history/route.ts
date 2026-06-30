@@ -29,6 +29,8 @@ export type CollectHistoryUnifiedItem = {
   origin?: 'manual' | 'schedule';
   upserts?: UpsertItem[];
   failedSteps?: StepItem[];
+  // 실패했는데 steps 에 에러가 없을 때(리퍼/타임아웃/크래시) 사유 추정용 output 꼬리.
+  outputTail?: string;
   // 진행 중(running/pending) 항목의 단계별 진행률 표시용
   progress?: Record<string, { done: number; total: number; label?: string | null }>;
   stepsFilter?: string[] | null;
@@ -51,7 +53,7 @@ export async function GET() {
     supabase
       .schema('analytics')
       .from('collect_jobs')
-      .select('id, hospital_id, status, steps, upserts, origin, progress, steps_filter, created_at, started_at, finished_at, updated_at')
+      .select('id, hospital_id, status, steps, upserts, origin, progress, steps_filter, output, created_at, started_at, finished_at, updated_at')
       .order('created_at', { ascending: false })
       .limit(40),
   ]);
@@ -93,18 +95,24 @@ export async function GET() {
       ? (row.progress as Record<string, { done: number; total: number; label?: string | null }>)
       : {});
     const stepsFilter = Array.isArray(row.steps_filter) ? (row.steps_filter as string[]) : null;
+    const status = String(row.status ?? '');
+    const failedSteps = steps.filter((s) => s && s.error);
+    // 실패했는데 steps 에 에러가 없으면 output 꼬리(마지막 2000자)를 사유 추정용으로 함께 보낸다.
+    const output = typeof row.output === 'string' ? row.output : '';
+    const outputTail = status === 'failed' && failedSteps.length === 0 && output ? output.slice(-2000) : undefined;
     return {
       key: `auto:${String(row.id)}`,
       kind: 'auto',
       id: String(row.id),
       hospitalId: (row.hospital_id as string | null) ?? null,
-      status: String(row.status ?? ''),
+      status,
       at: createdAt,
       startedAt: (row.started_at as string | null) ?? null,
       finishedAt: (row.finished_at as string | null) ?? null,
       origin: originRaw === 'schedule' ? 'schedule' : 'manual',
       upserts,
-      failedSteps: steps.filter((s) => s && s.error),
+      failedSteps,
+      outputTail,
       progress,
       stepsFilter,
       doneStepNames: steps.filter((s) => s && !s.error).map((s) => s.name),

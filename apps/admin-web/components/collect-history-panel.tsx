@@ -35,6 +35,7 @@ type HistoryItem = {
   origin?: 'manual' | 'schedule';
   upserts?: UpsertItem[];
   failedSteps?: StepItem[];
+  outputTail?: string;
   progress?: Record<string, { done: number; total: number; label?: string | null }>;
   stepsFilter?: string[] | null;
   doneStepNames?: string[];
@@ -88,6 +89,9 @@ function humanizeCollectError(raw?: string): string | null {
   const e = raw.toLowerCase();
   const has = (re: RegExp) => re.test(e);
 
+  if (has(/reaper|고아 잡|진행이 없어|워커 중단|watchdog/)) {
+    return '수집이 오래 멈춰 있어 자동 중단됐습니다(타임아웃 또는 워커 응답 없음). 다시 실행해 보세요.';
+  }
   if (has(/gemini_api_key|api[_ ]?key (not|미설정|없)|missing.*api key/)) {
     return 'AI(Gemini) API 키가 없거나 잘못됐습니다. 워커 환경변수(GEMINI_API_KEY)를 확인하세요.';
   }
@@ -323,7 +327,7 @@ export default function CollectHistoryPanel({ hospitals }: { hospitals: ChartHos
                     )}
                   </div>
                 ) : (
-                  ((item.upserts?.length ?? 0) > 0 || (item.failedSteps?.length ?? 0) > 0) && (
+                  ((item.upserts?.length ?? 0) > 0 || (item.failedSteps?.length ?? 0) > 0 || item.status === 'failed') && (
                     <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid var(--border)', display: 'grid', gap: 4, fontSize: 12.5 }}>
                       {item.failedSteps?.map((s) => {
                         const human = humanizeCollectError(s.error);
@@ -342,6 +346,25 @@ export default function CollectHistoryPanel({ hospitals }: { hospitals: ChartHos
                           </div>
                         );
                       })}
+                      {/* steps 에 에러가 없는데 실패한 경우(리퍼/타임아웃/크래시) — output 로그 기반 사유 */}
+                      {(item.failedSteps?.length ?? 0) === 0 && item.status === 'failed' && (() => {
+                        const human = humanizeCollectError(item.outputTail);
+                        const tail = (item.outputTail ?? '').trim();
+                        const main = human ?? (tail ? tail.slice(-300) : '실패 사유가 기록되지 않았습니다. (로그 미기록)');
+                        return (
+                          <div style={{ display: 'grid', gap: 2 }}>
+                            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 5, color: 'var(--danger)' }}>
+                              <XCircle size={13} style={{ flexShrink: 0, marginTop: 2 }} />
+                              <span><span style={{ fontWeight: 600 }}>수집 실패</span> — {main}</span>
+                            </div>
+                            {human && tail && (
+                              <div style={{ marginLeft: 18, fontSize: 10.5, color: 'var(--text-muted)', whiteSpace: 'pre-wrap', wordBreak: 'break-word', lineHeight: 1.4, maxHeight: 96, overflowY: 'auto' }}>
+                                {tail.slice(-600)}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
                       {item.upserts?.map((u) => (
                         <div key={u.label} style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-secondary)' }}>
                           <span>{u.label}</span>
