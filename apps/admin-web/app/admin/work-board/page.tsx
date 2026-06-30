@@ -33,6 +33,7 @@ export default function WorkBoardPage() {
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<'pending' | 'done'>('pending');
   const [hospital, setHospital] = useState('');
+  const [typeFilter, setTypeFilter] = useState<'' | 'health' | 'blog'>('');
 
   useEffect(() => {
     (async () => {
@@ -56,9 +57,31 @@ export default function WorkBoardPage() {
     () => [...new Set([...pending, ...done].map((i) => i.hospitalName?.trim() ?? '').filter(Boolean))].sort(),
     [pending, done],
   );
-  const filtered = useMemo(
-    () => (hospital ? list.filter((i) => (i.hospitalName?.trim() ?? '') === hospital) : list),
-    [list, hospital],
+  const filtered = useMemo(() => {
+    let l = list;
+    if (hospital) l = l.filter((i) => (i.hospitalName?.trim() ?? '') === hospital);
+    if (typeFilter) l = l.filter((i) => i.type === typeFilter);
+    return l;
+  }, [list, hospital, typeFilter]);
+
+  // 병원별 잔여 수량 요약(검진 요청 / 블로그 요청 / 블로그 작성중) — 합계 많은 순.
+  const pendingSummary = useMemo(() => {
+    const m = new Map<string, { health: number; blogReq: number; blogWriting: number }>();
+    for (const i of pending) {
+      const h = i.hospitalName?.trim() || '병원 미상';
+      let row = m.get(h);
+      if (!row) { row = { health: 0, blogReq: 0, blogWriting: 0 }; m.set(h, row); }
+      if (i.type === 'health') row.health += 1;
+      else if (i.type === 'blog' && i.stage === 'requested') row.blogReq += 1;
+      else if (i.type === 'blog' && i.stage === 'writing') row.blogWriting += 1;
+    }
+    return [...m.entries()]
+      .map(([name, c]) => ({ name, ...c, total: c.health + c.blogReq + c.blogWriting }))
+      .sort((a, b) => b.total - a.total);
+  }, [pending]);
+  const summaryTotals = pendingSummary.reduce(
+    (s, r) => ({ health: s.health + r.health, blogReq: s.blogReq + r.blogReq, blogWriting: s.blogWriting + r.blogWriting }),
+    { health: 0, blogReq: 0, blogWriting: 0 },
   );
 
   const tabBtn = (key: 'pending' | 'done', label: string, n: number): React.CSSProperties => ({
@@ -79,13 +102,60 @@ export default function WorkBoardPage() {
         <button type="button" onClick={() => setTab('done')} style={tabBtn('done', '', 0)}>완료 작업 {done.length > 0 ? `(${done.length})` : ''}</button>
       </div>
 
-      {/* 병원 필터 */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+      {/* 병원별 잔여 수량 요약 (잔여 탭에서만) */}
+      {tab === 'pending' && !loading && !error && pendingSummary.length > 0 && (
+        <div style={{ marginBottom: 16, border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
+          <div style={{ padding: '8px 12px', fontSize: 12.5, fontWeight: 700, color: 'var(--text-secondary)', background: 'var(--bg-subtle)' }}>병원별 잔여 수량</div>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+            <thead>
+              <tr style={{ color: 'var(--text-muted)', fontSize: 11.5 }}>
+                <th style={{ textAlign: 'left', padding: '6px 12px', fontWeight: 600 }}>병원</th>
+                <th style={{ textAlign: 'center', padding: '6px 8px', fontWeight: 600, width: 84 }}>검진 요청</th>
+                <th style={{ textAlign: 'center', padding: '6px 8px', fontWeight: 600, width: 84 }}>블로그 요청</th>
+                <th style={{ textAlign: 'center', padding: '6px 8px', fontWeight: 600, width: 84 }}>블로그 작성중</th>
+                <th style={{ textAlign: 'center', padding: '6px 12px', fontWeight: 700, width: 64 }}>합계</th>
+              </tr>
+            </thead>
+            <tbody>
+              {pendingSummary.map((r) => {
+                const cell = (n: number, color: string) => <span style={{ fontWeight: n > 0 ? 700 : 400, color: n > 0 ? color : 'var(--text-muted)' }}>{n}</span>;
+                return (
+                  <tr key={r.name} style={{ borderTop: '1px solid var(--border)', cursor: 'pointer' }} onClick={() => setHospital(r.name === '병원 미상' ? '' : r.name)}>
+                    <td style={{ padding: '7px 12px', color: 'var(--text)' }}>{r.name}</td>
+                    <td style={{ textAlign: 'center', padding: '7px 8px' }}>{cell(r.health, '#2563eb')}</td>
+                    <td style={{ textAlign: 'center', padding: '7px 8px' }}>{cell(r.blogReq, '#dc2626')}</td>
+                    <td style={{ textAlign: 'center', padding: '7px 8px' }}>{cell(r.blogWriting, '#ea580c')}</td>
+                    <td style={{ textAlign: 'center', padding: '7px 12px', fontWeight: 700, color: 'var(--text)' }}>{r.total}</td>
+                  </tr>
+                );
+              })}
+              <tr style={{ borderTop: '2px solid var(--border)', background: 'var(--bg-subtle)' }}>
+                <td style={{ padding: '7px 12px', fontWeight: 700, color: 'var(--text)' }}>합계</td>
+                <td style={{ textAlign: 'center', padding: '7px 8px', fontWeight: 700 }}>{summaryTotals.health}</td>
+                <td style={{ textAlign: 'center', padding: '7px 8px', fontWeight: 700 }}>{summaryTotals.blogReq}</td>
+                <td style={{ textAlign: 'center', padding: '7px 8px', fontWeight: 700 }}>{summaryTotals.blogWriting}</td>
+                <td style={{ textAlign: 'center', padding: '7px 12px', fontWeight: 800, color: 'var(--text)' }}>{summaryTotals.health + summaryTotals.blogReq + summaryTotals.blogWriting}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* 필터: 병원 + 종류 */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
         <select value={hospital} onChange={(e) => setHospital(e.target.value)}
           style={{ padding: '6px 10px', fontSize: 13, borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)' }}>
           <option value="">전체 병원</option>
           {hospitals.map((h) => <option key={h} value={h}>{h}</option>)}
         </select>
+        {([['', '전체'], ['health', '검진리포트'], ['blog', '블로그']] as const).map(([val, label]) => (
+          <button key={val} type="button" onClick={() => setTypeFilter(val)}
+            style={{ padding: '6px 12px', fontSize: 12.5, fontWeight: typeFilter === val ? 700 : 500, borderRadius: 999, cursor: 'pointer',
+              border: `1px solid ${typeFilter === val ? 'var(--accent)' : 'var(--border)'}`,
+              background: typeFilter === val ? 'var(--accent-subtle)' : 'var(--bg)', color: typeFilter === val ? 'var(--accent)' : 'var(--text-secondary)' }}>
+            {label}
+          </button>
+        ))}
         <span style={{ fontSize: 12.5, color: 'var(--text-muted)' }}>{filtered.length}건</span>
       </div>
 
