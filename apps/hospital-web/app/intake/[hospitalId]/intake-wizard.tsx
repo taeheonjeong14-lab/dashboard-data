@@ -155,22 +155,6 @@ export function IntakeWizard({ hospitalId, hospitalName, accent }: { hospitalId:
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
 
-  // 모바일 키보드가 하단 '다음/제출' 버튼을 가리는 문제 —
-  // 레이아웃 높이를 "키보드를 뺀 보이는 영역 높이(visualViewport)"에 맞춰, 버튼이 키보드 바로 위에 오게 한다.
-  useEffect(() => {
-    const vv = window.visualViewport;
-    if (!vv) return;
-    const apply = () => document.documentElement.style.setProperty('--intake-vh', `${vv.height}px`);
-    vv.addEventListener('resize', apply);
-    vv.addEventListener('scroll', apply);
-    apply();
-    return () => {
-      vv.removeEventListener('resize', apply);
-      vv.removeEventListener('scroll', apply);
-      document.documentElement.style.removeProperty('--intake-vh');
-    };
-  }, []);
-
   /** 연락처 입력 후 백그라운드로 받아오는 사전문진 매칭. 빈 배열이면 매칭 step 자체를 건너뛴다. */
   const [matches, setMatches] = useState<SurveyMatch[]>([]);
   const [matchLookupPhone, setMatchLookupPhone] = useState<string>(''); // 어떤 번호로 조회했는지(번호 바뀌면 새 조회)
@@ -360,6 +344,21 @@ export function IntakeWizard({ hospitalId, hospitalName, accent }: { hospitalId:
         {hospitalName} · {clampedIdx + 1} / {steps.length}
       </div>
 
+      {/* 이전/다음을 상단에 — 모바일 키보드(하단)가 가리지 않도록. */}
+      <div style={{ display: 'flex', gap: 10, flexShrink: 0, margin: '12px 0 4px' }}>
+        {clampedIdx > 0 && <button type="button" className="intake-press" onClick={back} style={btnSecondary}>이전</button>}
+        {isLast ? (
+          <button type="button" className="intake-press" onClick={() => void submit()} disabled={!canProceed() || submitting} style={btnPrimary(!canProceed() || submitting)}>
+            {submitting ? '제출 중…' : '제출하기'}
+          </button>
+        ) : (
+          <button type="button" className="intake-press" onClick={next} disabled={!canProceed()} style={btnPrimary(!canProceed())}>
+            다음
+          </button>
+        )}
+      </div>
+      {error && <p style={{ color: C.danger, fontSize: 14, margin: '0 0 8px', flexShrink: 0 }}>{error}</p>}
+
       <div
         style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}
         onKeyDown={(e) => {
@@ -386,21 +385,6 @@ export function IntakeWizard({ hospitalId, hospitalName, accent }: { hospitalId:
             matchedPetsCount={matchedPetsCount}
           />
         </div>
-      </div>
-
-      {error && <p style={{ color: C.danger, fontSize: 14, margin: '0 0 8px', flexShrink: 0 }}>{error}</p>}
-
-      <div style={{ display: 'flex', gap: 10, flexShrink: 0, paddingTop: 8 }}>
-        {clampedIdx > 0 && <button type="button" className="intake-press" onClick={back} style={btnSecondary}>이전</button>}
-        {isLast ? (
-          <button type="button" className="intake-press" onClick={() => void submit()} disabled={!canProceed() || submitting} style={btnPrimary(!canProceed() || submitting)}>
-            {submitting ? '제출 중…' : '제출하기'}
-          </button>
-        ) : (
-          <button type="button" className="intake-press" onClick={next} disabled={!canProceed()} style={btnPrimary(!canProceed())}>
-            다음
-          </button>
-        )}
       </div>
     </Screen>
   );
@@ -712,9 +696,7 @@ function QrToSelf() {
 function Screen({ children, accent }: { children: React.ReactNode; accent: Accent }) {
   return (
     <div style={{
-      // 키보드 열리면 visualViewport 높이(--intake-vh)로 줄여 하단 버튼이 키보드 위에 보이게. 없으면 100dvh.
-      height: 'var(--intake-vh, 100dvh)', overflow: 'hidden',
-      background: C.bg, color: C.text, display: 'flex', justifyContent: 'center',
+      minHeight: '100dvh', background: C.bg, color: C.text, display: 'flex', justifyContent: 'center',
       fontFamily: '"Pretendard", "Pretendard Variable", -apple-system, BlinkMacSystemFont, system-ui, sans-serif',
       ['--ac' as string]: accent.base, ['--ac-on' as string]: accent.on, ['--ac-tint' as string]: accent.tint,
     } as CSSProperties}>
