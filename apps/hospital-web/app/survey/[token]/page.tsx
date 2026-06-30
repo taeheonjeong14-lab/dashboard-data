@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import type { CSSProperties } from 'react';
 import { useParams } from 'next/navigation';
 import { ddxGetPublic, ddxPostPublic } from '@/lib/ddx-api';
+import { consentRequiredText, consentMarketingText, CONSENT_REQUIRED_LABEL, CONSENT_MARKETING_LABEL } from '@/lib/intake/form-spec';
 
 // ─── 타입 ────────────────────────────────────────────────
 type Question = {
@@ -193,7 +194,7 @@ function formatScheduledDate(iso?: string | null): string {
   return d.toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' });
 }
 
-type Step = 'loading' | 'error' | 'already' | 'intro' | 'survey' | 'submitting' | 'done';
+type Step = 'loading' | 'error' | 'already' | 'intro' | 'survey' | 'consent' | 'submitting' | 'done';
 
 export default function PublicSurveyPage() {
   const params = useParams();
@@ -206,9 +207,13 @@ export default function PublicSurveyPage() {
   const [otherText, setOtherText] = useState<Record<string, string>>({});
   const [currentQ, setCurrentQ] = useState(0);
   const [intro, setIntro] = useState<string | null>(null); // 카테고리 인트로 멘트(잠시 떴다가 자동으로 다음 질문)
+  // 신규환자만 마지막에 개인정보 동의(필수)·마케팅 동의(선택)를 받는다.
+  const [consentRequired, setConsentRequired] = useState(false);
+  const [consentMarketing, setConsentMarketing] = useState(false);
 
   const ac = useMemo(() => buildAccent(session?.hospital?.brandColor), [session]);
   const hospitalName = session?.hospital?.name?.trim() || '';
+  const isNewPatient = (session?.visitType ?? '') === '신규환자';
 
   useEffect(() => {
     if (!token) { setStep('error'); setErrorMsg('유효하지 않은 링크입니다.'); return; }
@@ -384,9 +389,18 @@ export default function PublicSurveyPage() {
   const handleNext = () => {
     if (!canGoNext) return;
     if (clampedIdx < totalQ - 1) goToIndex(clampedIdx + 1);
-    // 마지막 답변 순간 곧바로 제출(complete:true)을 전송한다. 감사 인사 애니메이션이 끝나길 기다리지 않으므로
-    // 인사 도중 보호자가 창을 닫아도 제출이 누락되지 않는다(keepalive 로 끝까지 전송 보장).
+    // 신규환자는 마지막 답변 후 개인정보 동의 화면을 거친다. 그 외(기존환자)는 곧바로 제출.
+    else if (isNewPatient) setStep('consent');
+    // 마지막 답변 순간 곧바로 제출(complete:true)을 전송한다(keepalive 로 끝까지 전송 보장).
     else { setIntro(FINAL_THANKS); handleSubmit(); }
+  };
+
+  // 동의 화면에서 "동의하고 제출" — 필수 동의가 있어야 진행.
+  const submitFromConsent = () => {
+    if (!consentRequired) return;
+    setStep('survey');
+    setIntro(FINAL_THANKS);
+    handleSubmit();
   };
   const handlePrev = () => { if (clampedIdx > 0) setCurrentQ(clampedIdx - 1); };
 
@@ -443,6 +457,8 @@ export default function PublicSurveyPage() {
     try {
       const res = await ddxPostPublic<{ success: boolean; error?: string }>('/api/survey', {
         token, answers: buildPayload(), complete: true,
+        // 신규환자 동의 결과(필수 동의시각 + 마케팅 여부). 그 외 방문유형은 동의 단계가 없어 전송 안 함.
+        ...(isNewPatient ? { consentAgreedAt: new Date().toISOString(), consentMarketing } : {}),
       }, { keepalive: true });
       if (res.success) setStep('done');
       else if (res.error === 'already_completed') setStep('already');
@@ -520,6 +536,35 @@ export default function PublicSurveyPage() {
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16 }}>
           <span style={spinnerStyle(ac)} />
           <p style={{ fontSize: 16, color: C.textSec, margin: 0 }}>제출하는 중…</p>
+        </div>
+      </Screen>
+    );
+  }
+
+  if (step === 'consent') {
+    const boxStyle: CSSProperties = { background: C.subtle, border: `1px solid ${C.border}`, borderRadius: 12, padding: '14px 16px', fontSize: 13.5, color: C.textSec, lineHeight: 1.7, whiteSpace: 'pre-line', maxHeight: 200, overflowY: 'auto', marginBottom: 10 };
+    const rowStyle: CSSProperties = { display: 'flex', alignItems: 'flex-start', gap: 10, marginBottom: 20, fontSize: 15, color: C.text, lineHeight: 1.5, cursor: 'pointer' };
+    return (
+      <Screen accent={ac}>
+        <div style={{ flex: 1, overflowY: 'auto', minHeight: 0, paddingTop: 8 }}>
+          <h1 style={{ fontSize: 22, fontWeight: 700, letterSpacing: '-0.02em', color: C.text, margin: '0 0 6px' }}>개인정보 수집·이용 동의</h1>
+          <p style={{ fontSize: 14, color: C.muted, margin: '0 0 18px', lineHeight: 1.6 }}>원활한 진료를 위해 아래 동의가 필요합니다.</p>
+
+          <div style={boxStyle}>{consentRequiredText(hospitalName)}</div>
+          <label style={rowStyle}>
+            <input type="checkbox" checked={consentRequired} onChange={(e) => setConsentRequired(e.target.checked)} style={{ width: 18, height: 18, accentColor: 'var(--ac)', flexShrink: 0, marginTop: 1 }} />
+            <span>{CONSENT_REQUIRED_LABEL}</span>
+          </label>
+
+          <div style={boxStyle}>{consentMarketingText(hospitalName)}</div>
+          <label style={rowStyle}>
+            <input type="checkbox" checked={consentMarketing} onChange={(e) => setConsentMarketing(e.target.checked)} style={{ width: 18, height: 18, accentColor: 'var(--ac)', flexShrink: 0, marginTop: 1 }} />
+            <span>{CONSENT_MARKETING_LABEL}</span>
+          </label>
+        </div>
+        <div style={{ display: 'flex', gap: 10, flexShrink: 0, paddingTop: 8 }}>
+          <button type="button" className="sv-press" onClick={() => { setStep('survey'); setCurrentQ(Math.max(0, totalQ - 1)); }} style={btnSecondary}>이전</button>
+          <button type="button" className="sv-press" onClick={submitFromConsent} disabled={!consentRequired} style={btnPrimary(!consentRequired)}>동의하고 제출</button>
         </div>
       </Screen>
     );

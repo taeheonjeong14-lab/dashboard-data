@@ -98,6 +98,12 @@ export async function POST(request: NextRequest) {
 
     const complete = body.complete === true;
 
+    // 신규환자 동의(필수 시각 + 마케팅 여부). 완료 제출에만 포함되며, 그 외 방문유형은 전송되지 않는다.
+    const consentAgreedAtRaw = typeof body.consentAgreedAt === 'string' ? body.consentAgreedAt : null;
+    const consentAgreedAt = consentAgreedAtRaw ? new Date(consentAgreedAtRaw) : null;
+    const hasConsentMarketing = typeof body.consentMarketing === 'boolean';
+    const consentMarketing = hasConsentMarketing ? (body.consentMarketing as boolean) : null;
+
     if (Array.isArray(answers) && answers.length > 0) {
       for (const a of answers) {
         if (!a.questionInstanceId) continue;
@@ -127,7 +133,13 @@ export async function POST(request: NextRequest) {
     if (complete) {
       const updated = await prisma.surveySession.update({
         where: { id: session.id },
-        data: { status: 'completed', completedAt: new Date(), analysisStatus: 'pending' },
+        data: {
+          status: 'completed',
+          completedAt: new Date(),
+          analysisStatus: 'pending',
+          ...(consentAgreedAt && !Number.isNaN(consentAgreedAt.getTime()) ? { consentAgreedAt } : {}),
+          ...(consentMarketing !== null ? { consentMarketing } : {}),
+        },
       });
       // 사전문진 완료 시 사전 분석 실행 (차트 요약/DDx/추가 질문).
       // after() 로 등록해야 응답 반환 후에도 서버리스 함수가 살아 분석이 끝까지 완료된다 — void Promise 만 던지면 Vercel 에서 즉시 종료될 수 있다.

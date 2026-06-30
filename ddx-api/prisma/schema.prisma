@@ -259,6 +259,8 @@ model SurveySession {
   token             String    @unique // 보호자 설문 링크용 토큰
   createdAt         DateTime  @default(now())
   completedAt       DateTime?
+  consentAgreedAt   DateTime? // 신규환자 개인정보 수집·이용(필수) 동의 시각
+  consentMarketing  Boolean?  // 마케팅 수신(선택) 동의 여부
 
   // 파트7: 사전문진 기반 사전 분석 결과 (초기 요약/DDx/추가 질문)
   analysisStatus    String    @default("pending") // "pending" | "processing" | "done" | "error"
