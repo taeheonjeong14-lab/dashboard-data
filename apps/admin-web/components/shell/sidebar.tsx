@@ -14,6 +14,7 @@ import {
   ClipboardCheck,
   Newspaper,
   Gauge,
+  ListTodo,
   type LucideProps,
 } from 'lucide-react';
 
@@ -49,6 +50,7 @@ const NAV_GROUPS: NavGroup[] = [
   {
     title: '차트 데이터',
     items: [
+      { href: '/admin/work-board', label: '작업 현황', icon: ListTodo, matchPrefix: '/admin/work-board' },
       { href: '/admin/chart-data', label: '차트 목록', icon: FileText, matchPrefix: '/admin/chart-data' },
       { href: '/admin/health-report', label: '건강검진 리포트', icon: HeartPulse, matchPrefix: '/admin/health-report' },
       { href: '/admin/case-blog', label: '진료케이스', icon: Newspaper, matchPrefix: '/admin/case-blog' },

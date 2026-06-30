@@ -53,12 +53,13 @@ export default function AdminChartData() {
   const searchParams = useSearchParams();
   const initType = (searchParams.get('type') ?? '').split(',').filter((v) => (TYPE_FILTERS as readonly string[]).includes(v));
   const initStage = (searchParams.get('stage') ?? '').split(',').filter((v) => (STAGE_FILTERS as readonly string[]).includes(v));
+  const initSearch = (searchParams.get('q') ?? '').trim(); // 작업 현황판 등에서 특정 케이스로 진입 시 검색어 프리필
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [listError, setListError] = useState<string | null>(null);
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useState(initSearch);
   const [filterHospital, setFilterHospital] = useState('');
   const [filterMonth, setFilterMonth] = useState('');
   const [filterTypes, setFilterTypes] = useState<string[]>(initType);   // 블로그 / 검진리포트 (다중)

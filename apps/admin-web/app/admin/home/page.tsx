@@ -32,6 +32,7 @@ const GROUPS: Group[] = [
   {
     title: '차트 데이터',
     items: [
+      { href: '/admin/work-board', label: '작업 현황', desc: '검진리포트·진료케이스 잔여/완료 작업을 한눈에.', icon: ListTodo },
       { href: '/admin/chart-data', label: '차트 목록', desc: '업로드된 차트 데이터를 조회합니다.', icon: FileText },
       { href: '/admin/health-report', label: '건강검진 리포트', desc: '검진 리포트를 생성·검토합니다.', icon: HeartPulse },
       { href: '/admin/case-blog', label: '진료케이스', desc: '진료케이스 블로그 콘텐츠를 만듭니다.', icon: Newspaper },
