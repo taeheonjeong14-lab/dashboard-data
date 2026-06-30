@@ -104,7 +104,7 @@ export async function POST(request: NextRequest) {
     // 변수: #{환자명}·#{검진일}·#{병원명}·#{token}·#{reportUrl}.
     const resolved = hospitalId
       ? await resolveHospitalKakao(pool, String(hospitalId), 'report', {
-          '환자명': patientName, '검진일': checkupDate, '병원명': hospitalName, token, reportUrl: pdfUrl,
+          '환자명': patientName, '검진일': checkupDate, '검진일자': checkupDate, '병원명': hospitalName, token, reportUrl: pdfUrl,
         })
       : null;
     const templateCode = resolved ? resolved.templateCode : (process.env.ALIGO_TPL_CODE || 'UI_6805');

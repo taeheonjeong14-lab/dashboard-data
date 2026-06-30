@@ -190,8 +190,8 @@ export function HospitalKakaoSection({ hospitalId }: { hospitalId: string }) {
         </label>
       </div>
 
-      {tplEditor('사전문진 템플릿', '#{병원명} #{예약일} #{token} #{surveyUrl}', '예: https://app.thehamm.kr/survey/#{token}', survey, setSurvey)}
-      {tplEditor('리포트 템플릿', '#{환자명} #{검진일} #{병원명} #{token} #{reportUrl}', '예: #{reportUrl} (리포트 링크 자동 채움)', report, setReport)}
+      {tplEditor('사전문진 템플릿', '#{병원명} #{예약일} #{환자명} #{보호자명} #{token} #{surveyUrl}', '예: https://app.thehamm.kr/survey/#{token}', survey, setSurvey)}
+      {tplEditor('리포트 템플릿', '#{환자명} #{검진일} #{검진일자} #{병원명} #{token} #{reportUrl}', '예: #{reportUrl} (리포트 링크 자동 채움)', report, setReport)}
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
         <button type="button" onClick={() => void save()} disabled={loading}

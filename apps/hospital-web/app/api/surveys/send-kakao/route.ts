@@ -57,6 +57,8 @@ export async function POST(request: NextRequest) {
   const token = String(body.token ?? '').trim();
   const phone = normalizePhone(String(body.phone ?? ''));
   const scheduledLabel = formatScheduledLabel(String(body.scheduledDate ?? ''));
+  const patientName = String(body.patientName ?? '').trim();
+  const guardianName = String(body.guardianName ?? '').trim();
   if (!token) return NextResponse.json({ error: 'token required' }, { status: 400 });
   if (!phone) return NextResponse.json({ error: '올바른 휴대폰 번호를 입력해 주세요.' }, { status: 400 });
   // 템플릿(UI_9061)의 #{예약일}은 빈 값이면 카카오에서 "템플릿 불일치"로 거절됨 → 비면 발송 자체를 막는다.
@@ -102,9 +104,9 @@ export async function POST(request: NextRequest) {
     ];
 
     // 병원별 카카오 채널/템플릿이 설정돼 있으면 그 발신프로필·본문으로, 없으면 회사 기본 채널로 폴백.
-    // 변수: #{병원명}·#{예약일}·#{token}·#{surveyUrl}. (sender_key 가 있으면 워커가 그 발신프로필로 발송)
+    // 변수: #{병원명}·#{예약일}·#{환자명}·#{보호자명}·#{token}·#{surveyUrl}. (sender_key 있으면 워커가 그 발신프로필로 발송)
     const resolved = await resolveHospitalKakao(srvc, hospitalId, 'survey', {
-      '병원명': hospitalName, '예약일': scheduledLabel, token, surveyUrl,
+      '병원명': hospitalName, '예약일': scheduledLabel, '환자명': patientName, '보호자명': guardianName, token, surveyUrl,
     });
 
     // 단일 객체로 적재. resolved 가 있으면 병원 채널, 없으면 회사 기본 채널(폴백, sender_key=null).
