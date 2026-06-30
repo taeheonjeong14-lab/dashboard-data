@@ -45,6 +45,8 @@ export async function middleware(request: NextRequest) {
     // 보호자용 사전문진 작성(공개 폼) + 공개 ddx 프록시 — 로그인 없이 접근
     pathname.startsWith('/survey') ||
     pathname.startsWith('/api/ddx-public') ||
+    // 보호자용 건강검진 외부 검토 리포트(공개) — chart-api 로 rewrite. 로그인 없이 접근.
+    pathname.startsWith('/review') ||
     // 추출 워커 크론(Vercel 크론·admin 재추출 즉시 트리거) — 로그인 세션 없이 호출되므로 공개.
     // 막혀 있으면 /login 으로 307 리다이렉트돼 재추출 잡이 처리되지 않는다(라우트가 CRON_SECRET 로 자체 보호).
     pathname.startsWith('/api/cron');
