@@ -1517,6 +1517,7 @@ function parseWoorienLabItemsFromGroupLines(lines: BucketedLine[]): LabItem[] {
   const looksName = (s: string) => /^[A-Za-z]/.test(s.trim());
 
   const skip = (t: string) =>
+    /^[-–—]+$/.test(t) || // 단독 대시 줄 = 플래그/구분 칸(정상 표시 등) — 검사행 아님
     /^\|/.test(t) || // "| 2026-05-07 오전 11:38:14 Vcheck H6" 날짜/시각·기기명 줄
     /^20\d{2}[./-]\d{1,2}[./-]\d{1,2}/.test(t) || // 날짜
     (/(오전|오후)/.test(t) && /\d{1,2}:\d{2}/.test(t)) || // 시각 줄
@@ -1590,8 +1591,11 @@ function parseWoorienLabItemsFromGroupLines(lines: BucketedLine[]): LabItem[] {
       const rest = toks.slice(2);
       let unit = "";
       // 값 다음의 비숫자 토큰(들) = 단위. 예: "10^9/L", "g/dL", "mmol/L", "%"
+      //  단, 단독 대시("-")는 단위·범위 사이의 플래그/구분 칸이므로 단위에 넣지 않고 건너뛴다.
+      //  (우리엔 포맷: "WBC 11.1 10x9/L - 6 17" 의 "-" 가 unit 으로 새어들던 문제)
       while (rest.length > 0 && !isPureNum(rest[0]!)) {
         const u = rest.shift()!;
+        if (/^[-–—]+$/.test(u)) continue;
         unit = unit ? `${unit} ${u}` : u;
       }
       // 남은 숫자 토큰 = MIN, MAX
