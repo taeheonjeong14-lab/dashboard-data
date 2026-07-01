@@ -43,6 +43,11 @@ export function extractLabDateTime(text: string) {
   if (dateOnly) {
     return normalizeYmdParts(dateOnly[1] ?? '', dateOnly[2] ?? '', dateOnly[3] ?? '');
   }
+  // 우리엔 lab 앵커: "2025-05-22 Sign : 김진욱" (시각 없이 날짜 + 서명) → 날짜만 인정.
+  const dateSign = normalized.match(/^(20\d{2})[./-](\d{1,2})[./-](\d{1,2})\s+.*?\bSign\b\s*[:：]/i);
+  if (dateSign) {
+    return normalizeYmdParts(dateSign[1] ?? '', dateSign[2] ?? '', dateSign[3] ?? '');
+  }
   return null;
 }
 
