@@ -20,23 +20,33 @@ import { CaseBlogButton } from '@/components/admin-case-blog-modal';
 
 type ExtractionSection = 'basicInfo' | 'vaccination' | 'chartBody' | 'plan' | 'lab';
 
-/** 카테고리 셀 — item_name 으로 런타임 계산 (DB 저장 안 됨). 짧은 영문 라벨 표시. */
-function CategoryLabCell({ name, species }: { name: string; species: LabCanonicalizeSpecies }) {
+// 검사결과 행 flag 색 — high 빨강 / low 파랑 / unknown 회색 / normal(그 외) 기본색.
+function labFlagColor(flag: string): string | undefined {
+  if (flag === 'high') return '#dc2626';
+  if (flag === 'low') return '#2563eb';
+  if (flag === 'unknown') return 'var(--text-muted)';
+  return undefined;
+}
+
+/** 카테고리 셀 — item_name 으로 런타임 계산 (DB 저장 안 됨). 짧은 영문 라벨 표시.
+ *  rowColor 가 있으면(=flag 색) 그 색을 따르되, Other(미분류)는 경고 빨강 유지. */
+function CategoryLabCell({ name, species, rowColor }: { name: string; species: LabCanonicalizeSpecies; rowColor?: string }) {
   const cat = labItemCategory(name, species);
   const isOther = cat.key === 'other';
   return (
-    <td style={{ padding: 4, fontSize: 11, whiteSpace: 'nowrap', color: isOther ? 'var(--danger)' : 'var(--text-secondary)' }}>
+    <td style={{ padding: 4, fontSize: 11, whiteSpace: 'nowrap', color: isOther ? 'var(--danger)' : (rowColor ?? 'var(--text-secondary)') }}>
       {cat.shortLabel}
     </td>
   );
 }
 
-/** 정규화 결과 셀 — 표준 미인식 항목(리포트 Other 로 분류)은 빨간색으로 강조. */
-function NormalizedLabCell({ name }: { name: string }) {
+/** 정규화 결과 셀 — 표준 미인식 항목(리포트 Other 로 분류)은 빨간색으로 강조.
+ *  인식된 항목은 rowColor(=flag 색)를 따른다(없으면 기본 muted). 미인식 경고 빨강은 유지. */
+function NormalizedLabCell({ name, rowColor }: { name: string; rowColor?: string }) {
   const recognized = isRecognizedLabItem(name);
   return (
     <td
-      style={{ padding: 4, color: recognized ? 'var(--text-muted)' : 'var(--danger)', fontWeight: recognized ? 400 : 700 }}
+      style={{ padding: 4, color: recognized ? (rowColor ?? 'var(--text-muted)') : 'var(--danger)', fontWeight: recognized ? 400 : 700, overflowWrap: 'anywhere' }}
       title={recognized ? undefined : '정규화 실패: 표준 항목으로 인식되지 않아 리포트에서 Other 로 분류됩니다.'}
     >
       {name}
@@ -2165,7 +2175,18 @@ export function AdminRunExtractionDetail({
                 {g.dateTime}
               </summary>
               <div style={{ marginTop: 4 }}>
-              <table className="adminDetailTable">
+              {/* 날짜별 표마다 컬럼 폭을 통일 — 내용 길이에 따라 폭이 달라지지 않도록 fixed 레이아웃 + colgroup. */}
+              <table className="adminDetailTable" style={{ tableLayout: 'fixed', width: '100%' }}>
+                <colgroup>
+                  <col style={{ width: '9%' }} />
+                  <col style={{ width: '19%' }} />
+                  <col style={{ width: '18%' }} />
+                  <col style={{ width: '12%' }} />
+                  <col style={{ width: '12%' }} />
+                  <col style={{ width: '16%' }} />
+                  <col style={{ width: '14%' }} />
+                  {editing.lab ? <col style={{ width: '8%' }} /> : null}
+                </colgroup>
                 <thead>
                   <tr>
                     <th style={{ textAlign: 'left', padding: 4 }}>카테고리</th>
@@ -2180,7 +2201,7 @@ export function AdminRunExtractionDetail({
                 </thead>
                 <tbody>
                   {g.items.map((it, ii) => (
-                    <tr key={it.id || `nl-${gi}-${ii}`}>
+                    <tr key={it.id || `nl-${gi}-${ii}`} style={editing.lab ? undefined : { color: labFlagColor(it.flag) }}>
                       {editing.lab && draftLab ? (
                         <>
                           <CategoryLabCell name={draftLab[gi]!.items[ii]!.itemName} species={labSpeciesProfile} />
@@ -2314,15 +2335,20 @@ export function AdminRunExtractionDetail({
                           </td>
                         </>
                       ) : (
-                        <>
-                          <CategoryLabCell name={it.itemName} species={labSpeciesProfile} />
-                          <td style={{ padding: 4 }}>{it.itemRawName}</td>
-                          <NormalizedLabCell name={it.itemName} />
-                          <td style={{ padding: 4 }}>{it.valueText}</td>
-                          <td style={{ padding: 4 }}>{it.unit ?? '—'}</td>
-                          <td style={{ padding: 4 }}>{it.referenceRange ?? '—'}</td>
-                          <td style={{ padding: 4 }}>{it.flag}</td>
-                        </>
+                        (() => {
+                          const rowColor = labFlagColor(it.flag);
+                          return (
+                            <>
+                              <CategoryLabCell name={it.itemName} species={labSpeciesProfile} rowColor={rowColor} />
+                              <td style={{ padding: 4, overflowWrap: 'anywhere' }}>{it.itemRawName}</td>
+                              <NormalizedLabCell name={it.itemName} rowColor={rowColor} />
+                              <td style={{ padding: 4, overflowWrap: 'anywhere' }}>{it.valueText}</td>
+                              <td style={{ padding: 4, overflowWrap: 'anywhere' }}>{it.unit ?? '—'}</td>
+                              <td style={{ padding: 4, overflowWrap: 'anywhere' }}>{it.referenceRange ?? '—'}</td>
+                              <td style={{ padding: 4 }}>{it.flag}</td>
+                            </>
+                          );
+                        })()
                       )}
                     </tr>
                   ))}
