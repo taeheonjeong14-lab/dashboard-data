@@ -7,6 +7,7 @@ import {
 } from '@/lib/text-bucketing/chart-bucket-rules';
 import {
   extractPlusVetLabSectionAnchorDateTime,
+  extractWoorienChartBodyVisitDate,
   isPlusVetChartVisitHeaderLine,
   isPlusVetLabMachinePanelHeaderLine,
   isVisitContextLine,
@@ -118,6 +119,24 @@ export function assignLinesToBuckets(
       plusvetDiagnosticResultsSection = false;
       buckets.chartBody.push({ page: line.page, text: line.text, corrected: false });
       continue;
+    }
+
+    /**
+     * 우리엔: 새 진료 경계는 어느 섹션이든 chartBody로 복귀시킨다.
+     *  (우리엔은 lab 진입 후 복귀 규칙이 없어, 검사 뒤에 오는 SOAP 노트가 lab에 처박혀 통째 유실되던 문제.
+     *   예: 4/29 검사(Vcheck/PT10V/NX600) 다음 페이지의 4/29 Subjective 노트)
+     *  경계 신호: (a) 'Subjective' 줄, (b) 서명 있는 방문 날짜 헤더('2026-.. Sign : 담당자').
+     *  검사 기기 앵커('|2026-.. Vcheck', 'NX 600 (혈청)')는 서명이 없어 자연 제외.
+     */
+    if (chartKind === 'woorien_pms') {
+      const t0 = line.text.replace(/\s+/g, ' ').trim();
+      const isSignedVisitHeader =
+        /\bSign\b\s*[:：]/i.test(t0) && extractWoorienChartBodyVisitDate(t0) !== null;
+      if (/^subjective\b/i.test(t0) || isSignedVisitHeader) {
+        section = 'chartBody';
+        buckets.chartBody.push({ page: line.page, text: line.text, corrected: false });
+        continue;
+      }
     }
 
     /**
