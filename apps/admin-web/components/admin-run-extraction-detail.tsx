@@ -2340,12 +2340,12 @@ export function AdminRunExtractionDetail({
                           return (
                             <>
                               <CategoryLabCell name={it.itemName} species={labSpeciesProfile} rowColor={rowColor} />
-                              <td style={{ padding: 4, overflowWrap: 'anywhere' }}>{it.itemRawName}</td>
+                              <td style={{ padding: 4, overflowWrap: 'anywhere', color: rowColor }}>{it.itemRawName}</td>
                               <NormalizedLabCell name={it.itemName} rowColor={rowColor} />
-                              <td style={{ padding: 4, overflowWrap: 'anywhere' }}>{it.valueText}</td>
-                              <td style={{ padding: 4, overflowWrap: 'anywhere' }}>{it.unit ?? '—'}</td>
-                              <td style={{ padding: 4, overflowWrap: 'anywhere' }}>{it.referenceRange ?? '—'}</td>
-                              <td style={{ padding: 4 }}>{it.flag}</td>
+                              <td style={{ padding: 4, overflowWrap: 'anywhere', color: rowColor }}>{it.valueText}</td>
+                              <td style={{ padding: 4, overflowWrap: 'anywhere', color: rowColor }}>{it.unit ?? '—'}</td>
+                              <td style={{ padding: 4, overflowWrap: 'anywhere', color: rowColor }}>{it.referenceRange ?? '—'}</td>
+                              <td style={{ padding: 4, color: rowColor }}>{it.flag}</td>
                             </>
                           );
                         })()
