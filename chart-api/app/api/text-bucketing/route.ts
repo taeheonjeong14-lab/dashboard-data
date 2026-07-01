@@ -460,14 +460,22 @@ function parseWoorienPmsBasicInfoFromText(block: string): ParsedBasicInfo {
   // 라벨을 줄 어디서든 찾고, 값 = 다음 라벨 직전까지로 자른 뒤, 꼬리(옆 칸 전화/주소)를 제거한다.
   const ALL_LABELS = ["보호자번호","보호자이름","전화번호","동물번호","동물이름","종류","품종","성별","생일","생년월일","색상","RFID","현재체중","주소","동물명","종"];
   const nextRe = new RegExp(`\\s+(?:${ALL_LABELS.join("|")})\\s*[:：]`);
+  const labelLineRe = new RegExp(`^(?:${ALL_LABELS.join("|")})\\s*[:：]`);
   const pick = (labels: string[]): string | null => {
-    for (const line of lines) {
+    for (let i = 0; i < lines.length; i += 1) {
+      const line = lines[i];
       for (const label of labels) {
         const m = line.match(new RegExp(`${label}\\s*[:：]\\s*`));
         if (!m || m.index === undefined) continue;
         const after = line.slice(m.index + m[0].length);
         const nm = after.match(nextRe);
-        const v = (nm && nm.index !== undefined ? after.slice(0, nm.index) : after).trim();
+        let v = (nm && nm.index !== undefined ? after.slice(0, nm.index) : after).trim();
+        // 값이 같은 줄에 없으면(라벨만 있는 줄 — 세로형 레이아웃) 바로 다음 줄을 값으로.
+        //  다음 줄이 또 다른 라벨 줄이면 값 없음으로 본다.
+        if (!v && i + 1 < lines.length) {
+          const cand = lines[i + 1].trim();
+          if (cand && !labelLineRe.test(cand)) v = cand;
+        }
         if (v) return v;
       }
     }
