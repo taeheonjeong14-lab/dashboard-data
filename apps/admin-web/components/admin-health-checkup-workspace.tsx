@@ -163,6 +163,16 @@ function appendUnitIfNeeded(value: string, suffix: string): string {
   return t;
 }
 
+// 외부 검토 링크 만료 표시용 — ISO → KST 'YYYY.MM.DD HH:mm'.
+function formatShareExpiry(iso: string): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  return new Intl.DateTimeFormat('ko-KR', {
+    timeZone: 'Asia/Seoul', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false,
+  }).format(d).replace(/\. /g, '.').replace(/\.$/, '');
+}
+
 type ContentItem = {
   id: string;
   contentType: string;
@@ -785,6 +795,11 @@ export function AdminHealthCheckupWorkspace({
         <div style={{ marginBottom: 12, display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center', padding: '8px 12px', background: 'var(--success-subtle)', border: '1px solid var(--success-subtle)', borderRadius: 6 }}>
           <span style={{ fontSize: 12, color: 'var(--success)', fontWeight: 600, flexShrink: 0 }}>외부 검토 링크</span>
           <input readOnly value={sharePanel.shareUrl} style={{ flex: '1 1 200px', minWidth: 0, fontSize: 12 }} />
+          {sharePanel.expiresAt ? (
+            <span style={{ fontSize: 11.5, color: 'var(--text-secondary)', flexShrink: 0, whiteSpace: 'nowrap' }}>
+              만료: <b style={{ color: 'var(--text)' }}>{formatShareExpiry(sharePanel.expiresAt)}</b>까지
+            </span>
+          ) : null}
           <button
             type="button"
             className="adminLegacySmallBtn"
@@ -802,6 +817,7 @@ export function AdminHealthCheckupWorkspace({
             type="button"
             className="adminLegacySmallBtn"
             disabled={shareReissuing}
+            title="만료됐어도 같은 링크를 다시 7일간 살립니다 (URL은 그대로 유지)"
             onClick={async () => {
               setShareReissuing(true);
               try {
@@ -821,7 +837,7 @@ export function AdminHealthCheckupWorkspace({
               }
             }}
           >
-            {shareReissuing ? '재발급 중…' : '재발급'}
+            {shareReissuing ? '연장 중…' : '링크 살리기 · 7일 연장'}
           </button>
         </div>
       ) : null}
