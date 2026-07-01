@@ -57,10 +57,11 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
     const supabase = createServiceRoleClient();
     const now = new Date().toISOString();
 
-    // 채널: 발신프로필키·발신번호가 모두 있으면 upsert, 아니면 삭제(=폴백, 회사 채널 사용).
+    // 채널: 각 칸을 독립 저장(부분 입력 허용). 하나라도 값이 있으면 upsert, 둘 다 비면 삭제(=폴백).
+    //  발송은 워커가 값이 다 있을 때만 이 채널로, 아니면 회사 기본 채널로 폴백하므로 부분 저장은 안전.
     const senderKey = String(body.channel?.sender_key ?? '').trim();
     const senderPhone = String(body.channel?.sender_phone ?? '').replace(/\D/g, '');
-    if (senderKey && senderPhone) {
+    if (senderKey || senderPhone) {
       const { error } = await supabase.schema('health_report').from('hospital_kakao_channel').upsert({
         hospital_id: hospitalId,
         sender_key: senderKey,
@@ -75,18 +76,20 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
       if (error) throw error;
     }
 
-    // 템플릿: 종류별로 코드+본문이 있으면 upsert, 아니면 그 종류 삭제.
+    // 템플릿: 각 칸 독립 저장(부분 입력 허용). 코드·본문·강조·버튼 중 하나라도 있으면 upsert, 전부 비면 삭제.
     for (const t of MESSAGE_TYPES) {
       const tpl = body.templates?.[t] ?? null;
       const code = String(tpl?.template_code ?? '').trim();
       const tplBody = String(tpl?.body ?? '').trim();
-      if (tpl && code && tplBody) {
+      const emphasis = String(tpl?.emphasis_title ?? '').trim();
+      const hasButtons = Array.isArray(tpl?.buttons) && tpl.buttons.length > 0;
+      if (tpl && (code || tplBody || emphasis || hasButtons)) {
         const { error } = await supabase.schema('health_report').from('hospital_kakao_template').upsert({
           hospital_id: hospitalId,
           message_type: t,
           template_code: code,
-          body: String(tpl.body ?? ''),
-          emphasis_title: tpl.emphasis_title ? String(tpl.emphasis_title) : null,
+          body: tplBody,
+          emphasis_title: emphasis || null,
           buttons: tpl.buttons ?? null,
           active: tpl.active === false ? false : true,
           updated_at: now,

@@ -905,17 +905,20 @@ export default function AdminHospitalsManager() {
             ) : null}
           </TabPanel>
 
-          <div className="adminLegacyModalActions" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
-            <button type="submit" className="adminLegacyPrimaryBtn" disabled={loading}>
-              저장
-            </button>
-            {selectedId ? (
-              <button type="button" onClick={() => void deleteHospital()} disabled={loading}
-                style={{ padding: '8px 14px', fontSize: 13, fontWeight: 700, borderRadius: 6, border: '1px solid var(--danger)', background: '#fff', color: 'var(--danger)', cursor: 'pointer' }}>
-                병원 삭제
+          {/* 카카오 탭은 자체 '저장' 버튼(HospitalKakaoSection)으로 저장하므로, 폼 일반 저장(카카오 미포함)을 숨긴다. */}
+          {activeTab !== 'kakao' ? (
+            <div className="adminLegacyModalActions" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+              <button type="submit" className="adminLegacyPrimaryBtn" disabled={loading}>
+                저장
               </button>
-            ) : null}
-          </div>
+              {selectedId ? (
+                <button type="button" onClick={() => void deleteHospital()} disabled={loading}
+                  style={{ padding: '8px 14px', fontSize: 13, fontWeight: 700, borderRadius: 6, border: '1px solid var(--danger)', background: '#fff', color: 'var(--danger)', cursor: 'pointer' }}>
+                  병원 삭제
+                </button>
+              ) : null}
+            </div>
+          ) : null}
         </form>
         </div>
       </div>

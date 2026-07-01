@@ -196,7 +196,7 @@ export function HospitalKakaoSection({ hospitalId }: { hospitalId: string }) {
       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
         <button type="button" onClick={() => void save()} disabled={loading}
           style={{ padding: '8px 18px', fontSize: 13, fontWeight: 700, borderRadius: 6, border: 'none', background: 'var(--accent)', color: '#fff', cursor: loading ? 'default' : 'pointer' }}>
-          {loading ? '처리 중…' : '카카오 설정 저장'}
+          {loading ? '처리 중…' : '저장'}
         </button>
         {msg && <span style={{ fontSize: 12.5, color: msg.includes('완료') ? 'var(--text-secondary)' : 'var(--danger, #dc2626)' }}>{msg}</span>}
       </div>
