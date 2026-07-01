@@ -20,6 +20,11 @@ const PRIORITY_RULES: CanonicalRule[] = [
   { canonical: 'BUN/CREA', pattern: /(?:^|[^A-Z0-9])B\s*\/\s*C(?:\b|\s*(?:R|ratio|비))/i },
   { canonical: 'NA/K', pattern: /NA\s*\/\s*K/i },
   { canonical: 'D-dimer', pattern: /D[\s-]*DIMER/i },
+  // 이온화 칼슘(Ca2+) = iCA. "(7.4)"는 pH 7.4 보정값이라 별개 항목(iCA(7.4)) → normalizeToken 이 괄호를
+  //  지우기 전에 여기서 구분해 잡는다. (7.4) 형태를 먼저 검사. 총칼슘 "Ca"(+ 없음)는 여기서 안 잡히고 CA 로.
+  { canonical: 'iCA(7.4)', pattern: /\bi?ca\s*2?\s*\+{1,2}\s*\(\s*7\.?4\s*\)/i },
+  { canonical: 'iCA(7.4)', pattern: /\bica\s*\(\s*7\.?4\s*\)/i },
+  { canonical: 'iCA', pattern: /\bi?ca\s*2?\s*\+{1,2}/i },
   // ACTH 자극검사 — 자극 전/후 코르티솔은 서로 다른 값이라 Pre-ACTH / Post-ACTH 로 구분한다.
   //  하이픈·스페이스·붙임·괄호형(예: "Post-ACTH", "Post ACTH", "Cortisol (Post)", "1hr Post ACTH") 모두 흡수.
   //  접두어 없는 단독 'ACTH'·'Cortisol' 은 여기서 안 잡히고 각자 이름으로 유지된다.
@@ -64,7 +69,12 @@ const DIRECT_ALIASES: Record<string, string> = {
   ALKP: 'ALP',
   NAK: 'NA/K',
   CI: 'CL',
-  CAI: 'ICA',
+  CAI: 'iCA',
+  ICA: 'iCA', // 차트가 그대로 "iCa/ICA" 로 쓴 경우 표시는 iCA 로 통일
+  THB: 'tHb', // total Hb (혈액가스 co-oximetry) — CBC 의 HGB 와 별개 항목
+  CTHB: 'tHb',
+  TOTALHB: 'tHb',
+  TOTALHEMOGLOBIN: 'tHb',
   HEARTWORMAG: 'HW',
   FIBRINOGEN: 'FIB',
   DDIMER: 'D-dimer',
@@ -343,7 +353,7 @@ const RECOGNIZED_LAB_ITEMS: ReadonlySet<string> = new Set(
     'TBIL', 'DBIL', 'TBA', 'TCHO', 'CHOL', 'TRIG', 'AMYL', 'LIPA', 'CK', 'TLI', 'NH3', 'FRUC', 'OSM', 'OSM CA',
     'CKMB', 'proBNP', 'NT-proBNP', 'cTnI', 'SDH', 'GLDH',
     // Electrolyte
-    'NA', 'K', 'CL', 'CA', 'ICA', 'PHOS', 'MG', 'NA/K', 'AG',
+    'NA', 'K', 'CL', 'CA', 'iCA', 'iCA(7.4)', 'PHOS', 'MG', 'NA/K', 'AG',
     // Coagulation
     'PT', 'aPTT', 'TT', 'D-dimer', 'FDP', 'AT III', 'BMBT', 'Platelet func',
     // Hormone
@@ -355,7 +365,7 @@ const RECOGNIZED_LAB_ITEMS: ReadonlySet<string> = new Set(
     'FELV', 'FIV', 'FeLV Ag', 'FIV Ab', 'FPV', 'CPV', 'CDV', 'HWAG', 'HW Ag', 'Coronavirus', 'FCoV Ab',
     'FIP PCR', 'Ehrlichia', 'Anaplasma', 'Babesia', 'Lyme', 'Lepto', 'Toxo', 'PCR',
     // Blood gas
-    'pH', 'pCO2', 'pO2', 'BE', 'HCO3', 'tCO2', 'SO2', 'Lactate',
+    'pH', 'pCO2', 'pO2', 'BE', 'HCO3', 'tCO2', 'SO2', 'Lactate', 'tHb',
     // Immunologic
     'B12', 'Folate', 'ANA', 'RF', 'Coombs', 'IgG', 'IgM', 'IgA',
     // Tumor marker
@@ -573,6 +583,7 @@ const ITEM_TO_CATEGORY: Record<string, string> = {
   LAC: 'blood_gas',
   LACTATE: 'blood_gas',
   Lactate: 'blood_gas',
+  tHb: 'blood_gas',
   OSM: 'chemistry',
   'OSM CA': 'chemistry',
   OSMCA: 'chemistry',
@@ -603,6 +614,8 @@ const ITEM_TO_CATEGORY: Record<string, string> = {
   CL: 'electrolyte',
   CA: 'electrolyte',
   ICA: 'electrolyte',
+  iCA: 'electrolyte',
+  'iCA(7.4)': 'electrolyte',
   PHOS: 'electrolyte',
   P: 'electrolyte',
   MG: 'electrolyte',
