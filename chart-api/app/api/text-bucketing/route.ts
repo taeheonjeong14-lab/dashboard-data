@@ -26,6 +26,7 @@ import {
   extractLabDateTime,
   extractPlusVetVisitDateKey,
   extractWoorienLooseVisitDateTime,
+  extractWoorienChartBodyVisitDate,
 } from "@/lib/text-bucketing/chart-dates";
 import { runGoogleVisionOcr, type OcrRow } from "@/lib/google-vision";
 import { extractOrderedLinesFromPdf, getOpenAiOrderedLinesModel, reconstructPlanRowsFromText } from "@/lib/report-llm";
@@ -708,12 +709,15 @@ function groupChartBodyByDate(lines: BucketedLine[], chartKind: ChartKind): Char
     let started = false;
     for (let i = 0; i < linesToGroup.length; i += 1) {
       const line = linesToGroup[i];
-      const dateTime = extractWoorienLooseVisitDateTime(line.text);
+      const dateTime = extractWoorienChartBodyVisitDate(line.text);
       if (dateTime) {
         const subjectiveFollows = [1, 2, 3].some((d) =>
           /^subjective\b/i.test(linesToGroup[i + d]?.text.trim() ?? ""),
         );
-        if (subjectiveFollows) {
+        // 방문 경계 신호: (a) 곧 Subjective 가 따라옴(헤더형) 또는
+        //  (b) 줄에 'Sign : 담당자' 서명이 있음(서명된 진료 = 실제 방문. EXIF 영상시각엔 서명 없음).
+        const hasSignature = /\bSign\b\s*[:：]/i.test(line.text);
+        if (subjectiveFollows || hasSignature) {
           visitIdx += 1;
           let key = dateTime;
           if (groups.has(key)) key = `${key} (${visitIdx})`;

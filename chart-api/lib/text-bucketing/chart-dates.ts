@@ -112,19 +112,36 @@ export function extractPlusVetVisitDateKey(text: string): string | null {
  *  - `2026-03-31 오전 10:41:53 [일반]` (오전/오후·초·`[유형]` 태그)
  *  - EXIF 영상시각 `2004.10.25 10:23:48` 등도 매칭됨 → 방문 키 여부는 호출부의 "다음 줄 Subjective" 로 판별.
  */
-export function extractWoorienLooseVisitDateTime(text: string): string | null {
-  const t = text.replace(/\s+/g, ' ').trim();
-  const m = t.match(
-    // 끝: 줄끝 / [유형] 태그 / "내과 Sign : 김진욱" 같은 진료헤더 꼬리표(부서+Sign+담당자) 허용.
-    /^(?:\[)?\s*(20\d{2})[./-](\d{1,2})[./-](\d{1,2})\s+(?:(오전|오후|am|pm)\s*)?([0-2]?\d):([0-5]\d)(?::[0-5]\d)?\s*(?:\]|\[[^\]]*\])?\s*(?:\S.*?\bSign\b\s*[:：].*)?\s*$/i,
-  );
-  if (!m) return null;
+// 엄격: 꼬리는 줄끝 / [유형] 태그 / "부서 Sign : 담당자"(Sign 앞 토큰 필요). 기본정보 종료 판정에 사용.
+const WOORIEN_VISIT_DATE_STRICT =
+  /^(?:\[)?\s*(20\d{2})[./-](\d{1,2})[./-](\d{1,2})\s+(?:(오전|오후|am|pm)\s*)?([0-2]?\d):([0-5]\d)(?::[0-5]\d)?\s*(?:\]|\[[^\]]*\])?\s*(?:\S.*?\bSign\b\s*[:：].*)?\s*$/i;
+// 느슨: 시각 바로 뒤 "Sign : 담당자"(부서 없이 서명만)도 허용. 차트본문 날짜 그룹핑 전용.
+const WOORIEN_VISIT_DATE_LOOSE =
+  /^(?:\[)?\s*(20\d{2})[./-](\d{1,2})[./-](\d{1,2})\s+(?:(오전|오후|am|pm)\s*)?([0-2]?\d):([0-5]\d)(?::[0-5]\d)?\s*(?:\]|\[[^\]]*\])?\s*(?:.*?\bSign\b\s*[:：].*)?\s*$/i;
+
+function normalizeWoorienVisitMatch(m: RegExpMatchArray): string {
   let hour = Number.parseInt(m[5] ?? '0', 10);
   const mer = (m[4] ?? '').toLowerCase();
   if ((mer === '오후' || mer === 'pm') && hour < 12) hour += 12;
   if ((mer === '오전' || mer === 'am') && hour === 12) hour = 0;
   const date = normalizeYmdParts(m[1] ?? '', m[2] ?? '', m[3] ?? '');
   return `${date} ${String(hour).padStart(2, '0')}:${m[6]}`;
+}
+
+export function extractWoorienLooseVisitDateTime(text: string): string | null {
+  const m = text.replace(/\s+/g, ' ').trim().match(WOORIEN_VISIT_DATE_STRICT);
+  return m ? normalizeWoorienVisitMatch(m) : null;
+}
+
+/**
+ * 차트 본문 날짜 그룹핑 전용 우리엔 방문 시각 추출.
+ * `extractWoorienLooseVisitDateTime`(기본정보 종료 판정용, 엄격)과 달리
+ * "2026-05-01 14:07 Sign : 이주원"처럼 **시각 바로 뒤 서명만** 있는 줄도 방문으로 인식한다.
+ * (기본정보 판정에는 영향 없음 — 그쪽은 계속 엄격 버전 사용)
+ */
+export function extractWoorienChartBodyVisitDate(text: string): string | null {
+  const m = text.replace(/\s+/g, ' ').trim().match(WOORIEN_VISIT_DATE_LOOSE);
+  return m ? normalizeWoorienVisitMatch(m) : null;
 }
 
 /** 차트 본문을 날짜별로 나눌 때 사용하는 앵커 */
