@@ -20,6 +20,16 @@ const PRIORITY_RULES: CanonicalRule[] = [
   { canonical: 'BUN/CREA', pattern: /(?:^|[^A-Z0-9])B\s*\/\s*C(?:\b|\s*(?:R|ratio|비))/i },
   { canonical: 'NA/K', pattern: /NA\s*\/\s*K/i },
   { canonical: 'D-dimer', pattern: /D[\s-]*DIMER/i },
+  // ACTH 자극검사 — 자극 전/후 코르티솔은 서로 다른 값이라 Pre-ACTH / Post-ACTH 로 구분한다.
+  //  하이픈·스페이스·붙임·괄호형(예: "Post-ACTH", "Post ACTH", "Cortisol (Post)", "1hr Post ACTH") 모두 흡수.
+  //  접두어 없는 단독 'ACTH'·'Cortisol' 은 여기서 안 잡히고 각자 이름으로 유지된다.
+  //  (normalizeToken 이 괄호를 지우기 전에 raw 에서 먼저 매칭되어야 하므로 PRIORITY_RULES 에 둔다)
+  { canonical: 'Post-ACTH', pattern: /POST[\s-]*ACTH/i },
+  { canonical: 'Post-ACTH', pattern: /CORTISOL\s*\(?\s*POST\b/i },
+  { canonical: 'Pre-ACTH', pattern: /PRE[\s-]*ACTH/i },
+  { canonical: 'Pre-ACTH', pattern: /CORTISOL\s*\(?\s*PRE\b/i },
+  { canonical: 'Pre-ACTH', pattern: /BASE\s*LINE\s*CORTISOL/i },
+  { canonical: 'Pre-ACTH', pattern: /BASAL\s*CORTISOL/i },
 ];
 
 const DIRECT_ALIASES: Record<string, string> = {
@@ -190,6 +200,13 @@ const DIRECT_ALIASES: Record<string, string> = {
   HISTAMINE: 'Histamine',
   TRYPTASE: 'Tryptase',
   PTHRP: 'PTHrP',
+  // ACTH 자극검사 자극 전/후 코르티솔 — 붙임형·"~Cortisol" 접미형 백업(괄호형은 PRIORITY_RULES 가 처리).
+  PREACTH: 'Pre-ACTH',
+  POSTACTH: 'Post-ACTH',
+  PREACTHCORTISOL: 'Pre-ACTH',
+  POSTACTHCORTISOL: 'Post-ACTH',
+  BASELINECORTISOL: 'Pre-ACTH',
+  BASALCORTISOL: 'Pre-ACTH',
 };
 
 /**
@@ -330,7 +347,7 @@ const RECOGNIZED_LAB_ITEMS: ReadonlySet<string> = new Set(
     // Coagulation
     'PT', 'aPTT', 'TT', 'D-dimer', 'FDP', 'AT III', 'BMBT', 'Platelet func',
     // Hormone
-    'T4', 'T3', 'fT4', 'TSH', 'Cortisol', 'ACTH', 'LDDS', 'HDDS', 'INSULIN', 'FRU', 'PROGESTERONE', 'E2',
+    'T4', 'T3', 'fT4', 'TSH', 'Cortisol', 'ACTH', 'Pre-ACTH', 'Post-ACTH', 'LDDS', 'HDDS', 'INSULIN', 'FRU', 'PROGESTERONE', 'E2',
     'TESTOSTERONE', 'AMH', 'IGF1', 'PTH', 'ALD', 'RENIN',
     // Inflammatory
     'CRP', 'SAA', 'HP', 'FIB', 'Ferritin', 'cPL', 'fPL', 'PL',
@@ -598,6 +615,8 @@ const ITEM_TO_CATEGORY: Record<string, string> = {
   CORTISOL: 'hormone',
   Cortisol: 'hormone',
   ACTH: 'hormone',
+  'Pre-ACTH': 'hormone',
+  'Post-ACTH': 'hormone',
   LDDS: 'hormone',
   HDDS: 'hormone',
   INS: 'hormone',

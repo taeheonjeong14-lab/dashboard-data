@@ -55,7 +55,7 @@ const INFLAMMATORY_LAB_SHEET_SUPPLEMENTARY: readonly string[] = ['SAA', 'Ferriti
 
 const HORMONE_LAB_SHEET_FIXED: readonly string[] = ['T4', 'fT4', 'TSH'];
 const HORMONE_LAB_SHEET_SUPPLEMENTARY: readonly string[] = [
-  'Cortisol', 'ACTH', 'LDDS', 'HDDS', 'INS', 'FRU', 'PROG', 'EST', 'TEST', 'PTH', 'ALD', 'RENIN', 'T3',
+  'Cortisol', 'ACTH', 'Pre-ACTH', 'Post-ACTH', 'LDDS', 'HDDS', 'INS', 'FRU', 'PROG', 'EST', 'TEST', 'PTH', 'ALD', 'RENIN', 'T3',
 ];
 
 const INFECTIOUS_LAB_SHEET_FIXED_DOG: readonly string[] = ['HW Ag'];
