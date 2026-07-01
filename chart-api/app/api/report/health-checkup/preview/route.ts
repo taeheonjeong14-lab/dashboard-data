@@ -67,7 +67,8 @@ export async function POST(request: NextRequest) {
     if (!rawPayload) return NextResponse.json({ error: '생성 결과 없음' }, { status: 404 });
 
     const generated = parseHealthCheckupPayloadFromStorage(rawPayload);
-    const model = buildHealthReportPreviewModel({ source, generated, hospital });
+    // 화면 미리보기는 글자수 초과분도 끝까지 보이도록 clamp 끔(PDF 인쇄 때만 각 칸 max 로 잘림).
+    const model = buildHealthReportPreviewModel({ source, generated, hospital, clamp: false });
     await Promise.all([
       signImageSlotsInBlocks(model.systemsPage4Blocks),
       signImageSlotsInBlocks(model.systemsPage5Blocks),

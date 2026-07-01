@@ -74,7 +74,8 @@ export async function POST(request: NextRequest) {
     }
 
     const source = await loadReportSourceData(runId);
-    const model = buildHealthReportPreviewModel({ source, generated, hospital });
+    // 화면 미리보기는 글자수 초과분도 끝까지 보이도록 clamp 끔(PDF 인쇄 때만 각 칸 max 로 잘림).
+    const model = buildHealthReportPreviewModel({ source, generated, hospital, clamp: false });
 
     await Promise.all([
       signImageSlotsInBlocks(model.systemsPage4Blocks),

@@ -25,14 +25,15 @@ const SYSTEMS_P34_ROW_MAX = 320;
 const SYSTEMS_P5_ROW_MAX = 250;
 const LAB_INTERPRETATION_MAX = 250;
 
-function clampChars(s: string, max: number): string {
-  return s.length > max ? s.slice(0, max) : s;
+// enabled=false 면 자르지 않고 원문 그대로 반환(미리보기는 끝까지 보이도록, PDF만 잘라 인쇄).
+function clampChars(s: string, max: number, enabled = true): string {
+  return enabled && s.length > max ? s.slice(0, max) : s;
 }
 
-function clampSystemsBlocks(blocks: HealthSystemsReportBlock[], max: number): HealthSystemsReportBlock[] {
+function clampSystemsBlocks(blocks: HealthSystemsReportBlock[], max: number, enabled = true): HealthSystemsReportBlock[] {
   return blocks.map((b) =>
     b.variant === 'rows'
-      ? { ...b, rows: b.rows.map((r) => ({ ...r, content: clampChars(r.content, max) })) }
+      ? { ...b, rows: b.rows.map((r) => ({ ...r, content: clampChars(r.content, max, enabled) })) }
       : b,
   );
 }
@@ -44,7 +45,7 @@ const DISEASE_BOX_BODY_MAX = 200;
  * **바로 뒤**에 질환 소개 박스(diseaseInfo)를 삽입한다. 박스는 고정 높이(28mm)라 나머지 장기
  * 섹션이 균등 축소된다. 페이지당 1개(장기 순서상 첫 번째 enabled).
  */
-function insertDiseaseBoxFromOrganData(blocks: HealthSystemsReportBlock[]): HealthSystemsReportBlock[] {
+function insertDiseaseBoxFromOrganData(blocks: HealthSystemsReportBlock[], enabled = true): HealthSystemsReportBlock[] {
   if (blocks.some((b) => b.variant === 'diseaseInfo')) return blocks;
   for (let i = 0; i < blocks.length; i += 1) {
     const b = blocks[i];
@@ -54,7 +55,7 @@ function insertDiseaseBoxFromOrganData(blocks: HealthSystemsReportBlock[]): Heal
     const box: HealthSystemsReportBlock = {
       variant: 'diseaseInfo',
       name: opt.name.trim(),
-      body: clampChars(opt.body.trim(), DISEASE_BOX_BODY_MAX),
+      body: clampChars(opt.body.trim(), DISEASE_BOX_BODY_MAX, enabled),
     };
     const out = blocks.slice();
     out.splice(i + 1, 0, box);
@@ -68,7 +69,7 @@ function insertDiseaseBoxFromOrganData(blocks: HealthSystemsReportBlock[]): Heal
  *  - 치과 이미지(imagesGrid2x3, 2줄·6장)를 1줄·3장(images)으로 축소해 공간을 확보하고
  *  - 그 질환이 속한 장기(치과/피부) rows 블록 바로 뒤에 질환 소개 박스를 삽입한다. (페이지당 1개)
  */
-function insertDiseaseBoxPage5(blocks: HealthSystemsReportBlock[]): HealthSystemsReportBlock[] {
+function insertDiseaseBoxPage5(blocks: HealthSystemsReportBlock[], enabled = true): HealthSystemsReportBlock[] {
   if (blocks.some((b) => b.variant === 'diseaseInfo')) return blocks;
   const idx = blocks.findIndex(
     (b) => b.variant === 'rows' && !!b.diseaseOptions?.some((o) => o.enabled && o.name.trim() && o.body.trim()),
@@ -94,7 +95,7 @@ function insertDiseaseBoxPage5(blocks: HealthSystemsReportBlock[]): HealthSystem
   const box: HealthSystemsReportBlock = {
     variant: 'diseaseInfo',
     name: opt.name.trim(),
-    body: clampChars(opt.body.trim(), DISEASE_BOX_BODY_MAX),
+    body: clampChars(opt.body.trim(), DISEASE_BOX_BODY_MAX, enabled),
   };
   reduced.splice(idx + 1, 0, box);
   return reduced;
@@ -124,7 +125,7 @@ function splitTimelineCardText(raw: string): { cardTitle: string; cardBody: stri
   return { cardTitle: s.slice(0, nl).trim(), cardBody: s.slice(nl + 1).trim() };
 }
 
-function timelineItemsFromGenerated(g: HealthCheckupGeneratedContent): Array<Record<string, string>> {
+function timelineItemsFromGenerated(g: HealthCheckupGeneratedContent, enabled = true): Array<Record<string, string>> {
   const rows: Array<[string, string]> = [
     ['1-2주 이내', g.recheckWithin1to2Weeks],
     ['1개월 이내', g.recheckWithin1Month],
@@ -135,8 +136,8 @@ function timelineItemsFromGenerated(g: HealthCheckupGeneratedContent): Array<Rec
     const { cardTitle, cardBody } = splitTimelineCardText(raw ?? '');
     return {
       intervalLabel,
-      cardTitle: clampChars(cardTitle, HEALTH_CHECKUP_MAX_RECHECK_TITLE_CHARS),
-      cardBody: clampChars(cardBody, HEALTH_CHECKUP_MAX_RECHECK_BODY_CHARS),
+      cardTitle: clampChars(cardTitle, HEALTH_CHECKUP_MAX_RECHECK_TITLE_CHARS, enabled),
+      cardBody: clampChars(cardBody, HEALTH_CHECKUP_MAX_RECHECK_BODY_CHARS, enabled),
     };
   });
 }
@@ -232,8 +233,11 @@ export function buildHealthReportPreviewModel(params: {
   source: ReportSourceData;
   generated: HealthCheckupGeneratedContent;
   hospital: HospitalRow | null;
+  /** true(기본): 각 칸 최대 글자수로 자름(PDF 인쇄용). false: 자르지 않고 원문 전체(화면 미리보기용). */
+  clamp?: boolean;
 }): HealthReportPreviewModel {
   const { source, generated, hospital } = params;
+  const clamp = params.clamp ?? true;
   const t = resolveHospitalReportTemplate(hospital);
   const tokenOverrides = t.tokenOverrides ?? null;
 
@@ -291,9 +295,9 @@ export function buildHealthReportPreviewModel(params: {
     hospitalLogoSrc: coverProps.hospitalLogoSrc,
     sealImageSrc: sealImageSrc || undefined,
     tokenOverrides: tokenOverrides ?? undefined,
-    overallSummary: clampChars(generated.overallSummary ?? '', HEALTH_CHECKUP_MAX_OVERALL_CHARS),
-    followUpPlan: clampChars(generated.followUpCare ?? '', HEALTH_CHECKUP_MAX_FOLLOW_UP_CHARS),
-    timelineItems: timelineItemsFromGenerated(generated),
+    overallSummary: clampChars(generated.overallSummary ?? '', HEALTH_CHECKUP_MAX_OVERALL_CHARS, clamp),
+    followUpPlan: clampChars(generated.followUpCare ?? '', HEALTH_CHECKUP_MAX_FOLLOW_UP_CHARS, clamp),
+    timelineItems: timelineItemsFromGenerated(generated, clamp),
     directorTitleLine: formatDirectorHospitalLine(hospitalNameKo, hospital?.director_title),
     directorNameSpread: spreadKoreanCharsForFooter(hospital?.director_name_ko ?? '') || undefined,
     reportDateLine: formatKoreanDateLine(
@@ -315,26 +319,30 @@ export function buildHealthReportPreviewModel(params: {
   const systemsPage3Blocks = clampSystemsBlocks(
     parseHealthSystemsBlocksFromUnknown(generated.systemsPage3Blocks) ?? structuredClone(DEMO_HEALTH_SYSTEMS_BLOCKS),
     SYSTEMS_P34_ROW_MAX,
+    clamp,
   );
   const systemsPage3bBlocks = clampSystemsBlocks(
     parseHealthSystemsBlocksFromUnknown(generated.systemsPage3bBlocks) ??
       structuredClone(DEMO_HEALTH_SYSTEMS_PAGE_B_BLOCKS),
     SYSTEMS_P34_ROW_MAX,
+    clamp,
   );
   const systemsPage4Blocks = clampSystemsBlocks(
     parseHealthSystemsBlocksFromUnknown(generated.systemsPage4Blocks) ?? structuredClone(DEMO_HEALTH_DENTAL_SKIN_BLOCKS),
     SYSTEMS_P34_ROW_MAX,
+    clamp,
   );
   const systemsPage5Blocks = clampSystemsBlocks(
     parseHealthSystemsBlocksFromUnknown(generated.systemsPage5Blocks) ??
       structuredClone(DEMO_RADIOLOGY_ULTRASOUND_BLOCKS),
     SYSTEMS_P5_ROW_MAX,
+    clamp,
   );
 
   // 장기에 귀속된 확진 질환 데이터가 있으면 해당 장기 바로 뒤에 질환 소개 박스를 삽입(3·4p, 페이지당 1개).
-  const systemsPage3BlocksFinal = insertDiseaseBoxFromOrganData(systemsPage3Blocks);
-  const systemsPage3bBlocksFinal = insertDiseaseBoxFromOrganData(systemsPage3bBlocks);
-  const systemsPage4BlocksFinal = insertDiseaseBoxPage5(systemsPage4Blocks);
+  const systemsPage3BlocksFinal = insertDiseaseBoxFromOrganData(systemsPage3Blocks, clamp);
+  const systemsPage3bBlocksFinal = insertDiseaseBoxFromOrganData(systemsPage3bBlocks, clamp);
+  const systemsPage4BlocksFinal = insertDiseaseBoxPage5(systemsPage4Blocks, clamp);
 
   return {
     hospital,
@@ -347,7 +355,7 @@ export function buildHealthReportPreviewModel(params: {
     systemsPage4Blocks: systemsPage4BlocksFinal,
     systemsPage5Blocks,
     labPages: buildLabPages(source, speciesForLabel, Boolean(safeTrim(generated.labInterpretation))),
-    labInterpretation: clampChars(safeTrim(generated.labInterpretation), LAB_INTERPRETATION_MAX),
+    labInterpretation: clampChars(safeTrim(generated.labInterpretation), LAB_INTERPRETATION_MAX, clamp),
   };
 }
 
