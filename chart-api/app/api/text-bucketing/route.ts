@@ -47,7 +47,7 @@ import { dbChartPdf, dbCore, getSupabaseCoreSchema } from "@/lib/supabase-db-sch
 import { getChartPgPool } from "@/lib/db";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { canonicalizeLabItemName, canonicalizeLabUnit } from "@/lib/lab-item-normalize";
-import { refineLabFlag } from "@dashboard/lab-normalize";
+import { computeLabFlag, refineLabFlag } from "@dashboard/lab-normalize";
 import { detectSpeciesProfile } from "@/lib/lab-category-map";
 import {
   efriendsChartBodyByDateFromBlocks,
@@ -1558,6 +1558,9 @@ function parseWoorienLabItemsFromGroupLines(lines: BucketedLine[]): LabItem[] {
           : null;
     // 콤마는 천 단위 구분자(예 "1,782" → 1782), 마침표는 소수점.
     const valueNum = Number.parseFloat(valueText.replace(/[<>]/g, "").replace(/,/g, ""));
+    // 우리엔 가로형은 차트의 화살표를 무시하므로 flag=unknown 으로 들어온다 → 값↔참고범위로 자동 계산.
+    //  (Description 세로형처럼 이미 high/low/normal 로 정해진 경우는 그대로 둔다)
+    const finalFlag = flag === "unknown" ? computeLabFlag(valueText, referenceRange) : flag;
     items.push({
       page,
       rowY: 0,
@@ -1566,7 +1569,7 @@ function parseWoorienLabItemsFromGroupLines(lines: BucketedLine[]): LabItem[] {
       valueText,
       unit: unit || null,
       referenceRange,
-      flag,
+      flag: finalFlag,
       rawRow: raw,
     });
   };
@@ -1590,7 +1593,12 @@ function parseWoorienLabItemsFromGroupLines(lines: BucketedLine[]): LabItem[] {
   };
 
   for (const line of lines) {
-    const t = (line.text ?? "").trim();
+    // 플래그 표시 세모/화살표(▲▼△▽↑↓ 등)는 값·단위·범위와 무관 → 파싱 전에 제거.
+    //  flag 는 아래 pushItem 에서 값↔참고범위로 자동 계산하므로 정보 손실 없음.
+    const t = (line.text ?? "")
+      .replace(/[▲△▴▵▼▽▾▿◤◥◣◢►◄▶◀↑↓⬆⬇⇧⇩]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
     if (!t || skip(t)) continue;
 
     const toks = t.split(/\s+/).filter(Boolean);
