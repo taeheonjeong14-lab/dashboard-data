@@ -102,7 +102,7 @@ function buildHealthCheckupPrompt(
     return `${i + 1}. ${c.dateTime} | ${body}${plan}`;
   });
   const labLines = labSource.slice(0, 20).map((d, i) => {
-    const joined = d.items.slice(0, 15).map((x) => `${x.itemName}=${x.valueText}${x.unit ?? ''}(${x.flag})`).join(', ');
+    const joined = d.items.slice(0, 15).map((x) => `${x.itemName}=${x.valueText}${x.unit ?? ''}(${x.flag}${x.referenceRange ? `, ref ${x.referenceRange}` : ''})`).join(', ');
     return `${i + 1}. ${d.dateTime} | ${joined}`;
   });
   const vacLines = vacSource.slice(0, 30).map((v, i) => `${i + 1}. ${v.productName} | ${v.administeredDate ?? '-'} | ${v.recordType} ${v.doseOrder}`);
@@ -454,7 +454,7 @@ function buildSectionPrompt(
     return `${i + 1}. ${c.dateTime} | ${body}${plan}`;
   });
   const labLines = labSource.slice(0, 20).map((d, i) => {
-    const joined = d.items.slice(0, 15).map((x) => `${x.itemName}=${x.valueText}${x.unit ?? ''}(${x.flag})`).join(', ');
+    const joined = d.items.slice(0, 15).map((x) => `${x.itemName}=${x.valueText}${x.unit ?? ''}(${x.flag}${x.referenceRange ? `, ref ${x.referenceRange}` : ''})`).join(', ');
     return `${i + 1}. ${d.dateTime} | ${joined}`;
   });
   const vacLines = vacSource.slice(0, 30).map((v, i) => `${i + 1}. ${v.productName} | ${v.administeredDate ?? '-'} | ${v.recordType} ${v.doseOrder}`);
