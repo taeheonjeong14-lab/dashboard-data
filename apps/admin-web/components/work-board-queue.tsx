@@ -1,6 +1,7 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { StatusBadge } from '@/components/status-badge';
 
 // 작업 현황판 '작업 목록' 탭 — 팀장이 주 1회 블로그 작업을 배정하면 팀원이 보고 처리.
@@ -11,6 +12,7 @@ import { StatusBadge } from '@/components/status-badge';
 export type QueueItem = {
   runId: string;
   friendlyId: string | null;
+  hospitalId: string | null;
   hospitalName: string | null;
   ownerName: string | null;
   patientName: string | null;
@@ -19,7 +21,7 @@ export type QueueItem = {
 
 type ReqDto = {
   id: string; runId: string; board: 'blog_write' | 'blog_save';
-  requester: string; dueDate: string | null; sortOrder: number; createdAt: string;
+  requester: string; dueDate: string | null; keyword: string; sortOrder: number; createdAt: string;
 };
 
 type Board = 'blog_write' | 'blog_save';
@@ -37,6 +39,13 @@ function fmtDate(iso: string | null): string {
   const d = new Date(iso.length === 10 ? iso + 'T00:00:00' : iso);
   if (Number.isNaN(d.getTime())) return '';
   return new Intl.DateTimeFormat('ko-KR', { timeZone: 'Asia/Seoul', year: '2-digit', month: '2-digit', day: '2-digit' }).format(d).replace(/\. /g, '.').replace(/\.$/, '');
+}
+// YYYY/MM/DD (4자리 연도) — 키워드 드롭다운 '마지막 사용 날짜' 표기용.
+function fmtDateFull(iso: string | null): string {
+  if (!iso) return '';
+  const d = new Date(iso.length === 10 ? iso + 'T00:00:00' : iso);
+  if (Number.isNaN(d.getTime())) return '';
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Seoul', year: 'numeric', month: '2-digit', day: '2-digit' }).format(d).replace(/-/g, '/');
 }
 // 마감일 그룹 헤더(D-day 상대 표기 + 색). dueKey='' 면 마감일 없음.
 function dueHeader(dueKey: string): { text: string; color: string } {
@@ -71,6 +80,29 @@ export function WorkBoardQueue({ blogItems }: { blogItems: QueueItem[] }) {
   }, []);
   useEffect(() => { void load(); }, [load]);
 
+  // 병원별 블로그 키워드 — '블로그 저장' 배정 시 케이스별 드롭다운 옵션. lastUsedAt = 마지막 배정 일시.
+  const [kwByHospital, setKwByHospital] = useState<Record<string, { keyword: string; lastUsedAt: string | null }[]>>({});
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch('/api/admin/work-board/blog-keywords', { credentials: 'include', cache: 'no-store' });
+        const data = await res.json();
+        if (!res.ok) return;
+        // 응답이 문자열 배열(구버전)이든 {keyword,lastUsedAt} 객체 배열이든 동일하게 정규화.
+        const raw = (data.keywords ?? {}) as Record<string, unknown[]>;
+        const norm: Record<string, { keyword: string; lastUsedAt: string | null }[]> = {};
+        for (const [hid, arr] of Object.entries(raw)) {
+          norm[hid] = (arr ?? []).map((e) => {
+            if (typeof e === 'string') return { keyword: e, lastUsedAt: null };
+            const o = e as { keyword?: unknown; lastUsedAt?: unknown };
+            return { keyword: String(o.keyword ?? ''), lastUsedAt: o.lastUsedAt != null ? String(o.lastUsedAt) : null };
+          }).filter((o) => o.keyword);
+        }
+        setKwByHospital(norm);
+      } catch { /* 키워드 미로딩 시 드롭다운만 비어 표시 */ }
+    })();
+  }, []);
+
   const assignedByBoard = useMemo(() => {
     const m: Record<Board, Set<string>> = { blog_write: new Set(), blog_save: new Set() };
     for (const r of requests) m[r.board].add(r.runId);
@@ -84,11 +116,12 @@ export function WorkBoardQueue({ blogItems }: { blogItems: QueueItem[] }) {
   // 배정 모달
   const [assignBoard, setAssignBoard] = useState<Board | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [keywords, setKeywords] = useState<Map<string, string>>(new Map());  // runId → 키워드(blog_save 전용)
   const [requester, setRequester] = useState('');
   const [dueDate, setDueDate] = useState('');
   const [saving, setSaving] = useState(false);
 
-  const openAssign = (board: Board) => { setAssignBoard(board); setSelected(new Set()); setRequester(''); setDueDate(''); };
+  const openAssign = (board: Board) => { setAssignBoard(board); setSelected(new Set()); setKeywords(new Map()); setRequester(''); setDueDate(''); };
 
   const assignPool = useMemo(() => {
     if (!assignBoard) return [] as QueueItem[];
@@ -105,13 +138,25 @@ export function WorkBoardQueue({ blogItems }: { blogItems: QueueItem[] }) {
     return [...avail.entries()].map(([h, a]) => ({ h, avail: a, sel: sel.get(h) ?? 0 })).sort((x, y) => y.avail - x.avail || x.h.localeCompare(y.h));
   }, [assignPool, selected, itemByRun]);
 
+  // blog_save 배정은 선택된 케이스마다 키워드 필수 — 하나라도 비어 있으면 배정 불가.
+  const missingKeywordCount = useMemo(() => {
+    if (assignBoard !== 'blog_save') return 0;
+    let n = 0;
+    for (const id of selected) if (!(keywords.get(id)?.trim())) n += 1;
+    return n;
+  }, [assignBoard, selected, keywords]);
+
   async function submitAssign() {
-    if (!assignBoard || selected.size === 0) return;
+    if (!assignBoard || selected.size === 0 || missingKeywordCount > 0 || !requester.trim() || !dueDate) return;
     setSaving(true);
     try {
+      // blog_save 는 케이스별 키워드도 함께 전송(선택된 항목만).
+      const keywordPayload = assignBoard === 'blog_save'
+        ? Object.fromEntries([...selected].map((id) => [id, keywords.get(id)?.trim() ?? '']).filter(([, v]) => v))
+        : undefined;
       const res = await fetch('/api/admin/work-board/requests', {
         method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ board: assignBoard, runIds: [...selected], requester, dueDate }),
+        body: JSON.stringify({ board: assignBoard, runIds: [...selected], requester, dueDate, keywords: keywordPayload }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || '배정 실패');
@@ -199,6 +244,7 @@ export function WorkBoardQueue({ blogItems }: { blogItems: QueueItem[] }) {
                                 {it?.hospitalName || '병원 미상'}{it?.friendlyId ? ` · #${it.friendlyId}` : ''}
                               </div>
                               <div style={{ marginTop: 4, display: 'flex', flexWrap: 'wrap', gap: 8, fontSize: 11.5 }}>
+                                {r.keyword ? <span style={{ padding: '1px 7px', borderRadius: 999, background: 'var(--accent-subtle)', color: 'var(--accent)', fontWeight: 700 }}># {r.keyword}</span> : null}
                                 {r.requester ? <span style={{ color: 'var(--text-secondary)' }}>요청자 <b style={{ color: 'var(--text)' }}>{r.requester}</b></span> : null}
                                 <span style={{ color: 'var(--text-muted)' }}>요청 {fmtDate(r.createdAt)}</span>
                               </div>
@@ -225,7 +271,7 @@ export function WorkBoardQueue({ blogItems }: { blogItems: QueueItem[] }) {
         <div onClick={() => !saving && setAssignBoard(null)}
           style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
           <div onClick={(e) => e.stopPropagation()}
-            style={{ width: 'min(94vw, 560px)', maxHeight: '88vh', display: 'flex', flexDirection: 'column', background: '#fff', borderRadius: 12, border: '1px solid var(--border)', overflow: 'hidden', boxShadow: '0 12px 40px rgba(0,0,0,0.18)' }}>
+            style={{ width: assignBoard === 'blog_save' ? 'min(96vw, 705px)' : 'min(94vw, 560px)', maxHeight: '88vh', display: 'flex', flexDirection: 'column', background: '#fff', borderRadius: 12, border: '1px solid var(--border)', overflow: 'hidden', boxShadow: '0 12px 40px rgba(0,0,0,0.18)' }}>
             <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)' }}>
               <h2 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: 'var(--text)' }}>
                 {BOARDS.find((x) => x.key === assignBoard)!.title} 작업 배정
@@ -249,19 +295,41 @@ export function WorkBoardQueue({ blogItems }: { blogItems: QueueItem[] }) {
                   </div>
                   {assignPool.map((it) => {
                     const on = selected.has(it.runId);
+                    const isSave = assignBoard === 'blog_save';
                     return (
-                      <label key={it.runId} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 11px', borderRadius: 8, cursor: 'pointer', border: `1px solid ${on ? 'var(--accent)' : 'var(--border)'}`, background: on ? 'var(--accent-subtle)' : 'var(--bg)' }}>
-                        <input type="checkbox" checked={on} onChange={() => setSelected((s) => { const n = new Set(s); if (n.has(it.runId)) n.delete(it.runId); else n.add(it.runId); return n; })} style={{ width: 16, height: 16, flexShrink: 0 }} />
-                        <StatusBadge category="blog" stage={it.stage} />
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                            {it.patientName || '—'}{it.ownerName ? <span style={{ fontWeight: 400, color: 'var(--text-secondary)' }}> · {it.ownerName}</span> : null}
+                      <div key={it.runId} style={{ display: 'flex', alignItems: 'stretch', borderRadius: 8, border: `1px solid ${on ? 'var(--accent)' : 'var(--border)'}`, background: on ? 'var(--accent-subtle)' : 'var(--bg)', overflow: 'hidden' }}>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 11px', cursor: 'pointer', flex: 1, minWidth: 0 }}>
+                          <input type="checkbox" checked={on} onChange={() => setSelected((s) => { const n = new Set(s); if (n.has(it.runId)) n.delete(it.runId); else n.add(it.runId); return n; })} style={{ width: 16, height: 16, flexShrink: 0 }} />
+                          <StatusBadge category="blog" stage={it.stage} />
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                              {it.patientName || '—'}{it.ownerName ? <span style={{ fontWeight: 400, color: 'var(--text-secondary)' }}> · {it.ownerName}</span> : null}
+                            </div>
+                            <div style={{ fontSize: 11.5, color: 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                              {it.hospitalName || '병원 미상'}{it.friendlyId ? ` · #${it.friendlyId}` : ''}
+                            </div>
                           </div>
-                          <div style={{ fontSize: 11.5, color: 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                            {it.hospitalName || '병원 미상'}{it.friendlyId ? ` · #${it.friendlyId}` : ''}
+                        </label>
+                        {isSave ? (() => {
+                          const opts = (it.hospitalId && kwByHospital[it.hospitalId]) || [];
+                          const empty = !(keywords.get(it.runId)?.trim());
+                          // 체크 여부와 무관하게 우측에 항상 노출 — 미선택 항목은 흐리게.
+                          return (
+                          <div style={{ display: 'flex', alignItems: 'center', flexShrink: 0, width: 256, padding: '9px 11px', borderLeft: '1px dashed var(--border)', opacity: on ? 1 : 0.55 }}>
+                            {opts.length === 0 ? (
+                              <span style={{ fontSize: 11, color: on ? '#dc2626' : 'var(--text-muted)', lineHeight: 1.35 }}>이 병원에 등록된 블로그 키워드 없음 — 병원 관리 설정에서 추가</span>
+                            ) : (
+                              <KeywordSelect
+                                options={opts}
+                                value={keywords.get(it.runId) ?? ''}
+                                invalid={on && empty}
+                                onChange={(v) => setKeywords((m) => { const n = new Map(m); n.set(it.runId, v); return n; })}
+                              />
+                            )}
                           </div>
-                        </div>
-                      </label>
+                          );
+                        })() : null}
+                      </div>
                     );
                   })}
                 </div>
@@ -282,21 +350,32 @@ export function WorkBoardQueue({ blogItems }: { blogItems: QueueItem[] }) {
               ) : null}
               <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
                 <label style={{ display: 'grid', gap: 4, flex: '1 1 200px' }}>
-                  <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)' }}>요청자</span>
-                  <input value={requester} onChange={(e) => setRequester(e.target.value)} placeholder="이름 입력" style={inputStyle} />
+                  <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)' }}>요청자 <span style={{ color: '#dc2626' }}>*</span></span>
+                  <input value={requester} onChange={(e) => setRequester(e.target.value)} placeholder="이름 입력(필수)" style={{ ...inputStyle, borderColor: selected.size > 0 && !requester.trim() ? '#dc2626' : 'var(--border-strong)' }} />
                 </label>
                 <label style={{ display: 'grid', gap: 4, flex: '1 1 160px' }}>
-                  <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)' }}>마감일</span>
-                  <input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} style={inputStyle} />
+                  <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)' }}>마감일 <span style={{ color: '#dc2626' }}>*</span></span>
+                  <input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} style={{ ...inputStyle, borderColor: selected.size > 0 && !dueDate ? '#dc2626' : 'var(--border-strong)' }} />
                 </label>
               </div>
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 8 }}>
+                {(() => {
+                  const msgs: string[] = [];
+                  if (selected.size > 0 && !requester.trim()) msgs.push('요청자');
+                  if (selected.size > 0 && !dueDate) msgs.push('마감일');
+                  if (missingKeywordCount > 0) msgs.push(`키워드 ${missingKeywordCount}건`);
+                  return msgs.length > 0 ? (
+                    <span style={{ marginRight: 'auto', fontSize: 11.5, fontWeight: 600, color: '#dc2626' }}>{msgs.join(' · ')} 입력 필요</span>
+                  ) : null;
+                })()}
                 <button type="button" onClick={() => setAssignBoard(null)} disabled={saving}
                   style={{ padding: '9px 16px', fontSize: 13, fontWeight: 600, borderRadius: 6, background: '#fff', color: 'var(--text-secondary)', border: '1px solid var(--border-strong)', cursor: 'pointer' }}>취소</button>
-                <button type="button" onClick={() => void submitAssign()} disabled={saving || selected.size === 0}
-                  style={{ padding: '9px 20px', fontSize: 13, fontWeight: 700, borderRadius: 6, border: '1px solid var(--accent)', background: saving || selected.size === 0 ? 'var(--accent-subtle)' : 'var(--accent)', color: saving || selected.size === 0 ? 'var(--accent)' : '#fff', cursor: saving || selected.size === 0 ? 'not-allowed' : 'pointer' }}>
+                {(() => { const off = saving || selected.size === 0 || missingKeywordCount > 0 || !requester.trim() || !dueDate; return (
+                <button type="button" onClick={() => void submitAssign()} disabled={off}
+                  style={{ padding: '9px 20px', fontSize: 13, fontWeight: 700, borderRadius: 6, border: '1px solid var(--accent)', background: off ? 'var(--accent-subtle)' : 'var(--accent)', color: off ? 'var(--accent)' : '#fff', cursor: off ? 'not-allowed' : 'pointer' }}>
                   {saving ? '배정 중…' : `배정 (${selected.size})`}
                 </button>
+                ); })()}
               </div>
             </div>
           </div>
@@ -307,3 +386,70 @@ export function WorkBoardQueue({ blogItems }: { blogItems: QueueItem[] }) {
 }
 
 const inputStyle: React.CSSProperties = { width: '100%', padding: '9px 11px', fontSize: 14, border: '1px solid var(--border-strong)', borderRadius: 8, outline: 'none', boxSizing: 'border-box' };
+
+// 키워드 커스텀 드롭다운 — 네이티브 select 로는 옵션 안에서 날짜 우측정렬·italic 이 불가해 직접 구현.
+//  옵션/선택 표시 모두 [키워드 …왼쪽] [마지막 사용 날짜 — 우측정렬·진회색·italic] 레이아웃.
+//  팝업은 모달의 overflow/opacity 에 안 잘리도록 body 로 포털 + fixed 좌표 배치.
+function KeywordSelect({ options, value, invalid, onChange }: {
+  options: { keyword: string; lastUsedAt: string | null }[];
+  value: string;
+  invalid: boolean;
+  onChange: (v: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const popRef = useRef<HTMLDivElement>(null);
+  const [rect, setRect] = useState<{ left: number; top: number; width: number } | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const recompute = () => { const el = btnRef.current; if (el) { const r = el.getBoundingClientRect(); setRect({ left: r.left, top: r.bottom + 4, width: r.width }); } };
+    recompute();
+    const onDoc = (e: MouseEvent) => {
+      const t = e.target as Node;
+      if (!btnRef.current?.contains(t) && !popRef.current?.contains(t)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
+    window.addEventListener('scroll', recompute, true);
+    window.addEventListener('resize', recompute);
+    document.addEventListener('mousedown', onDoc);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('scroll', recompute, true);
+      window.removeEventListener('resize', recompute);
+      document.removeEventListener('mousedown', onDoc);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [open]);
+
+  const dateText = (o: string | null) => (o ? fmtDateFull(o) : '없음');
+  const selDate = value ? dateText(options.find((o) => o.keyword === value)?.lastUsedAt ?? null) : '';
+
+  return (
+    <>
+      <button ref={btnRef} type="button" onClick={() => setOpen((o) => !o)}
+        style={{ width: '100%', minWidth: 0, display: 'flex', alignItems: 'center', gap: 8, padding: '6px 9px', fontSize: 12.5, border: `1px solid ${invalid ? '#dc2626' : 'var(--border-strong)'}`, borderRadius: 6, background: '#fff', cursor: 'pointer', textAlign: 'left', boxSizing: 'border-box' }}>
+        <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: value ? 'var(--text)' : 'var(--text-muted)' }}>
+          {value || '키워드 선택 *'}
+        </span>
+        {value ? <span style={{ flexShrink: 0, fontStyle: 'italic', fontWeight: 600, color: '#4b5563', fontSize: 11.5 }}>{selDate}</span> : null}
+        <span style={{ flexShrink: 0, fontSize: 8, color: 'var(--text-muted)' }}>▼</span>
+      </button>
+      {open && rect
+        ? createPortal(
+            <div ref={popRef}
+              style={{ position: 'fixed', left: rect.left, top: rect.top, width: rect.width, maxHeight: 260, overflowY: 'auto', background: '#fff', border: '1px solid var(--border-strong)', borderRadius: 6, boxShadow: '0 8px 24px rgba(0,0,0,0.16)', zIndex: 1100, padding: 4 }}>
+              {options.map((o) => (
+                <button key={o.keyword} type="button" onClick={() => { onChange(o.keyword); setOpen(false); }}
+                  style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 8, padding: '7px 8px', border: 0, background: o.keyword === value ? 'var(--accent-subtle)' : 'transparent', borderRadius: 4, cursor: 'pointer', textAlign: 'left' }}>
+                  <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 12.5, color: 'var(--text)' }}>{o.keyword}</span>
+                  <span style={{ flexShrink: 0, fontStyle: 'italic', fontWeight: 600, color: '#4b5563', fontSize: 11 }}>{dateText(o.lastUsedAt)}</span>
+                </button>
+              ))}
+            </div>,
+            document.body,
+          )
+        : null}
+    </>
+  );
+}
