@@ -34,7 +34,7 @@ function CategoryLabCell({ name, species, rowColor }: { name: string; species: L
   const cat = labItemCategory(name, species);
   const isOther = cat.key === 'other';
   return (
-    <td style={{ padding: 4, fontSize: 11, whiteSpace: 'nowrap', color: isOther ? 'var(--danger)' : (rowColor ?? 'var(--text-secondary)') }}>
+    <td style={{ padding: 4, fontSize: 11, whiteSpace: 'nowrap', color: rowColor ?? (isOther ? 'var(--danger)' : 'var(--text-secondary)') }}>
       {cat.shortLabel}
     </td>
   );
@@ -46,7 +46,7 @@ function NormalizedLabCell({ name, rowColor }: { name: string; rowColor?: string
   const recognized = isRecognizedLabItem(name);
   return (
     <td
-      style={{ padding: 4, color: recognized ? (rowColor ?? 'var(--text-muted)') : 'var(--danger)', fontWeight: recognized ? 400 : 700, overflowWrap: 'anywhere' }}
+      style={{ padding: 4, color: rowColor ?? (recognized ? 'var(--text-muted)' : 'var(--danger)'), fontWeight: recognized ? 400 : 700, overflowWrap: 'anywhere' }}
       title={recognized ? undefined : '정규화 실패: 표준 항목으로 인식되지 않아 리포트에서 Other 로 분류됩니다.'}
     >
       {name}
