@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useCallback, useEffect, type DragEvent, type ChangeEvent } from 'react';
+import { useState, useRef, useCallback, useEffect, useMemo, type DragEvent, type ChangeEvent } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { compressPdfIfNeeded, PdfCompressError } from '@/lib/pdf-compress';
 import { useHospital } from '@/components/shell/hospital-context';
@@ -72,6 +72,18 @@ export default function HealthReportPage() {
   const [items, setItems] = useState<RequestItem[]>([]);
   const [listLoading, setListLoading] = useState(true);
   const [listError, setListError] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
+
+  // 환자명/보호자명 부분일치 검색(대소문자 무시). 검색어 없으면 전체.
+  const filteredItems = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return items;
+    return items.filter(
+      (it) =>
+        (it.patientName ?? '').toLowerCase().includes(q) ||
+        (it.ownerName ?? '').toLowerCase().includes(q),
+    );
+  }, [items, search]);
 
   // Form
   const [chartType, setChartType] = useState<ChartType>('intovet');
@@ -433,6 +445,25 @@ export default function HealthReportPage() {
               <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>오른쪽에서 PDF를 업로드해 첫 요청을 시작하세요.</div>
             </div>
           ) : (
+            <>
+              {/* 환자명·보호자명 검색 */}
+              <div style={{ position: 'relative', marginBottom: '10px' }}>
+                <input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="환자명 또는 보호자명 검색"
+                  style={{ width: '100%', padding: '8px 30px 8px 10px', fontSize: '13px', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', background: 'var(--bg)', color: 'var(--text)', outline: 'none', boxSizing: 'border-box' }}
+                />
+                {search && (
+                  <button type="button" onClick={() => setSearch('')} aria-label="검색어 지우기"
+                    style={{ position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)', width: '18px', height: '18px', border: 'none', background: 'var(--bg-subtle)', color: 'var(--text-muted)', borderRadius: '50%', cursor: 'pointer', fontSize: '11px', lineHeight: 1 }}>✕</button>
+                )}
+              </div>
+              {filteredItems.length === 0 ? (
+                <div style={{ padding: '32px 18px', textAlign: 'center', fontSize: '13px', color: 'var(--text-muted)' }}>
+                  ‘{search.trim()}’ 검색 결과가 없습니다.
+                </div>
+              ) : (
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
               <thead>
                 <tr style={{ background: 'var(--bg-subtle)' }}>
@@ -442,8 +473,8 @@ export default function HealthReportPage() {
                 </tr>
               </thead>
               <tbody>
-                {items.map((item, i) => (
-                  <tr key={item.id} style={{ borderBottom: i < items.length - 1 ? '1px solid var(--border)' : 'none' }}>
+                {filteredItems.map((item, i) => (
+                  <tr key={item.id} style={{ borderBottom: i < filteredItems.length - 1 ? '1px solid var(--border)' : 'none' }}>
                     <td style={{ padding: '11px 14px', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
                       {formatDate(item.createdAt)}
                       {item.friendlyId && <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '1px' }}>#{item.friendlyId}</div>}
@@ -479,6 +510,8 @@ export default function HealthReportPage() {
                 ))}
               </tbody>
             </table>
+              )}
+            </>
           )}
         </div>
       </div>
