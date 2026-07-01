@@ -372,6 +372,36 @@ export function isRecognizedLabItem(canonicalName: string): boolean {
   return RECOGNIZED_LAB_ITEMS.has(name.toUpperCase());
 }
 
+// ===== 단위(unit) 문자열 정규화 =====
+// OCR/전사가 단위를 흔히 깨뜨린다: 곱셈기호(× → x), 마이크로(μ/µ → u), mol 끝 l 누락(umol→umo),
+// 지수 표기 불일치(10x9·10*9·10^9). 표시·집계 일관성을 위해 결정적으로 한 번 정규화한다.
+// 알려진 단위는 표준 표기로 매핑하고, 모르는 단위는 정리만 해서 그대로 돌려준다(값·범위는 건드리지 않음).
+const UNIT_DISPLAY: Record<string, string> = {
+  '10^9/l': '10^9/L', '10^12/l': '10^12/L', '10^10/l': '10^10/L',
+  '10^3/ul': '10^3/uL', '10^6/ul': '10^6/uL',
+  'k/ul': 'K/uL', 'm/ul': 'M/uL',
+  'g/dl': 'g/dL', 'mg/dl': 'mg/dL', 'ug/dl': 'ug/dL', 'mg/l': 'mg/L',
+  'ng/ml': 'ng/mL', 'pg/ml': 'pg/mL', 'ug/ml': 'ug/mL', 'pg': 'pg',
+  'mmol/l': 'mmol/L', 'umol/l': 'umol/L', 'pmol/l': 'pmol/L', 'nmol/l': 'nmol/L',
+  'meq/l': 'mEq/L', 'miu/l': 'mIU/L', 'iu/l': 'IU/L', 'u/l': 'U/L',
+  'mmhg': 'mmHg', 'fl': 'fL', 'ul': 'uL', 'l': 'L', '%': '%',
+};
+
+export function canonicalizeLabUnit(raw: string | null | undefined): string | null {
+  if (raw == null) return null;
+  let s = String(raw).replace(/\s+/g, '').trim();
+  if (!s || /^[-–—]+$/.test(s)) return null; // 빈 값·단독 대시는 단위 없음
+  // 라틴 동형 그리스/키릴 대문자(단위 속 K·M) → 라틴
+  s = s.replace(/[ΚК]/g, 'K').replace(/[ΜМ]/g, 'M');
+  // 마이크로 기호(그리스 μ·micro µ) → u
+  s = s.replace(/[μµ]/g, 'u');
+  // 곱셈·지수 표기 통일: 10x9 / 10×9 / 10*9 / 10E9 / 10^9 → 10^9
+  s = s.replace(/10[x×*eE^](\d{1,2})/g, '10^$1');
+  // mol 끝 l 누락 보정: umo/L → umol/L, mmo/L → mmol/L, mo/L → mol/L
+  s = s.replace(/mo\/l$/i, 'mol/L');
+  return UNIT_DISPLAY[s.toLowerCase()] ?? s;
+}
+
 // ===== 카테고리 분류 (단일 소스) =====
 
 export type SpeciesProfile = 'dog' | 'cat';

@@ -4,6 +4,7 @@
  */
 export {
   canonicalizeLabItemName,
+  canonicalizeLabUnit,
   isRecognizedLabItem,
   type LabCanonicalizeSpecies,
 } from '@dashboard/lab-normalize';

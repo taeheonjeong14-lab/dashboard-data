@@ -45,7 +45,7 @@ import { hospitalsDbUsesCamelCase } from "@/lib/hospital-db";
 import { dbChartPdf, dbCore, getSupabaseCoreSchema } from "@/lib/supabase-db-schema";
 import { getChartPgPool } from "@/lib/db";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
-import { canonicalizeLabItemName } from "@/lib/lab-item-normalize";
+import { canonicalizeLabItemName, canonicalizeLabUnit } from "@/lib/lab-item-normalize";
 import { refineLabFlag } from "@dashboard/lab-normalize";
 import { detectSpeciesProfile } from "@/lib/lab-category-map";
 import {
@@ -3580,7 +3580,7 @@ export async function POST(request: NextRequest) {
         const itemName = canonicalizeLabItemName(item.itemName, labCanonicalSpecies);
         stage = `labItems:refineFlag ${dbg}`;
         const flag = refineLabFlag(item.flag, item.valueText, item.referenceRange);
-        mappedItems.push({ itemName, rawItemName: item.itemName, valueText: item.valueText, unit: item.unit, referenceRange: item.referenceRange, flag, page: item.page });
+        mappedItems.push({ itemName, rawItemName: item.itemName, valueText: item.valueText, unit: canonicalizeLabUnit(item.unit), referenceRange: item.referenceRange, flag, page: item.page });
       }
       labItemsByDate.push({
         dateTime: group.dateTime,

@@ -1,5 +1,5 @@
 import type pg from 'pg';
-import { canonicalizeLabItemName } from '@/lib/chart-app/lab-item-normalize';
+import { canonicalizeLabItemName, canonicalizeLabUnit } from '@/lib/chart-app/lab-item-normalize';
 import { speciesProfileFromBasicSpecies } from '@/lib/chart-app/lab-species-profile';
 import { chartByDateIdForDateTime, getParseRun } from '@/lib/chart-app/run-queries';
 
@@ -264,7 +264,7 @@ async function patchLab(client: pg.PoolClient, runId: string, body: Record<strin
     const valueText = labValueTextForPatch(row);
     const flagRaw = str(row.flag);
     const flag = flagRaw && LAB_FLAGS.has(flagRaw) ? flagRaw : 'unknown';
-    const unit = row.unit !== undefined ? str(row.unit) : null;
+    const unit = canonicalizeLabUnit(row.unit !== undefined ? str(row.unit) : null);
     const referenceRange = labReferenceRangeForPatch(row);
 
     if (!rawDisplay) throw new Error('lab itemName or rawItemName required');
