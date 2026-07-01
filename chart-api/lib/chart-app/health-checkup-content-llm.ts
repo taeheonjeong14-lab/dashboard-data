@@ -631,12 +631,19 @@ export async function generateHealthCheckupContent(
 
   // Stage 2: generate detail sections in parallel, injecting stage1Context for consistency
   const overallContext = `종합소견:\n${stage1Context.overallSummary}\n\n사후관리:\n${stage1Context.followUpCare}`;
-  const [s3, s3b, s4, s5, lab] = await Promise.all([
+  // 권장 재검진도 stage 2 에서 별도 생성한다. recheck 규칙이 "사후관리에서 언급한 내용을 액션으로"라
+  //  stage 1 에서 followUp 과 동시 생성하면(=followUp 을 참조 못 함) 비어 나오는 일이 잦다.
+  //  followUp 이 확정된 overallContext 를 주입해 집중 생성하면 안정적으로 채워진다(수동 재생성과 동일 경로).
+  //  실패 시 stage 1 의 recheck 로 폴백(생성 자체는 안 죽게).
+  const [s3, s3b, s4, s5, lab, recheck] = await Promise.all([
     generateHealthCheckupSection('systems3', source, options, overallContext),
     generateHealthCheckupSection('systems3b', source, options, overallContext),
     generateHealthCheckupSection('systems4', source, options, overallContext),
     generateHealthCheckupSection('systems5', source, options, overallContext),
     generateHealthCheckupSection('lab', source, options, overallContext),
+    generateHealthCheckupSection('recheck', source, options, overallContext).catch(
+      () => ({} as Partial<HealthCheckupGeneratedContent>),
+    ),
   ]);
 
   return {
@@ -646,5 +653,6 @@ export async function generateHealthCheckupContent(
     ...s4,
     ...s5,
     ...lab,
+    ...recheck,
   };
 }
