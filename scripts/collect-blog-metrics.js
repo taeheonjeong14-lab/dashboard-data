@@ -65,6 +65,9 @@ async function connectBrowser(port) {
   return await puppeteer.connect({
     browserURL: `http://127.0.0.1:${port}`,
     defaultViewport: null,
+    // 페이지 JS가 얼어붙으면(네이티브 팝업·백그라운드 throttle 등) 기본 3분을 기다리며 스텝이 통째로 죽는다.
+    // 60초로 낮춰 빨리 실패시키고, 호출부에서 잡아 수집분만 저장하도록 한다.
+    protocolTimeout: 60000,
   });
 }
 
@@ -130,9 +133,16 @@ async function scrapeWithPagination(page, url, label, startDate) {
     if (!prevBtn) break;
 
     if (click % 10 === 0) console.log("%s 이전 이동 중... (%d번째, minDate=%s)", label, click + 1, minDate);
-    await prevBtn.click();
+    // 페이지가 얼어붙으면 클릭 내부 evaluate(scrollIntoView)가 protocolTimeout(60s)에 걸려 throw 된다.
+    // 여기서 잡아 루프만 끊고, 지금까지 모은 행은 살린다(스텝 전체 실패 방지).
+    try {
+      await prevBtn.click();
+    } catch (e) {
+      console.warn("%s 이전 버튼 처리 실패 — 여기까지 수집분으로 진행합니다: %s", label, (e && e.message) || e);
+      break;
+    }
     await jitter(1500, 3500);
-    await humanize(page);
+    await humanize(page).catch(() => {});
     await maybeLongRest(`${label} ${minDate}`);
   }
 
@@ -251,6 +261,9 @@ async function main() {
   console.log("Chrome에 연결 중... (포트 %s, hospital_id=%s)", port, hospitalId || "-");
   const browser = await connectBrowser(port);
   const page = await browser.newPage();
+  // 네이버 네이티브 팝업(세션 만료·보안·페이지 이탈 확인 등)은 페이지 JS를 얼려 evaluate/click 을 무한 대기시킨다.
+  // 자동으로 닫아(dismiss) 얼어붙는 걸 원천 차단한다.
+  page.on("dialog", (d) => { d.dismiss().catch(() => {}); });
 
   try {
     const merged = await scrapeBlogMetrics(page, id, config, range.startDate);

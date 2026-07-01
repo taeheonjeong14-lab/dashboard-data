@@ -56,6 +56,8 @@ async function connectBrowser(port) {
   return await puppeteer.connect({
     browserURL: `http://127.0.0.1:${port}`,
     defaultViewport: null,
+    // 페이지 JS가 얼면(네이티브 팝업·백그라운드 throttle) 기본 3분 대기 → 60초로 낮춰 빨리 실패시킨다.
+    protocolTimeout: 60000,
   });
 }
 
@@ -76,7 +78,10 @@ async function getPageBody(page) {
 }
 
 function parsePlaceInflowSingle(body) {
-  const m = body.match(/플레이스\s*유입[\s\S]*?([0-9,]+)\s*회\s*전일/);
+  // 현재 스마트플레이스(new UI) 포맷: "유입 수" 라벨 다음에 "80회"
+  let m = body.match(/유입\s*수[\s\S]{0,20}?([0-9,]+)\s*회/);
+  // 구 포맷 폴백: "플레이스 유입 … N회 전일(대비)"
+  if (!m) m = body.match(/플레이스\s*유입[\s\S]*?([0-9,]+)\s*회\s*전일/);
   return m ? parseInt(String(m[1]).replace(/,/g, ""), 10) : null;
 }
 
@@ -231,6 +236,8 @@ async function main() {
   console.log("Chrome에 연결 중... (포트 %s, hospital_id=%s)", port, hospitalId || "-");
   const browser = await connectBrowser(port);
   const page = await browser.newPage();
+  // 네이버 네이티브 팝업(세션 만료·보안 등)은 페이지 JS를 얼려 evaluate 를 무한 대기시킨다 → 자동 닫기.
+  page.on("dialog", (d) => { d.dismiss().catch(() => {}); });
 
   try {
     const rows = await scrapeSmartPlaceInflow(page, smartplaceStatUrl, startDate, endDate);
