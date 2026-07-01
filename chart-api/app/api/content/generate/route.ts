@@ -745,12 +745,34 @@ export async function POST(request: NextRequest) {
             coverProgramFromBody ||
             (typeof priorPayload.coverProgram === 'string' ? priorPayload.coverProgram.trim() : '') ||
             '';
-          const partial = await generateHealthCheckupSection(sectionRaw, source, {
-            reportProgramName: reportProgramForPrompt || undefined,
-            checkupDate: checkupDate || undefined,
-            mustInclude: must || undefined,
-            usageContext: usageCtx('health_checkup'),
-          });
+          // 재생성도 첫 생성(2단계)처럼 저장된 종합소견/사후관리를 참고해 정합성을 맞춘다.
+          //  · followUp 재생성: 종합소견에만 맞춘다(옛 사후관리를 그대로 재생산하지 않도록 컨텍스트에서 제외).
+          //  · overall 재생성: 백본 자체라 컨텍스트 없음.
+          //  · 그 외(recheck·systems·lab): 종합소견 + 사후관리 둘 다 참고.
+          const priorOverall = typeof priorPayload.overallSummary === 'string' ? priorPayload.overallSummary.trim() : '';
+          const priorFollowUp = typeof priorPayload.followUpCare === 'string' ? priorPayload.followUpCare.trim() : '';
+          let regenContext: string | undefined;
+          if (sectionRaw === 'overall') {
+            regenContext = undefined;
+          } else if (sectionRaw === 'followUp') {
+            regenContext = priorOverall ? `종합소견:\n${priorOverall}` : undefined;
+          } else {
+            const parts: string[] = [];
+            if (priorOverall) parts.push(`종합소견:\n${priorOverall}`);
+            if (priorFollowUp) parts.push(`사후관리:\n${priorFollowUp}`);
+            regenContext = parts.length ? parts.join('\n\n') : undefined;
+          }
+          const partial = await generateHealthCheckupSection(
+            sectionRaw,
+            source,
+            {
+              reportProgramName: reportProgramForPrompt || undefined,
+              checkupDate: checkupDate || undefined,
+              mustInclude: must || undefined,
+              usageContext: usageCtx('health_checkup'),
+            },
+            regenContext,
+          );
 
           // 이미지 페이지(치과·피부 / 방사선·초음파)는 텍스트만 재생성하면 이미지 슬롯이 빈
           // 데모 블록으로 덮인다. 현재 run 의 케이스 이미지(나중에 추가된 것 포함)를 다시 배치한다.
