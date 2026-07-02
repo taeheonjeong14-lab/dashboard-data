@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import {
@@ -145,6 +145,10 @@ function loadDaumPostcode(): Promise<DaumNamespace> {
   });
 }
 
+// 작성 초안 자동 저장/복원 설정
+const INTAKE_DRAFT_TTL_MS = 10 * 60 * 1000; // 10분 지난 초안은 복원하지 않음
+const INTAKE_IDLE_RESET_MS = 60 * 1000;     // 1분 무반응 시 초기화(공용 태블릿 대비)
+
 export function IntakeWizard({ hospitalId, hospitalName, accent }: { hospitalId: string; hospitalName: string; accent?: string | null }) {
   const ac = useMemo(() => buildAccent(accent), [accent]);
   const [answers, setAnswers] = useState<IntakeAnswers>(() => emptyAnswers());
@@ -162,36 +166,103 @@ export function IntakeWizard({ hospitalId, hospitalName, accent }: { hospitalId:
   /** "사전문진을 하지 않았어요" 옵션을 명시적으로 선택했는지(시각적 라디오 동작용). */
   const [noneSelected, setNoneSelected] = useState(false);
 
-  // 접수 완료 화면에서 5초 뒤 첫 화면(인사말·QR)으로 자동 복귀 — 키오스크에서 다음 보호자를 위해 리셋.
+  // ── 작성 내용 자동 저장/복원 + 공용 태블릿 대비 무반응 초기화 ──────────────
+  // 모바일(iOS/안드로이드)은 새로고침 확인창(beforeunload)이 대부분 안 뜨므로, 경고 대신
+  // localStorage 에 초안을 저장해두고 새로고침되면 복원한다(PC·모바일·태블릿 공통).
+  const STORAGE_KEY = `intake-draft-v1:${hospitalId}`;
+  // 터치 기기(휴대폰·태블릿)는 새로고침 확인창(beforeunload)이 대부분 안 뜬다.
+  //  → 터치: 자동 저장/복원으로 데이터 보존(+ 1분 무반응 초기화).
+  //  → PC(마우스): 확인창을 띄우고, 새로고침하면 복원하지 않아 초기화된다.
+  const [isTouch] = useState<boolean>(() => {
+    if (typeof window === 'undefined' || !window.matchMedia) return false;
+    return window.matchMedia('(pointer: coarse)').matches;
+  });
+
+  // 전체 초기화(첫 화면으로) + 저장된 초안 삭제
+  const resetAll = useCallback(() => {
+    setAnswers(emptyAnswers());
+    setAddrBase('');
+    setAddrDetail('');
+    setIdx(0);
+    setSubmitting(false);
+    setError(null);
+    setDone(false);
+    setMatches([]);
+    setMatchLookupPhone('');
+    setSelectedMatchIds([]);
+    setNoneSelected(false);
+    try { window.localStorage.removeItem(STORAGE_KEY); } catch { /* ignore */ }
+  }, [STORAGE_KEY]);
+
+  // 최초 마운트 시 저장된 초안 복원(있고, 오래되지 않았을 때).
+  const restoredRef = useRef(false);
+  useEffect(() => {
+    if (restoredRef.current) return;
+    restoredRef.current = true;
+    if (!isTouch) return; // PC 는 복원하지 않음 — 새로고침하면 초기화(확인창으로 먼저 경고)
+    try {
+      const raw = window.localStorage.getItem(STORAGE_KEY);
+      if (!raw) return;
+      const saved = JSON.parse(raw) as {
+        answers?: IntakeAnswers; addrBase?: string; addrDetail?: string; idx?: number; ts?: number;
+      };
+      if (typeof saved?.ts === 'number' && Date.now() - saved.ts > INTAKE_DRAFT_TTL_MS) {
+        window.localStorage.removeItem(STORAGE_KEY);
+        return;
+      }
+      if (saved?.answers) setAnswers(saved.answers);
+      if (typeof saved?.addrBase === 'string') setAddrBase(saved.addrBase);
+      if (typeof saved?.addrDetail === 'string') setAddrDetail(saved.addrDetail);
+      if (typeof saved?.idx === 'number' && saved.idx > 0) setIdx(saved.idx);
+    } catch { /* ignore */ }
+  }, [STORAGE_KEY, isTouch]);
+
+  // 작성 중 상태를 localStorage 에 자동 저장(터치 기기만; 첫 화면·완료 화면 제외).
+  useEffect(() => {
+    if (!isTouch || done || idx === 0) return;
+    try {
+      window.localStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify({ answers, addrBase, addrDetail, idx, ts: Date.now() }),
+      );
+    } catch { /* ignore */ }
+  }, [answers, addrBase, addrDetail, idx, done, STORAGE_KEY, isTouch]);
+
+  // 접수 완료: 저장 초안 삭제 + 5초 뒤 첫 화면(인사말·QR)으로 자동 복귀(키오스크 리셋).
   useEffect(() => {
     if (!done) return;
-    const t = setTimeout(() => {
-      setAnswers(emptyAnswers());
-      setAddrBase('');
-      setAddrDetail('');
-      setIdx(0);
-      setSubmitting(false);
-      setError(null);
-      setDone(false);
-      setMatches([]);
-      setMatchLookupPhone('');
-      setSelectedMatchIds([]);
-      setNoneSelected(false);
-    }, 5000);
+    try { window.localStorage.removeItem(STORAGE_KEY); } catch { /* ignore */ }
+    const t = setTimeout(resetAll, 5000);
     return () => clearTimeout(t);
-  }, [done]);
+  }, [done, resetAll, STORAGE_KEY]);
 
-  // 작성 중 실수로 새로고침/창 닫기 시 데이터 유실 방지 — 브라우저 기본 확인창(문구는 브라우저가 정함).
-  // 첫 인사말 화면(idx 0)·완료 화면에선 경고하지 않는다.
+  // 공용 태블릿 대비: 작성 중 1분간 아무 반응이 없으면 초기화(입력 비우고 첫 화면).
   useEffect(() => {
     if (done || idx === 0) return;
+    let timer = setTimeout(resetAll, INTAKE_IDLE_RESET_MS);
+    const bump = () => {
+      clearTimeout(timer);
+      timer = setTimeout(resetAll, INTAKE_IDLE_RESET_MS);
+    };
+    const evs: (keyof WindowEventMap)[] = ['pointerdown', 'keydown', 'touchstart', 'wheel', 'scroll'];
+    evs.forEach((ev) => window.addEventListener(ev, bump, { passive: true }));
+    return () => {
+      clearTimeout(timer);
+      evs.forEach((ev) => window.removeEventListener(ev, bump));
+    };
+  }, [done, idx, resetAll]);
+
+  // PC(마우스)만: 작성 중 새로고침/창 닫기 시 브라우저 확인창. 확인하면 리로드되고 복원 안 하므로 초기화됨.
+  //  (터치 기기는 확인창이 대부분 안 떠서 사용하지 않고, 자동 저장/복원 + 무반응 초기화로 처리)
+  useEffect(() => {
+    if (isTouch || done || idx === 0) return;
     const handler = (e: BeforeUnloadEvent) => {
       e.preventDefault();
       e.returnValue = '';
     };
     window.addEventListener('beforeunload', handler);
     return () => window.removeEventListener('beforeunload', handler);
-  }, [done, idx]);
+  }, [done, idx, isTouch]);
 
   const matchesAvailable = matches.length > 0;
   const matchedPetsCount = answers.pets.filter((p) => p.surveyLinked).length;
