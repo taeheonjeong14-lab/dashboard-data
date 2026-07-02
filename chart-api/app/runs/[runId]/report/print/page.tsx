@@ -37,6 +37,7 @@ import {
   HealthReportOuterCoverSheet,
   HealthReportSummarySheet,
   HealthSystemsReportSheet,
+  shouldSplitHealthSummary,
 } from '@dashboard/health-report';
 
 export default async function HealthReportPrintPage({
@@ -98,7 +99,14 @@ export default async function HealthReportPrintPage({
         }
       `}</style>
       <HealthReportCoverSheet {...coverProps} />
-      <HealthReportSummarySheet {...summaryProps} />
+      {shouldSplitHealthSummary(summaryProps.overallSummary, summaryProps.followUpPlan) ? (
+        <>
+          <HealthReportSummarySheet {...summaryProps} part="overall" />
+          <HealthReportSummarySheet {...summaryProps} part="rest" />
+        </>
+      ) : (
+        <HealthReportSummarySheet {...summaryProps} part="all" />
+      )}
       <HealthSystemsReportSheet
         hospitalLogoSrc={coverProps.hospitalLogoSrc}
         hospitalLogoAlt={coverProps.hospitalLogoAlt}

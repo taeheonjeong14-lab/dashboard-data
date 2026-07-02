@@ -39,6 +39,7 @@ import {
   HealthReportOuterCoverSheet,
   HealthReportSummarySheet,
   HealthSystemsReportSheet,
+  shouldSplitHealthSummary,
 } from '@dashboard/health-report';
 
 const LINK_CONTENT_TYPE = 'health_checkup';
@@ -146,7 +147,14 @@ export default async function HealthReportSharePrintPage({
         }
       `}</style>
       <HealthReportCoverSheet {...coverProps} />
-      <HealthReportSummarySheet {...summaryProps} />
+      {shouldSplitHealthSummary(summaryProps.overallSummary, summaryProps.followUpPlan) ? (
+        <>
+          <HealthReportSummarySheet {...summaryProps} part="overall" />
+          <HealthReportSummarySheet {...summaryProps} part="rest" />
+        </>
+      ) : (
+        <HealthReportSummarySheet {...summaryProps} part="all" />
+      )}
       <HealthSystemsReportSheet
         hospitalLogoSrc={coverProps.hospitalLogoSrc}
         hospitalLogoAlt={coverProps.hospitalLogoAlt}

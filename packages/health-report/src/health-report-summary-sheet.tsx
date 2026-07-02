@@ -34,6 +34,17 @@ export type HealthReportSummaryTimelineItem = {
   cardBody: string;
 };
 
+/** 요약 페이지 분할 기준(자 수). 종합소견 또는 사후관리가 이 값을 초과하면 2페이지로 나눈다. */
+export const HEALTH_SUMMARY_SPLIT_CHARS = 500;
+
+/** 종합소견/사후관리 길이로 요약 페이지를 2장(종합소견 / 사후관리+재검진+서명)으로 쪼갤지 판단. */
+export function shouldSplitHealthSummary(overallSummary?: string, followUpPlan?: string): boolean {
+  return (
+    (overallSummary ?? "").length > HEALTH_SUMMARY_SPLIT_CHARS ||
+    (followUpPlan ?? "").length > HEALTH_SUMMARY_SPLIT_CHARS
+  );
+}
+
 export type HealthReportSummarySheetProps = {
   hospitalNameKo?: string;
   hospitalNameEn?: string;
@@ -41,6 +52,8 @@ export type HealthReportSummarySheetProps = {
   hospitalLogoAlt?: string;
   overallSummary?: string;
   followUpPlan?: string;
+  /** 페이지 분할용. 'all'=한 장에 전부(기본), 'overall'=종합 소견만, 'rest'=사후 관리+재검진+서명 */
+  part?: 'all' | 'overall' | 'rest';
   /** 기본 4칸 — 개수만큼 렌더 */
   timelineItems?: HealthReportSummaryTimelineItem[];
   reportDateLine?: string;
@@ -68,6 +81,7 @@ export function HealthReportSummarySheet({
   hospitalLogoAlt = "",
   overallSummary = "",
   followUpPlan = "",
+  part = "all",
   timelineItems = DEFAULT_TIMELINE,
   reportDateLine,
   directorTitleLine = formatDirectorHospitalLine(hospitalNameKo),
@@ -82,7 +96,7 @@ export function HealthReportSummarySheet({
   const directorName = directorNameSpread?.trim() || undefined;
 
   return (
-    <div className="report-a4-tokens hrss-root hrss-sheet" style={tokenOverrides}>
+    <div className={`report-a4-tokens hrss-root hrss-sheet${part !== "all" ? ` hrss-sheet--${part}` : ""}`} style={tokenOverrides}>
       <HealthReportInnerSheetHeader
         hospitalLogoSrc={hospitalLogoSrc}
         hospitalLogoAlt={hospitalLogoAlt}
@@ -90,6 +104,7 @@ export function HealthReportSummarySheet({
       />
 
       <main className="hrss-main">
+        {part !== "rest" && (
         <section className="hrss-section hrss-section--opinion">
           <div className="hrss-section-head">
             <h2 className="hrss-section-title">
@@ -102,7 +117,9 @@ export function HealthReportSummarySheet({
             {splitParagraphs(overallSummary || " ").map(renderSummaryParagraph)}
           </div>
         </section>
+        )}
 
+        {part !== "overall" && (<>
         <section className="hrss-section hrss-section--followup">
           <div className="hrss-section-head">
             <h2 className="hrss-section-title">
@@ -220,6 +237,7 @@ export function HealthReportSummarySheet({
             </footer>
           </div>
         </section>
+        </>)}
       </main>
     </div>
   );

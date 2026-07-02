@@ -26,6 +26,7 @@ import {
   HealthReportOuterCoverSheet,
   HealthReportSummarySheet,
   HealthSystemsReportSheet,
+  shouldSplitHealthSummary,
 } from '@dashboard/health-report';
 
 /** chart-api `POST /api/report/health-checkup/preview` 응답의 `model` JSON */
@@ -114,7 +115,14 @@ export function HealthReportPreviewPages({ model }: { model: HealthReportPreview
         }
       `}</style>
       <HealthReportCoverSheet {...coverProps} />
-      <HealthReportSummarySheet {...summaryProps} />
+      {shouldSplitHealthSummary(summaryProps.overallSummary, summaryProps.followUpPlan) ? (
+        <>
+          <HealthReportSummarySheet {...summaryProps} part="overall" />
+          <HealthReportSummarySheet {...summaryProps} part="rest" />
+        </>
+      ) : (
+        <HealthReportSummarySheet {...summaryProps} part="all" />
+      )}
       <HealthSystemsReportSheet
         hospitalLogoSrc={coverProps.hospitalLogoSrc}
         hospitalLogoAlt={coverProps.hospitalLogoAlt}

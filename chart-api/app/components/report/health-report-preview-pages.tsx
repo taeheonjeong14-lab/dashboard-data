@@ -13,6 +13,7 @@ import {
   HealthReportOuterCoverSheet,
   HealthReportSummarySheet,
   HealthSystemsReportSheet,
+  shouldSplitHealthSummary,
 } from '@dashboard/health-report';
 
 export type HealthPreviewEditableSection =
@@ -38,11 +39,30 @@ export function buildHealthReportPreviewPages(model: HealthReportPreviewModel): 
       section: 'cover',
       render: () => <HealthReportCoverSheet {...(model.coverProps as Parameters<typeof HealthReportCoverSheet>[0])} />,
     },
-    {
-      title: '종합 소견',
-      section: 'summary',
-      render: () => <HealthReportSummarySheet {...(model.summaryProps as Parameters<typeof HealthReportSummarySheet>[0])} />,
-    },
+    // 종합소견/사후관리가 길면 요약을 2페이지로 쪼갠다(종합 소견 / 사후 관리·재검진·서명).
+    ...(shouldSplitHealthSummary(
+      (model.summaryProps as Parameters<typeof HealthReportSummarySheet>[0]).overallSummary,
+      (model.summaryProps as Parameters<typeof HealthReportSummarySheet>[0]).followUpPlan,
+    )
+      ? [
+          {
+            title: '종합 소견',
+            section: 'summary' as const,
+            render: () => <HealthReportSummarySheet {...(model.summaryProps as Parameters<typeof HealthReportSummarySheet>[0])} part="overall" />,
+          },
+          {
+            title: '사후 관리·재검진',
+            section: 'summary' as const,
+            render: () => <HealthReportSummarySheet {...(model.summaryProps as Parameters<typeof HealthReportSummarySheet>[0])} part="rest" />,
+          },
+        ]
+      : [
+          {
+            title: '종합 소견',
+            section: 'summary' as const,
+            render: () => <HealthReportSummarySheet {...(model.summaryProps as Parameters<typeof HealthReportSummarySheet>[0])} part="all" />,
+          },
+        ]),
     {
       title: '장기계 평가 1',
       section: 'systemsPage3',
