@@ -180,9 +180,9 @@ export const FIRST_VISIT_FIXED_QUESTIONS: QuestionDef[] = compileDraftQuestions(
   // 성별 보기 — 초진접수(SEX_OPTIONS)와 동일 라벨로 통일. 변경 시 양쪽 함께 맞출 것.
   { key: 'Q6', text: '성별', type: 'single_choice', choices: ['남아 (중성화)', '여아 (중성화)', '남아 (중성화 X)', '여아 (중성화 X)'] },
   { key: 'Q125', text: '반려동물의 생일은 언제인가요?', type: 'pet_birthday' },
-  // 출산이력: 중성화 암컷도 과거 출산 이력이 있을 수 있으므로 미중성화·중성화 암컷 모두 노출.
-  { key: 'Q7', text: '출산이력이 있나요?', type: 'single_choice', choices: ['예', '아니오'], condition: { onKey: 'Q6', anyOf: ['여아 (중성화)', '여아 (중성화 X)'] } },
-  // 마지막 생리: 미중성화 암컷만(중성화면 생리 주기 없음). Q7 대신 Q6 직접 조건으로 분리.
+  // 생식 문항(출산이력·마지막 생리): 미중성화 암컷(여아 중성화 X)에만 노출.
+  //  중성화 암컷은 출산이력·생리 모두 묻지 않고(중성화 후 무의미), 모든 수컷도 제외.
+  { key: 'Q7', text: '출산이력이 있나요?', type: 'single_choice', choices: ['예', '아니오'], condition: { onKey: 'Q6', value: '여아 (중성화 X)' } },
   { key: 'Q8', text: '마지막 생리는 언제인가요?', type: 'single_choice', choices: ['1개월 이내', '3개월 이내', '6개월 이내', '6개월 이상', '잘 모르겠음'], condition: { onKey: 'Q6', value: '여아 (중성화 X)' } },
   { key: 'Q9', text: '병원 내원의 이유는 무엇인가요?', type: 'multi_choice', maxSelections: 3, choiceLayout: 'two_col', choices: [...FIRST_VISIT_REASONS] as unknown as string[] },
 

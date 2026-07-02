@@ -255,7 +255,7 @@ export async function POST(request: NextRequest) {
         );
       }
       try {
-        const aiRes = await generateSurveyQuestions(previousChart);
+        const aiRes = await generateSurveyQuestions(previousChart, existingInfo);
         const startOrder = allQuestionData.length + 1;
         for (let i = 0; i < aiRes.length; i++) {
           allQuestionData.push({
@@ -441,13 +441,26 @@ class AiQuestionError extends Error {
   }
 }
 
-async function generateSurveyQuestions(chartContent: string): Promise<Array<{ text: string; type: string; options: unknown }>> {
+async function generateSurveyQuestions(
+  chartContent: string,
+  patient?: ExistingPatientInfo,
+): Promise<Array<{ text: string; type: string; options: unknown }>> {
   const apiKey = process.env.GEMINI_API_KEY || process.env.NEXT_PUBLIC_GEMINI_API_KEY;
   if (!apiKey) {
     throw new AiQuestionError('missing_api_key', 'Gemini API key not configured');
   }
 
-  const userMessage = `아래 이전 진료 차트를 분석해서 재진 사전문진 질문을 JSON 배열로 생성해줘.\n\n주의사항:\n- 활력/컨디션, 식욕 관련 질문은 이미 있으므로 절대 중복하지 말 것\n- 같은 주제를 두 번 묻지 말 것\n- 주관식(short_text, long_text)은 절대 사용하지 말 것\n- 모든 질문은 선택형(single_choice, multi_choice, scale)으로만 구성할 것\n- scale은 반드시 1~10 범위로 생성할 것\n- 보기에서 기타가 필요하면 "기타(직접 입력)"으로 제공할 것\n- 약 이름, 심박수 같은 수치 등 보호자가 모르거나 직접 확인할 수 없는 건 절대 묻지 말 것. 보호자가 눈으로 보거나 직접 한 행동으로 답할 수 있는 형태로 만들 것\n\n[이전 차트 내용]\n---\n${chartContent}\n---\n\n반드시 JSON 배열만 출력해. 설명이나 다른 텍스트는 절대 포함하지 마.`;
+  // 병원이 발송 시 입력한 종/품종/성별(중성화 여부 포함) — AI가 이 동물에 맞는 질문만 만들도록 명시.
+  const patientDesc = patient
+    ? [`종류: ${patient.species}`, patient.breed ? `품종: ${patient.breed}` : '', `성별: ${patient.sex}`]
+        .filter(Boolean)
+        .join(' / ')
+    : '';
+  const patientBlock = patientDesc
+    ? `[환자 정보]\n${patientDesc}\n(반드시 위 종·성별·중성화 상태에 맞는 질문만 생성한다. 다른 종 전용 질문 금지, 중성화된 개체에 임신·발정·생리 등 생식 관련 질문 금지, 성별에 맞지 않는 질문 금지.)\n\n`
+    : '';
+
+  const userMessage = `아래 이전 진료 차트를 분석해서 재진 사전문진 질문을 JSON 배열로 생성해줘.\n\n주의사항:\n- 활력/컨디션, 식욕 관련 질문은 이미 있으므로 절대 중복하지 말 것\n- 같은 주제를 두 번 묻지 말 것\n- 주관식(short_text, long_text)은 절대 사용하지 말 것\n- 모든 질문은 선택형(single_choice, multi_choice, scale)으로만 구성할 것\n- scale은 반드시 1~10 범위로 생성할 것\n- 보기에서 기타가 필요하면 "기타(직접 입력)"으로 제공할 것\n- 약 이름, 심박수 같은 수치 등 보호자가 모르거나 직접 확인할 수 없는 건 절대 묻지 말 것. 보호자가 눈으로 보거나 직접 한 행동으로 답할 수 있는 형태로 만들 것\n- 아래 [환자 정보]의 종·성별·중성화 상태에 맞지 않는 질문은 절대 만들지 말 것\n\n${patientBlock}[이전 차트 내용]\n---\n${chartContent}\n---\n\n반드시 JSON 배열만 출력해. 설명이나 다른 텍스트는 절대 포함하지 마.`;
 
   const callGemini = async (promptText: string, temperature: number): Promise<string> => {
     const res = await fetch(
