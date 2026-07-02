@@ -28,25 +28,28 @@ function labFlagColor(flag: string): string | undefined {
   return undefined;
 }
 
+// 미정규화(표준 미인식 / Other) 경고 색 — high 빨강과 헷갈리지 않도록 주황(amber)으로 구분.
+const LAB_UNNORMALIZED_COLOR = '#d97706';
+
 /** 카테고리 셀 — item_name 으로 런타임 계산 (DB 저장 안 됨). 짧은 영문 라벨 표시.
- *  rowColor 가 있으면(=flag 색) 그 색을 따르되, Other(미분류)는 경고 빨강 유지. */
+ *  Other(미분류)는 flag 색과 무관하게 항상 경고 주황(=미정규화 표시). 그 외는 rowColor(flag 색)를 따른다. */
 function CategoryLabCell({ name, species, rowColor }: { name: string; species: LabCanonicalizeSpecies; rowColor?: string }) {
   const cat = labItemCategory(name, species);
   const isOther = cat.key === 'other';
   return (
-    <td style={{ padding: 4, fontSize: 11, whiteSpace: 'nowrap', color: rowColor ?? (isOther ? 'var(--danger)' : 'var(--text-secondary)') }}>
+    <td style={{ padding: 4, fontSize: 11, whiteSpace: 'nowrap', color: isOther ? LAB_UNNORMALIZED_COLOR : (rowColor ?? 'var(--text-secondary)') }}>
       {cat.shortLabel}
     </td>
   );
 }
 
-/** 정규화 결과 셀 — 표준 미인식 항목(리포트 Other 로 분류)은 빨간색으로 강조.
- *  인식된 항목은 rowColor(=flag 색)를 따른다(없으면 기본 muted). 미인식 경고 빨강은 유지. */
+/** 정규화 결과 셀 — 표준 미인식 항목(리포트 Other 로 분류)은 flag 색과 무관하게 항상 경고 주황으로 강조
+ *  (high 빨강과 구분). 인식된 항목은 rowColor(=flag 색)를 따른다(없으면 기본 muted). */
 function NormalizedLabCell({ name, rowColor }: { name: string; rowColor?: string }) {
   const recognized = isRecognizedLabItem(name);
   return (
     <td
-      style={{ padding: 4, color: rowColor ?? (recognized ? 'var(--text-muted)' : 'var(--danger)'), fontWeight: recognized ? 400 : 700, overflowWrap: 'anywhere' }}
+      style={{ padding: 4, color: recognized ? (rowColor ?? 'var(--text-muted)') : LAB_UNNORMALIZED_COLOR, fontWeight: recognized ? 400 : 700, overflowWrap: 'anywhere' }}
       title={recognized ? undefined : '정규화 실패: 표준 항목으로 인식되지 않아 리포트에서 Other 로 분류됩니다.'}
     >
       {name}
