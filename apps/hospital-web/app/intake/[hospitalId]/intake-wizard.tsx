@@ -162,6 +162,37 @@ export function IntakeWizard({ hospitalId, hospitalName, accent }: { hospitalId:
   /** "사전문진을 하지 않았어요" 옵션을 명시적으로 선택했는지(시각적 라디오 동작용). */
   const [noneSelected, setNoneSelected] = useState(false);
 
+  // 접수 완료 화면에서 5초 뒤 첫 화면(인사말·QR)으로 자동 복귀 — 키오스크에서 다음 보호자를 위해 리셋.
+  useEffect(() => {
+    if (!done) return;
+    const t = setTimeout(() => {
+      setAnswers(emptyAnswers());
+      setAddrBase('');
+      setAddrDetail('');
+      setIdx(0);
+      setSubmitting(false);
+      setError(null);
+      setDone(false);
+      setMatches([]);
+      setMatchLookupPhone('');
+      setSelectedMatchIds([]);
+      setNoneSelected(false);
+    }, 5000);
+    return () => clearTimeout(t);
+  }, [done]);
+
+  // 작성 중 실수로 새로고침/창 닫기 시 데이터 유실 방지 — 브라우저 기본 확인창(문구는 브라우저가 정함).
+  // 첫 인사말 화면(idx 0)·완료 화면에선 경고하지 않는다.
+  useEffect(() => {
+    if (done || idx === 0) return;
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [done, idx]);
+
   const matchesAvailable = matches.length > 0;
   const matchedPetsCount = answers.pets.filter((p) => p.surveyLinked).length;
 
