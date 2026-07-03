@@ -141,6 +141,21 @@ export default function AdminChartData() {
           /* 병원 목록 실패 시 hospitalName null 유지 */
         }
       }
+      // 작업 현황 '열기' 등 검색어를 갖고 진입한 경우: 최근 목록(80개)에 없을 수 있는 그 run 을
+      // 서버측 friendly_id 검색으로 보강해 병합(오래된 건도 열 수 있게).
+      if (initSearch) {
+        try {
+          const r2 = await fetch(`/api/admin/data/parse-runs?limit=200&q=${encodeURIComponent(initSearch)}`, { credentials: 'include' });
+          if (r2.ok) {
+            const p2 = (await r2.json()) as { items?: unknown[] };
+            const extra = (Array.isArray(p2.items) ? p2.items : [])
+              .map((raw) => normalizeHistoryApiItem(raw))
+              .filter((it): it is HistoryItem => it != null);
+            const seen = new Set(items.map((i) => i.id));
+            for (const it of extra) if (!seen.has(it.id)) { items.push(it); seen.add(it.id); }
+          }
+        } catch { /* 보강 실패는 무시(기본 목록은 이미 표시됨) */ }
+      }
       setHistory(items);
     } catch (loadError) {
       console.error(loadError);
@@ -150,7 +165,7 @@ export default function AdminChartData() {
     } finally {
       setHistoryLoading(false);
     }
-  }, []);
+  }, [initSearch]);
 
   useEffect(() => {
     void loadHistoryList();

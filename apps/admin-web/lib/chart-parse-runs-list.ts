@@ -75,9 +75,9 @@ export async function countParseRunsInChartPdf(): Promise<number> {
 /**
  * vet-report와 동일: `@supabase/supabase-js` → PostgREST embed `result_basic_info`.
  */
-export async function listRecentParseRuns(limit = 80): Promise<ParseRunListItem[]> {
+export async function listRecentParseRuns(limit = 80, friendlyIdSearch?: string): Promise<ParseRunListItem[]> {
   const supabase = createServiceRoleClient();
-  const { data, error } = await supabase
+  let query = supabase
     .schema('chart_pdf')
     .from('parse_runs')
     .select(
@@ -85,6 +85,10 @@ export async function listRecentParseRuns(limit = 80): Promise<ParseRunListItem[
     )
     .order('created_at', { ascending: false })
     .limit(limit);
+  // friendly_id 검색(작업 현황 '열기' 등): 최근 N개 밖의 오래된 run도 찾을 수 있게 서버측 필터.
+  const fq = friendlyIdSearch?.trim();
+  if (fq) query = query.ilike('friendly_id', `%${fq}%`);
+  const { data, error } = await query;
   if (error) throw new Error(error.message);
   const rows = (data ?? []) as Record<string, unknown>[];
   const items = rows.map(mapParseRunRow).filter((r): r is ParseRunListItem => r != null);
