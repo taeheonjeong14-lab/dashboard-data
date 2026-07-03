@@ -35,6 +35,10 @@ const PRIORITY_RULES: CanonicalRule[] = [
   { canonical: 'Pre-ACTH', pattern: /CORTISOL\s*\(?\s*PRE\b/i },
   { canonical: 'Pre-ACTH', pattern: /BASE\s*LINE\s*CORTISOL/i },
   { canonical: 'Pre-ACTH', pattern: /BASAL\s*CORTISOL/i },
+  // NT-proBNP(심장 바이오마커) — 종 접두(f.=feline / c.=canine)·하이픈·스페이스 변형을 모두 proBNP 로.
+  //  normalizeToken 이 "f.NT-proBNP" → "FNTPROBNP" 로 만들어 별칭 매칭이 안 되므로 raw 단계에서 잡는다.
+  { canonical: 'proBNP', pattern: /\bNT[\s.-]*pro[\s-]*BNP\b/i },
+  { canonical: 'proBNP', pattern: /\bpro[\s-]*BNP\b/i },
 ];
 
 const DIRECT_ALIASES: Record<string, string> = {
@@ -142,6 +146,17 @@ const DIRECT_ALIASES: Record<string, string> = {
   'WBCNEU%': '%NEU',
   PROBNP: 'proBNP',
   NTPROBNP: 'proBNP',
+  FNTPROBNP: 'proBNP', CNTPROBNP: 'proBNP', FPROBNP: 'proBNP', CPROBNP: 'proBNP',
+  // Urinalysis(요검사) — 소변 고유 항목만. 혈액과 이름이 겹치는 GLU/PRO/BIL/pH/Ketone/Blood 은 넣지 않는다
+  //  (이름만으론 소변/혈액 구분 불가 → 오분류 방지). 겹치는 항목은 추후 섹션 인식으로 별도 대응.
+  SG: 'SG', USG: 'SG', SPGR: 'SG', SPECIFICGRAVITY: 'SG',
+  UBG: 'UBG', URO: 'UBG', UROBILINOGEN: 'UBG', UROBIL: 'UBG',
+  NIT: 'Nitrite', NITRITE: 'Nitrite',
+  LEU: 'LEU', LEUKOCYTEESTERASE: 'LEU', LEUESTERASE: 'LEU',
+  // UA(요검사) 섹션 전용 소변 항목 canonical 의 멱등화(normalizeToken 이 '-' 를 지우므로 U-pH→UPH).
+  //  raw "pH"→"U-pH" 같은 위험 매핑은 전역이 아니라 urinalysisSectionItemName(섹션 한정)에서만 한다.
+  UPH: 'U-pH', UGLU: 'U-GLU', UPRO: 'U-PRO', UBIL: 'U-BIL', UKET: 'U-KET', UBLD: 'U-BLD', URBC: 'U-RBC', UWBC: 'U-WBC',
+  COLOR: 'Color', COLOUR: 'Color', CLARITY: 'Clarity',
   // 심장 트로포닌 I (Cardiac Troponin I) — chemistry. cTnI/cTnl(OCR)·troponin 표기 흡수.
   CTNI: 'cTnI', CTNL: 'cTnI', TNI: 'cTnI', CTROPONIN: 'cTnI', CTROPONINI: 'cTnI', TROPONIN: 'cTnI', TROPONINI: 'cTnI',
   INS: 'INSULIN',
@@ -354,6 +369,10 @@ const RECOGNIZED_LAB_ITEMS: ReadonlySet<string> = new Set(
     'CKMB', 'proBNP', 'NT-proBNP', 'cTnI', 'SDH', 'GLDH',
     // Electrolyte
     'NA', 'K', 'CL', 'CA', 'iCA', 'iCA(7.4)', 'PHOS', 'MG', 'NA/K', 'AG',
+    // Urinalysis (요검사) — 소변 고유 항목만
+    'SG', 'UBG', 'Nitrite', 'LEU',
+    // UA 섹션 전용(섹션 헤더로 소변 확정 시 사용하는 소변 전용 이름)
+    'U-pH', 'U-GLU', 'U-PRO', 'U-BIL', 'U-KET', 'U-BLD', 'U-RBC', 'U-WBC', 'Color', 'Clarity',
     // Coagulation
     'PT', 'aPTT', 'TT', 'D-dimer', 'FDP', 'AT III', 'BMBT', 'Platelet func',
     // Hormone
@@ -437,6 +456,7 @@ export const LAB_CATEGORIES: LabCategory[] = [
   { key: 'immunologic', label: 'Immunologic Test (면역 및 특수 검사)', shortLabel: 'Immunologic', order: 8 },
   { key: 'tumor_marker', label: 'Tumor Marker (종양 검사)', shortLabel: 'Tumor Marker', order: 9 },
   { key: 'kit', label: 'Kit (키트 검사)', shortLabel: 'Kit', order: 10 },
+  { key: 'urinalysis', label: 'Urinalysis (요검사)', shortLabel: 'Urinalysis', order: 11 },
   { key: 'other', label: 'Other (기타)', shortLabel: 'Other', order: 99 },
 ];
 
@@ -584,6 +604,15 @@ const ITEM_TO_CATEGORY: Record<string, string> = {
   LACTATE: 'blood_gas',
   Lactate: 'blood_gas',
   tHb: 'blood_gas',
+  // Urinalysis (요검사) — 소변 고유 항목
+  SG: 'urinalysis',
+  UBG: 'urinalysis',
+  Nitrite: 'urinalysis',
+  LEU: 'urinalysis',
+  // UA 섹션 전용(섹션으로 소변 확정된 항목)
+  'U-pH': 'urinalysis', 'U-GLU': 'urinalysis', 'U-PRO': 'urinalysis', 'U-BIL': 'urinalysis',
+  'U-KET': 'urinalysis', 'U-BLD': 'urinalysis', 'U-RBC': 'urinalysis', 'U-WBC': 'urinalysis',
+  Color: 'urinalysis', Clarity: 'urinalysis',
   OSM: 'chemistry',
   'OSM CA': 'chemistry',
   OSMCA: 'chemistry',
@@ -788,6 +817,40 @@ export function labItemCategory(itemName: string | null | undefined, species?: S
 
 export function labCategorySortOrder(categoryKey: string): number {
   return CATEGORY_BY_KEY.get(categoryKey)?.order ?? 99;
+}
+
+// ── 요검사(UA) 섹션 전용 항목 매핑 ──────────────────────────────────────────
+// 섹션 헤더(예: "UA Analysis")로 "이 블록은 소변"이 확정됐을 때만 쓴다. 이름만으론 혈액과 구분이
+// 안 되는 항목(pH/GLU/PRO/BIL/KET/BLD/RBC/WBC)을 소변 전용 이름(U-*)으로 돌려 혈액과 겹치지 않게 한다.
+const URINALYSIS_SECTION_MAP: Record<string, string> = {
+  PH: 'U-pH',
+  GLU: 'U-GLU', GLUCOSE: 'U-GLU',
+  PRO: 'U-PRO', PROTEIN: 'U-PRO',
+  BIL: 'U-BIL', BILIRUBIN: 'U-BIL',
+  KET: 'U-KET', KETONE: 'U-KET', KETONES: 'U-KET',
+  BLD: 'U-BLD', BLOOD: 'U-BLD', ERY: 'U-BLD', OB: 'U-BLD', OCCULTBLOOD: 'U-BLD',
+  RBC: 'U-RBC', WBC: 'U-WBC',
+  LEU: 'LEU', LEUKOCYTE: 'LEU', LEUKOCYTES: 'LEU',
+  SG: 'SG', USG: 'SG', SPGR: 'SG', SPECIFICGRAVITY: 'SG',
+  UBG: 'UBG', URO: 'UBG', UROBILINOGEN: 'UBG',
+  NIT: 'Nitrite', NITRITE: 'Nitrite',
+  COLOR: 'Color', COLOUR: 'Color',
+  CLAR: 'Clarity', CLARITY: 'Clarity', TURBIDITY: 'Clarity', APPEARANCE: 'Clarity',
+};
+// 검사값이 아닌 메타(채취법 등) → 드롭(정규화 안 된 항목으로도 남기지 않는다).
+const URINALYSIS_SECTION_DROP = new Set(['COLLEC', 'COLLECTION', 'METHOD', 'CHAICHUI', '채취', '채취법', 'SPECIMEN', 'SAMPLE']);
+
+/**
+ * UA(요검사) 섹션 안에서 나온 항목명을 소변 전용 canonical 로 변환.
+ *  - 문자열 반환: 그 이름으로 저장(U-* 또는 SG/UBG/Color/Clarity 등).
+ *  - null 반환: 드롭(검사값 아님, 예: 채취법 Collec).
+ *  - 매핑에 없는 항목은 원문을 그대로 반환(그대로 저장 — 'other' 로 표시될 수 있음).
+ */
+export function urinalysisSectionItemName(rawItemName: string): string | null {
+  const t = normalizeToken(rawItemName);
+  if (!t) return null;
+  if (URINALYSIS_SECTION_DROP.has(t)) return null;
+  return URINALYSIS_SECTION_MAP[t] ?? rawItemName.trim();
 }
 
 // ===== 플래그 보정 (부등호 값) =====

@@ -1,6 +1,7 @@
 import type { LabItem } from '@/lib/lab-parser';
 import { isDiagnosisTrendSectionTitle } from '@/lib/text-bucketing/chart-bucket-rules';
 import { isPlusVetLabMachinePanelHeaderLine } from '@/lib/text-bucketing/chart-dates';
+import { urinalysisSectionItemName, computeLabFlag } from '@dashboard/lab-normalize';
 
 type LineIn = { page: number; text: string };
 
@@ -343,6 +344,62 @@ export function parsePlusVetLabLine(line: string, page: number): LabItem | null 
   };
 }
 
+/**
+ * 패널 헤더 줄 판정 → UA(요검사) 패널인지 반환.
+ *  - true: UA/요검사 패널 헤더 (예: "... | UA Analysis (UA Analysis) | UA Analyzer")
+ *  - false: 패널 헤더지만 UA 아님(CBC·화학 등)
+ *  - null: 패널 헤더가 아님(일반 항목 줄)
+ */
+function detectPlusVetPanelHeader(text: string): boolean | null {
+  const s = normalizeSpaces(text);
+  const isDateHeader = /^20\d{2}[./-]\d{1,2}[./-]\d{1,2}\s+\d{1,2}:\d{2}/.test(s) && s.includes('|');
+  if (!isDateHeader && !isPlusVetLabMachinePanelHeaderLine(s)) return null;
+  return /\bU\/?A\b|UA\s*Analy|Urinaly|Urine\b|요\s*검사|소변\s*검사/i.test(s);
+}
+
+/** UA 특유 단위(Ery/µL, Leu/µL, /HPF 등)까지 떼어낸다. 값이 한글/기호면 보존. */
+function stripTrailingUaUnit(rest: string): { head: string; unit: string | null } {
+  const common = stripTrailingUnit(rest);
+  if (common.unit) return common;
+  const m = rest.match(/^(.*\S)\s+([A-Za-z]+(?:\/[A-Za-zµμ%]+)?|\/(?:HPF|LPF|hpf|lpf))\s*$/);
+  if (m?.[1] && m[2]) return { head: m[1].trim(), unit: m[2] };
+  return { head: rest, unit: null };
+}
+
+/**
+ * UA(요검사) 섹션 한 줄 파싱. 값이 숫자가 아닐 수 있다(음성·미량·+·색 서술).
+ *  - 첫 토큰 = 항목명 → urinalysisSectionItemName 으로 소변 전용 이름(U-* 등). Collec 등 메타는 드롭.
+ *  - 값은 텍스트 그대로 저장. flag 는 숫자값+참고범위일 때만 계산, 정성/서술값은 판정 안 함(중립).
+ */
+function parsePlusVetUrinalysisLine(line: string, page: number): LabItem | null {
+  const s = normalizeSpaces(line);
+  if (!s || isPlusVetLabMachinePanelHeaderLine(s)) return null;
+  if (/^20\d{2}[./-]\d{1,2}[./-]\d{1,2}\s+\d{1,2}:\d{2}/.test(s) && s.includes('|')) return null;
+  if (isPlusVetPatientInfoLine(s)) return null;
+
+  const m = s.match(/^(\S+)\s+(.+)$/);
+  if (!m?.[1] || !m[2]) return null;
+
+  const mapped = urinalysisSectionItemName(m[1]);
+  if (mapped === null) return null; // 메타(채취법 등) → 드롭
+  const itemName = mapped;
+
+  let rest = m[2].trim();
+  const refStripped = stripTrailingRefRange(rest);
+  const referenceRange = refStripped.ref;
+  rest = refStripped.head;
+  const { head: afterUnit, unit } = stripTrailingUaUnit(rest);
+  const valueText = afterUnit.trim();
+  if (!valueText) return null;
+
+  const num = numericFromValueText(valueText);
+  const isNumeric = num !== null && /^[<>≤≥]?\s*[-+]?\d/.test(valueText);
+  const flag: LabItem['flag'] =
+    isNumeric && referenceRange ? computeLabFlag(valueText, referenceRange) : 'normal';
+
+  return { page, rowY: 0, itemName, value: isNumeric ? num : null, valueText, unit, referenceRange, flag, rawRow: s };
+}
+
 export function parsePlusVetLabBucketLines(lines: LineIn[]): LabItem[] {
   const untilTrend: LineIn[] = [];
   for (const row of lines) {
@@ -352,8 +409,12 @@ export function parsePlusVetLabBucketLines(lines: LineIn[]): LabItem[] {
   }
   const merged = mergeOrphanRefRanges(mergeVerticalLabItems(mergeContinuationRows(untilTrend)));
   const items: LabItem[] = [];
+  // UA(요검사) 패널 안에서는 값이 정성/서술이라 전용 파서를 쓰고, 항목을 소변 전용 이름으로 라우팅한다.
+  let inUA = false;
   for (const row of merged) {
-    const item = parsePlusVetLabLine(row.text, row.page);
+    const panel = detectPlusVetPanelHeader(row.text);
+    if (panel !== null) { inUA = panel; continue; } // 패널 헤더 줄 자체는 항목 아님
+    const item = inUA ? parsePlusVetUrinalysisLine(row.text, row.page) : parsePlusVetLabLine(row.text, row.page);
     if (item) items.push(item);
   }
   return items;
