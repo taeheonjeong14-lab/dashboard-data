@@ -29,6 +29,7 @@ function labFlagColor(flag: string): string | undefined {
 }
 
 // 미정규화(표준 미인식 / Other) 경고 색 — high 빨강과 헷갈리지 않도록 주황(amber)으로 구분.
+// (재배포 트리거: 공유 패키지 @dashboard/lab-normalize 갱신분을 admin-web 번들에 반영하기 위함)
 const LAB_UNNORMALIZED_COLOR = '#d97706';
 
 /** 카테고리 셀 — item_name 으로 런타임 계산 (DB 저장 안 됨). 짧은 영문 라벨 표시.
