@@ -10,10 +10,11 @@ type HospitalRow = {
   healthReport: number;
   intake: number;
   preConsult: number;
+  tokensUsed: number;
   total: number;
   lastUsed: string | null;
 };
-type Totals = { caseBlog: number; healthReport: number; intake: number; preConsult: number; total: number };
+type Totals = { caseBlog: number; healthReport: number; intake: number; preConsult: number; tokensUsed: number; total: number };
 type Response = {
   days: number | 'all';
   totals: Totals;
@@ -77,10 +78,11 @@ export default function AdminFeatureUsage() {
     return all.filter((h) => `${h.hospitalName} ${h.address ?? ''}`.toLowerCase().includes(q));
   }, [data, query]);
 
-  // 사용 이력이 있는 병원만 우선 보여주고, 0건 병원은 접어둠(토글).
+  // 사용 이력이 있는 병원만 우선 보여주고, 활동 없는 병원은 접어둠(토글).
   const [showZero, setShowZero] = useState(false);
-  const visible = useMemo(() => (showZero ? filtered : filtered.filter((h) => h.total > 0)), [filtered, showZero]);
-  const zeroCount = filtered.length - filtered.filter((h) => h.total > 0).length;
+  const isActive = (h: HospitalRow) => h.total > 0 || h.tokensUsed > 0;
+  const visible = useMemo(() => (showZero ? filtered : filtered.filter(isActive)), [filtered, showZero]);
+  const zeroCount = filtered.length - filtered.filter(isActive).length;
 
   const totals = data?.totals;
 
@@ -130,6 +132,15 @@ export default function AdminFeatureUsage() {
             </div>
           </div>
         ))}
+        {/* 사용 토큰 합계 — 강조 타일 */}
+        <div style={{ ...tile, borderColor: 'var(--accent)', background: 'var(--accent-subtle)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ fontSize: 12, color: 'var(--accent)', fontWeight: 700 }}>사용 토큰</span>
+          </div>
+          <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--accent)', marginTop: 6 }}>
+            {loading ? '—' : num(totals?.tokensUsed ?? 0)}
+          </div>
+        </div>
       </div>
 
       {/* 검색 + 0건 토글 */}
@@ -163,7 +174,7 @@ export default function AdminFeatureUsage() {
               {FEATURES.map((f) => (
                 <th key={f.key} style={{ ...th, textAlign: 'right' }}>{f.label}</th>
               ))}
-              <th style={{ ...th, textAlign: 'right' }}>합계</th>
+              <th style={{ ...th, textAlign: 'right' }}>사용 토큰</th>
               <th style={{ ...th, textAlign: 'right', whiteSpace: 'nowrap' }}>최근 사용</th>
             </tr>
           </thead>
@@ -180,7 +191,7 @@ export default function AdminFeatureUsage() {
                 <td style={{ ...td, textAlign: 'right' }}>{cell(h.healthReport)}</td>
                 <td style={{ ...td, textAlign: 'right' }}>{cell(h.intake)}</td>
                 <td style={{ ...td, textAlign: 'right' }}>{cell(h.preConsult)}</td>
-                <td style={{ ...td, textAlign: 'right', fontWeight: 800, color: 'var(--text)' }}>{num(h.total)}</td>
+                <td style={{ ...td, textAlign: 'right', fontWeight: 800, color: h.tokensUsed > 0 ? 'var(--accent)' : 'var(--text-muted)' }}>{num(h.tokensUsed)}</td>
                 <td style={{ ...td, textAlign: 'right', color: 'var(--text-muted)', fontSize: 11.5, whiteSpace: 'nowrap' }}>{fmtDate(h.lastUsed)}</td>
               </tr>
             ))}
