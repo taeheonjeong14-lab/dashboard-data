@@ -15,6 +15,7 @@ import {
   Newspaper,
   Gauge,
   ListTodo,
+  Activity,
   type LucideProps,
 } from 'lucide-react';
 
@@ -69,6 +70,7 @@ const NAV_GROUPS: NavGroup[] = [
       { href: '/admin/registrations', label: '병원 심사', icon: ClipboardCheck, matchPrefix: '/admin/registrations' },
       { href: '/admin/users/users', label: '사용자 관리', icon: Users, matchPrefix: '/admin/users/users' },
       { href: '/admin/users/hospitals', label: '병원 관리', icon: Building2, matchPrefix: '/admin/users/hospitals' },
+      { href: '/admin/feature-usage', label: '사용 현황', icon: Activity, matchPrefix: '/admin/feature-usage' },
       { href: '/admin/usage', label: '토큰 관리', icon: Gauge, matchPrefix: '/admin/usage' },
     ],
   },
