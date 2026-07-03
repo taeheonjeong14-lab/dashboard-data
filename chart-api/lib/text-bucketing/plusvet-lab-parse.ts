@@ -1,7 +1,7 @@
 import type { LabItem } from '@/lib/lab-parser';
 import { isDiagnosisTrendSectionTitle } from '@/lib/text-bucketing/chart-bucket-rules';
 import { isPlusVetLabMachinePanelHeaderLine } from '@/lib/text-bucketing/chart-dates';
-import { urinalysisSectionItemName, computeLabFlag } from '@dashboard/lab-normalize';
+import { computeLabFlag } from '@dashboard/lab-normalize';
 
 type LineIn = { page: number; text: string };
 
@@ -374,7 +374,7 @@ function stripTrailingUaUnit(rest: string): { head: string; unit: string | null 
 
 /**
  * UA(요검사) 섹션 한 줄 파싱. 값이 숫자가 아닐 수 있다(음성·미량·+·색 서술).
- *  - 첫 토큰 = 항목명 → urinalysisSectionItemName 으로 소변 전용 이름(U-* 등). Collec 등 메타는 드롭.
+ *  - 첫 토큰 = 항목명(원문 그대로 보존). 소변 전용 이름(U-*) 매핑·메타(Collec) 드롭은 정규화 단계에서.
  *  - 값은 텍스트 그대로 저장. flag 는 숫자값+참고범위일 때만 계산, 정성/서술값은 판정 안 함(중립).
  */
 function parsePlusVetUrinalysisLine(line: string, page: number): LabItem | null {
@@ -386,9 +386,7 @@ function parsePlusVetUrinalysisLine(line: string, page: number): LabItem | null 
   const m = s.match(/^(\S+)\s+(.+)$/);
   if (!m?.[1] || !m[2]) return null;
 
-  const mapped = urinalysisSectionItemName(m[1]);
-  if (mapped === null) return null; // 메타(채취법 등) → 드롭
-  const itemName = mapped;
+  const itemName = m[1]; // 원문 그대로. U-* 매핑·메타 드롭은 정규화 단계(route.ts)에서 한다.
 
   let rest = m[2].trim();
   const refStripped = stripTrailingRefRange(rest);

@@ -47,7 +47,7 @@ import { dbChartPdf, dbCore, getSupabaseCoreSchema } from "@/lib/supabase-db-sch
 import { getChartPgPool } from "@/lib/db";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { canonicalizeLabItemName, canonicalizeLabUnit } from "@/lib/lab-item-normalize";
-import { computeLabFlag, refineLabFlag } from "@dashboard/lab-normalize";
+import { computeLabFlag, refineLabFlag, urinalysisSectionItemName } from "@dashboard/lab-normalize";
 import { detectSpeciesProfile } from "@/lib/lab-category-map";
 import {
   efriendsChartBodyByDateFromBlocks,
@@ -3603,7 +3603,16 @@ export async function POST(request: NextRequest) {
       for (const item of parsed) {
         const dbg = JSON.stringify({ itemName: item.itemName, valueText: item.valueText, unit: item.unit, ref: item.referenceRange, flag: item.flag }).slice(0, 300);
         stage = `labItems:canonicalize ${dbg}`;
-        const itemName = canonicalizeLabItemName(item.itemName, labCanonicalSpecies);
+        // 요검사(UA) 그룹은 섹션 컨텍스트로 소변 전용 이름(U-*)으로 정규화한다. rawItemName 은 원문 그대로 유지.
+        //  urinalysisSectionItemName 이 null 이면 검사값 아님(채취법 Collec 등) → 드롭.
+        let itemName: string;
+        if (group.isUrinalysis) {
+          const ua = urinalysisSectionItemName(item.itemName);
+          if (ua === null) continue;
+          itemName = ua;
+        } else {
+          itemName = canonicalizeLabItemName(item.itemName, labCanonicalSpecies);
+        }
         stage = `labItems:refineFlag ${dbg}`;
         const flag = refineLabFlag(item.flag, item.valueText, item.referenceRange);
         mappedItems.push({ itemName, rawItemName: item.itemName, valueText: item.valueText, unit: canonicalizeLabUnit(item.unit), referenceRange: item.referenceRange, flag, page: item.page });
