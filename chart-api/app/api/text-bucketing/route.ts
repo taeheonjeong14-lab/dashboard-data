@@ -7,7 +7,7 @@ import {
   parseVaccinationRecordsFromBucketLines,
   type ParsedVaccinationRecord,
 } from "@/lib/text-bucketing/vaccination-parse";
-import { parsePlusVetLabBucketLines } from "@/lib/text-bucketing/plusvet-lab-parse";
+import { parsePlusVetLabBucketLines, isUrinalysisPanelHeaderText } from "@/lib/text-bucketing/plusvet-lab-parse";
 import { parsePlusVetPlanRows } from "@/lib/text-bucketing/plusvet-plan-parse";
 import {
   extractEfriendsLabAndPhysicalExamBuckets,
@@ -93,6 +93,8 @@ type LabByDateGroup = {
 type LabByDateLinesGroup = {
   dateTime: string;
   lines: BucketedLine[];
+  /** 이 날짜 그룹의 패널 헤더가 요검사(UA)였는지 — 헤더 줄은 그룹핑에서 떨어져 나가므로 여기 보존해 파서에 전달. */
+  isUrinalysis?: boolean;
 };
 
 type ParsedPlanRow = {
@@ -805,6 +807,7 @@ function groupLabByDate(lines: BucketedLine[]): LabByDateGroup[] {
 
 function groupLabLinesByDate(lines: BucketedLine[]): LabByDateLinesGroup[] {
   const groups = new Map<string, BucketedLine[]>();
+  const uaByKey = new Map<string, boolean>();
   let currentKey = "unknown";
 
   for (const line of lines) {
@@ -814,6 +817,8 @@ function groupLabLinesByDate(lines: BucketedLine[]): LabByDateLinesGroup[] {
       if (!groups.has(currentKey)) {
         groups.set(currentKey, []);
       }
+      // 날짜 앵커 줄(=패널 헤더)은 그룹에 넣지 않지만, 요검사(UA) 패널이면 그 표식을 그룹에 기억해 둔다.
+      if (isUrinalysisPanelHeaderText(line.text)) uaByKey.set(currentKey, true);
       continue;
     }
     const list = groups.get(currentKey) ?? [];
@@ -824,6 +829,7 @@ function groupLabLinesByDate(lines: BucketedLine[]): LabByDateLinesGroup[] {
   return [...groups.entries()].map(([dateTime, groupLines]) => ({
     dateTime,
     lines: groupLines,
+    isUrinalysis: uaByKey.get(dateTime) === true,
   }));
 }
 
@@ -1640,12 +1646,12 @@ function parseWoorienLabItemsFromGroupLines(lines: BucketedLine[]): LabItem[] {
   return items;
 }
 
-function parseLabItemsFromGroupLines(lines: BucketedLine[], chartKind: ChartKind = "intovet"): LabItem[] {
+function parseLabItemsFromGroupLines(lines: BucketedLine[], chartKind: ChartKind = "intovet", opts?: { isUrinalysis?: boolean }): LabItem[] {
   if (chartKind === "woorien_pms") {
     return parseWoorienLabItemsFromGroupLines(lines);
   }
   if (chartKind === "plusvet") {
-    const pv = parsePlusVetLabBucketLines(lines);
+    const pv = parsePlusVetLabBucketLines(lines, { forceUrinalysis: opts?.isUrinalysis === true });
     const uniquePv = new Map<string, LabItem>();
     for (const item of pv) {
       const key = `${item.itemName.toUpperCase()}|${item.valueText.toUpperCase()}|${item.page}`;
@@ -3590,7 +3596,7 @@ export async function POST(request: NextRequest) {
     stage = "labItems";
     for (const group of labLineGroups) {
       stage = "labItems:parse";
-      const parsedRaw = parseLabItemsFromGroupLines(group.lines, chartType);
+      const parsedRaw = parseLabItemsFromGroupLines(group.lines, chartType, { isUrinalysis: group.isUrinalysis });
       stage = "labItems:sanitize";
       const parsed = sanitizeLabItems(parsedRaw, chartType);
       const mappedItems: Array<{ itemName: string; rawItemName: string; valueText: string; unit: string | null; referenceRange: string | null; flag: LabItem["flag"]; page: number }> = [];

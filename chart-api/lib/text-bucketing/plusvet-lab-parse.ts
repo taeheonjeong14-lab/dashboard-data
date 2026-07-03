@@ -350,11 +350,17 @@ export function parsePlusVetLabLine(line: string, page: number): LabItem | null 
  *  - false: 패널 헤더지만 UA 아님(CBC·화학 등)
  *  - null: 패널 헤더가 아님(일반 항목 줄)
  */
+/** 텍스트에 요검사(UA) 패널 표식이 있는지. 날짜 그룹핑이 헤더 줄을 떼어가도(groupLabLinesByDate)
+ *  그 헤더에서 UA 여부만 읽어 그룹에 실어 보내는 데 재사용한다. */
+export function isUrinalysisPanelHeaderText(text: string): boolean {
+  return /\bU\/?A\b|UA\s*Analy|Urinaly|Urine\b|요\s*검사|소변\s*검사/i.test(text);
+}
+
 function detectPlusVetPanelHeader(text: string): boolean | null {
   const s = normalizeSpaces(text);
   const isDateHeader = /^20\d{2}[./-]\d{1,2}[./-]\d{1,2}\s+\d{1,2}:\d{2}/.test(s) && s.includes('|');
   if (!isDateHeader && !isPlusVetLabMachinePanelHeaderLine(s)) return null;
-  return /\bU\/?A\b|UA\s*Analy|Urinaly|Urine\b|요\s*검사|소변\s*검사/i.test(s);
+  return isUrinalysisPanelHeaderText(s);
 }
 
 /** UA 특유 단위(Ery/µL, Leu/µL, /HPF 등)까지 떼어낸다. 값이 한글/기호면 보존. */
@@ -400,7 +406,7 @@ function parsePlusVetUrinalysisLine(line: string, page: number): LabItem | null 
   return { page, rowY: 0, itemName, value: isNumeric ? num : null, valueText, unit, referenceRange, flag, rawRow: s };
 }
 
-export function parsePlusVetLabBucketLines(lines: LineIn[]): LabItem[] {
+export function parsePlusVetLabBucketLines(lines: LineIn[], opts?: { forceUrinalysis?: boolean }): LabItem[] {
   const untilTrend: LineIn[] = [];
   for (const row of lines) {
     if (isDiagnosisTrendSectionTitle(row.text)) break;
@@ -410,7 +416,9 @@ export function parsePlusVetLabBucketLines(lines: LineIn[]): LabItem[] {
   const merged = mergeOrphanRefRanges(mergeVerticalLabItems(mergeContinuationRows(untilTrend)));
   const items: LabItem[] = [];
   // UA(요검사) 패널 안에서는 값이 정성/서술이라 전용 파서를 쓰고, 항목을 소변 전용 이름으로 라우팅한다.
-  let inUA = false;
+  //  date-by-date 그룹핑은 헤더 줄을 떼어가므로(groupLabLinesByDate) forceUrinalysis 로 그룹 전체를 UA 로 본다.
+  //  헤더가 줄에 남아 있는 경로(single-pass)에선 아래 detectPlusVetPanelHeader 가 갱신한다.
+  let inUA = opts?.forceUrinalysis === true;
   for (const row of merged) {
     const panel = detectPlusVetPanelHeader(row.text);
     if (panel !== null) { inUA = panel; continue; } // 패널 헤더 줄 자체는 항목 아님
