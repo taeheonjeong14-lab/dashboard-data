@@ -1,41 +1,12 @@
-import crypto from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { requireAdminApi } from '@/lib/assert-admin-api';
 import { createServiceRoleClient } from '@/lib/supabase/service-role';
+import { resolveSearchadSecret, signSearchadHeaders, searchadBaseUrl } from '@/lib/searchad/client';
 
 export const maxDuration = 20;
 
 // 병원의 SearchAd 캠페인 목록을 네이버에서 조회한다(선택 수집 UI용).
-// python(naver-searchad-main.py)의 서명·복호화와 동일한 방식을 JS로 구현.
-
-/** enc:: XOR(SHA256(passphrase)) 복호화. 평문이면 그대로. */
-function resolveSearchadSecret(stored: string): string {
-  const v = (stored || '').trim();
-  if (!v) return '';
-  if (!v.startsWith('enc::')) return v; // 하위 호환(평문)
-  const passphrase = (process.env.SEARCHAD_SECRET_PASSPHRASE || '').trim();
-  if (!passphrase) throw new Error('SEARCHAD_SECRET_PASSPHRASE가 설정되지 않았습니다.');
-  const raw = Buffer.from(v.slice('enc::'.length), 'base64');
-  const key = crypto.createHash('sha256').update(passphrase, 'utf8').digest();
-  const out = Buffer.alloc(raw.length);
-  for (let i = 0; i < raw.length; i += 1) out[i] = raw[i] ^ key[i % key.length];
-  return out.toString('utf8');
-}
-
-function signHeaders(method: string, uri: string, apiLicense: string, secretKey: string, customerId: string) {
-  const timestamp = String(Date.now());
-  const signature = crypto
-    .createHmac('sha256', secretKey)
-    .update(`${timestamp}.${method}.${uri}`)
-    .digest('base64');
-  return {
-    'Content-Type': 'application/json; charset=UTF-8',
-    'X-Timestamp': timestamp,
-    'X-API-KEY': apiLicense,
-    'X-Customer': customerId,
-    'X-Signature': signature,
-  };
-}
+// 서명·복호화는 @/lib/searchad/client 공유(naver-searchad-main.py 와 동일 방식).
 
 export async function POST(request: Request) {
   const gate = await requireAdminApi();
@@ -72,11 +43,11 @@ export async function POST(request: Request) {
 
   try {
     const secretKey = resolveSearchadSecret(secretEnc);
-    const baseUrl = (process.env.SEARCHAD_API_BASE_URL || 'https://api.searchad.naver.com').replace(/\/$/, '');
+    const baseUrl = searchadBaseUrl();
     const uri = '/ncc/campaigns';
     const res = await fetch(`${baseUrl}${uri}`, {
       method: 'GET',
-      headers: signHeaders('GET', uri, apiLicense, secretKey, customerId),
+      headers: signSearchadHeaders('GET', uri, apiLicense, secretKey, customerId),
     });
     if (!res.ok) {
       const t = await res.text();

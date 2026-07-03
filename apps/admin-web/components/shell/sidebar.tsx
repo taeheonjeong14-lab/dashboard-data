@@ -16,6 +16,7 @@ import {
   Gauge,
   ListTodo,
   Activity,
+  Search,
   type LucideProps,
 } from 'lucide-react';
 
@@ -46,6 +47,7 @@ const NAV_GROUPS: NavGroup[] = [
         icon: RefreshCw,
         matchPrefix: '/admin/data-upload',
       },
+      { href: '/admin/naver-keyword', label: '네이버 검색량', icon: Search, matchPrefix: '/admin/naver-keyword' },
     ],
   },
   {
