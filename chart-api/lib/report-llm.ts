@@ -3,8 +3,10 @@ import { toFile } from 'openai/uploads';
 import { GoogleGenAI, Type } from '@google/genai';
 import { getLlmProvider } from '@/lib/llm-provider';
 import { getPdfPageCount, slicePdfPages, extractPageJpegsFromImagePdf } from '@/lib/pdf-slice-pages';
+import { renderPdfPagesToJpegs } from '@/lib/pdf-render-pages';
 import { withGenAiUsage, withOpenAiResponsesUsage } from '@/lib/billing/wrap-clients';
 import type { UsageContext } from '@/lib/billing/usage-log';
+import type { ChartKind } from '@/lib/chart-app/chart-kind';
 
 type SoapByDate = {
   date: string;
@@ -264,9 +266,19 @@ async function extractOrderedLinesFromGeminiImageSlice(params: {
   client: GoogleGenAI;
   model: string;
   images: Buffer[];
+  /**
+   * true 면 "페이지를 통째 렌더한 이미지"를 받는 모드(인투벳 등). 이 이미지엔 진료 본문뿐 아니라
+   * X-ray·초음파 같은 실제 사진이 섞일 수 있으므로, "보이는 글자만 그대로 전사, 사진 내용은
+   * 해석·묘사·진단·창작 금지"를 프롬프트에 명시한다.
+   */
+  transcribeVisibleTextOnly?: boolean;
 }): Promise<OrderedLine[]> {
   const images = params.images.filter((b) => b.length >= 10_000);
   if (images.length === 0) return [];
+
+  const visibleTextOnlyClause = params.transcribeVisibleTextOnly
+    ? ' These are rendered page images and MAY contain photographs such as X-ray, ultrasound, or other clinical images. Transcribe ONLY the text characters that are actually printed/visible on the page. Do NOT describe, interpret, diagnose, caption, or invent any content from photographs or images — if a region is a photo with no printed text, output nothing for it.'
+    : '';
 
   let lastError: Error | null = null;
   for (let attempt = 0; attempt <= RANGE_RETRY_LIMIT; attempt += 1) {
@@ -278,7 +290,7 @@ async function extractOrderedLinesFromGeminiImageSlice(params: {
             role: 'user',
             parts: [
               {
-                text: 'Read this veterinary PDF from its first page through its last page in visual reading order. Transcribe EVERY visible text line verbatim — do NOT skip, summarize, merge, or omit any line, even if its content repeats or looks similar to another visit/section. Return strict JSON only. Do not bucket or classify. Number `page` starting at 1 for the first page of this file through the last page. Keep original line texts. The lines array order MUST match visual reading order (top-to-bottom, then next column if any). For any TABLE (e.g., a treatment/Plan table or a lab result table), output each table ROW as ONE single line containing all cells of that row left-to-right separated by single spaces; never split a single row across multiple lines, and never read a table column-by-column.' + SCRIPT_INSTRUCTION,
+                text: 'Read this veterinary PDF from its first page through its last page in visual reading order. Transcribe EVERY visible text line verbatim — do NOT skip, summarize, merge, or omit any line, even if its content repeats or looks similar to another visit/section. Return strict JSON only. Do not bucket or classify. Number `page` starting at 1 for the first page of this file through the last page. Keep original line texts. The lines array order MUST match visual reading order (top-to-bottom, then next column if any). For any TABLE (e.g., a treatment/Plan table or a lab result table), output each table ROW as ONE single line containing all cells of that row left-to-right separated by single spaces; never split a single row across multiple lines, and never read a table column-by-column.' + visibleTextOnlyClause + SCRIPT_INSTRUCTION,
               },
               ...images.map((buf) => ({
                 inlineData: { mimeType: 'image/jpeg' as const, data: buf.toString('base64') },
@@ -420,6 +432,11 @@ export async function extractOrderedLinesFromPdf(params: {
   pageRangeSize?: number;
   /** 과금 사용량 적재용 컨텍스트(병원/run). */
   usageContext?: UsageContext;
+  /**
+   * 차트 종류. intovet 은 진료 본문을 "이미지 박스"로 넣어, 텍스트레이어가 있는 페이지의 박스를
+   * PDF 직송으로는 못 읽는다 → 페이지를 통째 렌더한 이미지로 전사한다(extractOrderedLinesFromPdfWithGemini 참고).
+   */
+  chartKind?: ChartKind;
 }): Promise<OrderedLine[]> {
   const provider = getLlmProvider();
   if (provider === 'gemini') {
@@ -938,17 +955,25 @@ async function extractOrderedLinesFromPdfWithGemini(params: {
   filename: string;
   pageRangeSize?: number;
   usageContext?: UsageContext;
+  chartKind?: ChartKind;
 }): Promise<OrderedLine[]> {
   const pageRangeSize = params.pageRangeSize && params.pageRangeSize > 0 ? params.pageRangeSize : PAGE_RANGE_SIZE;
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
     throw new Error('GEMINI_API_KEY is not configured.');
   }
+  // 인투벳: 진료 본문을 이미지 박스로 넣어, 텍스트헤더가 있는 페이지의 박스를 PDF 직송(단일패스/PDF-슬라이스)으로는
+  // 못 읽는다(디지털 텍스트 페이지로 오인해 이미지 스킵) → 페이지를 통째 렌더한 이미지로 전사한다.
+  const forceRenderedPageImages = params.chartKind === 'intovet';
   // 클라이언트를 감싸 모든 generateContent sub-call(단일패스·이미지/PDF 슬라이스)의 usage 를 자동 적재.
   const client = withGenAiUsage(new GoogleGenAI({ apiKey }), { feature: 'extract', ...params.usageContext });
   const model = process.env.GEMINI_REPORT_MODEL ?? 'gemini-2.5-flash';
 
   try {
+    // 인투벳은 단일패스(PDF 직송)가 이미지 박스를 스킵하므로 곧장 페이지-이미지 렌더 경로(아래 catch)로 보낸다.
+    if (forceRenderedPageImages) {
+      throw new Error('intovet — skip single-pass, render page images for full transcription');
+    }
     // 큰 PDF는 단일패스 출력이 토큰 한도에 걸려 JSON이 잘리는 게 거의 확정 →
     // 254초쯤 낭비하지 말고 곧장 페이지-범위 추출(아래 catch)로 보낸다.
     const localPageCount = await getPdfPageCount(params.pdfBuffer).catch(() => 0);
@@ -1035,12 +1060,22 @@ async function extractOrderedLinesFromPdfWithGemini(params: {
     // image-slice 는 "진짜 스캔 이미지 PDF"에만 맞다. 벡터 PDF(텍스트가 벡터 패스로 그려지고 사진/그래픽이 박힌 경우)는
     // 박힌 이미지를 "페이지"로 오인해 Gemini 에 보내면 본문(벡터 텍스트)을 못 읽는다 → 기본은 PDF-slice(실제 페이지 전송, Gemini 가 풀 렌더).
     // 진짜 이미지 PDF 라서 image-slice 가 필요하면 EXTRACT_USE_IMAGE_SLICE=1 로 켠다.
-    const allJpegs =
-      process.env.EXTRACT_USE_IMAGE_SLICE === '1'
+    // 인투벳(forceRenderedPageImages): 페이지를 통째 렌더한 JPEG 를 image-slice 로 태운다 →
+    // 헤더 텍스트+이미지 박스가 한 장에 담겨 [S]/[O]/[A]/[PL] 전부 전사(텍스트레이어 스킵 문제 해소).
+    const allJpegs = forceRenderedPageImages
+      ? await renderPdfPagesToJpegs(params.pdfBuffer, 1, pageCount).catch((e) => {
+          console.error('[Gemini ordered-lines] page-image render 실패 (PDF-slice 로 폴백):', e instanceof Error ? e.message : String(e));
+          return null;
+        })
+      : process.env.EXTRACT_USE_IMAGE_SLICE === '1'
         ? await extractPageJpegsFromImagePdf(params.pdfBuffer, 1, pageCount).catch(() => null)
         : null;
+    // 렌더한 페이지 이미지 모드에서만 "보이는 글자만 전사(사진 해석 금지)" 프롬프트를 쓴다.
+    const transcribeVisibleTextOnly = forceRenderedPageImages && allJpegs !== null;
     if (allJpegs) {
-      console.log(`[Gemini ordered-lines] image-slice mode: ${allJpegs.length} JPEGs extracted`);
+      console.log(
+        `[Gemini ordered-lines] image-slice mode: ${allJpegs.length} JPEGs (${forceRenderedPageImages ? 'rendered pages' : 'embedded'})`,
+      );
     } else {
       console.log(`[Gemini ordered-lines] pdf-slice mode (실제 PDF 페이지를 Gemini 에 전송)`);
     }
@@ -1066,14 +1101,14 @@ async function extractOrderedLinesFromPdfWithGemini(params: {
 
       if (allJpegs) {
         const images = allJpegs.slice(start - 1, end);
-        const batchLines = await extractOrderedLinesFromGeminiImageSlice({ client, model, images });
+        const batchLines = await extractOrderedLinesFromGeminiImageSlice({ client, model, images, transcribeVisibleTextOnly });
 
         if (batchLines.length === 0 && images.length > 1) {
           console.log(`[Gemini ordered-lines] batch p${start}-${end} empty, retrying page-by-page`);
           for (let p = start; p <= end; p++) {
             const img = allJpegs[p - 1];
             if (!img || img.length < 10_000) continue;
-            const pageLines = await extractOrderedLinesFromGeminiImageSlice({ client, model, images: [img] });
+            const pageLines = await extractOrderedLinesFromGeminiImageSlice({ client, model, images: [img], transcribeVisibleTextOnly });
             pageLines.forEach((line, seq) => {
               const t = line.text?.trim();
               if (!t) return;

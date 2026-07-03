@@ -12,7 +12,9 @@ const nextConfig: NextConfig = {
   },
   transpilePackages: ['@dashboard/lab-normalize', '@dashboard/health-report'],
   allowedDevOrigins: ['*.ngrok-free.app', '*.ngrok-free.dev', '*.ngrok.io', '*.ngrok.app'],
-  serverExternalPackages: ['@sparticuz/chromium', 'playwright-core'],
+  // @napi-rs/canvas(네이티브 .node)·pdfjs-dist(대형 ESM)는 번들하지 말고 node_modules 에서 런타임 로드.
+  // (인투벳 페이지 렌더 → lib/pdf-render-pages.ts)
+  serverExternalPackages: ['@sparticuz/chromium', 'playwright-core', '@napi-rs/canvas', 'pdfjs-dist'],
   // bin/chromium.br is 64 MB — Vercel Hobby (50 MB/fn limit) will silently drop it.
   // We fall back to a GitHub Releases URL download in playwright-browser.ts.
   // On Pro (250 MB limit) the binary would fit, so keep the tracing include so it

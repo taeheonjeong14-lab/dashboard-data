@@ -3439,6 +3439,8 @@ export async function POST(request: NextRequest) {
             pdfBuffer: binary,
             filename: sourceFileName || "report.pdf",
             usageContext: { hospitalId, feature: "extract", operationId: extractOperationId },
+            // intovet: 진료 본문 이미지 박스를 못 읽는 문제 → 페이지를 렌더한 이미지로 전사(report-llm 내부 분기).
+            chartKind: chartType,
           }),
       ocrConfigured
         ? runGoogleVisionOcr(binary, sourceFileType, { hospitalId, feature: "ocr", operationId: extractOperationId }).catch((ocrErr) => {
