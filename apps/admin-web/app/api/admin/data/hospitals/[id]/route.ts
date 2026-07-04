@@ -4,8 +4,19 @@ import { formatSupabaseError } from '@/lib/format-supabase-error';
 import { createServiceRoleClient } from '@/lib/supabase/service-role';
 import { fetchHospitalAdsColumns } from '@/lib/legacy/hospital-db';
 
-function buildKeywordText(rows: { keyword: string }[] | null | undefined) {
+type KeywordRow = { keyword: string; importance?: string | null };
+
+function buildKeywordText(rows: KeywordRow[] | null | undefined) {
   return (rows || []).map((r) => `${r.keyword}`).join('\n');
+}
+
+function normImportance(v: unknown): 'high' | 'medium' | 'low' {
+  const s = String(v ?? '').trim().toLowerCase();
+  return s === 'high' || s === 'low' ? s : 'medium';
+}
+
+function buildKeywordItems(rows: KeywordRow[] | null | undefined) {
+  return (rows || []).map((r) => ({ keyword: String(r.keyword || ''), importance: normImportance(r.importance) }));
 }
 
 export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
@@ -50,23 +61,26 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
       return NextResponse.json({ error: 'Not found' }, { status: 404 });
     }
 
-    const [bt, pt] = await Promise.all([
-      supabase
-        .schema('analytics')
-        .from('analytics_blog_keyword_targets')
+    // importance 컬럼이 아직 없을 수 있어(마이그레이션 전) keyword-only 로 폴백.
+    async function fetchTargets(table: string) {
+      const withImp = await supabase
+        .schema('analytics').from(table)
+        .select('keyword, importance')
+        .eq('hospital_id', hospitalId).eq('is_active', true);
+      if (!withImp.error) return withImp.data as KeywordRow[];
+      const base = await supabase
+        .schema('analytics').from(table)
         .select('keyword')
-        .eq('hospital_id', hospitalId)
-        .eq('is_active', true),
-      supabase
-        .schema('analytics')
-        .from('analytics_place_keyword_targets')
-        .select('keyword')
-        .eq('hospital_id', hospitalId)
-        .eq('is_active', true),
+        .eq('hospital_id', hospitalId).eq('is_active', true);
+      if (base.error) throw base.error;
+      return base.data as KeywordRow[];
+    }
+    const [btData, ptData] = await Promise.all([
+      fetchTargets('analytics_blog_keyword_targets'),
+      fetchTargets('analytics_place_keyword_targets'),
     ]);
-
-    if (bt.error) throw bt.error;
-    if (pt.error) throw pt.error;
+    const bt = { data: btData };
+    const pt = { data: ptData };
 
     const ads = await fetchHospitalAdsColumns(supabase, hospitalId);
 
@@ -136,6 +150,8 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
       debug_port: row.debug_port == null ? '' : String(row.debug_port),
       blog_keywords_text: buildKeywordText(bt.data || []),
       place_keywords_text: buildKeywordText(pt.data || []),
+      blog_keyword_items: buildKeywordItems(bt.data || []),
+      place_keyword_items: buildKeywordItems(pt.data || []),
       searchad_customer_id:
         ads.searchad_customer_id != null ? String(ads.searchad_customer_id || '') : '',
       searchad_api_license:

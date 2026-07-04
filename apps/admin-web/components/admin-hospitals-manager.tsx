@@ -17,8 +17,31 @@ type KeywordVolumeView = {
   yearMonth: string;
   checkedAt: string;
 };
+// 키워드 중요도(High/Medium/Low).
+type KeywordImportance = 'high' | 'medium' | 'low';
+type KeywordItem = { keyword: string; importance: KeywordImportance };
+const IMPORTANCE_OPTIONS: { value: KeywordImportance; label: string; color: string }[] = [
+  { value: 'high', label: '상', color: '#b91c1c' },
+  { value: 'medium', label: '중', color: '#b45309' },
+  { value: 'low', label: '하', color: '#15803d' },
+];
+const normImportance = (v: unknown): KeywordImportance => {
+  const s = String(v ?? '').trim().toLowerCase();
+  return s === 'high' || s === 'low' ? s : 'medium';
+};
+
 // 서버(normalizeKeyword)와 동일: 키워드 내부 공백 제거.
 const normalizeKw = (s: string) => String(s ?? '').replace(/\s+/g, '').trim();
+// 조회 시각(checked_at ISO) → KST 'YYYY.MM.DD HH:mm'.
+const fmtChecked = (iso?: string) => {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  return d.toLocaleString('ko-KR', {
+    timeZone: 'Asia/Seoul',
+    year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit',
+  });
+};
 
 const railDivider = '1px solid var(--admin-divider, rgba(15, 23, 42, 0.1))';
 
@@ -58,8 +81,8 @@ const EMPTY_FORM = {
   smartplace_stat_url: '',
   smartplace_review_url: '',
   debug_port: '',
-  blog_keywords: [] as string[],
-  place_keywords: [] as string[],
+  blog_keywords: [] as KeywordItem[],
+  place_keywords: [] as KeywordItem[],
   wish_keywords: [] as string[],
   wish_competitors: [] as string[],
   naver_login_id: '',
@@ -292,6 +315,18 @@ function AssetDropzone({
   );
 }
 
+// 네이버 로고 마크(초록 라운드 사각형 + 흰 N). 외부 이미지 없이 인라인 SVG.
+function NaverMark({ size = 13 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true" style={{ flexShrink: 0, display: 'block' }}>
+      <rect width="24" height="24" rx="6" fill="#03C75A" />
+      <g transform="translate(4 4) scale(0.667)">
+        <path fill="#fff" d="M16.273 12.845 7.376 0H0v24h7.726V11.156L16.624 24H24V0h-7.727z" />
+      </g>
+    </svg>
+  );
+}
+
 // 검색량 배지: DB에 저장된 최신 월 검색량(PC+모바일 합계) 표시.
 function VolumeBadge({ vol }: { vol?: KeywordVolumeView }) {
   if (!vol) {
@@ -300,26 +335,40 @@ function VolumeBadge({ vol }: { vol?: KeywordVolumeView }) {
   const text = vol.under10 ? '10 미만' : vol.totalCount.toLocaleString();
   return (
     <span
-      title={`PC ${vol.pcCount.toLocaleString()} · 모바일 ${vol.mobileCount.toLocaleString()} · ${vol.yearMonth} 기준`}
-      style={{ flexShrink: 0, fontSize: 11.5, fontWeight: 700, color: 'var(--accent)', whiteSpace: 'nowrap', minWidth: 64, textAlign: 'right' }}
+      title={`네이버 월간 검색량 · PC ${vol.pcCount.toLocaleString()} · 모바일 ${vol.mobileCount.toLocaleString()} · ${vol.yearMonth} 기준 · 갱신 ${fmtChecked(vol.checkedAt)}`}
+      style={{ flexShrink: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'flex-end', gap: 4, fontSize: 11.5, fontWeight: 700, color: 'var(--text)', whiteSpace: 'nowrap', minWidth: 64 }}
     >
-      🔍 {text}
+      <NaverMark />
+      {text}
     </span>
   );
 }
 
-function KeywordList({ value, onChange, volumes }: { value: string[]; onChange: (next: string[]) => void; volumes?: Record<string, KeywordVolumeView> }) {
+function KeywordList({ value, onChange, volumes }: { value: KeywordItem[]; onChange: (next: KeywordItem[]) => void; volumes?: Record<string, KeywordVolumeView> }) {
+  const update = (i: number, patch: Partial<KeywordItem>) => {
+    const next = [...value];
+    next[i] = { ...next[i], ...patch };
+    onChange(next);
+  };
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-      {value.map((kw, i) => (
+      {value.map((item, i) => (
         <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <input
-            value={kw}
-            onChange={(e) => { const next = [...value]; next[i] = e.target.value; onChange(next); }}
+            value={item.keyword}
+            onChange={(e) => update(i, { keyword: e.target.value })}
             style={{ ...fieldStyle, flex: 1 }}
             placeholder="키워드 입력"
           />
-          <VolumeBadge vol={volumes?.[normalizeKw(kw)]} />
+          <select
+            value={item.importance}
+            onChange={(e) => update(i, { importance: e.target.value as KeywordImportance })}
+            title="중요도"
+            style={{ ...fieldStyle, flexShrink: 0, width: 60, padding: '4px 6px', fontWeight: 700, color: IMPORTANCE_OPTIONS.find((o) => o.value === item.importance)?.color }}
+          >
+            {IMPORTANCE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </select>
+          <VolumeBadge vol={volumes?.[normalizeKw(item.keyword)]} />
           <button
             type="button"
             onClick={() => onChange(value.filter((_, j) => j !== i))}
@@ -331,7 +380,7 @@ function KeywordList({ value, onChange, volumes }: { value: string[]; onChange: 
       ))}
       <button
         type="button"
-        onClick={() => onChange([...value, ''])}
+        onClick={() => onChange([...value, { keyword: '', importance: 'medium' }])}
         style={{ alignSelf: 'flex-start', marginTop: 2, padding: '3px 10px', fontSize: 11, color: 'var(--text-secondary)', background: 'transparent', border: '1px solid rgba(15,23,42,0.2)', borderRadius: 4, cursor: 'pointer' }}
       >
         + 행 추가
@@ -354,6 +403,12 @@ export default function AdminHospitalsManager() {
   const [keywordVolumes, setKeywordVolumes] = useState<Record<string, KeywordVolumeView>>({});
   const [volumeBusy, setVolumeBusy] = useState(false);
   const [volumeMsg, setVolumeMsg] = useState('');
+
+  // 로드된 키워드 검색량 중 가장 최근 갱신 시각(전체 키워드가 대체로 같은 배치에 갱신됨).
+  const lastVolumeChecked = useMemo(() => {
+    const times = Object.values(keywordVolumes).map((v) => v.checkedAt).filter(Boolean);
+    return times.length ? times.reduce((a, b) => (a > b ? a : b)) : '';
+  }, [keywordVolumes]);
 
   const filteredHospitals = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -395,10 +450,17 @@ export default function AdminHospitalsManager() {
       setSelectedId(id);
       setSelectedBalance(Number(data.tokenBalance) || 0);
       const apiForm = (data.form || {}) as Record<string, unknown>;
-      const toKeywordArray = (text: unknown) =>
-        String(text || '').split('\n').map((s) => s.trim()).filter(Boolean);
-      const placeKw = toKeywordArray(apiForm.place_keywords_text);
-      const blogKw = toKeywordArray(apiForm.blog_keywords_text);
+      // 구조화 items(중요도 포함) 우선. 없으면 개행 텍스트에서 medium 기본으로 구성.
+      const toKeywordItems = (items: unknown, text: unknown): KeywordItem[] => {
+        if (Array.isArray(items)) {
+          return items
+            .map((it) => ({ keyword: String((it as KeywordItem)?.keyword || '').trim(), importance: normImportance((it as KeywordItem)?.importance) }))
+            .filter((it) => it.keyword);
+        }
+        return String(text || '').split('\n').map((s) => s.trim()).filter(Boolean).map((k) => ({ keyword: k, importance: 'medium' as KeywordImportance }));
+      };
+      const placeKw = toKeywordItems(apiForm.place_keyword_items, apiForm.place_keywords_text);
+      const blogKw = toKeywordItems(apiForm.blog_keyword_items, apiForm.blog_keywords_text);
       setForm({
         ...EMPTY_FORM,
         ...(apiForm as Partial<typeof EMPTY_FORM>),
@@ -406,7 +468,7 @@ export default function AdminHospitalsManager() {
         place_keywords: placeKw,
         competitors: normalizeCompetitors(apiForm.competitors),
       });
-      void loadKeywordVolumes([...placeKw, ...blogKw]);
+      void loadKeywordVolumes([...placeKw, ...blogKw].map((it) => it.keyword));
     } catch (e) {
       setMessage(`상세 조회 실패: ${formatSupabaseError(e)}`);
     } finally {
@@ -435,7 +497,7 @@ export default function AdminHospitalsManager() {
 
   // '지금 갱신': 현재 폼의 플레이스·블로그 키워드를 네이버로 즉시 조회 후 이번 달 저장.
   async function refreshKeywordVolumes() {
-    const keywords = [...form.place_keywords, ...form.blog_keywords].map(normalizeKw).filter(Boolean);
+    const keywords = [...form.place_keywords, ...form.blog_keywords].map((it) => normalizeKw(it.keyword)).filter(Boolean);
     if (keywords.length === 0 || volumeBusy) return;
     setVolumeBusy(true);
     setVolumeMsg('');
@@ -448,7 +510,8 @@ export default function AdminHospitalsManager() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || '갱신 실패');
       setKeywordVolumes((data.volumes || {}) as Record<string, KeywordVolumeView>);
-      setVolumeMsg(`${data.updated ?? 0}개 갱신 완료 (${data.month} · ${data.account})`);
+      const failedNote = data.failed ? ` · 실패 ${data.failed}개(잠시 후 다시 시도)` : '';
+      setVolumeMsg(`${data.updated ?? 0}개 갱신 완료 (${data.month} · ${data.account})${failedNote}`);
     } catch (e) {
       setVolumeMsg(`갱신 실패: ${formatSupabaseError(e)}`);
     } finally {
@@ -473,8 +536,11 @@ export default function AdminHospitalsManager() {
           editingId: selectedId,
           hospitalForm: {
             ...form,
-            blog_keywords_text: form.blog_keywords.filter(Boolean).join('\n'),
-            place_keywords_text: form.place_keywords.filter(Boolean).join('\n'),
+            // 중요도 포함 구조화 전송. _text 는 하위호환용으로 함께.
+            blog_keyword_items: form.blog_keywords.filter((it) => it.keyword.trim()),
+            place_keyword_items: form.place_keywords.filter((it) => it.keyword.trim()),
+            blog_keywords_text: form.blog_keywords.map((it) => it.keyword).filter(Boolean).join('\n'),
+            place_keywords_text: form.place_keywords.map((it) => it.keyword).filter(Boolean).join('\n'),
           },
         }),
       });
@@ -812,8 +878,9 @@ export default function AdminHospitalsManager() {
               </div>
             )}
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10, flexWrap: 'wrap' }}>
-              <div style={{ fontSize: 11.5, color: 'var(--text-muted)', flex: 1, minWidth: 200 }}>
-                🔍 = 네이버 월간 검색량(PC+모바일). 매월 1일 자동 갱신되며 아래 버튼으로 즉시 갱신할 수 있습니다.
+              <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11.5, color: 'var(--text-secondary)', flex: 1, minWidth: 200 }}>
+                <NaverMark size={13} />
+                {lastVolumeChecked ? `마지막 갱신: ${fmtChecked(lastVolumeChecked)}` : '아직 갱신 이력 없음'}
               </div>
               <button
                 type="button"

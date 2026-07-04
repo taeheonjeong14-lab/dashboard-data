@@ -4,12 +4,34 @@ import { formatSupabaseError } from '@/lib/format-supabase-error';
 import { createServiceRoleClient } from '@/lib/supabase/service-role';
 import { upsertHospitalWithCompat } from '@/lib/legacy/hospital-db';
 
-function parseKeywordLines(text: string) {
-  return String(text || '')
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .map((line) => ({ keyword: line }));
+type Importance = 'high' | 'medium' | 'low';
+type KeywordItem = { keyword: string; importance?: string };
+
+function normImportance(v: unknown): Importance {
+  const s = String(v ?? '').trim().toLowerCase();
+  return s === 'high' || s === 'low' ? s : 'medium';
+}
+
+// importance 컬럼 미존재(마이그레이션 전) 판별.
+function isMissingImportance(err: { message?: string; code?: string } | null): boolean {
+  const msg = String(err?.message || '').toLowerCase();
+  return msg.includes('importance') || err?.code === 'PGRST204';
+}
+
+// 구조화 items(중요도 포함) 우선, 없으면 개행 텍스트(하위호환, 중요도 medium).
+// keyword 중복 제거(먼저 온 항목 유지).
+function resolveKeywordItems(items: KeywordItem[] | undefined, text: string | undefined): { keyword: string; importance: Importance }[] {
+  const raw = Array.isArray(items) && items.length > 0
+    ? items.map((it) => ({ keyword: String(it.keyword || '').trim(), importance: normImportance(it.importance) }))
+    : String(text || '').split(/\r?\n/).map((line) => ({ keyword: line.trim(), importance: 'medium' as Importance }));
+  const seen = new Set<string>();
+  const out: { keyword: string; importance: Importance }[] = [];
+  for (const it of raw) {
+    if (!it.keyword || seen.has(it.keyword)) continue;
+    seen.add(it.keyword);
+    out.push(it);
+  }
+  return out;
 }
 
 function createHospitalId() {
@@ -50,6 +72,9 @@ type FormBody = {
     naver_login_pw?: string;
     blog_keywords_text?: string;
     place_keywords_text?: string;
+    // 중요도 포함 구조화 입력(우선). 없으면 _text(하위호환)로 폴백.
+    blog_keyword_items?: KeywordItem[];
+    place_keyword_items?: KeywordItem[];
     searchad_customer_id?: string;
     searchad_api_license?: string;
     searchad_secret_key_encrypted?: string;
@@ -175,20 +200,24 @@ export async function POST(request: Request) {
       .eq('hospital_id', resolvedHospitalId);
     if (blogDeactivateErr) throw blogDeactivateErr;
 
-    const blogKeywords = parseKeywordLines(hospitalForm.blog_keywords_text || '');
+    const blogKeywords = resolveKeywordItems(hospitalForm.blog_keyword_items, hospitalForm.blog_keywords_text);
     if (blogKeywords.length > 0) {
-      const { error: btErr } = await supabase
-        .schema('analytics')
-        .from('analytics_blog_keyword_targets')
-        .insert(
-          blogKeywords.map((item) => ({
-            hospital_id: resolvedHospitalId,
-            account_id: (hospitalForm.naver_blog_id || '').trim(),
-            keyword: item.keyword,
-            is_active: true,
-            source: 'admin-web',
-          })),
-        );
+      const rowsWithImp = blogKeywords.map((item) => ({
+        hospital_id: resolvedHospitalId,
+        account_id: (hospitalForm.naver_blog_id || '').trim(),
+        keyword: item.keyword,
+        importance: item.importance,
+        is_active: true,
+        source: 'admin-web',
+      }));
+      let { error: btErr } = await supabase.schema('analytics').from('analytics_blog_keyword_targets').insert(rowsWithImp);
+      if (btErr && isMissingImportance(btErr)) {
+        // 마이그레이션 전: importance 없이 재삽입(키워드 손실 방지).
+        ({ error: btErr } = await supabase
+          .schema('analytics')
+          .from('analytics_blog_keyword_targets')
+          .insert(rowsWithImp.map(({ importance: _i, ...r }) => r)));
+      }
       if (btErr) throw btErr;
     }
 
@@ -199,19 +228,22 @@ export async function POST(request: Request) {
       .eq('hospital_id', resolvedHospitalId);
     if (placeDeactivateErr) throw placeDeactivateErr;
 
-    const placeKeywords = parseKeywordLines(hospitalForm.place_keywords_text || '');
+    const placeKeywords = resolveKeywordItems(hospitalForm.place_keyword_items, hospitalForm.place_keywords_text);
     if (placeKeywords.length > 0) {
-      const { error: ptErr } = await supabase
-        .schema('analytics')
-        .from('analytics_place_keyword_targets')
-        .insert(
-          placeKeywords.map((item) => ({
-            hospital_id: resolvedHospitalId,
-            keyword: item.keyword,
-            is_active: true,
-            source: 'admin-web',
-          })),
-        );
+      const rowsWithImp = placeKeywords.map((item) => ({
+        hospital_id: resolvedHospitalId,
+        keyword: item.keyword,
+        importance: item.importance,
+        is_active: true,
+        source: 'admin-web',
+      }));
+      let { error: ptErr } = await supabase.schema('analytics').from('analytics_place_keyword_targets').insert(rowsWithImp);
+      if (ptErr && isMissingImportance(ptErr)) {
+        ({ error: ptErr } = await supabase
+          .schema('analytics')
+          .from('analytics_place_keyword_targets')
+          .insert(rowsWithImp.map(({ importance: _i, ...r }) => r)));
+      }
       if (ptErr) throw ptErr;
     }
 
