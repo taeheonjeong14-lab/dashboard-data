@@ -6,6 +6,20 @@ import { HospitalKakaoSection } from '@/components/admin-hospital-kakao';
 
 type HospitalListRow = { id: string; name?: string; address?: string; addressDetail?: string; address_detail?: string };
 
+// 네이버 검색량(키워드 탭 배지). 서버 StoredVolume 과 동일 형태.
+type KeywordVolumeView = {
+  keyword: string;
+  pcCount: number;
+  mobileCount: number;
+  totalCount: number;
+  compIdx: string;
+  under10: boolean;
+  yearMonth: string;
+  checkedAt: string;
+};
+// 서버(normalizeKeyword)와 동일: 키워드 내부 공백 제거.
+const normalizeKw = (s: string) => String(s ?? '').replace(/\s+/g, '').trim();
+
 const railDivider = '1px solid var(--admin-divider, rgba(15, 23, 42, 0.1))';
 
 /** 검색창·하단 버튼 아래 남는 영역만 목록에 할당 (넘치면 이 박스 안만 스크롤) */
@@ -278,7 +292,23 @@ function AssetDropzone({
   );
 }
 
-function KeywordList({ value, onChange }: { value: string[]; onChange: (next: string[]) => void }) {
+// 검색량 배지: DB에 저장된 최신 월 검색량(PC+모바일 합계) 표시.
+function VolumeBadge({ vol }: { vol?: KeywordVolumeView }) {
+  if (!vol) {
+    return <span style={{ flexShrink: 0, fontSize: 11, color: 'var(--text-muted)', whiteSpace: 'nowrap', minWidth: 64, textAlign: 'right' }}>—</span>;
+  }
+  const text = vol.under10 ? '10 미만' : vol.totalCount.toLocaleString();
+  return (
+    <span
+      title={`PC ${vol.pcCount.toLocaleString()} · 모바일 ${vol.mobileCount.toLocaleString()} · ${vol.yearMonth} 기준`}
+      style={{ flexShrink: 0, fontSize: 11.5, fontWeight: 700, color: 'var(--accent)', whiteSpace: 'nowrap', minWidth: 64, textAlign: 'right' }}
+    >
+      🔍 {text}
+    </span>
+  );
+}
+
+function KeywordList({ value, onChange, volumes }: { value: string[]; onChange: (next: string[]) => void; volumes?: Record<string, KeywordVolumeView> }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
       {value.map((kw, i) => (
@@ -289,6 +319,7 @@ function KeywordList({ value, onChange }: { value: string[]; onChange: (next: st
             style={{ ...fieldStyle, flex: 1 }}
             placeholder="키워드 입력"
           />
+          <VolumeBadge vol={volumes?.[normalizeKw(kw)]} />
           <button
             type="button"
             onClick={() => onChange(value.filter((_, j) => j !== i))}
@@ -319,6 +350,10 @@ export default function AdminHospitalsManager() {
   const [form, setForm] = useState(EMPTY_FORM);
   // 선택된 탭만 표시. 저장은 어느 탭에서나 전체 폼 저장.
   const [activeTab, setActiveTab] = useState<SectionKey>('identity');
+  // 키워드 탭: 정규화 키워드 → 검색량. 로드/수동 갱신 상태.
+  const [keywordVolumes, setKeywordVolumes] = useState<Record<string, KeywordVolumeView>>({});
+  const [volumeBusy, setVolumeBusy] = useState(false);
+  const [volumeMsg, setVolumeMsg] = useState('');
 
   const filteredHospitals = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -362,17 +397,62 @@ export default function AdminHospitalsManager() {
       const apiForm = (data.form || {}) as Record<string, unknown>;
       const toKeywordArray = (text: unknown) =>
         String(text || '').split('\n').map((s) => s.trim()).filter(Boolean);
+      const placeKw = toKeywordArray(apiForm.place_keywords_text);
+      const blogKw = toKeywordArray(apiForm.blog_keywords_text);
       setForm({
         ...EMPTY_FORM,
         ...(apiForm as Partial<typeof EMPTY_FORM>),
-        blog_keywords: toKeywordArray(apiForm.blog_keywords_text),
-        place_keywords: toKeywordArray(apiForm.place_keywords_text),
+        blog_keywords: blogKw,
+        place_keywords: placeKw,
         competitors: normalizeCompetitors(apiForm.competitors),
       });
+      void loadKeywordVolumes([...placeKw, ...blogKw]);
     } catch (e) {
       setMessage(`상세 조회 실패: ${formatSupabaseError(e)}`);
     } finally {
       setLoading(false);
+    }
+  }
+
+  // 저장된 최신 월 검색량 조회(네이버 호출 없음).
+  async function loadKeywordVolumes(keywords: string[]) {
+    setVolumeMsg('');
+    const list = keywords.map(normalizeKw).filter(Boolean);
+    if (list.length === 0) {
+      setKeywordVolumes({});
+      return;
+    }
+    try {
+      const res = await fetch(`/api/admin/naver-keyword/volumes?keywords=${encodeURIComponent(list.join(','))}`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || '검색량 조회 실패');
+      setKeywordVolumes((data.volumes || {}) as Record<string, KeywordVolumeView>);
+    } catch {
+      // 배지 조회 실패는 조용히 무시(입력·저장에 영향 없음).
+      setKeywordVolumes({});
+    }
+  }
+
+  // '지금 갱신': 현재 폼의 플레이스·블로그 키워드를 네이버로 즉시 조회 후 이번 달 저장.
+  async function refreshKeywordVolumes() {
+    const keywords = [...form.place_keywords, ...form.blog_keywords].map(normalizeKw).filter(Boolean);
+    if (keywords.length === 0 || volumeBusy) return;
+    setVolumeBusy(true);
+    setVolumeMsg('');
+    try {
+      const res = await fetch('/api/admin/naver-keyword/volumes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ keywords }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || '갱신 실패');
+      setKeywordVolumes((data.volumes || {}) as Record<string, KeywordVolumeView>);
+      setVolumeMsg(`${data.updated ?? 0}개 갱신 완료 (${data.month} · ${data.account})`);
+    } catch (e) {
+      setVolumeMsg(`갱신 실패: ${formatSupabaseError(e)}`);
+    } finally {
+      setVolumeBusy(false);
     }
   }
 
@@ -731,12 +811,28 @@ export default function AdminHospitalsManager() {
                 <b style={{ color: 'var(--accent)' }}>마스터 희망 키워드</b>: {form.wish_keywords.join(', ')}
               </div>
             )}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10, flexWrap: 'wrap' }}>
+              <div style={{ fontSize: 11.5, color: 'var(--text-muted)', flex: 1, minWidth: 200 }}>
+                🔍 = 네이버 월간 검색량(PC+모바일). 매월 1일 자동 갱신되며 아래 버튼으로 즉시 갱신할 수 있습니다.
+              </div>
+              <button
+                type="button"
+                onClick={() => void refreshKeywordVolumes()}
+                disabled={volumeBusy}
+                style={{ flexShrink: 0, padding: '7px 14px', fontSize: 12.5, fontWeight: 700, borderRadius: 6, border: 'none', cursor: volumeBusy ? 'default' : 'pointer', background: volumeBusy ? 'var(--text-muted)' : 'var(--accent)', color: '#fff' }}
+              >
+                {volumeBusy ? '검색량 갱신 중…' : '검색량 지금 갱신'}
+              </button>
+            </div>
+            {volumeMsg && (
+              <div style={{ marginBottom: 10, fontSize: 12, color: 'var(--text-secondary)' }}>{volumeMsg}</div>
+            )}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, alignItems: 'start' }}>
               <DataCard title="플레이스 키워드" desc="플레이스 검색 순위 모니터링 대상 키워드">
-                <KeywordList value={form.place_keywords} onChange={(v) => setForm((f) => ({ ...f, place_keywords: v }))} />
+                <KeywordList value={form.place_keywords} onChange={(v) => setForm((f) => ({ ...f, place_keywords: v }))} volumes={keywordVolumes} />
               </DataCard>
               <DataCard title="블로그 키워드" desc="블로그 검색 순위 모니터링 대상 키워드">
-                <KeywordList value={form.blog_keywords} onChange={(v) => setForm((f) => ({ ...f, blog_keywords: v }))} />
+                <KeywordList value={form.blog_keywords} onChange={(v) => setForm((f) => ({ ...f, blog_keywords: v }))} volumes={keywordVolumes} />
               </DataCard>
             </div>
           </TabPanel>
