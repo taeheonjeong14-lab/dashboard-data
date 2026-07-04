@@ -106,6 +106,8 @@ export default function AdminNaverKeyword() {
               fontSize: 13,
               resize: 'vertical',
               boxSizing: 'border-box',
+              background: '#fff',
+              color: '#111',
             }}
             disabled={loading}
           />
@@ -151,7 +153,7 @@ export default function AdminNaverKeyword() {
                   value={filter}
                   onChange={(e) => setFilter(e.target.value)}
                   placeholder="결과 내 키워드 필터"
-                  style={{ flex: 1, minWidth: 180, padding: '8px 12px', border: '1px solid var(--border-strong)', borderRadius: 8, outline: 'none', font: 'inherit', fontSize: 13 }}
+                  style={{ flex: 1, minWidth: 180, padding: '8px 12px', border: '1px solid var(--border-strong)', borderRadius: 8, outline: 'none', font: 'inherit', fontSize: 13, background: '#fff', color: '#111' }}
                 />
                 <span style={{ fontSize: 11.5, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
                   {rows.length} / {data?.count}개 · 조회 계정 {data?.account}
