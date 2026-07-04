@@ -98,41 +98,81 @@ export type KeywordVolume = {
   under10: boolean;
 };
 
+export type FetchVolumesResult = {
+  volumes: Map<string, KeywordVolume>; // 정규화 키워드 → 검색량
+  failed: string[]; // 재시도 후에도 조회 실패한 키워드
+};
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+// 재시도 지수 백오프: 2s, 4s, 8s … (최대 30s).
+const backoffMs = (attempt: number) => Math.min(30_000, 1_000 * 2 ** attempt);
+
 /**
  * 요청한 키워드들의 검색량만 반환(연관 키워드는 무시).
- * 중복 제거 후 5개씩 묶어 호출하며 429 완화를 위해 청크 사이에 딜레이.
- * 반환: 정규화 키워드 → 검색량 Map.
+ * 중복 제거 후 5개씩 묶어 호출. 대량(수백~천 개)에서도 견디도록:
+ *  - 429·일시오류(5xx·네트워크)는 지수 백오프 재시도
+ *  - 끝내 실패한 청크는 건너뛰고 계속(전체 중단 안 함), failed 로 리포트
+ *  - onBatch 로 청크마다 즉시 저장 가능(진행분 보존)
  */
 export async function fetchKeywordVolumes(
   keywords: string[],
   creds: KeywordToolCreds,
-  opts: { delayMs?: number } = {},
-): Promise<Map<string, KeywordVolume>> {
+  opts: {
+    delayMs?: number;
+    maxRetries?: number;
+    onBatch?: (batch: KeywordVolume[]) => Promise<void> | void;
+  } = {},
+): Promise<FetchVolumesResult> {
   const uniq = [...new Set(keywords.map(normalizeKeyword).filter(Boolean))];
   const out = new Map<string, KeywordVolume>();
-  const delay = opts.delayMs ?? 300;
+  const failed: string[] = [];
+  const delay = opts.delayMs ?? 500;
+  const maxRetries = opts.maxRetries ?? 3;
 
   for (let i = 0; i < uniq.length; i += 5) {
     const chunk = uniq.slice(i, i + 5);
-    const list = await callKeywordTool(chunk, creds);
-    const want = new Set(chunk.map((c) => c.toUpperCase()));
-    for (const k of list) {
-      const kw = normalizeKeyword(String(k.relKeyword ?? ''));
-      if (!kw || !want.has(kw.toUpperCase())) continue; // 요청한 키워드만
-      const pc = parseCount(k.monthlyPcQcCnt);
-      const mobile = parseCount(k.monthlyMobileQcCnt);
-      out.set(kw, {
-        keyword: kw,
-        pcCount: pc.num,
-        mobileCount: mobile.num,
-        totalCount: pc.num + mobile.num,
-        compIdx: String(k.compIdx ?? '').trim(),
-        under10: pc.under10 || mobile.under10,
-      });
+
+    let list: Array<Record<string, unknown>> | null = null;
+    for (let attempt = 0; attempt <= maxRetries; attempt += 1) {
+      try {
+        list = await callKeywordTool(chunk, creds);
+        break;
+      } catch (e) {
+        const status = e instanceof KeywordToolError ? e.status : 0;
+        const retryable = status === 429 || status === 0 || status >= 500;
+        if (!retryable || attempt >= maxRetries) {
+          failed.push(...chunk);
+          break;
+        }
+        await sleep(backoffMs(attempt + 1));
+      }
     }
-    if (i + 5 < uniq.length) await new Promise((r) => setTimeout(r, delay));
+
+    if (list) {
+      const want = new Set(chunk.map((c) => c.toUpperCase()));
+      const batch: KeywordVolume[] = [];
+      for (const k of list) {
+        const kw = normalizeKeyword(String(k.relKeyword ?? ''));
+        if (!kw || !want.has(kw.toUpperCase())) continue; // 요청한 키워드만
+        const pc = parseCount(k.monthlyPcQcCnt);
+        const mobile = parseCount(k.monthlyMobileQcCnt);
+        const v: KeywordVolume = {
+          keyword: kw,
+          pcCount: pc.num,
+          mobileCount: mobile.num,
+          totalCount: pc.num + mobile.num,
+          compIdx: String(k.compIdx ?? '').trim(),
+          under10: pc.under10 || mobile.under10,
+        };
+        out.set(kw, v);
+        batch.push(v);
+      }
+      if (opts.onBatch && batch.length) await opts.onBatch(batch);
+    }
+
+    if (i + 5 < uniq.length) await sleep(delay);
   }
-  return out;
+  return { volumes: out, failed };
 }
 
 /** 'YYYY-MM' (KST 기준 현재 월). */

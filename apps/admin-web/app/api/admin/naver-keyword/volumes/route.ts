@@ -67,11 +67,19 @@ export async function POST(request: Request) {
 
   try {
     const month = currentYearMonth();
-    const fresh = await fetchKeywordVolumes(keywords, creds);
-    await upsertKeywordVolumes(fresh.values(), month);
+    // 청크마다 즉시 저장(진행분 보존). 429 등은 내부에서 재시도·건너뜀.
+    const { volumes, failed } = await fetchKeywordVolumes(keywords, creds, {
+      onBatch: async (batch) => { await upsertKeywordVolumes(batch, month); },
+    });
     // 저장된 최신값을 다시 읽어 StoredVolume(월·시각 포함) 형태로 반환.
     const map = await readLatestVolumes(keywords);
-    return NextResponse.json({ account: creds.label, month, updated: fresh.size, volumes: serialize(map) });
+    return NextResponse.json({
+      account: creds.label,
+      month,
+      updated: volumes.size,
+      failed: failed.length,
+      volumes: serialize(map),
+    });
   } catch (e) {
     if (e instanceof KeywordToolError) {
       return NextResponse.json({ error: e.message, detail: e.detail }, { status: 502 });

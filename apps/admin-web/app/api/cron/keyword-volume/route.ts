@@ -24,14 +24,13 @@ export async function GET(request: NextRequest) {
   if (!authorized(request)) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
 
   try {
-    const { rows } = await getAdminWebPgPool().query<{ place_keywords: string[] | null; blog_keywords: string[] | null }>(
-      `select place_keywords, blog_keywords from core.hospitals`,
+    // 키워드는 analytics 타깃 테이블에 저장됨(플레이스/블로그). 활성 키워드만 취합.
+    const { rows } = await getAdminWebPgPool().query<{ keyword: string }>(
+      `select keyword from analytics.analytics_place_keyword_targets where is_active
+       union
+       select keyword from analytics.analytics_blog_keyword_targets where is_active`,
     );
-    const all: string[] = [];
-    for (const r of rows) {
-      if (Array.isArray(r.place_keywords)) all.push(...r.place_keywords);
-      if (Array.isArray(r.blog_keywords)) all.push(...r.blog_keywords);
-    }
+    const all = rows.map((r) => r.keyword).filter(Boolean);
     if (all.length === 0) {
       return NextResponse.json({ ok: true, month: currentYearMonth(), keywords: 0, note: '수집할 키워드 없음' });
     }
@@ -41,11 +40,19 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: '검색광고 연동된 계정이 없습니다.' }, { status: 400 });
     }
 
-    const volumes = await fetchKeywordVolumes(all, creds);
     const month = currentYearMonth();
-    const saved = await upsertKeywordVolumes(volumes.values(), month);
+    // 청크마다 즉시 저장 → 중간에 일부 실패해도 진행분 보존.
+    const { volumes, failed } = await fetchKeywordVolumes(all, creds, {
+      onBatch: async (batch) => { await upsertKeywordVolumes(batch, month); },
+    });
 
-    return NextResponse.json({ ok: true, month, account: creds.label, keywords: saved });
+    return NextResponse.json({
+      ok: true,
+      month,
+      account: creds.label,
+      keywords: volumes.size,
+      failed: failed.length,
+    });
   } catch (e) {
     if (e instanceof KeywordToolError) {
       console.error('[cron/keyword-volume]', e.message, e.detail);
