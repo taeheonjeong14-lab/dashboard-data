@@ -48,6 +48,8 @@ export type HospitalManagementDayRow = {
 
 export type BlogRankSummaryRow = {
   keyword: string;
+  /** admin에서 지정한 키워드 중요도(상/중/하). 정렬 1순위. */
+  importance: KeywordImportance;
   blog_rank_tab: number | null;
   blog_rank_general: number | null;
   blog_rank_integrated: number | null;
@@ -84,6 +86,8 @@ export type BlogRankTrendPoint = {
 
 export type PlaceRankSummaryRow = {
   keyword: string;
+  /** admin에서 지정한 키워드 중요도(상/중/하). 정렬 1순위. */
+  importance: KeywordImportance;
   rank_value: number | null;
   /** 14일 전(폴백 적용) 대비 순위 변동. 1=상승(숫자↓), -1=하락, 0=동일/비교불가 */
   rank_value_trend: -1 | 0 | 1;
@@ -465,8 +469,72 @@ export async function fetchBlogPeriodKpis(hospitalId: string): Promise<BlogPerio
   });
 }
 
+// ── 키워드 정렬: admin 지정 중요도(상>중>하) → 실제 노출순위(높을수록 위) ──
+export type KeywordImportance = "high" | "medium" | "low";
+const IMPORTANCE_ORDER: Record<string, number> = { high: 0, medium: 1, low: 2 };
+function importanceRank(v: string | null | undefined): number {
+  const s = String(v ?? "").toLowerCase();
+  return IMPORTANCE_ORDER[s] ?? 1; // 미지정은 '중' 취급
+}
+function normalizeImportance(v: unknown): KeywordImportance {
+  const s = String(v ?? "").toLowerCase();
+  return s === "high" || s === "low" ? s : "medium";
+}
+
+/**
+ * 병원 키워드의 중요도 맵(keyword→상/중/하). 타깃 테이블에서 활성 키워드만.
+ * importance 컬럼이 없거나(마이그레이션 전) 조회 실패 시 빈 맵 → 전부 '중' 취급.
+ */
+async function fetchKeywordImportanceMap(
+  supabase: ReturnType<typeof createClient>,
+  table: "analytics_blog_keyword_targets" | "analytics_place_keyword_targets",
+  hospitalId: string,
+): Promise<Map<string, KeywordImportance>> {
+  const map = new Map<string, KeywordImportance>();
+  const { data, error } = await supabase
+    .schema("analytics")
+    .from(table)
+    .select("keyword, importance")
+    .eq("hospital_id", hospitalId)
+    .eq("is_active", true);
+  if (error || !data) return map;
+  for (const row of data as Record<string, unknown>[]) {
+    const kw = String(row.keyword ?? "").trim();
+    if (kw) map.set(kw, normalizeImportance(row.importance));
+  }
+  return map;
+}
+
+/** 블로그 노출순위 대표값 = 4개 탭 순위 중 최상위(최솟값). 없으면 Infinity(맨 뒤). */
+function blogBestRank(r: {
+  blog_rank_tab: number | null;
+  blog_rank_general: number | null;
+  blog_rank_integrated: number | null;
+  blog_rank_pet_popular: number | null;
+}): number {
+  const vals = [r.blog_rank_tab, r.blog_rank_general, r.blog_rank_integrated, r.blog_rank_pet_popular].filter(
+    (v): v is number => typeof v === "number",
+  );
+  return vals.length ? Math.min(...vals) : Number.POSITIVE_INFINITY;
+}
+
+/** 중요도(상>중>하) → 노출순위 오름차순(1위가 위, null 맨 뒤) → 키워드 가나다. */
+function compareByImportanceThenRank(
+  a: { importance: KeywordImportance; keyword: string },
+  aRank: number,
+  b: { importance: KeywordImportance; keyword: string },
+  bRank: number,
+): number {
+  const d = importanceRank(a.importance) - importanceRank(b.importance);
+  if (d !== 0) return d;
+  if (aRank !== bRank) return aRank - bRank;
+  return a.keyword.localeCompare(b.keyword, "ko");
+}
+
 export async function fetchSummaryBlogRanks(hospitalId: string): Promise<BlogRankSummaryRow[]> {
   const supabase = createClient();
+  const importanceMap = await fetchKeywordImportanceMap(supabase, "analytics_blog_keyword_targets", hospitalId);
+  const impOf = (keyword: string): KeywordImportance => importanceMap.get(keyword.trim()) ?? "medium";
   const rows = await fetchAllPages((from, to) =>
     supabase
       .schema("analytics")
@@ -544,26 +612,30 @@ export async function fetchSummaryBlogRanks(hospitalId: string): Promise<BlogRan
 
   if (stamped.length === 0) {
     return latestSnapshotRows(rows)
-      .map((row) => ({
-        keyword: asStringOrNull(row.keyword) ?? "-",
-        blog_rank_tab: asNumberOrNull(row.blog_rank_tab),
-        blog_rank_general: asNumberOrNull(row.blog_rank_general),
-        blog_rank_integrated: asNumberOrNull(row.blog_rank_integrated),
-        blog_rank_pet_popular: asNumberOrNull(row.blog_rank_pet_popular),
-        blog_rank_tab_trend: 0 as const,
-        blog_rank_general_trend: 0 as const,
-        blog_rank_integrated_trend: 0 as const,
-        blog_rank_pet_popular_trend: 0 as const,
-        blog_rank_tab_url: asStringOrNull(row.blog_rank_tab_url),
-        blog_rank_general_url: asStringOrNull(row.blog_rank_general_url),
-        blog_rank_integrated_url: asStringOrNull(row.blog_rank_integrated_url),
-        blog_rank_pet_popular_url:
-          asStringOrNull(row.blog_rank_popular_url) ??
-          asStringOrNull(row.blog_rank_pet_popular_url),
-        latestDateKey: null,
-        baselineDateKey: null,
-      }))
-      .sort((a, b) => a.keyword.localeCompare(b.keyword, "ko"));
+      .map((row) => {
+        const keyword = asStringOrNull(row.keyword) ?? "-";
+        return {
+          keyword,
+          importance: impOf(keyword),
+          blog_rank_tab: asNumberOrNull(row.blog_rank_tab),
+          blog_rank_general: asNumberOrNull(row.blog_rank_general),
+          blog_rank_integrated: asNumberOrNull(row.blog_rank_integrated),
+          blog_rank_pet_popular: asNumberOrNull(row.blog_rank_pet_popular),
+          blog_rank_tab_trend: 0 as const,
+          blog_rank_general_trend: 0 as const,
+          blog_rank_integrated_trend: 0 as const,
+          blog_rank_pet_popular_trend: 0 as const,
+          blog_rank_tab_url: asStringOrNull(row.blog_rank_tab_url),
+          blog_rank_general_url: asStringOrNull(row.blog_rank_general_url),
+          blog_rank_integrated_url: asStringOrNull(row.blog_rank_integrated_url),
+          blog_rank_pet_popular_url:
+            asStringOrNull(row.blog_rank_popular_url) ??
+            asStringOrNull(row.blog_rank_pet_popular_url),
+          latestDateKey: null,
+          baselineDateKey: null,
+        };
+      })
+      .sort((a, b) => compareByImportanceThenRank(a, blogBestRank(a), b, blogBestRank(b)));
   }
 
   const dateKeys = Array.from(new Set(stamped.map((item) => item.dateKey))).sort();
@@ -591,6 +663,7 @@ export async function fetchSummaryBlogRanks(hospitalId: string): Promise<BlogRan
       const previous = baselineByKeyword.get(current.keyword) ?? null;
       return {
         ...current,
+        importance: impOf(current.keyword),
         blog_rank_tab_trend: toTrend(current.blog_rank_tab, previous?.blog_rank_tab ?? null),
         blog_rank_general_trend: toTrend(
           current.blog_rank_general,
@@ -608,7 +681,7 @@ export async function fetchSummaryBlogRanks(hospitalId: string): Promise<BlogRan
         baselineDateKey,
       } as BlogRankSummaryRow;
     })
-    .sort((a, b) => a.keyword.localeCompare(b.keyword, "ko"));
+    .sort((a, b) => compareByImportanceThenRank(a, blogBestRank(a), b, blogBestRank(b)));
 }
 
 export async function fetchBlogKeywordRankTrend(
@@ -690,6 +763,8 @@ export async function fetchSummaryPlaceRanks(
   hospitalId: string
 ): Promise<PlaceRankSummaryRow[]> {
   const supabase = createClient();
+  const importanceMap = await fetchKeywordImportanceMap(supabase, "analytics_place_keyword_targets", hospitalId);
+  const impOf = (keyword: string): KeywordImportance => importanceMap.get(keyword.trim()) ?? "medium";
   const data = await fetchAllPages((from, to) =>
     supabase
       .schema("analytics")
@@ -712,14 +787,20 @@ export async function fetchSummaryPlaceRanks(
 
   if (stamped.length === 0) {
     return latestSnapshotRows(data)
-      .map((row) => ({
-        keyword: asStringOrNull(row.keyword) ?? "-",
-        rank_value: asNumberOrNull(row.rank_value),
-        rank_value_trend: 0 as const,
-        latestDateKey: null,
-        baselineDateKey: null,
-      }))
-      .sort((a, b) => a.keyword.localeCompare(b.keyword, "ko"));
+      .map((row) => {
+        const keyword = asStringOrNull(row.keyword) ?? "-";
+        return {
+          keyword,
+          importance: impOf(keyword),
+          rank_value: asNumberOrNull(row.rank_value),
+          rank_value_trend: 0 as const,
+          latestDateKey: null,
+          baselineDateKey: null,
+        };
+      })
+      .sort((a, b) =>
+        compareByImportanceThenRank(a, a.rank_value ?? Number.POSITIVE_INFINITY, b, b.rank_value ?? Number.POSITIVE_INFINITY),
+      );
   }
 
   const dateKeys = Array.from(new Set(stamped.map((item) => item.dateKey))).sort();
@@ -747,12 +828,15 @@ export async function fetchSummaryPlaceRanks(
   return Array.from(latestMap.entries())
     .map(([keyword, rank_value]) => ({
       keyword,
+      importance: impOf(keyword),
       rank_value,
       rank_value_trend: rankTrend(rank_value, baselineMap.get(keyword) ?? null),
       latestDateKey,
       baselineDateKey,
     }))
-    .sort((a, b) => a.keyword.localeCompare(b.keyword, "ko"));
+    .sort((a, b) =>
+      compareByImportanceThenRank(a, a.rank_value ?? Number.POSITIVE_INFINITY, b, b.rank_value ?? Number.POSITIVE_INFINITY),
+    );
 }
 
 export async function fetchPlaceReviewStats(
