@@ -55,6 +55,10 @@ const actionBox: CSSProperties = { background: 'var(--bg-subtle)', border: '1px 
 const actionWhatColor = '#65a30d'; // '무엇을 했나' 강조 연두
 // 읽기 전용 뷰의 '왜/결과' 인라인 라벨.
 const viewMiniLabel: CSSProperties = { flexShrink: 0, fontSize: 11, fontWeight: 800, color: 'var(--text-muted)', minWidth: 30 };
+// Next step — 보라 테두리 박스.
+const NEXT_STEP_PURPLE = '#a855f7';
+const nextStepBox: CSSProperties = { marginTop: 12, border: `1px solid ${NEXT_STEP_PURPLE}`, borderRadius: 8, padding: '10px 12px', background: 'rgba(168,85,247,0.06)' };
+const nextStepLabel: CSSProperties = { fontSize: 11, fontWeight: 800, letterSpacing: '0.02em', color: NEXT_STEP_PURPLE };
 // 성격 해시태그 칩(선택 on/off): 선택 시 파란 테두리 + 반투명 파랑 배경.
 function hashChip(on: boolean): CSSProperties {
   return {
@@ -914,7 +918,7 @@ function PhaseCard({ p, busy, regenBusy, onUp, onDown, onRemove, update, onRegen
                     <RowTools onUp={() => moveAction(ai, -1)} onDown={() => moveAction(ai, 1)} onRemove={() => rmAction(ai)} busy={busy} />
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 8, alignItems: 'start' }}>
-                    <AutoTextarea label="왜 했나" value={a.why} onChange={(v) => updAction(ai, { why: v })} placeholder="임상적 이유" />
+                    <AutoTextarea label="목적" value={a.why} onChange={(v) => updAction(ai, { why: v })} placeholder="임상적 이유" />
                     <AutoTextarea label="결과" value={a.result} onChange={(v) => updAction(ai, { result: v })} placeholder="도출된 결과" />
                   </div>
                 </div>
@@ -924,12 +928,13 @@ function PhaseCard({ p, busy, regenBusy, onUp, onDown, onRemove, update, onRegen
           </div>
 
           {/* Next step(편집) */}
-          <div style={{ marginTop: 12 }}>
-            <LabeledTextarea
-              label="Next step (이 날 결정한 다음 단계 · 한 줄에 한 항목)"
+          <div style={nextStepBox}>
+            <span style={nextStepLabel}>NEXT STEP (이 날 결정한 다음 단계 · 한 줄에 한 항목)</span>
+            <textarea
               value={p.nextStep.join('\n')}
-              onChange={(v) => update({ nextStep: v.split('\n') })}
+              onChange={(e) => update({ nextStep: e.target.value.split('\n') })}
               rows={2}
+              style={{ ...inputStyle, marginTop: 4 }}
             />
           </div>
         </>
@@ -954,7 +959,7 @@ function PhaseCard({ p, busy, regenBusy, onUp, onDown, onRemove, update, onRegen
                   <div style={{ fontSize: 13.5, fontWeight: 700, color: actionWhatColor }}>{a.what || '—'}</div>
                   {a.why.trim() ? (
                     <div style={{ display: 'flex', gap: 6, marginTop: 6, fontSize: 12.5, color: 'var(--text-secondary)' }}>
-                      <span style={viewMiniLabel}>왜</span><span style={{ whiteSpace: 'pre-wrap' }}>{a.why}</span>
+                      <span style={viewMiniLabel}>목적</span><span style={{ whiteSpace: 'pre-wrap' }}>{a.why}</span>
                     </div>
                   ) : null}
                   {a.result.trim() ? (
@@ -969,8 +974,8 @@ function PhaseCard({ p, busy, regenBusy, onUp, onDown, onRemove, update, onRegen
 
           {/* Next step(읽기 전용) */}
           {nextSteps.length > 0 ? (
-            <div style={{ marginTop: 12 }}>
-              <span style={fieldLabel}>NEXT STEP</span>
+            <div style={nextStepBox}>
+              <span style={nextStepLabel}>NEXT STEP</span>
               <ul style={{ margin: '4px 0 0', paddingLeft: 16, fontSize: 13, color: 'var(--text)', lineHeight: 1.5 }}>
                 {nextSteps.map((s, i) => <li key={i}>{s}</li>)}
               </ul>
@@ -1008,6 +1013,44 @@ function PhaseCard({ p, busy, regenBusy, onUp, onDown, onRemove, update, onRegen
 }
 
 // ── 1단계 에디터 ──
+// 흐름 요약 카드(흐름의 축 + 전신마취): 기본은 읽기 전용, '수기 수정'으로 편집.
+function AxisCard({ axis, anesthesia, busy, setField }: {
+  axis: string; anesthesia: boolean; busy: boolean;
+  setField: <K extends keyof CausalFlow>(k: K, v: CausalFlow[K]) => void;
+}) {
+  const [edit, setEdit] = useState(false);
+  return (
+    <div style={cardBox}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: edit ? 10 : 8 }}>
+        <span style={{ fontSize: 13, fontWeight: 800, color: 'var(--text)' }}>흐름 요약</span>
+        <button type="button" onClick={() => setEdit((v) => !v)} disabled={busy}
+          style={edit ? { ...btnTiny, background: 'var(--accent)', color: '#fff', borderColor: 'var(--accent)' } : btnTiny}>
+          {edit ? '수정 완료' : '수기 수정'}
+        </button>
+      </div>
+      {edit ? (
+        <div style={{ display: 'grid', gap: 10 }}>
+          <LabeledTextarea label="흐름의 축 (한 줄 요약)" value={axis} onChange={(v) => setField('axis', v)} rows={2} />
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, color: 'var(--text-secondary)', cursor: 'pointer' }}>
+            <input type="checkbox" checked={anesthesia} onChange={(e) => setField('anesthesia', e.target.checked)} style={{ width: 15, height: 15 }} />
+            전신마취 동반 (체크 시 2단계에서 마취 전 안전성 평가 비중↑)
+          </label>
+        </div>
+      ) : (
+        <div style={{ display: 'grid', gap: 8 }}>
+          <div>
+            <span style={fieldLabel}>흐름의 축</span>
+            <div style={{ fontSize: 13.5, color: 'var(--text)', marginTop: 3, whiteSpace: 'pre-wrap' }}>{axis || '—'}</div>
+          </div>
+          <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
+            전신마취 동반: <b style={{ color: anesthesia ? 'var(--accent)' : 'var(--text-muted)' }}>{anesthesia ? '예' : '아니오'}</b>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function CausalEditor({ causal, busy, setField, updatePhase, movePhase, addPhase, removePhase, regenPhase, phaseBusy }: {
   causal: CausalFlow | null; busy: boolean;
   setField: <K extends keyof CausalFlow>(k: K, v: CausalFlow[K]) => void;
@@ -1018,15 +1061,7 @@ function CausalEditor({ causal, busy, setField, updatePhase, movePhase, addPhase
   if (!causal) return <div style={{ fontSize: 13, color: 'var(--text-muted)', padding: 12 }}>인과 흐름이 없습니다. “다시 생성”을 눌러 주세요.</div>;
   return (
     <div style={{ display: 'grid', gap: 12 }}>
-      <div style={cardBox}>
-        <div style={{ display: 'grid', gap: 10 }}>
-          <LabeledTextarea label="흐름의 축 (한 줄 요약)" value={causal.axis} onChange={(v) => setField('axis', v)} rows={2} />
-          <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, color: 'var(--text-secondary)', cursor: 'pointer' }}>
-            <input type="checkbox" checked={causal.anesthesia} onChange={(e) => setField('anesthesia', e.target.checked)} style={{ width: 15, height: 15 }} />
-            전신마취 동반 (체크 시 2단계에서 마취 전 안전성 평가 비중↑)
-          </label>
-        </div>
-      </div>
+      <AxisCard axis={causal.axis} anesthesia={causal.anesthesia} busy={busy} setField={setField} />
       {causal.phases.map((p, i) => (
         <PhaseCard key={p.id} p={p} busy={busy || phaseBusy !== null} regenBusy={phaseBusy === i}
           onUp={() => movePhase(i, -1)} onDown={() => movePhase(i, 1)} onRemove={() => removePhase(i)}
