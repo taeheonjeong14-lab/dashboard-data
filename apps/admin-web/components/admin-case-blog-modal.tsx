@@ -6,7 +6,9 @@ import Link from 'next/link';
 // ── 타입 ──────────────────────────────────────────────────────────────────
 type StepNum = 1 | 2 | 3 | 4 | 5;
 type OverviewItem = { label: string; value: string };
-type Phase = { id: string; name: string; period: string; type: string; what: string[]; why: string[]; toNext: string[] };
+// 액션 1개 = 한 행위(무엇을 했나) + 그 이유(왜) + 도출 결과. UI에서 카드 하나.
+type Action = { what: string; why: string; result: string };
+type Phase = { id: string; name: string; period: string; type: string; actions: Action[]; nextStep: string[] };
 type CausalFlow = { axis: string; anesthesia: boolean; phases: Phase[] };
 // 2단계 — 진단·치료 세부 흐름
 type DiagStep = { name: string; why: string; what: string; result: string; fromChart: boolean };
@@ -48,12 +50,34 @@ const inputStyle: CSSProperties = {
   outline: 'none', boxSizing: 'border-box', resize: 'vertical', wordBreak: 'break-word', whiteSpace: 'pre-wrap',
 };
 const cardBox: CSSProperties = { background: '#fff', border: '1px solid var(--border)', borderRadius: 10, padding: '12px 14px' };
+const actionBox: CSSProperties = { background: 'var(--bg-subtle)', border: '1px solid var(--border)', borderRadius: 8, padding: '10px 12px' };
 
 // ── 헬퍼 ──────────────────────────────────────────────────────────────────
 const uid = () => Math.random().toString(36).slice(2, 9);
 const toLines = (v: unknown): string[] =>
   Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : typeof v === 'string' && v.trim() ? [v] : [];
 const str = (v: unknown): string => (typeof v === 'string' ? v : '');
+
+// phase 를 { actions, nextStep } 로 정규화. 새 구조(actions/nextStep)면 그대로,
+// 옛 구조(what[]/why[]/toNext[])면 자동 변환: what[i]↔why[i] 를 액션으로 짝짓고, toNext 는 nextStep 으로.
+function asActionsAndNext(x: Record<string, unknown>): { actions: Action[]; nextStep: string[] } {
+  if (Array.isArray(x.actions)) {
+    const actions = x.actions.map((a) => {
+      const y = (a ?? {}) as Record<string, unknown>;
+      return { what: str(y.what), why: str(y.why), result: str(y.result) };
+    });
+    return { actions, nextStep: toLines(x.nextStep) };
+  }
+  // 옛 구조 변환
+  const whats = toLines(x.what);
+  const whys = toLines(x.why);
+  const actions: Action[] = whats.map((w, i) => ({ what: w, why: whys[i] ?? '', result: '' }));
+  // what 이 없는데 why 만 있으면(드묾) 이유들만이라도 액션으로 보존
+  if (actions.length === 0 && whys.length > 0) {
+    for (const w of whys) actions.push({ what: '', why: w, result: '' });
+  }
+  return { actions, nextStep: toLines(x.toNext) };
+}
 
 function asCausal(raw: unknown): CausalFlow {
   const o = (raw ?? {}) as Record<string, unknown>;
@@ -68,7 +92,7 @@ function asCausal(raw: unknown): CausalFlow {
         id: str(x.id) || `phase_${uid()}`,
         name: str(x.name), period: str(x.period),
         type: t === 'surgical' || t === 'medical' || t === 'diagnostic' ? t : 'medical',
-        what: toLines(x.what), why: toLines(x.why), toNext: toLines(x.toNext),
+        ...asActionsAndNext(x),
       };
     }),
   };
@@ -139,6 +163,7 @@ const TREAT_TYPE_LABEL: Record<string, string> = { surgical: '수술형', medica
 
 // 변경된 부분을 사람이 읽을 수 있는 목록으로 — 재생성 확인창에 표시.
 const arrEq = (a: string[], b: string[]): boolean => a.join('') === b.join('');
+const actionsKey = (a: Action[]): string => a.map((x) => `${x.what}|${x.why}|${x.result}`).join('§');
 function diffCausal(prev: CausalFlow, next: CausalFlow): string[] {
   const changes: string[] = [];
   if (prev.axis !== next.axis) changes.push('흐름의 축');
@@ -151,12 +176,11 @@ function diffCausal(prev: CausalFlow, next: CausalFlow): string[] {
     if (!a || !b) continue;
     const sub: string[] = [];
     if (a.name !== b.name) sub.push('단계명');
-    if (a.period !== b.period) sub.push('경과 시점');
+    if (a.period !== b.period) sub.push('날짜');
     if (a.type !== b.type) sub.push('성격');
-    if (!arrEq(a.what, b.what)) sub.push('무엇을 했나');
-    if (!arrEq(a.why, b.why)) sub.push('왜 했나');
-    if (!arrEq(a.toNext, b.toNext)) sub.push('결과 및 다음 단계');
-    if (sub.length) changes.push(`단계 ${i + 1}${b.name ? `(${b.name})` : ''}: ${sub.join(', ')}`);
+    if (actionsKey(a.actions) !== actionsKey(b.actions)) sub.push('행위(무엇/왜/결과)');
+    if (!arrEq(a.nextStep, b.nextStep)) sub.push('Next step');
+    if (sub.length) changes.push(`${b.period || b.name || `단계 ${i + 1}`}: ${sub.join(', ')}`);
   }
   return changes;
 }
@@ -400,7 +424,7 @@ export function CaseBlogButton({
     if (!detail) { void genDetail(); return; } // 처음이면 생성
     if (JSON.stringify(causal) === detailBasis) { setStep(2); setSavedMsg(''); return; } // 안 바뀜 → 이동만
     let changes: string[] = [];
-    try { if (detailBasis) changes = diffCausal(JSON.parse(detailBasis) as CausalFlow, causal); } catch { /* noop */ }
+    try { if (detailBasis) changes = diffCausal(asCausal(JSON.parse(detailBasis)), causal); } catch { /* noop */ }
     if (confirmRegen('인과 흐름이 변경되었습니다.', changes, '진단·치료 세부 흐름을 다시 생성할까요?')) void genDetail();
     else { setStep(2); setSavedMsg(''); }
   }
@@ -413,7 +437,7 @@ export function CaseBlogButton({
     try {
       if (outlineBasis) {
         const b = JSON.parse(outlineBasis) as { causal: CausalFlow | null; detail: DetailFlow | null };
-        if (b.causal && causal) changes.push(...diffCausal(b.causal, causal));
+        if (b.causal && causal) changes.push(...diffCausal(asCausal(b.causal), causal));
         if (b.detail && detail) changes.push(...diffDetail(b.detail, detail));
       }
     } catch { /* noop */ }
@@ -494,7 +518,7 @@ export function CaseBlogButton({
     }); dirty();
   }
   function addPhase() {
-    setCausal((c) => (c ? { ...c, phases: [...c.phases, { id: `phase_${uid()}`, name: '', period: '', type: 'medical', what: [], why: [], toNext: [] }] } : c)); dirty();
+    setCausal((c) => (c ? { ...c, phases: [...c.phases, { id: `phase_${uid()}`, name: '', period: '', type: 'medical', actions: [], nextStep: [] }] } : c)); dirty();
   }
   function removePhase(i: number) {
     setCausal((c) => (c ? { ...c, phases: c.phases.filter((_, j) => j !== i) } : c)); dirty();
@@ -710,6 +734,85 @@ function RowTools({ onUp, onDown, onRemove, busy }: { onUp: () => void; onDown: 
   );
 }
 
+// 한 날짜(phase) 카드: 날짜를 제목처럼, 행위별 카드(무엇/왜/결과) + 맨 아래 Next step.
+function PhaseCard({ p, busy, onUp, onDown, onRemove, update }: {
+  p: Phase; busy: boolean; onUp: () => void; onDown: () => void; onRemove: () => void;
+  update: (patch: Partial<Phase>) => void;
+}) {
+  const setActions = (actions: Action[]) => update({ actions });
+  const updAction = (ai: number, patch: Partial<Action>) => setActions(p.actions.map((a, j) => (j === ai ? { ...a, ...patch } : a)));
+  const moveAction = (ai: number, dir: -1 | 1) => { const j = ai + dir; if (j < 0 || j >= p.actions.length) return; const a = [...p.actions]; [a[ai], a[j]] = [a[j]!, a[ai]!]; setActions(a); };
+  const addAction = () => setActions([...p.actions, { what: '', why: '', result: '' }]);
+  const rmAction = (ai: number) => setActions(p.actions.filter((_, j) => j !== ai));
+
+  return (
+    <div style={cardBox}>
+      {/* 헤더: 날짜(제목) + 성격 + 이동/삭제 */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+        <input
+          value={p.period}
+          onChange={(e) => update({ period: e.target.value })}
+          placeholder="날짜 (예: 2026년 02월 17일 (최초 진단일))"
+          style={{ ...inputStyle, flex: 1, fontWeight: 700, fontSize: 14 }}
+        />
+        <select value={p.type} onChange={(e) => update({ type: e.target.value })} style={{ ...inputStyle, width: 'auto', flex: '0 0 auto', whiteSpace: 'normal' }}>
+          {Object.entries(PHASE_TYPE_LABEL).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+        </select>
+        <RowTools onUp={onUp} onDown={onDown} onRemove={onRemove} busy={busy} />
+      </div>
+
+      {/* 단계명(선택) */}
+      <div style={{ display: 'grid', gap: 3, marginBottom: 12 }}>
+        <span style={fieldLabel}>단계명 (선택)</span>
+        <input value={p.name} onChange={(e) => update({ name: e.target.value })} placeholder="이 날 요약 이름" style={inputStyle} />
+      </div>
+
+      {/* 행위별 카드 */}
+      <div style={{ display: 'grid', gap: 8 }}>
+        <span style={fieldLabel}>무엇을 했나 (행위별)</span>
+        {p.actions.length === 0 ? (
+          <div style={{ fontSize: 12, color: 'var(--text-muted)', padding: '6px 2px' }}>행위가 없습니다. 아래에서 추가하세요. (기록 없는 날짜는 비워둬도 됩니다)</div>
+        ) : (
+          p.actions.map((a, ai) => (
+            <div key={ai} style={actionBox}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+                <input
+                  value={a.what}
+                  onChange={(e) => updAction(ai, { what: e.target.value })}
+                  placeholder="무엇을 했나 (한 줄 제목)"
+                  style={{ ...inputStyle, flex: 1, fontWeight: 600 }}
+                />
+                <RowTools onUp={() => moveAction(ai, -1)} onDown={() => moveAction(ai, 1)} onRemove={() => rmAction(ai)} busy={busy} />
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 8 }}>
+                <div style={{ display: 'grid', gap: 3 }}>
+                  <span style={fieldLabel}>왜 했나</span>
+                  <input value={a.why} onChange={(e) => updAction(ai, { why: e.target.value })} placeholder="임상적 이유 · 한 줄" style={inputStyle} />
+                </div>
+                <div style={{ display: 'grid', gap: 3 }}>
+                  <span style={fieldLabel}>결과</span>
+                  <input value={a.result} onChange={(e) => updAction(ai, { result: e.target.value })} placeholder="도출된 결과 · 한 줄" style={inputStyle} />
+                </div>
+              </div>
+            </div>
+          ))
+        )}
+        <button type="button" style={{ ...btnTiny, alignSelf: 'flex-start' }} onClick={addAction} disabled={busy}>+ 행위 추가</button>
+      </div>
+
+      {/* Next step */}
+      <div style={{ marginTop: 12 }}>
+        <LabeledTextarea
+          label="Next step (이 날 결정한 다음 단계 · 한 줄에 한 항목)"
+          value={p.nextStep.join('\n')}
+          onChange={(v) => update({ nextStep: v.split('\n') })}
+          rows={2}
+        />
+      </div>
+    </div>
+  );
+}
+
 // ── 1단계 에디터 ──
 function CausalEditor({ causal, busy, setField, updatePhase, movePhase, addPhase, removePhase }: {
   causal: CausalFlow | null; busy: boolean;
@@ -730,33 +833,9 @@ function CausalEditor({ causal, busy, setField, updatePhase, movePhase, addPhase
         </div>
       </div>
       {causal.phases.map((p, i) => (
-        <div key={p.id} style={cardBox}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 10 }}>
-            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent)' }}>단계 {i + 1}</span>
-            <RowTools onUp={() => movePhase(i, -1)} onDown={() => movePhase(i, 1)} onRemove={() => removePhase(i)} busy={busy} />
-          </div>
-          <div style={{ display: 'grid', gap: 10 }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
-              <div style={{ display: 'grid', gap: 3 }}>
-                <span style={fieldLabel}>단계명</span>
-                <input value={p.name} onChange={(e) => updatePhase(i, { name: e.target.value })} style={inputStyle} />
-              </div>
-              <div style={{ display: 'grid', gap: 3 }}>
-                <span style={fieldLabel}>경과 시점</span>
-                <input value={p.period} onChange={(e) => updatePhase(i, { period: e.target.value })} style={inputStyle} />
-              </div>
-              <div style={{ display: 'grid', gap: 3 }}>
-                <span style={fieldLabel}>성격</span>
-                <select value={p.type} onChange={(e) => updatePhase(i, { type: e.target.value })} style={{ ...inputStyle, whiteSpace: 'normal' }}>
-                  {Object.entries(PHASE_TYPE_LABEL).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-                </select>
-              </div>
-            </div>
-            <LabeledTextarea label="무엇을 했나? (한 줄에 한 항목, 간단명료하게)" value={p.what.join('\n')} onChange={(v) => updatePhase(i, { what: v.split('\n') })} rows={4} />
-            <LabeledTextarea label="왜 했나? (임상 원리 · 한 줄에 한 항목)" value={p.why.join('\n')} onChange={(v) => updatePhase(i, { why: v.split('\n') })} rows={4} />
-            <LabeledTextarea label="결과 및 다음 단계 (검사 결과·경과 + 그에 따른 다음 단계 · 한 줄에 한 항목)" value={p.toNext.join('\n')} onChange={(v) => updatePhase(i, { toNext: v.split('\n') })} rows={4} />
-          </div>
-        </div>
+        <PhaseCard key={p.id} p={p} busy={busy}
+          onUp={() => movePhase(i, -1)} onDown={() => movePhase(i, 1)} onRemove={() => removePhase(i)}
+          update={(patch) => updatePhase(i, patch)} />
       ))}
       <button type="button" style={{ ...btnSecondary, width: '100%' }} onClick={addPhase} disabled={busy}>+ 단계 추가</button>
     </div>
