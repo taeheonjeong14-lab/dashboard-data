@@ -51,17 +51,26 @@ const inputStyle: CSSProperties = {
   outline: 'none', boxSizing: 'border-box', resize: 'vertical', wordBreak: 'break-word', whiteSpace: 'pre-wrap',
 };
 const cardBox: CSSProperties = { background: '#fff', border: '1px solid var(--border)', borderRadius: 10, padding: '12px 14px' };
-const actionBox: CSSProperties = { background: '#f2fae6', border: '1px solid #a5d16f', borderRadius: 8, padding: '10px 12px' };
-// 성격 해시태그 칩(선택 on/off).
+const actionBox: CSSProperties = { background: '#ecff9e', border: '1px solid #a3e635', borderRadius: 8, padding: '10px 12px' };
+// 성격 해시태그 칩(선택 on/off): 선택 시 파란 테두리 + 반투명 파랑 배경.
 function hashChip(on: boolean): CSSProperties {
   return {
     padding: '4px 11px', fontSize: 12, fontWeight: 700, borderRadius: 999, cursor: 'pointer',
     border: `1px solid ${on ? 'var(--accent)' : 'var(--border-strong)'}`,
-    background: on ? 'var(--accent)' : '#fff',
-    color: on ? '#fff' : 'var(--text-muted)',
+    background: on ? 'rgba(49, 130, 246, 0.14)' : '#fff',
+    color: on ? 'var(--accent)' : 'var(--text-muted)',
     transition: 'all 0.1s ease',
   };
 }
+// 날짜별 다시 생성 입력 모달.
+const regenOverlay: CSSProperties = {
+  position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.45)', zIndex: 9999,
+  display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20,
+};
+const regenDialog: CSSProperties = {
+  background: '#fff', borderRadius: 12, padding: '18px 20px', width: 'min(480px, 100%)',
+  boxShadow: '0 12px 40px rgba(0,0,0,0.25)',
+};
 
 // ── 헬퍼 ──────────────────────────────────────────────────────────────────
 const uid = () => Math.random().toString(36).slice(2, 9);
@@ -173,12 +182,16 @@ function diffDetail(prev: DetailFlow, next: DetailFlow): string[] {
   return changes;
 }
 // 날짜 성격(해시태그). 여러 개 선택 가능.
-const PHASE_TYPE_LABEL: Record<string, string> = { diagnostic: '검사', diagnosis: '진단', preop: '술 전 검사', surgical: '외과 치료', medical: '내과 치료' };
-const PHASE_TYPE_ORDER = ['diagnostic', 'diagnosis', 'preop', 'surgical', 'medical'];
-// 옛 값 정규화(예전 'surgical' 단일값 등) + 유효값만.
+const PHASE_TYPE_LABEL: Record<string, string> = {
+  exam_dx: '검사 및 진단', preop: '술 전 검사', surgical: '외과 치료', medical: '내과 치료', admission: '입원 치료', discharge: '퇴원',
+};
+const PHASE_TYPE_ORDER = ['exam_dx', 'preop', 'surgical', 'medical', 'admission', 'discharge'];
+// 옛 값 → 신규 키 매핑(검사/진단 → 검사 및 진단으로 통합).
+const LEGACY_TYPE_MAP: Record<string, string> = { diagnostic: 'exam_dx', diagnosis: 'exam_dx' };
+// 옛 값 정규화 + 유효값만.
 function normTypes(v: unknown): string[] {
   const arr = Array.isArray(v) ? v : typeof v === 'string' && v.trim() ? [v] : [];
-  const out = arr.map((x) => String(x).trim()).filter((x) => x in PHASE_TYPE_LABEL);
+  const out = arr.map((x) => { const s = String(x).trim(); return LEGACY_TYPE_MAP[s] ?? s; }).filter((x) => x in PHASE_TYPE_LABEL);
   return [...new Set(out)];
 }
 const TREAT_TYPE_LABEL: Record<string, string> = { surgical: '수술형', medical: '내과형', complex: '복합형' };
@@ -802,6 +815,7 @@ function PhaseCard({ p, busy, regenBusy, onUp, onDown, onRemove, update, onRegen
   update: (patch: Partial<Phase>) => void; onRegen: (feedback: string) => void;
 }) {
   const [feedback, setFeedback] = useState('');
+  const [regenOpen, setRegenOpen] = useState(false);
   const setActions = (actions: Action[]) => update({ actions });
   const updAction = (ai: number, patch: Partial<Action>) => setActions(p.actions.map((a, j) => (j === ai ? { ...a, ...patch } : a)));
   const moveAction = (ai: number, dir: -1 | 1) => { const j = ai + dir; if (j < 0 || j >= p.actions.length) return; const a = [...p.actions]; [a[ai], a[j]] = [a[j]!, a[ai]!]; setActions(a); };
@@ -877,25 +891,41 @@ function PhaseCard({ p, busy, regenBusy, onUp, onDown, onRemove, update, onRegen
         />
       </div>
 
-      {/* 이 날짜만 다시 생성 (수정 요청 반영) */}
-      <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px dashed var(--border)', display: 'grid', gap: 6 }}>
-        <textarea
-          value={feedback}
-          onChange={(e) => setFeedback(e.target.value)}
-          placeholder="어떤 부분이 수정이 필요할까요? (예: 초음파 결과가 빠졌어요 / 순서가 틀렸어요) — 비워두면 품질만 개선해 다시 정리"
-          rows={2}
-          style={{ ...inputStyle }}
-          disabled={busy}
-        />
+      {/* 이 날짜만 다시 생성 — 클릭 시 모달에서 수정 요청 입력 */}
+      <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px dashed var(--border)' }}>
         <button
           type="button"
-          onClick={() => onRegen(feedback)}
+          onClick={() => setRegenOpen(true)}
           disabled={busy}
-          style={{ ...btnSecondary, justifySelf: 'flex-start', fontSize: 12.5, padding: '7px 14px' }}
+          style={{ ...btnSecondary, fontSize: 12.5, padding: '7px 14px' }}
         >
           {regenBusy ? '이 날짜 다시 생성 중…' : '이 날짜 다시 생성'}
         </button>
       </div>
+
+      {regenOpen ? (
+        <div style={regenOverlay} onClick={() => setRegenOpen(false)}>
+          <div style={regenDialog} onClick={(e) => e.stopPropagation()}>
+            <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text)' }}>이 날짜 다시 생성</div>
+            <div style={{ fontSize: 12.5, color: 'var(--text-secondary)', marginTop: 4, marginBottom: 10 }}>
+              {p.period || '이 날짜'}에서 어떤 부분이 수정이 필요할까요? 지적하면 그 부분을 반영해 이 날짜만 다시 만듭니다.
+              <br />(비워두면 품질만 개선해 다시 정리)
+            </div>
+            <textarea
+              value={feedback}
+              onChange={(e) => setFeedback(e.target.value)}
+              placeholder="예: 초음파 결과가 빠졌어요 / 검사 순서가 틀렸어요 / 진단 근거를 더 구체적으로"
+              rows={4}
+              autoFocus
+              style={{ ...inputStyle }}
+            />
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 12 }}>
+              <button type="button" style={btnSecondary} onClick={() => setRegenOpen(false)}>취소</button>
+              <button type="button" style={btnPrimary} onClick={() => { setRegenOpen(false); onRegen(feedback); }}>다시 생성</button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
