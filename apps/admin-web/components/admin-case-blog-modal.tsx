@@ -52,6 +52,8 @@ const inputStyle: CSSProperties = {
 };
 const cardBox: CSSProperties = { background: '#fff', border: '1px solid var(--border)', borderRadius: 10, padding: '12px 14px' };
 const actionBox: CSSProperties = { background: '#ecff9e', border: '1px solid #a3e635', borderRadius: 8, padding: '10px 12px' };
+// 읽기 전용 뷰의 '왜/결과' 인라인 라벨.
+const viewMiniLabel: CSSProperties = { flexShrink: 0, fontSize: 11, fontWeight: 800, color: '#5a7a1e', minWidth: 30 };
 // 성격 해시태그 칩(선택 on/off): 선택 시 파란 테두리 + 반투명 파랑 배경.
 function hashChip(on: boolean): CSSProperties {
   return {
@@ -816,6 +818,7 @@ function PhaseCard({ p, busy, regenBusy, onUp, onDown, onRemove, update, onRegen
 }) {
   const [feedback, setFeedback] = useState('');
   const [regenOpen, setRegenOpen] = useState(false);
+  const [editMode, setEditMode] = useState(false);
   const setActions = (actions: Action[]) => update({ actions });
   const updAction = (ai: number, patch: Partial<Action>) => setActions(p.actions.map((a, j) => (j === ai ? { ...a, ...patch } : a)));
   const moveAction = (ai: number, dir: -1 | 1) => { const j = ai + dir; if (j < 0 || j >= p.actions.length) return; const a = [...p.actions]; [a[ai], a[j]] = [a[j]!, a[ai]!]; setActions(a); };
@@ -823,76 +826,131 @@ function PhaseCard({ p, busy, regenBusy, onUp, onDown, onRemove, update, onRegen
   const rmAction = (ai: number) => setActions(p.actions.filter((_, j) => j !== ai));
   const toggleType = (t: string) => update({ types: p.types.includes(t) ? p.types.filter((x) => x !== t) : [...p.types, t] });
 
+  const nextSteps = p.nextStep.filter((s) => s.trim());
+  const selectedTypes = PHASE_TYPE_ORDER.filter((t) => p.types.includes(t));
+
   return (
     <div style={{ ...cardBox, opacity: regenBusy ? 0.6 : 1 }}>
       {/* 헤더: 날짜(제목) + 이동/삭제 */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-        <input
-          value={p.period}
-          onChange={(e) => update({ period: e.target.value })}
-          placeholder="날짜 (예: 2026년 02월 17일 (최초 진단일))"
-          style={{ ...inputStyle, flex: 1, fontWeight: 700, fontSize: 14 }}
-        />
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: editMode ? 8 : 10 }}>
+        {editMode ? (
+          <input
+            value={p.period}
+            onChange={(e) => update({ period: e.target.value })}
+            placeholder="날짜 (예: 2026년 02월 17일 (최초 진단일))"
+            style={{ ...inputStyle, flex: 1, fontWeight: 700, fontSize: 14 }}
+          />
+        ) : (
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--text)' }}>{p.period || '날짜 미입력'}</div>
+            {p.name ? <div style={{ fontSize: 12.5, color: 'var(--text-muted)', marginTop: 2 }}>{p.name}</div> : null}
+          </div>
+        )}
         <RowTools onUp={onUp} onDown={onDown} onRemove={onRemove} busy={busy} />
       </div>
 
-      {/* 성격 해시태그(다중 선택) */}
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
-        {PHASE_TYPE_ORDER.map((t) => {
-          const on = p.types.includes(t);
-          return (
-            <button key={t} type="button" onClick={() => toggleType(t)} disabled={busy} style={hashChip(on)}>
-              #{PHASE_TYPE_LABEL[t]}
-            </button>
-          );
-        })}
-      </div>
+      {editMode ? (
+        <>
+          {/* 성격 해시태그(다중 선택) */}
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
+            {PHASE_TYPE_ORDER.map((t) => (
+              <button key={t} type="button" onClick={() => toggleType(t)} disabled={busy} style={hashChip(p.types.includes(t))}>
+                #{PHASE_TYPE_LABEL[t]}
+              </button>
+            ))}
+          </div>
 
-      {/* 단계명(선택) */}
-      <div style={{ display: 'grid', gap: 3, marginBottom: 12 }}>
-        <span style={fieldLabel}>단계명 (선택)</span>
-        <input value={p.name} onChange={(e) => update({ name: e.target.value })} placeholder="이 날 요약 이름" style={inputStyle} />
-      </div>
+          {/* 단계명(선택) */}
+          <div style={{ display: 'grid', gap: 3, marginBottom: 12 }}>
+            <span style={fieldLabel}>단계명 (선택)</span>
+            <input value={p.name} onChange={(e) => update({ name: e.target.value })} placeholder="이 날 요약 이름" style={inputStyle} />
+          </div>
 
-      {/* 행위별 카드 */}
-      <div style={{ display: 'grid', gap: 8 }}>
-        <span style={fieldLabel}>무엇을 했나 (행위별)</span>
-        {p.actions.length === 0 ? (
-          <div style={{ fontSize: 12, color: 'var(--text-muted)', padding: '6px 2px' }}>행위가 없습니다. 아래에서 추가하세요. (기록 없는 날짜는 비워둬도 됩니다)</div>
-        ) : (
-          p.actions.map((a, ai) => (
-            <div key={ai} style={actionBox}>
-              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
-                <input
-                  value={a.what}
-                  onChange={(e) => updAction(ai, { what: e.target.value })}
-                  placeholder="무엇을 했나 (한 줄 제목)"
-                  style={{ ...inputStyle, flex: 1, fontWeight: 600 }}
-                />
-                <RowTools onUp={() => moveAction(ai, -1)} onDown={() => moveAction(ai, 1)} onRemove={() => rmAction(ai)} busy={busy} />
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 8, alignItems: 'start' }}>
-                <AutoTextarea label="왜 했나" value={a.why} onChange={(v) => updAction(ai, { why: v })} placeholder="임상적 이유" />
-                <AutoTextarea label="결과" value={a.result} onChange={(v) => updAction(ai, { result: v })} placeholder="도출된 결과" />
-              </div>
+          {/* 행위별 카드(편집) */}
+          <div style={{ display: 'grid', gap: 8 }}>
+            <span style={fieldLabel}>무엇을 했나 (행위별)</span>
+            {p.actions.length === 0 ? (
+              <div style={{ fontSize: 12, color: 'var(--text-muted)', padding: '6px 2px' }}>행위가 없습니다. 아래에서 추가하세요. (기록 없는 날짜는 비워둬도 됩니다)</div>
+            ) : (
+              p.actions.map((a, ai) => (
+                <div key={ai} style={actionBox}>
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+                    <input
+                      value={a.what}
+                      onChange={(e) => updAction(ai, { what: e.target.value })}
+                      placeholder="무엇을 했나 (한 줄 제목)"
+                      style={{ ...inputStyle, flex: 1, fontWeight: 600 }}
+                    />
+                    <RowTools onUp={() => moveAction(ai, -1)} onDown={() => moveAction(ai, 1)} onRemove={() => rmAction(ai)} busy={busy} />
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 8, alignItems: 'start' }}>
+                    <AutoTextarea label="왜 했나" value={a.why} onChange={(v) => updAction(ai, { why: v })} placeholder="임상적 이유" />
+                    <AutoTextarea label="결과" value={a.result} onChange={(v) => updAction(ai, { result: v })} placeholder="도출된 결과" />
+                  </div>
+                </div>
+              ))
+            )}
+            <button type="button" style={{ ...btnTiny, alignSelf: 'flex-start' }} onClick={addAction} disabled={busy}>+ 행위 추가</button>
+          </div>
+
+          {/* Next step(편집) */}
+          <div style={{ marginTop: 12 }}>
+            <LabeledTextarea
+              label="Next step (이 날 결정한 다음 단계 · 한 줄에 한 항목)"
+              value={p.nextStep.join('\n')}
+              onChange={(v) => update({ nextStep: v.split('\n') })}
+              rows={2}
+            />
+          </div>
+        </>
+      ) : (
+        <>
+          {/* 성격 해시태그(읽기 전용) */}
+          {selectedTypes.length > 0 ? (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
+              {selectedTypes.map((t) => (
+                <span key={t} style={{ ...hashChip(true), cursor: 'default' }}>#{PHASE_TYPE_LABEL[t]}</span>
+              ))}
             </div>
-          ))
-        )}
-        <button type="button" style={{ ...btnTiny, alignSelf: 'flex-start' }} onClick={addAction} disabled={busy}>+ 행위 추가</button>
-      </div>
+          ) : null}
 
-      {/* Next step */}
-      <div style={{ marginTop: 12 }}>
-        <LabeledTextarea
-          label="Next step (이 날 결정한 다음 단계 · 한 줄에 한 항목)"
-          value={p.nextStep.join('\n')}
-          onChange={(v) => update({ nextStep: v.split('\n') })}
-          rows={2}
-        />
-      </div>
+          {/* 행위별(읽기 전용) */}
+          {p.actions.length === 0 ? (
+            <div style={{ fontSize: 12.5, color: 'var(--text-muted)', padding: '4px 2px' }}>기록된 행위가 없는 날짜입니다.</div>
+          ) : (
+            <div style={{ display: 'grid', gap: 8 }}>
+              {p.actions.map((a, ai) => (
+                <div key={ai} style={actionBox}>
+                  <div style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--text)' }}>{a.what || '—'}</div>
+                  {a.why.trim() ? (
+                    <div style={{ display: 'flex', gap: 6, marginTop: 6, fontSize: 12.5, color: 'var(--text-secondary)' }}>
+                      <span style={viewMiniLabel}>왜</span><span style={{ whiteSpace: 'pre-wrap' }}>{a.why}</span>
+                    </div>
+                  ) : null}
+                  {a.result.trim() ? (
+                    <div style={{ display: 'flex', gap: 6, marginTop: 4, fontSize: 12.5, color: 'var(--text-secondary)' }}>
+                      <span style={viewMiniLabel}>결과</span><span style={{ whiteSpace: 'pre-wrap' }}>{a.result}</span>
+                    </div>
+                  ) : null}
+                </div>
+              ))}
+            </div>
+          )}
 
-      {/* 이 날짜만 다시 생성 — 클릭 시 모달에서 수정 요청 입력 */}
-      <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px dashed var(--border)' }}>
+          {/* Next step(읽기 전용) */}
+          {nextSteps.length > 0 ? (
+            <div style={{ marginTop: 12 }}>
+              <span style={fieldLabel}>NEXT STEP</span>
+              <ul style={{ margin: '4px 0 0', paddingLeft: 16, fontSize: 13, color: 'var(--text)', lineHeight: 1.5 }}>
+                {nextSteps.map((s, i) => <li key={i}>{s}</li>)}
+              </ul>
+            </div>
+          ) : null}
+        </>
+      )}
+
+      {/* 하단 버튼: 다시 생성 / 수기 수정(토글) */}
+      <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px dashed var(--border)', display: 'flex', gap: 8 }}>
         <button
           type="button"
           onClick={() => setRegenOpen(true)}
@@ -900,6 +958,14 @@ function PhaseCard({ p, busy, regenBusy, onUp, onDown, onRemove, update, onRegen
           style={{ ...btnSecondary, fontSize: 12.5, padding: '7px 14px' }}
         >
           {regenBusy ? '이 날짜 다시 생성 중…' : '이 날짜 다시 생성'}
+        </button>
+        <button
+          type="button"
+          onClick={() => setEditMode((v) => !v)}
+          disabled={busy}
+          style={{ ...(editMode ? btnPrimary : btnSecondary), fontSize: 12.5, padding: '7px 14px' }}
+        >
+          {editMode ? '수정 완료' : '수기 수정'}
         </button>
       </div>
 
