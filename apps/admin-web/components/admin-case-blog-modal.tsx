@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, type CSSProperties } from 'react';
+import { useState, useRef, useEffect, type CSSProperties } from 'react';
 import Link from 'next/link';
 
 // ── 타입 ──────────────────────────────────────────────────────────────────
@@ -8,7 +8,8 @@ type StepNum = 1 | 2 | 3 | 4 | 5;
 type OverviewItem = { label: string; value: string };
 // 액션 1개 = 한 행위(무엇을 했나) + 그 이유(왜) + 도출 결과. UI에서 카드 하나.
 type Action = { what: string; why: string; result: string };
-type Phase = { id: string; name: string; period: string; type: string; actions: Action[]; nextStep: string[] };
+// types: 한 날짜에 여러 성격이 붙을 수 있음(검사/진단/술 전 검사/외과/내과).
+type Phase = { id: string; name: string; period: string; types: string[]; actions: Action[]; nextStep: string[] };
 type CausalFlow = { axis: string; anesthesia: boolean; phases: Phase[] };
 // 2단계 — 진단·치료 세부 흐름
 type DiagStep = { name: string; why: string; what: string; result: string; fromChart: boolean };
@@ -50,7 +51,17 @@ const inputStyle: CSSProperties = {
   outline: 'none', boxSizing: 'border-box', resize: 'vertical', wordBreak: 'break-word', whiteSpace: 'pre-wrap',
 };
 const cardBox: CSSProperties = { background: '#fff', border: '1px solid var(--border)', borderRadius: 10, padding: '12px 14px' };
-const actionBox: CSSProperties = { background: 'var(--bg-subtle)', border: '1px solid var(--border)', borderRadius: 8, padding: '10px 12px' };
+const actionBox: CSSProperties = { background: '#f2fae6', border: '1px solid #a5d16f', borderRadius: 8, padding: '10px 12px' };
+// 성격 해시태그 칩(선택 on/off).
+function hashChip(on: boolean): CSSProperties {
+  return {
+    padding: '4px 11px', fontSize: 12, fontWeight: 700, borderRadius: 999, cursor: 'pointer',
+    border: `1px solid ${on ? 'var(--accent)' : 'var(--border-strong)'}`,
+    background: on ? 'var(--accent)' : '#fff',
+    color: on ? '#fff' : 'var(--text-muted)',
+    transition: 'all 0.1s ease',
+  };
+}
 
 // ── 헬퍼 ──────────────────────────────────────────────────────────────────
 const uid = () => Math.random().toString(36).slice(2, 9);
@@ -79,22 +90,25 @@ function asActionsAndNext(x: Record<string, unknown>): { actions: Action[]; next
   return { actions, nextStep: toLines(x.toNext) };
 }
 
+function asPhase(raw: unknown): Phase {
+  const x = (raw ?? {}) as Record<string, unknown>;
+  // types(신규) 우선, 없으면 type(옛 단일값) 변환.
+  const types = normTypes(x.types ?? x.type);
+  return {
+    id: str(x.id) || `phase_${uid()}`,
+    name: str(x.name), period: str(x.period),
+    types,
+    ...asActionsAndNext(x),
+  };
+}
+
 function asCausal(raw: unknown): CausalFlow {
   const o = (raw ?? {}) as Record<string, unknown>;
   const phases = Array.isArray(o.phases) ? o.phases : [];
   return {
     axis: str(o.axis),
     anesthesia: o.anesthesia === true,
-    phases: phases.map((p) => {
-      const x = (p ?? {}) as Record<string, unknown>;
-      const t = str(x.type);
-      return {
-        id: str(x.id) || `phase_${uid()}`,
-        name: str(x.name), period: str(x.period),
-        type: t === 'surgical' || t === 'medical' || t === 'diagnostic' ? t : 'medical',
-        ...asActionsAndNext(x),
-      };
-    }),
+    phases: phases.map(asPhase),
   };
 }
 function asOutline(raw: unknown): Outline {
@@ -158,7 +172,15 @@ function diffDetail(prev: DetailFlow, next: DetailFlow): string[] {
   if (JSON.stringify(prev.treatment.procedures) !== JSON.stringify(next.treatment.procedures)) changes.push('치료 과정 세부');
   return changes;
 }
-const PHASE_TYPE_LABEL: Record<string, string> = { surgical: '수술/처치', medical: '내과 치료', diagnostic: '검사' };
+// 날짜 성격(해시태그). 여러 개 선택 가능.
+const PHASE_TYPE_LABEL: Record<string, string> = { diagnostic: '검사', diagnosis: '진단', preop: '술 전 검사', surgical: '외과 치료', medical: '내과 치료' };
+const PHASE_TYPE_ORDER = ['diagnostic', 'diagnosis', 'preop', 'surgical', 'medical'];
+// 옛 값 정규화(예전 'surgical' 단일값 등) + 유효값만.
+function normTypes(v: unknown): string[] {
+  const arr = Array.isArray(v) ? v : typeof v === 'string' && v.trim() ? [v] : [];
+  const out = arr.map((x) => String(x).trim()).filter((x) => x in PHASE_TYPE_LABEL);
+  return [...new Set(out)];
+}
 const TREAT_TYPE_LABEL: Record<string, string> = { surgical: '수술형', medical: '내과형', complex: '복합형' };
 
 // 변경된 부분을 사람이 읽을 수 있는 목록으로 — 재생성 확인창에 표시.
@@ -177,7 +199,7 @@ function diffCausal(prev: CausalFlow, next: CausalFlow): string[] {
     const sub: string[] = [];
     if (a.name !== b.name) sub.push('단계명');
     if (a.period !== b.period) sub.push('날짜');
-    if (a.type !== b.type) sub.push('성격');
+    if (a.types.join(',') !== b.types.join(',')) sub.push('성격');
     if (actionsKey(a.actions) !== actionsKey(b.actions)) sub.push('행위(무엇/왜/결과)');
     if (!arrEq(a.nextStep, b.nextStep)) sub.push('Next step');
     if (sub.length) changes.push(`${b.period || b.name || `단계 ${i + 1}`}: ${sub.join(', ')}`);
@@ -216,6 +238,28 @@ function LabeledTextarea({ label, value, onChange, rows = 2 }: { label: string; 
   );
 }
 
+// 내용 높이에 맞춰 자동으로 늘어나는 textarea (글자가 길어도 한눈에 다 보이게).
+function AutoTextarea({ label, value, onChange, placeholder }: { label: string; value: string; onChange: (v: string) => void; placeholder?: string }) {
+  const ref = useRef<HTMLTextAreaElement>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (el) { el.style.height = 'auto'; el.style.height = `${el.scrollHeight}px`; }
+  }, [value]);
+  return (
+    <div style={{ display: 'grid', gap: 3 }}>
+      <span style={fieldLabel}>{label}</span>
+      <textarea
+        ref={ref}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        rows={1}
+        style={{ ...inputStyle, background: '#fff', overflow: 'hidden', resize: 'none', minHeight: 34 }}
+      />
+    </div>
+  );
+}
+
 /**
  * 진료케이스 작성 — 3단계 위저드.
  * 1) 인과 흐름(causalFlow) → 2) 섹션 아웃라인(outline) → 3) 블로그 글(blogPost).
@@ -247,6 +291,7 @@ export function CaseBlogButton({
   const [blogBasis, setBlogBasis] = useState(''); // blog 를 만든 outline 의 서명
 
   const [genLoading, setGenLoading] = useState<null | 1 | 2 | 3 | 4 | 5>(null);
+  const [phaseBusy, setPhaseBusy] = useState<number | null>(null); // 날짜별 다시 생성 중인 phase 인덱스
   const [confirmed, setConfirmed] = useState(false); // 블로그 글 확정됨(AI 재생성 불가)
   const [savedFlag, setSavedFlag] = useState(false);  // 네이버 저장완료 — 수기 수정 시 보존(상태 되돌림 방지)
   const [saving, setSaving] = useState(false);
@@ -518,10 +563,25 @@ export function CaseBlogButton({
     }); dirty();
   }
   function addPhase() {
-    setCausal((c) => (c ? { ...c, phases: [...c.phases, { id: `phase_${uid()}`, name: '', period: '', type: 'medical', actions: [], nextStep: [] }] } : c)); dirty();
+    setCausal((c) => (c ? { ...c, phases: [...c.phases, { id: `phase_${uid()}`, name: '', period: '', types: [], actions: [], nextStep: [] }] } : c)); dirty();
   }
   function removePhase(i: number) {
     setCausal((c) => (c ? { ...c, phases: c.phases.filter((_, j) => j !== i) } : c)); dirty();
+  }
+  // 날짜(phase) 하나만 다시 생성. feedback(수정 요청)을 프롬프트에 반영.
+  async function regenPhase(i: number, feedback: string) {
+    if (!causal || phaseBusy !== null) return;
+    setPhaseBusy(i); setError(null); setSavedMsg('');
+    try {
+      const g = await callGenerate({ contentType: 'blog_causal_phase', causalFlow: causal, phaseIndex: i, feedback });
+      const np = asPhase(g.phase);
+      // id 는 기존 유지(참조 안정).
+      updatePhase(i, { name: np.name, period: np.period, types: np.types, actions: np.actions, nextStep: np.nextStep });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '이 날짜 다시 생성 실패');
+    } finally {
+      setPhaseBusy(null);
+    }
   }
   function updateSection(i: number, patch: Partial<Section>) {
     setOutline((o) => (o ? { ...o, sections: o.sections.map((s, j) => (j === i ? { ...s, ...patch } : s)) } : o)); dirty();
@@ -663,6 +723,7 @@ export function CaseBlogButton({
                     <CausalEditor
                       causal={causal} busy={busy}
                       setField={setCausalField} updatePhase={updatePhase} movePhase={movePhase} addPhase={addPhase} removePhase={removePhase}
+                      regenPhase={regenPhase} phaseBusy={phaseBusy}
                     />
                   ) : step === 2 ? (
                     genLoading === 2 && !detail ? <Loading text="AI가 진단·치료 세부 흐름을 전개하는 중…" /> : (
@@ -734,31 +795,43 @@ function RowTools({ onUp, onDown, onRemove, busy }: { onUp: () => void; onDown: 
   );
 }
 
-// 한 날짜(phase) 카드: 날짜를 제목처럼, 행위별 카드(무엇/왜/결과) + 맨 아래 Next step.
-function PhaseCard({ p, busy, onUp, onDown, onRemove, update }: {
-  p: Phase; busy: boolean; onUp: () => void; onDown: () => void; onRemove: () => void;
-  update: (patch: Partial<Phase>) => void;
+// 한 날짜(phase) 카드: 날짜를 제목처럼, 성격 해시태그(다중), 행위별 카드(무엇/왜/결과),
+// 맨 아래 Next step + 날짜별 다시 생성(피드백 반영).
+function PhaseCard({ p, busy, regenBusy, onUp, onDown, onRemove, update, onRegen }: {
+  p: Phase; busy: boolean; regenBusy: boolean; onUp: () => void; onDown: () => void; onRemove: () => void;
+  update: (patch: Partial<Phase>) => void; onRegen: (feedback: string) => void;
 }) {
+  const [feedback, setFeedback] = useState('');
   const setActions = (actions: Action[]) => update({ actions });
   const updAction = (ai: number, patch: Partial<Action>) => setActions(p.actions.map((a, j) => (j === ai ? { ...a, ...patch } : a)));
   const moveAction = (ai: number, dir: -1 | 1) => { const j = ai + dir; if (j < 0 || j >= p.actions.length) return; const a = [...p.actions]; [a[ai], a[j]] = [a[j]!, a[ai]!]; setActions(a); };
   const addAction = () => setActions([...p.actions, { what: '', why: '', result: '' }]);
   const rmAction = (ai: number) => setActions(p.actions.filter((_, j) => j !== ai));
+  const toggleType = (t: string) => update({ types: p.types.includes(t) ? p.types.filter((x) => x !== t) : [...p.types, t] });
 
   return (
-    <div style={cardBox}>
-      {/* 헤더: 날짜(제목) + 성격 + 이동/삭제 */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+    <div style={{ ...cardBox, opacity: regenBusy ? 0.6 : 1 }}>
+      {/* 헤더: 날짜(제목) + 이동/삭제 */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
         <input
           value={p.period}
           onChange={(e) => update({ period: e.target.value })}
           placeholder="날짜 (예: 2026년 02월 17일 (최초 진단일))"
           style={{ ...inputStyle, flex: 1, fontWeight: 700, fontSize: 14 }}
         />
-        <select value={p.type} onChange={(e) => update({ type: e.target.value })} style={{ ...inputStyle, width: 'auto', flex: '0 0 auto', whiteSpace: 'normal' }}>
-          {Object.entries(PHASE_TYPE_LABEL).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-        </select>
         <RowTools onUp={onUp} onDown={onDown} onRemove={onRemove} busy={busy} />
+      </div>
+
+      {/* 성격 해시태그(다중 선택) */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
+        {PHASE_TYPE_ORDER.map((t) => {
+          const on = p.types.includes(t);
+          return (
+            <button key={t} type="button" onClick={() => toggleType(t)} disabled={busy} style={hashChip(on)}>
+              #{PHASE_TYPE_LABEL[t]}
+            </button>
+          );
+        })}
       </div>
 
       {/* 단계명(선택) */}
@@ -784,15 +857,9 @@ function PhaseCard({ p, busy, onUp, onDown, onRemove, update }: {
                 />
                 <RowTools onUp={() => moveAction(ai, -1)} onDown={() => moveAction(ai, 1)} onRemove={() => rmAction(ai)} busy={busy} />
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 8 }}>
-                <div style={{ display: 'grid', gap: 3 }}>
-                  <span style={fieldLabel}>왜 했나</span>
-                  <input value={a.why} onChange={(e) => updAction(ai, { why: e.target.value })} placeholder="임상적 이유 · 한 줄" style={inputStyle} />
-                </div>
-                <div style={{ display: 'grid', gap: 3 }}>
-                  <span style={fieldLabel}>결과</span>
-                  <input value={a.result} onChange={(e) => updAction(ai, { result: e.target.value })} placeholder="도출된 결과 · 한 줄" style={inputStyle} />
-                </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 8, alignItems: 'start' }}>
+                <AutoTextarea label="왜 했나" value={a.why} onChange={(v) => updAction(ai, { why: v })} placeholder="임상적 이유" />
+                <AutoTextarea label="결과" value={a.result} onChange={(v) => updAction(ai, { result: v })} placeholder="도출된 결과" />
               </div>
             </div>
           ))
@@ -809,16 +876,37 @@ function PhaseCard({ p, busy, onUp, onDown, onRemove, update }: {
           rows={2}
         />
       </div>
+
+      {/* 이 날짜만 다시 생성 (수정 요청 반영) */}
+      <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px dashed var(--border)', display: 'grid', gap: 6 }}>
+        <textarea
+          value={feedback}
+          onChange={(e) => setFeedback(e.target.value)}
+          placeholder="어떤 부분이 수정이 필요할까요? (예: 초음파 결과가 빠졌어요 / 순서가 틀렸어요) — 비워두면 품질만 개선해 다시 정리"
+          rows={2}
+          style={{ ...inputStyle }}
+          disabled={busy}
+        />
+        <button
+          type="button"
+          onClick={() => onRegen(feedback)}
+          disabled={busy}
+          style={{ ...btnSecondary, justifySelf: 'flex-start', fontSize: 12.5, padding: '7px 14px' }}
+        >
+          {regenBusy ? '이 날짜 다시 생성 중…' : '이 날짜 다시 생성'}
+        </button>
+      </div>
     </div>
   );
 }
 
 // ── 1단계 에디터 ──
-function CausalEditor({ causal, busy, setField, updatePhase, movePhase, addPhase, removePhase }: {
+function CausalEditor({ causal, busy, setField, updatePhase, movePhase, addPhase, removePhase, regenPhase, phaseBusy }: {
   causal: CausalFlow | null; busy: boolean;
   setField: <K extends keyof CausalFlow>(k: K, v: CausalFlow[K]) => void;
   updatePhase: (i: number, patch: Partial<Phase>) => void;
   movePhase: (i: number, dir: -1 | 1) => void; addPhase: () => void; removePhase: (i: number) => void;
+  regenPhase: (i: number, feedback: string) => void; phaseBusy: number | null;
 }) {
   if (!causal) return <div style={{ fontSize: 13, color: 'var(--text-muted)', padding: 12 }}>인과 흐름이 없습니다. “다시 생성”을 눌러 주세요.</div>;
   return (
@@ -833,9 +921,9 @@ function CausalEditor({ causal, busy, setField, updatePhase, movePhase, addPhase
         </div>
       </div>
       {causal.phases.map((p, i) => (
-        <PhaseCard key={p.id} p={p} busy={busy}
+        <PhaseCard key={p.id} p={p} busy={busy || phaseBusy !== null} regenBusy={phaseBusy === i}
           onUp={() => movePhase(i, -1)} onDown={() => movePhase(i, 1)} onRemove={() => removePhase(i)}
-          update={(patch) => updatePhase(i, patch)} />
+          update={(patch) => updatePhase(i, patch)} onRegen={(fb) => regenPhase(i, fb)} />
       ))}
       <button type="button" style={{ ...btnSecondary, width: '100%' }} onClick={addPhase} disabled={busy}>+ 단계 추가</button>
     </div>
