@@ -51,9 +51,10 @@ const inputStyle: CSSProperties = {
   outline: 'none', boxSizing: 'border-box', resize: 'vertical', wordBreak: 'break-word', whiteSpace: 'pre-wrap',
 };
 const cardBox: CSSProperties = { background: '#fff', border: '1px solid var(--border)', borderRadius: 10, padding: '12px 14px' };
-const actionBox: CSSProperties = { background: '#ecff9e', border: '1px solid #a3e635', borderRadius: 8, padding: '10px 12px' };
+const actionBox: CSSProperties = { background: 'var(--bg-subtle)', border: '1px solid #a3e635', borderRadius: 8, padding: '10px 12px' };
+const actionWhatColor = '#65a30d'; // '무엇을 했나' 강조 연두
 // 읽기 전용 뷰의 '왜/결과' 인라인 라벨.
-const viewMiniLabel: CSSProperties = { flexShrink: 0, fontSize: 11, fontWeight: 800, color: '#5a7a1e', minWidth: 30 };
+const viewMiniLabel: CSSProperties = { flexShrink: 0, fontSize: 11, fontWeight: 800, color: 'var(--text-muted)', minWidth: 30 };
 // 성격 해시태그 칩(선택 on/off): 선택 시 파란 테두리 + 반투명 파랑 배경.
 function hashChip(on: boolean): CSSProperties {
   return {
@@ -190,11 +191,15 @@ const PHASE_TYPE_LABEL: Record<string, string> = {
 const PHASE_TYPE_ORDER = ['exam_dx', 'preop', 'surgical', 'medical', 'admission', 'discharge'];
 // 옛 값 → 신규 키 매핑(검사/진단 → 검사 및 진단으로 통합).
 const LEGACY_TYPE_MAP: Record<string, string> = { diagnostic: 'exam_dx', diagnosis: 'exam_dx' };
-// 옛 값 정규화 + 유효값만.
+// 외과·내과는 한 날짜에 하나만(상호 배타). 둘 다면 외과 우선.
+function resolveExclusiveTypes(types: string[]): string[] {
+  return types.includes('surgical') && types.includes('medical') ? types.filter((x) => x !== 'medical') : types;
+}
+// 옛 값 정규화 + 유효값만 + 상호 배타 정리.
 function normTypes(v: unknown): string[] {
   const arr = Array.isArray(v) ? v : typeof v === 'string' && v.trim() ? [v] : [];
   const out = arr.map((x) => { const s = String(x).trim(); return LEGACY_TYPE_MAP[s] ?? s; }).filter((x) => x in PHASE_TYPE_LABEL);
-  return [...new Set(out)];
+  return resolveExclusiveTypes([...new Set(out)]);
 }
 const TREAT_TYPE_LABEL: Record<string, string> = { surgical: '수술형', medical: '내과형', complex: '복합형' };
 
@@ -824,15 +829,21 @@ function PhaseCard({ p, busy, regenBusy, onUp, onDown, onRemove, update, onRegen
   const moveAction = (ai: number, dir: -1 | 1) => { const j = ai + dir; if (j < 0 || j >= p.actions.length) return; const a = [...p.actions]; [a[ai], a[j]] = [a[j]!, a[ai]!]; setActions(a); };
   const addAction = () => setActions([...p.actions, { what: '', why: '', result: '' }]);
   const rmAction = (ai: number) => setActions(p.actions.filter((_, j) => j !== ai));
-  const toggleType = (t: string) => update({ types: p.types.includes(t) ? p.types.filter((x) => x !== t) : [...p.types, t] });
+  const toggleType = (t: string) => {
+    if (p.types.includes(t)) { update({ types: p.types.filter((x) => x !== t) }); return; }
+    // 켤 때: 외과↔내과는 상호 배타 — 다른 하나는 끈다.
+    const other = t === 'surgical' ? 'medical' : t === 'medical' ? 'surgical' : null;
+    const base = other ? p.types.filter((x) => x !== other) : p.types;
+    update({ types: [...base, t] });
+  };
 
   const nextSteps = p.nextStep.filter((s) => s.trim());
   const selectedTypes = PHASE_TYPE_ORDER.filter((t) => p.types.includes(t));
 
   return (
     <div style={{ ...cardBox, opacity: regenBusy ? 0.6 : 1 }}>
-      {/* 헤더: 날짜(제목) + 이동/삭제 */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: editMode ? 8 : 10 }}>
+      {/* 헤더: 날짜(제목) + 우측 버튼(다시 생성 / 수기 수정 / [편집 시 순서 이동] / 삭제) */}
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: editMode ? 8 : 10 }}>
         {editMode ? (
           <input
             value={p.period}
@@ -846,7 +857,26 @@ function PhaseCard({ p, busy, regenBusy, onUp, onDown, onRemove, update, onRegen
             {p.name ? <div style={{ fontSize: 12.5, color: 'var(--text-muted)', marginTop: 2 }}>{p.name}</div> : null}
           </div>
         )}
-        <RowTools onUp={onUp} onDown={onDown} onRemove={onRemove} busy={busy} />
+        <div style={{ display: 'flex', gap: 5, flexShrink: 0, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+          <button type="button" onClick={() => setRegenOpen(true)} disabled={busy} style={btnTiny}>
+            {regenBusy ? '생성 중…' : '이 날짜 다시 생성'}
+          </button>
+          <button
+            type="button"
+            onClick={() => setEditMode((v) => !v)}
+            disabled={busy}
+            style={editMode ? { ...btnTiny, background: 'var(--accent)', color: '#fff', borderColor: 'var(--accent)' } : btnTiny}
+          >
+            {editMode ? '수정 완료' : '수기 수정'}
+          </button>
+          {editMode ? (
+            <>
+              <button type="button" style={btnTiny} onClick={onUp} disabled={busy} title="위로 이동">↑</button>
+              <button type="button" style={btnTiny} onClick={onDown} disabled={busy} title="아래로 이동">↓</button>
+            </>
+          ) : null}
+          <button type="button" style={{ ...btnTiny, color: 'var(--danger)', borderColor: 'var(--danger-subtle)' }} onClick={onRemove} disabled={busy}>삭제</button>
+        </div>
       </div>
 
       {editMode ? (
@@ -879,7 +909,7 @@ function PhaseCard({ p, busy, regenBusy, onUp, onDown, onRemove, update, onRegen
                       value={a.what}
                       onChange={(e) => updAction(ai, { what: e.target.value })}
                       placeholder="무엇을 했나 (한 줄 제목)"
-                      style={{ ...inputStyle, flex: 1, fontWeight: 600 }}
+                      style={{ ...inputStyle, flex: 1, fontWeight: 700, color: actionWhatColor }}
                     />
                     <RowTools onUp={() => moveAction(ai, -1)} onDown={() => moveAction(ai, 1)} onRemove={() => rmAction(ai)} busy={busy} />
                   </div>
@@ -921,7 +951,7 @@ function PhaseCard({ p, busy, regenBusy, onUp, onDown, onRemove, update, onRegen
             <div style={{ display: 'grid', gap: 8 }}>
               {p.actions.map((a, ai) => (
                 <div key={ai} style={actionBox}>
-                  <div style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--text)' }}>{a.what || '—'}</div>
+                  <div style={{ fontSize: 13.5, fontWeight: 700, color: actionWhatColor }}>{a.what || '—'}</div>
                   {a.why.trim() ? (
                     <div style={{ display: 'flex', gap: 6, marginTop: 6, fontSize: 12.5, color: 'var(--text-secondary)' }}>
                       <span style={viewMiniLabel}>왜</span><span style={{ whiteSpace: 'pre-wrap' }}>{a.why}</span>
@@ -949,25 +979,6 @@ function PhaseCard({ p, busy, regenBusy, onUp, onDown, onRemove, update, onRegen
         </>
       )}
 
-      {/* 하단 버튼: 다시 생성 / 수기 수정(토글) */}
-      <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px dashed var(--border)', display: 'flex', gap: 8 }}>
-        <button
-          type="button"
-          onClick={() => setRegenOpen(true)}
-          disabled={busy}
-          style={{ ...btnSecondary, fontSize: 12.5, padding: '7px 14px' }}
-        >
-          {regenBusy ? '이 날짜 다시 생성 중…' : '이 날짜 다시 생성'}
-        </button>
-        <button
-          type="button"
-          onClick={() => setEditMode((v) => !v)}
-          disabled={busy}
-          style={{ ...(editMode ? btnPrimary : btnSecondary), fontSize: 12.5, padding: '7px 14px' }}
-        >
-          {editMode ? '수정 완료' : '수기 수정'}
-        </button>
-      </div>
 
       {regenOpen ? (
         <div style={regenOverlay} onClick={() => setRegenOpen(false)}>
