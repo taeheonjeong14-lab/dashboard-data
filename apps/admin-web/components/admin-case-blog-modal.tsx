@@ -1106,9 +1106,9 @@ function OutlineActionChip({ a }: { a: Action }) {
   const hasDetail = Boolean(a.why.trim() || a.result.trim() || (isMed && a.detail.trim()) || (isSurg && (a.procedure ?? []).length > 0));
   return (
     <div style={{ position: 'relative' }} onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}>
-      <div style={{ ...actionBox, padding: '5px 9px', cursor: hasDetail ? 'help' : 'default', display: 'flex', alignItems: 'center', gap: 5 }}>
-        <span style={{ flex: 1, minWidth: 0, fontSize: 12, fontWeight: 700, color: actionWhatColor, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.what || '—'}</span>
-        {hasDetail ? <span style={{ flexShrink: 0, fontSize: 10, color: 'var(--text-muted)' }}>ⓘ</span> : null}
+      <div style={{ ...actionBox, padding: '5px 9px', cursor: hasDetail ? 'help' : 'default', display: 'flex', alignItems: 'flex-start', gap: 5 }}>
+        <span style={{ flex: 1, minWidth: 0, fontSize: 12, fontWeight: 700, color: actionWhatColor, whiteSpace: 'normal', wordBreak: 'break-word', lineHeight: 1.35 }}>{a.what || '—'}</span>
+        {hasDetail ? <span style={{ flexShrink: 0, marginTop: 1, fontSize: 10, color: 'var(--text-muted)' }}>ⓘ</span> : null}
       </div>
       {hover && hasDetail ? (
         <div style={{ position: 'absolute', top: -2, left: '100%', marginLeft: 8, zIndex: 60, width: 280, maxWidth: '60vw', background: 'var(--text)', color: '#fff', borderRadius: 8, padding: '9px 11px', boxShadow: '0 8px 24px rgba(0,0,0,0.28)', fontSize: 11.5, lineHeight: 1.55, whiteSpace: 'pre-wrap' }}>
@@ -1125,13 +1125,14 @@ function OutlineActionChip({ a }: { a: Action }) {
 // 아웃라인 섹션 1개 = 읽기 편한 박스. 기본은 읽기 전용(해시태그 제목 + 핵심요약/팩트 불릿),
 // '수기 수정'으로 편집 모드(태그 선택 + 요약/팩트 입력). 1단계 PhaseCard 와 동일한 UX.
 function SectionCard({ s, i, tagCards, updateSection, moveSection, removeSection, imageMeta }: {
-  s: Section; i: number; tagCards: Action[];
+  s: Section; i: number; tagCards: { period: string; actions: Action[] }[];
   updateSection: (i: number, patch: Partial<Section>) => void;
   moveSection: (i: number, dir: -1 | 1) => void; removeSection: (i: number) => void;
   imageMeta: (fileName: string) => CaseImg | null;
 }) {
   const [edit, setEdit] = useState(false);
   const title = s.tag ? `#${ACTION_TYPE_LABEL[s.tag] ?? s.tag}` : s.label ? `#${s.label}` : '(섹션 태그 없음)';
+  const totalCards = tagCards.reduce((n, g) => n + g.actions.length, 0);
   const points = s.points.filter((p) => p.trim());
   const facts = s.facts.filter((f) => f.trim());
   const listUl: CSSProperties = { margin: 0, paddingLeft: 18, listStyleType: 'disc', fontSize: 13, lineHeight: 1.6 };
@@ -1171,18 +1172,25 @@ function SectionCard({ s, i, tagCards, updateSection, moveSection, removeSection
 
       {/* 본문: 좌(행위 카드 제목 · hover 상세) 3 | 우(핵심요약·팩트·이미지) 7 */}
       <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start' }}>
-        {/* 좌 — 이 태그가 붙은 인과 흐름 카드(제목만, hover 로 상세). 카드 없으면(서술 섹션) 생략 */}
-        {s.tag && tagCards.length ? (
-          <div style={{ flex: '3 1 0', minWidth: 0, display: 'grid', gap: 5, alignContent: 'start' }}>
-            <span style={fieldLabel}>행위 카드 {tagCards.length}개</span>
-            <div style={{ display: 'grid', gap: 4 }}>
-              {tagCards.map((a, ai) => <OutlineActionChip key={ai} a={a} />)}
+        {/* 좌 — 이 태그가 붙은 인과 흐름 카드(제목만, hover 로 상세). 날짜별로 묶어 표시. 카드 없으면(서술 섹션) 생략 */}
+        {s.tag && totalCards ? (
+          <div style={{ flex: '3 1 0', minWidth: 0, display: 'grid', gap: 6, alignContent: 'start' }}>
+            <span style={fieldLabel}>행위 카드 {totalCards}개</span>
+            <div style={{ display: 'grid', gap: 8 }}>
+              {tagCards.map((g, gi) => (
+                <div key={gi} style={{ display: 'grid', gap: 4 }}>
+                  <span style={{ fontSize: 10.5, fontWeight: 700, color: 'var(--text-muted)', letterSpacing: '-0.01em' }}>{g.period || '날짜 미상'}</span>
+                  <div style={{ display: 'grid', gap: 4 }}>
+                    {g.actions.map((a, ai) => <OutlineActionChip key={ai} a={a} />)}
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         ) : null}
 
         {/* 우 — 핵심 요약 + 팩트 (+ 이미지) */}
-        <div style={{ flex: s.tag && tagCards.length ? '7 1 0' : '1 1 0', minWidth: 0, display: 'grid', gap: 10 }}>
+        <div style={{ flex: s.tag && totalCards ? '7 1 0' : '1 1 0', minWidth: 0, display: 'grid', gap: 10 }}>
           {edit ? (
             <>
               <LabeledTextarea label="핵심 요약 (한 줄에 하나 · 서술 방향)" value={s.points.join('\n')} onChange={(v) => updateSection(i, { points: v.split('\n') })} rows={3} />
@@ -1202,7 +1210,23 @@ function SectionCard({ s, i, tagCards, updateSection, moveSection, removeSection
                 <div style={{ display: 'grid', gap: 4 }}>
                   <span style={fieldLabel}>팩트</span>
                   <ul style={{ ...listUl, color: 'var(--text-secondary)' }}>
-                    {facts.map((f, k) => <li key={k} style={{ listStyleType: 'disc' }}>{f}</li>)}
+                    {facts.map((f, k) => {
+                      // 앞에 공백이 있으면 2차 불릿(들여쓰기), ":"로 끝나면 그룹 헤더(예: "혈액검사:").
+                      const isSub = /^\s/.test(f);
+                      const text = f.trim();
+                      const isHeader = !isSub && text.endsWith(':');
+                      return (
+                        <li
+                          key={k}
+                          style={{
+                            listStyleType: isSub ? 'circle' : 'disc',
+                            marginLeft: isSub ? 16 : 0,
+                            fontWeight: isHeader ? 700 : 400,
+                            color: isHeader ? 'var(--text)' : 'var(--text-secondary)',
+                          }}
+                        >{text}</li>
+                      );
+                    })}
                   </ul>
                 </div>
               ) : null}
@@ -1233,9 +1257,13 @@ function OutlineEditor({ outline, causal, updateSection, moveSection, addSection
   imageMeta: (fileName: string) => CaseImg | null;
 }) {
   if (!outline) return <div style={{ fontSize: 13, color: 'var(--text-muted)', padding: 12 }}>아웃라인이 없습니다. “다시 생성”을 눌러 주세요.</div>;
-  // 해시태그 섹션에 묶일 카드: 인과 흐름 전 단계에서 그 태그가 붙은 행위(다중 태그면 여러 섹션에 중복 등장).
-  const cardsForTag = (tag: string): Action[] =>
-    tag && causal ? causal.phases.flatMap((p) => p.actions.filter((a) => (a.types ?? []).includes(tag))) : [];
+  // 해시태그 섹션에 묶일 카드: 그 태그가 붙은 행위를 날짜(phase)별로 묶어 반환(빈 날짜 제외). 다중 태그면 여러 섹션에 중복 등장.
+  const cardsForTag = (tag: string): { period: string; actions: Action[] }[] =>
+    tag && causal
+      ? causal.phases
+          .map((p) => ({ period: p.period, actions: p.actions.filter((a) => (a.types ?? []).includes(tag)) }))
+          .filter((g) => g.actions.length > 0)
+      : [];
   return (
     <div style={{ display: 'grid', gap: 12 }}>
       <div style={cardBox}>
