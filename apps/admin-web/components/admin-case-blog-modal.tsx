@@ -114,17 +114,12 @@ function asActionsAndNext(x: Record<string, unknown>): { actions: Action[]; next
 
 function asPhase(raw: unknown): Phase {
   const x = (raw ?? {}) as Record<string, unknown>;
-  const { actions, nextStep } = asActionsAndNext(x);
-  // 레거시: 예전엔 성격(types)이 phase(날짜)에 붙었음. 이제는 action(행위)별.
-  // 옛 데이터면 phase 태그를 성격 없는 각 action 으로 이관(편집으로 조정 가능).
-  const legacyTypes = normTypes(x.types ?? x.type);
-  const migrated = legacyTypes.length
-    ? actions.map((a) => (a.types.length ? a : { ...a, types: legacyTypes }))
-    : actions;
+  // 성격(types)은 이제 action(행위)별. 옛 phase 태그는 이관하지 않는다
+  // (모든 카드에 똑같이 복붙되는 걸 피하려고 — 재생성하면 AI가 카드별로 붙임).
   return {
     id: str(x.id) || `phase_${uid()}`,
     name: str(x.name), period: str(x.period),
-    actions: migrated, nextStep,
+    ...asActionsAndNext(x),
   };
 }
 
