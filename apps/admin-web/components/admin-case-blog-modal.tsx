@@ -176,13 +176,13 @@ function asBlog(raw: unknown): BlogPost {
 // intro~outro 는 2단계 서술 섹션용 태그(인과 흐름엔 잘 안 붙지만 태그 체계를 1·2단계 공통으로 두려고 목록에 포함).
 const ACTION_TYPE_LABEL: Record<string, string> = {
   intro: '인트로', disease_intro: '질환 소개', visit_background: '내원 배경',
-  exam_dx: '검사 및 진단', preop: '술 전 검사', surgical: '수술', postop_recovery: '술 후 회복', postop_followup: '술 후 경과확인', medical: '내과 치료', admission: '입원 치료', discharge: '퇴원', aftercare: '사후관리 안내', other: '기타',
+  exam_dx: '검사 및 진단', preop: '술 전 검사', surgical: '수술', medical: '내과 치료', recovery: '회복 및 경과 확인', aftercare: '사후 관리 안내', other: '기타',
   director_note: '원장님 한마디', outro: '아웃트로',
 };
-// 2단계 섹션 배치 순서 = 이 순서(서술 앞 3 → 임상 10 → 서술 뒤 2).
-const ACTION_TYPE_ORDER = ['intro', 'disease_intro', 'visit_background', 'exam_dx', 'preop', 'surgical', 'postop_recovery', 'postop_followup', 'medical', 'admission', 'discharge', 'aftercare', 'other', 'director_note', 'outro'];
-// 옛 값 → 신규 키 매핑(검사/진단 → 검사 및 진단으로 통합).
-const LEGACY_TYPE_MAP: Record<string, string> = { diagnostic: 'exam_dx', diagnosis: 'exam_dx' };
+// 2단계 섹션 배치 순서 = 이 순서(서술 앞 3 → 진료 7 → 서술 뒤 2).
+const ACTION_TYPE_ORDER = ['intro', 'disease_intro', 'visit_background', 'exam_dx', 'preop', 'surgical', 'medical', 'recovery', 'aftercare', 'other', 'director_note', 'outro'];
+// 옛 값 → 신규 키 매핑. 입원·퇴원·술후회복·술후경과확인은 모두 '회복 및 경과 확인'의 한 단계로 흡수.
+const LEGACY_TYPE_MAP: Record<string, string> = { diagnostic: 'exam_dx', diagnosis: 'exam_dx', postop_recovery: 'recovery', postop_followup: 'recovery', admission: 'recovery', discharge: 'recovery' };
 // 외과·내과는 한 행위에 하나만(상호 배타). 둘 다면 외과 우선.
 function resolveExclusiveTypes(types: string[]): string[] {
   return types.includes('surgical') && types.includes('medical') ? types.filter((x) => x !== 'medical') : types;
