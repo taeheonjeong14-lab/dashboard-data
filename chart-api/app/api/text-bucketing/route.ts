@@ -47,7 +47,7 @@ import { dbChartPdf, dbCore, getSupabaseCoreSchema } from "@/lib/supabase-db-sch
 import { getChartPgPool } from "@/lib/db";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { canonicalizeLabItemName, canonicalizeLabUnit } from "@/lib/lab-item-normalize";
-import { computeLabFlag, refineLabFlag, urinalysisSectionItemName } from "@dashboard/lab-normalize";
+import { computeLabFlag, isRecognizedLabItem, refineLabFlag, urinalysisSectionItemName } from "@dashboard/lab-normalize";
 import { detectSpeciesProfile } from "@/lib/lab-category-map";
 import {
   efriendsChartBodyByDateFromBlocks,
@@ -1260,6 +1260,28 @@ function isRatioStyleAnalyteName(name: string) {
   return /^[A-Za-z][A-Za-z0-9.]*(?:\/[A-Za-z][A-Za-z0-9.]*)+$/.test(t);
 }
 
+/**
+ * 단위처럼 보이는 토큰(실제 검사행 판별 앵커). 슬래시 포함 단위(mg/dL, mOsm/kg, Leu/µL, 10x3/μL) 또는 '%'.
+ * 콜론 포함(W:256, L:128)·순수 숫자는 단위가 아님 → 영상/메타 쓰레기를 검사행으로 오인하지 않게.
+ */
+function looksLikeLabUnitToken(t: string): boolean {
+  const s = (t ?? "").trim();
+  if (!s) return false;
+  if (s === "%") return true;
+  if (/[:：]/.test(s)) return false;
+  if (s.length > 14) return false;
+  if (/^[-+]?\d+(?:[.,]\d+)?$/.test(s)) return false;
+  return /\//.test(s) && /[A-Za-zµμ]/.test(s);
+}
+
+/** 항목명처럼 보이는 첫 토큰(글자로 시작, 콜론·과한 길이 배제). */
+function looksLikeLabItemToken(t: string): boolean {
+  const s = (t ?? "").trim();
+  if (!s || s.length > 40) return false;
+  if (/[:：]/.test(s)) return false;
+  return /[A-Za-z가-힣]/.test(s);
+}
+
 const LAB_VERTICAL_VALUE_FLAG = /^([-+<]?\s*\d+(?:[.,]\d+)?(?:[!A-Za-z]+)?)(?:\s+(NORMAL|LOW|HIGH|UNDER))?$/i;
 
 /**
@@ -1276,91 +1298,84 @@ function parseCatalystSingleLineRow(cleaned: string, page: number): LabItem | nu
   const tokens = cleaned.split(/\s+/).filter(Boolean);
   if (tokens.length < 2) return null;
 
-  {
-    let end = tokens.length;
-    let flagSuffix = "";
-    if (LAB_ROW_END_FLAG.test(tokens[end - 1] ?? "")) {
-      flagSuffix = tokens[end - 1];
-      end -= 1;
-    }
-    const core = tokens.slice(0, end);
-    if (core.length === 2 && isRatioStyleAnalyteName(core[0]) && isCatalystValueToken(core[1])) {
-      const valueText = core[1].replace(/\s+/g, "");
-      const valueNum = Number.parseFloat(valueText.replace(/^</, "").replace(",", "."));
-      return {
-        page,
-        rowY: 0,
-        itemName: core[0].trim(),
-        value: Number.isFinite(valueNum) ? valueNum : null,
-        valueText,
-        unit: null,
-        referenceRange: null,
-        flag: inferFlagFromText(flagSuffix || valueText),
-        rawRow: cleaned,
-      };
-    }
-  }
-
-  if (tokens.length < 4) return null;
-
+  // flag 접미(NORMAL/HIGH/LOW/UNDER) 분리
   let end = tokens.length;
   let flagSuffix = "";
   if (LAB_ROW_END_FLAG.test(tokens[end - 1] ?? "")) {
     flagSuffix = tokens[end - 1];
     end -= 1;
   }
+  const body = tokens.slice(0, end);
 
-  if (end < 4) return null;
-  const resultTok = tokens[end - 1] ?? "";
-  const maxTok = tokens[end - 2] ?? "";
-  const minTok = tokens[end - 3] ?? "";
-
-  if (!isCatalystValueToken(resultTok) || !isCatalystValueToken(maxTok) || !isCatalystValueToken(minTok)) {
-    return null;
-  }
-
-  const rest = tokens.slice(0, end - 3);
-
-  if (rest.length >= 2) {
-    if (end < 5) return null;
-    const unit = rest[rest.length - 1] ?? "";
-    const itemName = rest.slice(0, -1).join(" ").trim();
-    if (!itemName || !unit) return null;
-
-    const valueText = resultTok.replace(/\s+/g, "");
+  const mk = (itemName: string, rawValue: string, unit: string | null, ref: string | null): LabItem => {
+    const valueText = rawValue.replace(/\s+/g, " ").trim();
     const valueNum = Number.parseFloat(valueText.replace(/^</, "").replace(",", "."));
-
     return {
       page,
       rowY: 0,
-      itemName,
+      itemName: itemName.trim(),
       value: Number.isFinite(valueNum) ? valueNum : null,
       valueText,
       unit,
-      referenceRange: `${minTok}-${maxTok}`,
+      referenceRange: ref,
       flag: inferFlagFromText(flagSuffix || valueText),
       rawRow: cleaned,
     };
+  };
+
+  // (기존) 2토큰 비율명 + 값. 예: "Na/K 33", "ALB/GLOB 0.7"
+  if (body.length === 2 && isRatioStyleAnalyteName(body[0] ?? "") && isCatalystValueToken(body[1] ?? "")) {
+    return mk(body[0] ?? "", (body[1] ?? "").replace(/\s+/g, ""), null, null);
   }
 
-  if (rest.length === 1) {
-    const itemName = (rest[0] ?? "").trim();
-    if (!itemName.includes("/")) return null;
+  // (기존) 항목 [단위] 숫자min 숫자max 숫자result
+  if (body.length >= 4) {
+    const r = body[end - 1] ?? "", mx = body[end - 2] ?? "", mn = body[end - 3] ?? "";
+    if (isCatalystValueToken(r) && isCatalystValueToken(mx) && isCatalystValueToken(mn)) {
+      const rest = body.slice(0, end - 3);
+      if (rest.length >= 2) {
+        const unit = rest[rest.length - 1] ?? "";
+        const itemName = rest.slice(0, -1).join(" ").trim();
+        if (itemName && unit) return mk(itemName, r.replace(/\s+/g, ""), unit, `${mn}-${mx}`);
+      } else if (rest.length === 1) {
+        // (확장) 단위 없는 단일 항목도 허용(비율 '/' 요구 제거). 예: "pH 5.5 8 6"
+        return mk(rest[0] ?? "", r.replace(/\s+/g, ""), null, `${mn}-${mx}`);
+      }
+    }
+  }
 
-    const valueText = resultTok.replace(/\s+/g, "");
-    const valueNum = Number.parseFloat(valueText.replace(/^</, "").replace(",", "."));
+  // ── 확장 규칙: 표준형이 안 맞는 실제 검사행을 놓치지 않기 위한 폴백.
+  //    단위/숫자범위/인식항목명을 앵커로 삼아 영상·메타 쓰레기(IMA 1, W:256 등) 오탐을 막는다. ──
 
-    return {
-      page,
-      rowY: 0,
-      itemName,
-      value: Number.isFinite(valueNum) ? valueNum : null,
-      valueText,
-      unit: null,
-      referenceRange: `${minTok}-${maxTok}`,
-      flag: inferFlagFromText(flagSuffix || valueText),
-      rawRow: cleaned,
-    };
+  // B: 항목 + 단위 + 숫자min + 숫자max + 정성result. 예: "GLU mg/dL 0 50 -", "PRO mg/dL 0 100 -"
+  if (body.length >= 5) {
+    const r = body[end - 1] ?? "", mx = body[end - 2] ?? "", mn = body[end - 3] ?? "", u = body[end - 4] ?? "";
+    if (isCatalystValueToken(mn) && isCatalystValueToken(mx) && looksLikeLabUnitToken(u) && !isCatalystValueToken(r)) {
+      const itemName = body.slice(0, end - 4).join(" ").trim();
+      if (itemName) return mk(itemName, r, u, `${mn}-${mx}`);
+    }
+  }
+
+  // A': 단위가 끝에서 두 번째 + 값이 마지막. 예: "Osmolality mOsm/kg 311", "WBC-BASO% % 0.6", "RETIC % % 0.3", "BIL mg/dL -", "LEU Leu/µL +++500"
+  if (body.length >= 3) {
+    const v = body[end - 1] ?? "", u = body[end - 2] ?? "";
+    if (looksLikeLabUnitToken(u) && looksLikeLabItemToken(body[0] ?? "")) {
+      const itemName = body.slice(0, end - 2).join(" ").trim();
+      if (itemName && v) return mk(itemName, v, u, null);
+    }
+  }
+
+  // A: 항목 + 단위(2번째) + 나머지=값(여러 토큰/정성). 예: "UBG mg/dL nom nom nom"
+  if (body.length >= 3 && looksLikeLabItemToken(body[0] ?? "") && looksLikeLabUnitToken(body[1] ?? "")) {
+    const value = body.slice(2).join(" ").trim();
+    if (value) return mk(body[0] ?? "", value, body[1] ?? null, null);
+  }
+
+  // D: 단위·숫자범위 없는 "이름 + 값(들)". 구조만으론 쓰레기와 못 구분 → 정규화 시 인식되는 검사명일 때만.
+  //    예: "SG 1.051", "NIT 1 1". ("IMA 1"·"Liver"는 미인식 → 드롭)
+  if (body.length >= 2 && looksLikeLabItemToken(body[0] ?? "") && isRecognizedLabItem(canonicalizeLabItemName(body[0] ?? ""))) {
+    const value = body.slice(1).join(" ").trim();
+    if (value) return mk(body[0] ?? "", value, null, null);
   }
 
   return null;
