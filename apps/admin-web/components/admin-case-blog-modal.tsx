@@ -328,6 +328,23 @@ export function CaseBlogButton({
 
   const busy = genLoading !== null || saving;
 
+  // 1단계 인과 흐름(날짜·카드 내용·해시태그 전부)을 생성/편집 시 자동 저장(디바운스).
+  // callSave 로 causalFlow JSON 을 DB에 upsert → 새로고침해도 유지. 불러온 직후엔 ref 로 중복 저장 방지.
+  const lastSavedCausalRef = useRef('');
+  useEffect(() => {
+    if (!open || !causal || loadedRunId !== runId) return;
+    const snap = JSON.stringify(causal);
+    if (snap === lastSavedCausalRef.current) return;
+    const t = setTimeout(() => {
+      lastSavedCausalRef.current = snap;
+      callSave('blog_causal', { causalFlow: causal, caseOverview })
+        .then(() => setSavedMsg('자동 저장됨'))
+        .catch(() => { lastSavedCausalRef.current = ''; }); // 실패 시 다음 변경에서 재시도
+    }, 800);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, causal, caseOverview, loadedRunId, runId]);
+
   // ── API ──
   async function callGenerate(body: Record<string, unknown>) {
     const res = await fetch('/api/admin/health-report/generate', {
@@ -379,7 +396,7 @@ export function CaseBlogButton({
       const normDetail = dP && dP.detailFlow ? asDetail(dP.detailFlow) : null;
       const normOutline = oP && oP.outline ? asOutline(oP.outline) : null;
       const normBlog = bP && (bP.bodyMarkdown || bP.title) ? asBlog(bP) : null;
-      if (normCausal) setCausal(normCausal);
+      if (normCausal) { setCausal(normCausal); lastSavedCausalRef.current = JSON.stringify(normCausal); }
       if (normDetail) setDetail(normDetail);
       if (normOutline) setOutline(normOutline);
       if (normBlog) setBlog(normBlog);
@@ -409,6 +426,7 @@ export function CaseBlogButton({
     setGenLoading(2); setError(null); setSavedMsg('');
     try {
       await callSave('blog_causal', { causalFlow: causal, caseOverview }); // 검수본 저장 후 다음 단계 입력
+      lastSavedCausalRef.current = JSON.stringify(causal);
       const g = await callGenerate({ contentType: 'blog_detail', causalFlow: causal });
       setDetail(asDetail(g.detailFlow));
       setDetailBasis(JSON.stringify(causal));
@@ -531,7 +549,7 @@ export function CaseBlogButton({
   async function saveCurrent() {
     setSaving(true); setError(null); setSavedMsg('');
     try {
-      if (step === 1 && causal) await callSave('blog_causal', { causalFlow: causal, caseOverview });
+      if (step === 1 && causal) { await callSave('blog_causal', { causalFlow: causal, caseOverview }); lastSavedCausalRef.current = JSON.stringify(causal); }
       else if (step === 2 && detail) await callSave('blog_detail', { detailFlow: detail, caseOverview });
       else if (step === 3 && outline) await callSave('blog_outline', { outline, caseOverview });
       else if (step === 4 && blog) await callSave('blog_post', { ...blog, confirmed, saved: savedFlag });
@@ -1031,7 +1049,7 @@ function AxisCard({ axis, anesthesia, busy, setField }: {
       </div>
       {edit ? (
         <div style={{ display: 'grid', gap: 10 }}>
-          <LabeledTextarea label="흐름의 축 (한 줄 요약)" value={axis} onChange={(v) => setField('axis', v)} rows={2} />
+          <LabeledTextarea label="한 줄 요약" value={axis} onChange={(v) => setField('axis', v)} rows={2} />
           <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, color: 'var(--text-secondary)', cursor: 'pointer' }}>
             <input type="checkbox" checked={anesthesia} onChange={(e) => setField('anesthesia', e.target.checked)} style={{ width: 15, height: 15 }} />
             전신마취 동반 (체크 시 2단계에서 마취 전 안전성 평가 비중↑)
@@ -1039,10 +1057,7 @@ function AxisCard({ axis, anesthesia, busy, setField }: {
         </div>
       ) : (
         <div style={{ display: 'grid', gap: 8 }}>
-          <div>
-            <span style={fieldLabel}>흐름의 축</span>
-            <div style={{ fontSize: 13.5, color: 'var(--text)', marginTop: 3, whiteSpace: 'pre-wrap' }}>{axis || '—'}</div>
-          </div>
+          <div style={{ fontSize: 13.5, color: 'var(--text)', whiteSpace: 'pre-wrap' }}>{axis || '—'}</div>
           <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
             전신마취 동반: <b style={{ color: anesthesia ? 'var(--accent)' : 'var(--text-muted)' }}>{anesthesia ? '예' : '아니오'}</b>
           </div>
