@@ -1282,6 +1282,17 @@ function looksLikeLabItemToken(t: string): boolean {
   return /[A-Za-z가-힣]/.test(s);
 }
 
+/**
+ * 값이 정성 "정상"의 잘린 표기(norm/nom, 반복)인지. 예: UBG "nom nom nom"(Min·Max·Result 모두 norm).
+ * 분석기가 우로빌리노겐 등을 "normal"로 리포트하고 OCR이 norm→nom 으로 자른 케이스.
+ * 온전한 단어 "Normal"(키트 정성 결과 등)은 매칭하지 않아 기존 표시를 건드리지 않는다.
+ */
+function isTruncatedNormalValue(v: string | null | undefined): boolean {
+  const c = (v ?? "").replace(/\s+/g, "");
+  if (!c) return false;
+  return /^(?:nom|norm)+$/i.test(c);
+}
+
 const LAB_VERTICAL_VALUE_FLAG = /^([-+<]?\s*\d+(?:[.,]\d+)?(?:[!A-Za-z]+)?)(?:\s+(NORMAL|LOW|HIGH|UNDER))?$/i;
 
 /**
@@ -3637,8 +3648,11 @@ export async function POST(request: NextRequest) {
           itemName = canonicalizeLabItemName(item.itemName, labCanonicalSpecies);
         }
         stage = `labItems:refineFlag ${dbg}`;
-        const flag = refineLabFlag(item.flag, item.valueText, item.referenceRange);
-        mappedItems.push({ itemName, rawItemName: item.itemName, valueText: item.valueText, unit: canonicalizeLabUnit(item.unit), referenceRange: item.referenceRange, flag, page: item.page });
+        // 정성 "정상"의 잘린 표기(nom/norm) → "정상"으로 표시하고 flag 정상으로 통일. 예: UBG "nom nom nom"
+        const qualNormal = isTruncatedNormalValue(item.valueText);
+        const valueText = qualNormal ? "정상" : item.valueText;
+        const flag = qualNormal ? "normal" : refineLabFlag(item.flag, item.valueText, item.referenceRange);
+        mappedItems.push({ itemName, rawItemName: item.itemName, valueText, unit: canonicalizeLabUnit(item.unit), referenceRange: item.referenceRange, flag, page: item.page });
       }
       labItemsByDate.push({
         dateTime: group.dateTime,
