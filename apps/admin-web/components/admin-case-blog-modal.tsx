@@ -179,8 +179,10 @@ const ACTION_TYPE_LABEL: Record<string, string> = {
   exam_dx: '검사 및 진단', preop: '술 전 검사', surgical: '수술', medical: '내과 치료', recovery: '회복 및 경과 확인', aftercare: '사후 관리 안내', other: '기타',
   director_note: '원장님 한마디', outro: '아웃트로',
 };
-// 2단계 섹션 배치 순서 = 이 순서(서술 앞 3 → 진료 7 → 서술 뒤 2).
+// 2단계 섹션 배치 순서 = 이 순서(서술 앞 3 → 진료 7 → 서술 뒤 2). 서술 태그는 2단계 섹션 전용.
 const ACTION_TYPE_ORDER = ['intro', 'disease_intro', 'visit_background', 'exam_dx', 'preop', 'surgical', 'medical', 'recovery', 'aftercare', 'other', 'director_note', 'outro'];
+// 1단계 행위 카드에 붙일 수 있는 진료 태그(7종). 서술 태그(intro~outro)는 실제 진료 행위가 아니라 여기서 제외.
+const CLINICAL_TAG_ORDER = ['exam_dx', 'preop', 'surgical', 'medical', 'recovery', 'aftercare', 'other'];
 // 옛 값 → 신규 키 매핑. 입원·퇴원·술후회복·술후경과확인은 모두 '회복 및 경과 확인'의 한 단계로 흡수.
 const LEGACY_TYPE_MAP: Record<string, string> = { diagnostic: 'exam_dx', diagnosis: 'exam_dx', postop_recovery: 'recovery', postop_followup: 'recovery', admission: 'recovery', discharge: 'recovery' };
 // 외과·내과는 한 행위에 하나만(상호 배타). 둘 다면 외과 우선.
@@ -873,9 +875,9 @@ function PhaseCard({ p, isLast, busy, regenBusy, onUp, onDown, onRemove, update,
                     />
                     <RowTools onUp={() => moveAction(ai, -1)} onDown={() => moveAction(ai, 1)} onRemove={() => rmAction(ai)} busy={busy} />
                   </div>
-                  {/* 이 행위의 성격 해시태그(다중 선택) */}
+                  {/* 이 행위의 성격 해시태그(다중 선택) — 1단계는 진료 7종만 */}
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginTop: 8 }}>
-                    {ACTION_TYPE_ORDER.map((t) => (
+                    {CLINICAL_TAG_ORDER.map((t) => (
                       <button key={t} type="button" onClick={() => toggleActionType(ai, t)} disabled={busy} style={hashChip((a.types ?? []).includes(t))}>
                         #{ACTION_TYPE_LABEL[t]}
                       </button>
