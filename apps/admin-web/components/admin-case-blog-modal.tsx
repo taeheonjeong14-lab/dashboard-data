@@ -6,10 +6,10 @@ import Link from 'next/link';
 // ── 타입 ──────────────────────────────────────────────────────────────────
 type StepNum = 1 | 2 | 3 | 4 | 5;
 type OverviewItem = { label: string; value: string };
-// 액션 1개 = 한 행위(무엇을 했나) + 그 이유(왜) + 도출 결과. UI에서 카드 하나.
-type Action = { what: string; why: string; result: string };
-// types: 한 날짜에 여러 성격이 붙을 수 있음(검사/진단/술 전 검사/외과/내과).
-type Phase = { id: string; name: string; period: string; types: string[]; actions: Action[]; nextStep: string[] };
+// 액션 1개 = 한 행위(무엇을 했나) + 그 이유(왜) + 도출 결과 + 성격 해시태그(types). UI에서 카드 하나.
+// types: 그 "행위" 하나의 성격(검사/진단·술 전 검사·외과·술 후 회복·내과·입원·퇴원·기타). 여러 개 가능, 애매하면 '기타'.
+type Action = { what: string; why: string; result: string; types: string[] };
+type Phase = { id: string; name: string; period: string; actions: Action[]; nextStep: string[] };
 type CausalFlow = { axis: string; anesthesia: boolean; phases: Phase[] };
 // 2단계 — 진단·치료 세부 흐름
 type DiagStep = { name: string; why: string; what: string; result: string; fromChart: boolean };
@@ -69,6 +69,12 @@ function hashChip(on: boolean): CSSProperties {
     transition: 'all 0.1s ease',
   };
 }
+// 읽기 모드 — 행위 제목 우측에 붙는 작은 성격 태그 스티커.
+const tagSticker: CSSProperties = {
+  fontSize: 10.5, fontWeight: 700, lineHeight: 1.5, whiteSpace: 'nowrap',
+  padding: '1px 7px', borderRadius: 999,
+  border: '1px solid var(--accent)', background: 'rgba(49, 130, 246, 0.14)', color: 'var(--accent)',
+};
 // 날짜별 다시 생성 입력 모달.
 const regenOverlay: CSSProperties = {
   position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.45)', zIndex: 9999,
@@ -91,30 +97,34 @@ function asActionsAndNext(x: Record<string, unknown>): { actions: Action[]; next
   if (Array.isArray(x.actions)) {
     const actions = x.actions.map((a) => {
       const y = (a ?? {}) as Record<string, unknown>;
-      return { what: str(y.what), why: str(y.why), result: str(y.result) };
+      return { what: str(y.what), why: str(y.why), result: str(y.result), types: normTypes(y.types ?? y.type) };
     });
     return { actions, nextStep: toLines(x.nextStep) };
   }
   // 옛 구조 변환
   const whats = toLines(x.what);
   const whys = toLines(x.why);
-  const actions: Action[] = whats.map((w, i) => ({ what: w, why: whys[i] ?? '', result: '' }));
+  const actions: Action[] = whats.map((w, i) => ({ what: w, why: whys[i] ?? '', result: '', types: [] }));
   // what 이 없는데 why 만 있으면(드묾) 이유들만이라도 액션으로 보존
   if (actions.length === 0 && whys.length > 0) {
-    for (const w of whys) actions.push({ what: '', why: w, result: '' });
+    for (const w of whys) actions.push({ what: '', why: w, result: '', types: [] });
   }
   return { actions, nextStep: toLines(x.toNext) };
 }
 
 function asPhase(raw: unknown): Phase {
   const x = (raw ?? {}) as Record<string, unknown>;
-  // types(신규) 우선, 없으면 type(옛 단일값) 변환.
-  const types = normTypes(x.types ?? x.type);
+  const { actions, nextStep } = asActionsAndNext(x);
+  // 레거시: 예전엔 성격(types)이 phase(날짜)에 붙었음. 이제는 action(행위)별.
+  // 옛 데이터면 phase 태그를 성격 없는 각 action 으로 이관(편집으로 조정 가능).
+  const legacyTypes = normTypes(x.types ?? x.type);
+  const migrated = legacyTypes.length
+    ? actions.map((a) => (a.types.length ? a : { ...a, types: legacyTypes }))
+    : actions;
   return {
     id: str(x.id) || `phase_${uid()}`,
     name: str(x.name), period: str(x.period),
-    types,
-    ...asActionsAndNext(x),
+    actions: migrated, nextStep,
   };
 }
 
@@ -188,28 +198,28 @@ function diffDetail(prev: DetailFlow, next: DetailFlow): string[] {
   if (JSON.stringify(prev.treatment.procedures) !== JSON.stringify(next.treatment.procedures)) changes.push('치료 과정 세부');
   return changes;
 }
-// 날짜 성격(해시태그). 여러 개 선택 가능.
-const PHASE_TYPE_LABEL: Record<string, string> = {
-  exam_dx: '검사 및 진단', preop: '술 전 검사', surgical: '외과 치료', medical: '내과 치료', admission: '입원 치료', discharge: '퇴원',
+// 행위(action) 성격(해시태그). 한 행위에 여러 개 가능, 애매하면 '기타'.
+const ACTION_TYPE_LABEL: Record<string, string> = {
+  exam_dx: '검사 및 진단', preop: '술 전 검사', surgical: '외과 치료', postop_recovery: '술 후 회복', medical: '내과 치료', admission: '입원 치료', discharge: '퇴원', other: '기타',
 };
-const PHASE_TYPE_ORDER = ['exam_dx', 'preop', 'surgical', 'medical', 'admission', 'discharge'];
+const ACTION_TYPE_ORDER = ['exam_dx', 'preop', 'surgical', 'postop_recovery', 'medical', 'admission', 'discharge', 'other'];
 // 옛 값 → 신규 키 매핑(검사/진단 → 검사 및 진단으로 통합).
 const LEGACY_TYPE_MAP: Record<string, string> = { diagnostic: 'exam_dx', diagnosis: 'exam_dx' };
-// 외과·내과는 한 날짜에 하나만(상호 배타). 둘 다면 외과 우선.
+// 외과·내과는 한 행위에 하나만(상호 배타). 둘 다면 외과 우선.
 function resolveExclusiveTypes(types: string[]): string[] {
   return types.includes('surgical') && types.includes('medical') ? types.filter((x) => x !== 'medical') : types;
 }
 // 옛 값 정규화 + 유효값만 + 상호 배타 정리.
 function normTypes(v: unknown): string[] {
   const arr = Array.isArray(v) ? v : typeof v === 'string' && v.trim() ? [v] : [];
-  const out = arr.map((x) => { const s = String(x).trim(); return LEGACY_TYPE_MAP[s] ?? s; }).filter((x) => x in PHASE_TYPE_LABEL);
+  const out = arr.map((x) => { const s = String(x).trim(); return LEGACY_TYPE_MAP[s] ?? s; }).filter((x) => x in ACTION_TYPE_LABEL);
   return resolveExclusiveTypes([...new Set(out)]);
 }
 const TREAT_TYPE_LABEL: Record<string, string> = { surgical: '수술형', medical: '내과형', complex: '복합형' };
 
 // 변경된 부분을 사람이 읽을 수 있는 목록으로 — 재생성 확인창에 표시.
 const arrEq = (a: string[], b: string[]): boolean => a.join('') === b.join('');
-const actionsKey = (a: Action[]): string => a.map((x) => `${x.what}|${x.why}|${x.result}`).join('§');
+const actionsKey = (a: Action[]): string => a.map((x) => `${x.what}|${x.why}|${x.result}|${x.types.join(',')}`).join('§');
 function diffCausal(prev: CausalFlow, next: CausalFlow): string[] {
   const changes: string[] = [];
   if (prev.axis !== next.axis) changes.push('흐름의 축');
@@ -223,8 +233,7 @@ function diffCausal(prev: CausalFlow, next: CausalFlow): string[] {
     const sub: string[] = [];
     if (a.name !== b.name) sub.push('단계명');
     if (a.period !== b.period) sub.push('날짜');
-    if (a.types.join(',') !== b.types.join(',')) sub.push('성격');
-    if (actionsKey(a.actions) !== actionsKey(b.actions)) sub.push('행위(무엇/왜/결과)');
+    if (actionsKey(a.actions) !== actionsKey(b.actions)) sub.push('행위(무엇/왜/결과/성격)');
     if (!arrEq(a.nextStep, b.nextStep)) sub.push('Next step');
     if (sub.length) changes.push(`${b.period || b.name || `단계 ${i + 1}`}: ${sub.join(', ')}`);
   }
@@ -587,7 +596,7 @@ export function CaseBlogButton({
     }); dirty();
   }
   function addPhase() {
-    setCausal((c) => (c ? { ...c, phases: [...c.phases, { id: `phase_${uid()}`, name: '', period: '', types: [], actions: [], nextStep: [] }] } : c)); dirty();
+    setCausal((c) => (c ? { ...c, phases: [...c.phases, { id: `phase_${uid()}`, name: '', period: '', actions: [], nextStep: [] }] } : c)); dirty();
   }
   function removePhase(i: number) {
     setCausal((c) => (c ? { ...c, phases: c.phases.filter((_, j) => j !== i) } : c)); dirty();
@@ -600,7 +609,7 @@ export function CaseBlogButton({
       const g = await callGenerate({ contentType: 'blog_causal_phase', causalFlow: causal, phaseIndex: i, feedback });
       const np = asPhase(g.phase);
       // id 는 기존 유지(참조 안정).
-      updatePhase(i, { name: np.name, period: np.period, types: np.types, actions: np.actions, nextStep: np.nextStep });
+      updatePhase(i, { name: np.name, period: np.period, actions: np.actions, nextStep: np.nextStep });
     } catch (e) {
       setError(e instanceof Error ? e.message : '이 날짜 다시 생성 실패');
     } finally {
@@ -819,7 +828,7 @@ function RowTools({ onUp, onDown, onRemove, busy }: { onUp: () => void; onDown: 
   );
 }
 
-// 한 날짜(phase) 카드: 날짜를 제목처럼, 성격 해시태그(다중), 행위별 카드(무엇/왜/결과),
+// 한 날짜(phase) 카드: 날짜를 제목처럼, 행위별 카드(무엇/왜/결과 + 성격 해시태그),
 // 맨 아래 Next step + 날짜별 다시 생성(피드백 반영).
 function PhaseCard({ p, busy, regenBusy, onUp, onDown, onRemove, update, onRegen }: {
   p: Phase; busy: boolean; regenBusy: boolean; onUp: () => void; onDown: () => void; onRemove: () => void;
@@ -831,18 +840,18 @@ function PhaseCard({ p, busy, regenBusy, onUp, onDown, onRemove, update, onRegen
   const setActions = (actions: Action[]) => update({ actions });
   const updAction = (ai: number, patch: Partial<Action>) => setActions(p.actions.map((a, j) => (j === ai ? { ...a, ...patch } : a)));
   const moveAction = (ai: number, dir: -1 | 1) => { const j = ai + dir; if (j < 0 || j >= p.actions.length) return; const a = [...p.actions]; [a[ai], a[j]] = [a[j]!, a[ai]!]; setActions(a); };
-  const addAction = () => setActions([...p.actions, { what: '', why: '', result: '' }]);
+  const addAction = () => setActions([...p.actions, { what: '', why: '', result: '', types: [] }]);
   const rmAction = (ai: number) => setActions(p.actions.filter((_, j) => j !== ai));
-  const toggleType = (t: string) => {
-    if (p.types.includes(t)) { update({ types: p.types.filter((x) => x !== t) }); return; }
-    // 켤 때: 외과↔내과는 상호 배타 — 다른 하나는 끈다.
+  // 행위(카드)별 성격 태그 토글. 외과↔내과는 상호 배타 — 켤 때 다른 하나는 끈다.
+  const toggleActionType = (ai: number, t: string) => {
+    const cur = p.actions[ai]?.types ?? [];
+    if (cur.includes(t)) { updAction(ai, { types: cur.filter((x) => x !== t) }); return; }
     const other = t === 'surgical' ? 'medical' : t === 'medical' ? 'surgical' : null;
-    const base = other ? p.types.filter((x) => x !== other) : p.types;
-    update({ types: [...base, t] });
+    const base = other ? cur.filter((x) => x !== other) : cur;
+    updAction(ai, { types: [...base, t] });
   };
 
   const nextSteps = p.nextStep.filter((s) => s.trim());
-  const selectedTypes = PHASE_TYPE_ORDER.filter((t) => p.types.includes(t));
 
   return (
     <div style={{ ...cardBox, opacity: regenBusy ? 0.6 : 1 }}>
@@ -885,15 +894,6 @@ function PhaseCard({ p, busy, regenBusy, onUp, onDown, onRemove, update, onRegen
 
       {editMode ? (
         <>
-          {/* 성격 해시태그(다중 선택) */}
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
-            {PHASE_TYPE_ORDER.map((t) => (
-              <button key={t} type="button" onClick={() => toggleType(t)} disabled={busy} style={hashChip(p.types.includes(t))}>
-                #{PHASE_TYPE_LABEL[t]}
-              </button>
-            ))}
-          </div>
-
           {/* 단계명(선택) */}
           <div style={{ display: 'grid', gap: 3, marginBottom: 12 }}>
             <span style={fieldLabel}>단계명 (선택)</span>
@@ -916,6 +916,14 @@ function PhaseCard({ p, busy, regenBusy, onUp, onDown, onRemove, update, onRegen
                       style={{ ...inputStyle, flex: 1, fontWeight: 700, color: actionWhatColor }}
                     />
                     <RowTools onUp={() => moveAction(ai, -1)} onDown={() => moveAction(ai, 1)} onRemove={() => rmAction(ai)} busy={busy} />
+                  </div>
+                  {/* 이 행위의 성격 해시태그(다중 선택) */}
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginTop: 8 }}>
+                    {ACTION_TYPE_ORDER.map((t) => (
+                      <button key={t} type="button" onClick={() => toggleActionType(ai, t)} disabled={busy} style={hashChip((a.types ?? []).includes(t))}>
+                        #{ACTION_TYPE_LABEL[t]}
+                      </button>
+                    ))}
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 8, alignItems: 'start' }}>
                     <AutoTextarea label="목적" value={a.why} onChange={(v) => updAction(ai, { why: v })} placeholder="임상적 이유" />
@@ -940,23 +948,19 @@ function PhaseCard({ p, busy, regenBusy, onUp, onDown, onRemove, update, onRegen
         </>
       ) : (
         <>
-          {/* 성격 해시태그(읽기 전용) */}
-          {selectedTypes.length > 0 ? (
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
-              {selectedTypes.map((t) => (
-                <span key={t} style={{ ...hashChip(true), cursor: 'default' }}>#{PHASE_TYPE_LABEL[t]}</span>
-              ))}
-            </div>
-          ) : null}
-
-          {/* 행위별(읽기 전용) */}
+          {/* 행위별(읽기 전용) — 성격 해시태그를 각 행위 카드에 표시 */}
           {p.actions.length === 0 ? (
             <div style={{ fontSize: 12.5, color: 'var(--text-muted)', padding: '4px 2px' }}>기록된 행위가 없는 날짜입니다.</div>
           ) : (
             <div style={{ display: 'grid', gap: 8 }}>
               {p.actions.map((a, ai) => (
                 <div key={ai} style={actionBox}>
-                  <div style={{ fontSize: 13.5, fontWeight: 700, color: actionWhatColor }}>{a.what || '—'}</div>
+                  <div style={{ display: 'flex', alignItems: 'baseline', flexWrap: 'wrap', gap: 6 }}>
+                    <div style={{ fontSize: 13.5, fontWeight: 700, color: actionWhatColor }}>{a.what || '—'}</div>
+                    {ACTION_TYPE_ORDER.filter((t) => (a.types ?? []).includes(t)).map((t) => (
+                      <span key={t} style={tagSticker}>#{ACTION_TYPE_LABEL[t]}</span>
+                    ))}
+                  </div>
                   {a.why.trim() ? (
                     <div style={{ display: 'flex', gap: 6, marginTop: 6, fontSize: 12.5, color: 'var(--text-secondary)' }}>
                       <span style={viewMiniLabel}>목적</span><span style={{ whiteSpace: 'pre-wrap' }}>{a.why}</span>
