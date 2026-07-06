@@ -1293,6 +1293,12 @@ function isTruncatedNormalValue(v: string | null | undefined): boolean {
   return /^(?:nom|norm)+$/i.test(c);
 }
 
+/** 값이 대시(-)뿐인지. 요검사 딥스틱에서 "음성(negative)" 결과를 뜻한다(빈칸 아님). */
+function isNegativeDashValue(v: string | null | undefined): boolean {
+  const t = (v ?? "").trim();
+  return t.length > 0 && /^[-–—]+$/.test(t);
+}
+
 const LAB_VERTICAL_VALUE_FLAG = /^([-+<]?\s*\d+(?:[.,]\d+)?(?:[!A-Za-z]+)?)(?:\s+(NORMAL|LOW|HIGH|UNDER))?$/i;
 
 /**
@@ -2097,15 +2103,11 @@ function sanitizeLabItems<
       }) as T,
   );
 
-  // 값이 대시(-)뿐이면 "측정값 없음"으로 보고 빈 값과 동일 취급(검사결과 탭에 안 보여줌).
-  //  실제 검출값(+++500, 1.051, 311 등)은 대시가 아니므로 그대로 유지.
-  const isBlankLabValue = (v: string | null | undefined) => {
-    const t = (v ?? "").trim();
-    return !t || /^[-–—]+$/.test(t);
-  };
+  // 완전히 빈 값만 드롭. 대시(-)는 요검사 딥스틱에서 "음성" 결과이므로 여기서 버리지 않고
+  //  매핑 단계에서 "음성"으로 표시한다(빈칸 ≠ 음성).
   const filtered = normalized.filter((item) => {
     if (isLikelyNoiseLabItemName(item.itemName)) return false;
-    if (isBlankLabValue(item.valueText)) {
+    if (!item.valueText?.trim()) {
       if (chartKind === "efriends") {
         return Boolean(item.itemName?.trim());
       }
@@ -3648,10 +3650,12 @@ export async function POST(request: NextRequest) {
           itemName = canonicalizeLabItemName(item.itemName, labCanonicalSpecies);
         }
         stage = `labItems:refineFlag ${dbg}`;
-        // 정성 "정상"의 잘린 표기(nom/norm) → "정상"으로 표시하고 flag 정상으로 통일. 예: UBG "nom nom nom"
-        const qualNormal = isTruncatedNormalValue(item.valueText);
-        const valueText = qualNormal ? "정상" : item.valueText;
-        const flag = qualNormal ? "normal" : refineLabFlag(item.flag, item.valueText, item.referenceRange);
+        // 정성 결과 표기 정리: 딥스틱 "-"=음성, 잘린 "nom/norm"=정상. 둘 다 flag 정상으로.
+        //  예: BIL "-" → 음성, UBG "nom nom nom" → 정상.
+        let valueText = item.valueText;
+        let flag = refineLabFlag(item.flag, item.valueText, item.referenceRange);
+        if (isNegativeDashValue(item.valueText)) { valueText = "음성"; flag = "normal"; }
+        else if (isTruncatedNormalValue(item.valueText)) { valueText = "정상"; flag = "normal"; }
         mappedItems.push({ itemName, rawItemName: item.itemName, valueText, unit: canonicalizeLabUnit(item.unit), referenceRange: item.referenceRange, flag, page: item.page });
       }
       labItemsByDate.push({
