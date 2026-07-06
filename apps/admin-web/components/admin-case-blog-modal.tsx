@@ -6,9 +6,10 @@ import Link from 'next/link';
 // ── 타입 ──────────────────────────────────────────────────────────────────
 type StepNum = 1 | 2 | 3 | 4 | 5;
 type OverviewItem = { label: string; value: string };
-// 액션 1개 = 한 행위(무엇을 했나) + 그 이유(왜) + 도출 결과 + 성격 해시태그(types). UI에서 카드 하나.
+// 액션 1개 = 한 행위(무엇을 했나) + 그 이유(왜) + 도출 결과 + 성격 해시태그(types) + 상세(detail). UI에서 카드 하나.
 // types: 그 "행위" 하나의 성격(검사/진단·술 전 검사·외과·술 후 회복·내과·입원·퇴원·기타). 여러 개 가능, 애매하면 '기타'.
-type Action = { what: string; why: string; result: string; types: string[] };
+// detail: '상세 내용' — #수술/#내과 치료 카드에만. 수술=시술 절차 시간순, 내과=처방 약 종류. 그 외엔 ''.
+type Action = { what: string; why: string; result: string; types: string[]; detail: string };
 type Phase = { id: string; name: string; period: string; actions: Action[]; nextStep: string[] };
 type CausalFlow = { axis: string; anesthesia: boolean; phases: Phase[] };
 // 2단계 — 진단·치료 세부 흐름
@@ -97,17 +98,17 @@ function asActionsAndNext(x: Record<string, unknown>): { actions: Action[]; next
   if (Array.isArray(x.actions)) {
     const actions = x.actions.map((a) => {
       const y = (a ?? {}) as Record<string, unknown>;
-      return { what: str(y.what), why: str(y.why), result: str(y.result), types: normTypes(y.types ?? y.type) };
+      return { what: str(y.what), why: str(y.why), result: str(y.result), types: normTypes(y.types ?? y.type), detail: str(y.detail) };
     });
     return { actions, nextStep: toLines(x.nextStep) };
   }
   // 옛 구조 변환
   const whats = toLines(x.what);
   const whys = toLines(x.why);
-  const actions: Action[] = whats.map((w, i) => ({ what: w, why: whys[i] ?? '', result: '', types: [] }));
+  const actions: Action[] = whats.map((w, i) => ({ what: w, why: whys[i] ?? '', result: '', types: [], detail: '' }));
   // what 이 없는데 why 만 있으면(드묾) 이유들만이라도 액션으로 보존
   if (actions.length === 0 && whys.length > 0) {
-    for (const w of whys) actions.push({ what: '', why: w, result: '', types: [] });
+    for (const w of whys) actions.push({ what: '', why: w, result: '', types: [], detail: '' });
   }
   return { actions, nextStep: toLines(x.toNext) };
 }
@@ -195,9 +196,9 @@ function diffDetail(prev: DetailFlow, next: DetailFlow): string[] {
 }
 // 행위(action) 성격(해시태그). 한 행위에 여러 개 가능, 애매하면 '기타'.
 const ACTION_TYPE_LABEL: Record<string, string> = {
-  exam_dx: '검사 및 진단', preop: '술 전 검사', surgical: '수술', postop_recovery: '술 후 회복', postop_followup: '술 후 경과확인', medical: '내과 치료', admission: '입원 치료', discharge: '퇴원', other: '기타',
+  exam_dx: '검사 및 진단', preop: '술 전 검사', surgical: '수술', postop_recovery: '술 후 회복', postop_followup: '술 후 경과확인', medical: '내과 치료', admission: '입원 치료', discharge: '퇴원', aftercare: '사후관리 안내', other: '기타',
 };
-const ACTION_TYPE_ORDER = ['exam_dx', 'preop', 'surgical', 'postop_recovery', 'postop_followup', 'medical', 'admission', 'discharge', 'other'];
+const ACTION_TYPE_ORDER = ['exam_dx', 'preop', 'surgical', 'postop_recovery', 'postop_followup', 'medical', 'admission', 'discharge', 'aftercare', 'other'];
 // 옛 값 → 신규 키 매핑(검사/진단 → 검사 및 진단으로 통합).
 const LEGACY_TYPE_MAP: Record<string, string> = { diagnostic: 'exam_dx', diagnosis: 'exam_dx' };
 // 외과·내과는 한 행위에 하나만(상호 배타). 둘 다면 외과 우선.
@@ -214,7 +215,7 @@ const TREAT_TYPE_LABEL: Record<string, string> = { surgical: '수술형', medica
 
 // 변경된 부분을 사람이 읽을 수 있는 목록으로 — 재생성 확인창에 표시.
 const arrEq = (a: string[], b: string[]): boolean => a.join('') === b.join('');
-const actionsKey = (a: Action[]): string => a.map((x) => `${x.what}|${x.why}|${x.result}|${x.types.join(',')}`).join('§');
+const actionsKey = (a: Action[]): string => a.map((x) => `${x.what}|${x.why}|${x.result}|${x.types.join(',')}|${x.detail}`).join('§');
 function diffCausal(prev: CausalFlow, next: CausalFlow): string[] {
   const changes: string[] = [];
   if (prev.axis !== next.axis) changes.push('흐름의 축');
@@ -853,7 +854,7 @@ function PhaseCard({ p, isLast, busy, regenBusy, onUp, onDown, onRemove, update,
   const setActions = (actions: Action[]) => update({ actions });
   const updAction = (ai: number, patch: Partial<Action>) => setActions(p.actions.map((a, j) => (j === ai ? { ...a, ...patch } : a)));
   const moveAction = (ai: number, dir: -1 | 1) => { const j = ai + dir; if (j < 0 || j >= p.actions.length) return; const a = [...p.actions]; [a[ai], a[j]] = [a[j]!, a[ai]!]; setActions(a); };
-  const addAction = () => setActions([...p.actions, { what: '', why: '', result: '', types: [] }]);
+  const addAction = () => setActions([...p.actions, { what: '', why: '', result: '', types: [], detail: '' }]);
   const rmAction = (ai: number) => setActions(p.actions.filter((_, j) => j !== ai));
   // 행위(카드)별 성격 태그 토글. 외과↔내과는 상호 배타 — 켤 때 다른 하나는 끈다.
   const toggleActionType = (ai: number, t: string) => {
@@ -942,6 +943,17 @@ function PhaseCard({ p, isLast, busy, regenBusy, onUp, onDown, onRemove, update,
                     <AutoTextarea label="목적" value={a.why} onChange={(v) => updAction(ai, { why: v })} placeholder="임상적 이유" />
                     <AutoTextarea label="결과" value={a.result} onChange={(v) => updAction(ai, { result: v })} placeholder="도출된 결과" />
                   </div>
+                  {/* 상세 내용 — #수술/#내과 치료 카드에만 */}
+                  {(a.types ?? []).some((t) => t === 'surgical' || t === 'medical') ? (
+                    <div style={{ marginTop: 8 }}>
+                      <AutoTextarea
+                        label={(a.types ?? []).includes('surgical') ? '상세 내용 (수술 절차 · 시간순)' : '상세 내용 (처방한 약의 종류)'}
+                        value={a.detail}
+                        onChange={(v) => updAction(ai, { detail: v })}
+                        placeholder={(a.types ?? []).includes('surgical') ? '마취 → 절개 → … → 봉합 순으로 간단명료하게' : '예: 항생제, 소염진통제 등 성분·약효 분류'}
+                      />
+                    </div>
+                  ) : null}
                 </div>
               ))
             )}
@@ -984,6 +996,11 @@ function PhaseCard({ p, isLast, busy, regenBusy, onUp, onDown, onRemove, update,
                   {a.result.trim() ? (
                     <div style={{ display: 'flex', gap: 6, marginTop: 4, fontSize: 12.5, color: 'var(--text-secondary)' }}>
                       <span style={viewMiniLabel}>결과</span><span style={{ whiteSpace: 'pre-wrap' }}>{a.result}</span>
+                    </div>
+                  ) : null}
+                  {a.detail.trim() ? (
+                    <div style={{ display: 'flex', gap: 6, marginTop: 4, fontSize: 12.5, color: 'var(--text-secondary)' }}>
+                      <span style={viewMiniLabel}>상세</span><span style={{ whiteSpace: 'pre-wrap' }}>{a.detail}</span>
                     </div>
                   ) : null}
                 </div>
