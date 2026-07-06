@@ -51,8 +51,8 @@ const inputStyle: CSSProperties = {
   outline: 'none', boxSizing: 'border-box', resize: 'vertical', wordBreak: 'break-word', whiteSpace: 'pre-wrap',
 };
 const cardBox: CSSProperties = { background: '#fff', border: '1px solid var(--border)', borderRadius: 10, padding: '12px 14px' };
-const actionBox: CSSProperties = { background: 'var(--bg-subtle)', border: '1px solid #a3e635', borderRadius: 8, padding: '10px 12px' };
-const actionWhatColor = '#65a30d'; // '무엇을 했나' 강조 연두
+const actionBox: CSSProperties = { background: 'var(--bg-subtle)', border: '1px solid #4ade1a', borderRadius: 8, padding: '10px 12px' };
+const actionWhatColor = '#3fb500'; // '무엇을 했나' 강조 형광 초록
 // 읽기 전용 뷰의 '왜/결과' 인라인 라벨.
 const viewMiniLabel: CSSProperties = { flexShrink: 0, fontSize: 11, fontWeight: 800, color: 'var(--text-muted)', minWidth: 30 };
 // Next step — 보라 테두리 박스.
@@ -976,8 +976,8 @@ function PhaseCard({ p, busy, regenBusy, onUp, onDown, onRemove, update, onRegen
           {nextSteps.length > 0 ? (
             <div style={nextStepBox}>
               <span style={nextStepLabel}>NEXT STEP</span>
-              <ul style={{ margin: '4px 0 0', paddingLeft: 16, fontSize: 13, color: 'var(--text)', lineHeight: 1.5 }}>
-                {nextSteps.map((s, i) => <li key={i}>{s}</li>)}
+              <ul style={{ margin: '4px 0 0', paddingLeft: 18, listStyleType: 'disc', fontSize: 13, color: 'var(--text)', lineHeight: 1.5 }}>
+                {nextSteps.map((s, i) => <li key={i} style={{ listStyleType: 'disc' }}>{s}</li>)}
               </ul>
             </div>
           ) : null}
