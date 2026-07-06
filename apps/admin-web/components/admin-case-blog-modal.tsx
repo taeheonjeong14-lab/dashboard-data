@@ -111,7 +111,13 @@ function asActionsAndNext(x: Record<string, unknown>): { actions: Action[]; next
   if (Array.isArray(x.actions)) {
     const actions = x.actions.map((a) => {
       const y = (a ?? {}) as Record<string, unknown>;
-      return { what: str(y.what), why: str(y.why), result: str(y.result), types: normTypes(y.types ?? y.type), detail: str(y.detail), procedure: asProcedure(y.procedure) };
+      const types = normTypes(y.types ?? y.type);
+      // 상세는 태그에 맞을 때만 보존: detail 은 #내과 치료(medical), procedure 는 #수술(surgical) 카드만.
+      return {
+        what: str(y.what), why: str(y.why), result: str(y.result), types,
+        detail: types.includes('medical') ? str(y.detail) : '',
+        procedure: types.includes('surgical') ? asProcedure(y.procedure) : [],
+      };
     });
     return { actions, nextStep: toLines(x.nextStep) };
   }
@@ -1026,12 +1032,12 @@ function PhaseCard({ p, isLast, busy, regenBusy, onUp, onDown, onRemove, update,
                       <span style={viewMiniLabel}>결과</span><span style={{ whiteSpace: 'pre-wrap' }}>{a.result}</span>
                     </div>
                   ) : null}
-                  {a.detail.trim() ? (
+                  {(a.types ?? []).includes('medical') && a.detail.trim() ? (
                     <div style={{ display: 'flex', gap: 6, marginTop: 4, fontSize: 12.5, color: 'var(--text-secondary)' }}>
                       <span style={viewMiniLabel}>상세</span><span style={{ whiteSpace: 'pre-wrap' }}>{a.detail}</span>
                     </div>
                   ) : null}
-                  {(a.procedure ?? []).length > 0 ? (
+                  {(a.types ?? []).includes('surgical') && (a.procedure ?? []).length > 0 ? (
                     <div style={{ marginTop: 6, display: 'grid', gap: 6 }}>
                       {a.procedure.map((s, si) => (
                         <div key={si} style={procBox}>
