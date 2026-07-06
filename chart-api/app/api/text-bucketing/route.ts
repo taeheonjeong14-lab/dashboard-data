@@ -2086,9 +2086,15 @@ function sanitizeLabItems<
       }) as T,
   );
 
+  // 값이 대시(-)뿐이면 "측정값 없음"으로 보고 빈 값과 동일 취급(검사결과 탭에 안 보여줌).
+  //  실제 검출값(+++500, 1.051, 311 등)은 대시가 아니므로 그대로 유지.
+  const isBlankLabValue = (v: string | null | undefined) => {
+    const t = (v ?? "").trim();
+    return !t || /^[-–—]+$/.test(t);
+  };
   const filtered = normalized.filter((item) => {
     if (isLikelyNoiseLabItemName(item.itemName)) return false;
-    if (!item.valueText?.trim()) {
+    if (isBlankLabValue(item.valueText)) {
       if (chartKind === "efriends") {
         return Boolean(item.itemName?.trim());
       }
