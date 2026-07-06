@@ -173,10 +173,14 @@ function asBlog(raw: unknown): BlogPost {
   };
 }
 // 행위(action) 성격(해시태그). 한 행위에 여러 개 가능, 애매하면 '기타'.
+// intro~outro 는 2단계 서술 섹션용 태그(인과 흐름엔 잘 안 붙지만 태그 체계를 1·2단계 공통으로 두려고 목록에 포함).
 const ACTION_TYPE_LABEL: Record<string, string> = {
+  intro: '인트로', disease_intro: '질환 소개', visit_background: '내원 배경',
   exam_dx: '검사 및 진단', preop: '술 전 검사', surgical: '수술', postop_recovery: '술 후 회복', postop_followup: '술 후 경과확인', medical: '내과 치료', admission: '입원 치료', discharge: '퇴원', aftercare: '사후관리 안내', other: '기타',
+  director_note: '원장님 한마디', outro: '아웃트로',
 };
-const ACTION_TYPE_ORDER = ['exam_dx', 'preop', 'surgical', 'postop_recovery', 'postop_followup', 'medical', 'admission', 'discharge', 'aftercare', 'other'];
+// 2단계 섹션 배치 순서 = 이 순서(서술 앞 3 → 임상 10 → 서술 뒤 2).
+const ACTION_TYPE_ORDER = ['intro', 'disease_intro', 'visit_background', 'exam_dx', 'preop', 'surgical', 'postop_recovery', 'postop_followup', 'medical', 'admission', 'discharge', 'aftercare', 'other', 'director_note', 'outro'];
 // 옛 값 → 신규 키 매핑(검사/진단 → 검사 및 진단으로 통합).
 const LEGACY_TYPE_MAP: Record<string, string> = { diagnostic: 'exam_dx', diagnosis: 'exam_dx' };
 // 외과·내과는 한 행위에 하나만(상호 배타). 둘 다면 외과 우선.
@@ -1128,6 +1132,110 @@ function OutlineActionCard({ a }: { a: Action }) {
   );
 }
 
+// 아웃라인 섹션 1개 = 읽기 편한 박스. 기본은 읽기 전용(해시태그 제목 + 핵심요약/팩트 불릿),
+// '수기 수정'으로 편집 모드(태그 선택 + 요약/팩트 입력). 1단계 PhaseCard 와 동일한 UX.
+function SectionCard({ s, i, tagCards, updateSection, moveSection, removeSection, imageMeta }: {
+  s: Section; i: number; tagCards: Action[];
+  updateSection: (i: number, patch: Partial<Section>) => void;
+  moveSection: (i: number, dir: -1 | 1) => void; removeSection: (i: number) => void;
+  imageMeta: (fileName: string) => CaseImg | null;
+}) {
+  const [edit, setEdit] = useState(false);
+  const title = s.tag ? `#${ACTION_TYPE_LABEL[s.tag] ?? s.tag}` : s.label ? `#${s.label}` : '(섹션 태그 없음)';
+  const points = s.points.filter((p) => p.trim());
+  const facts = s.facts.filter((f) => f.trim());
+  const listUl: CSSProperties = { margin: 0, paddingLeft: 18, listStyleType: 'disc', fontSize: 13, lineHeight: 1.6 };
+  return (
+    <div style={cardBox}>
+      {/* 헤더: 해시태그 제목(편집 시 태그 선택) + 수기수정/이동/삭제 */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 10 }}>
+        {edit ? (
+          <select
+            value={s.tag}
+            onChange={(e) => updateSection(i, { tag: e.target.value, label: e.target.value ? (ACTION_TYPE_LABEL[e.target.value] ?? s.label) : s.label })}
+            style={{ ...inputStyle, fontWeight: 700, maxWidth: 240 }}
+          >
+            <option value="">(태그 없음)</option>
+            {ACTION_TYPE_ORDER.map((t) => <option key={t} value={t}>#{ACTION_TYPE_LABEL[t]}</option>)}
+          </select>
+        ) : (
+          <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--accent)' }}>{title}</div>
+        )}
+        <div style={{ display: 'flex', gap: 5, flexShrink: 0 }}>
+          <button
+            type="button"
+            onClick={() => setEdit((v) => !v)}
+            style={edit ? { ...btnTiny, background: 'var(--accent)', color: '#fff', borderColor: 'var(--accent)' } : btnTiny}
+          >
+            {edit ? '수정 완료' : '수기 수정'}
+          </button>
+          {edit ? (
+            <>
+              <button type="button" style={btnTiny} onClick={() => moveSection(i, -1)} title="위로 이동">↑</button>
+              <button type="button" style={btnTiny} onClick={() => moveSection(i, 1)} title="아래로 이동">↓</button>
+            </>
+          ) : null}
+          <button type="button" style={{ ...btnTiny, color: 'var(--danger)', borderColor: 'var(--danger-subtle)' }} onClick={() => removeSection(i)}>삭제</button>
+        </div>
+      </div>
+
+      {/* 이 태그가 붙은 인과 흐름 카드(읽기 전용) — 편집/읽기 공통으로 표시 */}
+      {s.tag && tagCards.length ? (
+        <div style={{ display: 'grid', gap: 5, marginBottom: 10 }}>
+          <span style={fieldLabel}>이 섹션의 행위 카드 ({tagCards.length}) — 인과 흐름에서 이 태그가 붙은 항목</span>
+          <div style={{ display: 'grid', gap: 6 }}>
+            {tagCards.map((a, ai) => <OutlineActionCard key={ai} a={a} />)}
+          </div>
+        </div>
+      ) : null}
+
+      {edit ? (
+        <div style={{ display: 'grid', gap: 10 }}>
+          <LabeledTextarea label="핵심 요약 (한 줄에 하나 · 서술 방향)" value={s.points.join('\n')} onChange={(v) => updateSection(i, { points: v.split('\n') })} rows={3} />
+          <LabeledTextarea label="팩트 facts (한 줄에 하나 · 반드시 들어갈 데이터)" value={s.facts.join('\n')} onChange={(v) => updateSection(i, { facts: v.split('\n') })} rows={3} />
+          {s.imageFileNames.length > 0 ? (
+            <div style={{ display: 'grid', gap: 4 }}>
+              <span style={fieldLabel}>관련 이미지</span>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+                {s.imageFileNames.map((fn) => (
+                  <CaseImageThumb key={fn} fileName={fn} meta={imageMeta(fn)} onRemove={() => updateSection(i, { imageFileNames: s.imageFileNames.filter((x) => x !== fn) })} />
+                ))}
+              </div>
+            </div>
+          ) : null}
+        </div>
+      ) : (
+        <div style={{ display: 'grid', gap: 10 }}>
+          <div style={{ display: 'grid', gap: 4 }}>
+            <span style={fieldLabel}>핵심 요약</span>
+            {points.length ? (
+              <ul style={{ ...listUl, color: 'var(--text)' }}>
+                {points.map((p, k) => <li key={k} style={{ listStyleType: 'disc' }}>{p}</li>)}
+              </ul>
+            ) : <span style={{ fontSize: 12.5, color: 'var(--text-muted)' }}>—</span>}
+          </div>
+          {facts.length ? (
+            <div style={{ display: 'grid', gap: 4 }}>
+              <span style={fieldLabel}>팩트</span>
+              <ul style={{ ...listUl, color: 'var(--text-secondary)' }}>
+                {facts.map((f, k) => <li key={k} style={{ listStyleType: 'disc' }}>{f}</li>)}
+              </ul>
+            </div>
+          ) : null}
+          {s.imageFileNames.length > 0 ? (
+            <div style={{ display: 'grid', gap: 4 }}>
+              <span style={fieldLabel}>관련 이미지</span>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+                {s.imageFileNames.map((fn) => <CaseImageThumb key={fn} fileName={fn} meta={imageMeta(fn)} />)}
+              </div>
+            </div>
+          ) : null}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function OutlineEditor({ outline, causal, updateSection, moveSection, addSection, removeSection, setOutline, imageMeta }: {
   outline: Outline | null;
   causal: CausalFlow | null;
@@ -1153,52 +1261,18 @@ function OutlineEditor({ outline, causal, updateSection, moveSection, addSection
           />
         </div>
       </div>
-      {outline.sections.map((s, i) => {
-        const tagCards = cardsForTag(s.tag);
-        return (
-        <div key={s.id} style={cardBox}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 10 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, minWidth: 0 }}>
-              <input value={s.label} onChange={(e) => updateSection(i, { label: e.target.value })} placeholder="섹션명" style={{ ...inputStyle, fontWeight: 700, maxWidth: 280 }} />
-              {s.tag ? <span style={tagSticker}>#{ACTION_TYPE_LABEL[s.tag] ?? s.tag}</span> : null}
-            </div>
-            <RowTools onUp={() => moveSection(i, -1)} onDown={() => moveSection(i, 1)} onRemove={() => removeSection(i)} />
-          </div>
-          <div style={{ display: 'grid', gap: 10 }}>
-            {/* 해시태그 섹션이면 그 태그가 붙은 인과 흐름 카드를 읽기 전용으로 묶어 보여준다(고정 서술 섹션은 카드 없음). */}
-            {s.tag ? (
-              <div style={{ display: 'grid', gap: 5 }}>
-                <span style={fieldLabel}>이 섹션의 행위 카드 ({tagCards.length}) — 인과 흐름에서 이 태그가 붙은 항목</span>
-                {tagCards.length ? (
-                  <div style={{ display: 'grid', gap: 6 }}>
-                    {tagCards.map((a, ai) => <OutlineActionCard key={ai} a={a} />)}
-                  </div>
-                ) : (
-                  <div style={{ fontSize: 12, color: 'var(--text-muted)', padding: '2px 2px' }}>이 태그가 붙은 카드가 없습니다.</div>
-                )}
-              </div>
-            ) : null}
-            <LabeledTextarea label="핵심 요약 (한 줄에 하나 · 서술 방향)" value={s.points.join('\n')} onChange={(v) => updateSection(i, { points: v.split('\n') })} rows={3} />
-            <LabeledTextarea label="팩트 facts (한 줄에 하나 · 반드시 들어갈 데이터)" value={s.facts.join('\n')} onChange={(v) => updateSection(i, { facts: v.split('\n') })} rows={3} />
-            {s.imageFileNames.length > 0 ? (
-              <div style={{ display: 'grid', gap: 4 }}>
-                <span style={fieldLabel}>관련 이미지 (팩트를 보여주는 분석 이미지)</span>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
-                  {s.imageFileNames.map((fn) => (
-                    <CaseImageThumb
-                      key={fn}
-                      fileName={fn}
-                      meta={imageMeta(fn)}
-                      onRemove={() => updateSection(i, { imageFileNames: s.imageFileNames.filter((x) => x !== fn) })}
-                    />
-                  ))}
-                </div>
-              </div>
-            ) : null}
-          </div>
-        </div>
-        );
-      })}
+      {outline.sections.map((s, i) => (
+        <SectionCard
+          key={s.id}
+          s={s}
+          i={i}
+          tagCards={cardsForTag(s.tag)}
+          updateSection={updateSection}
+          moveSection={moveSection}
+          removeSection={removeSection}
+          imageMeta={imageMeta}
+        />
+      ))}
       <button type="button" style={{ ...btnSecondary, width: '100%' }} onClick={addSection}>+ 섹션 추가</button>
     </div>
   );
