@@ -1311,6 +1311,51 @@ function looksLikeLabItemToken(t: string): boolean {
   return /[A-Za-z가-힣]/.test(s);
 }
 
+/** 슬래시 없는 단독 단위(fL, pg, uL, mmHg 등)까지 포함한 단위 토큰 판정. */
+function isKnownLabUnitToken(t: string): boolean {
+  const s = (t ?? "").trim();
+  return looksLikeLabUnitToken(s) || /^(fL|pg|uL|nL|mmHg|mOsm)$/i.test(s);
+}
+
+/** 항목명만 홀로 있는 줄(단일 토큰·글자 시작·값/단위/헤더 아님). 예: 값 행과 분리된 "MCV". */
+function isBareItemNameLine(text: string): boolean {
+  const s = (text ?? "").trim();
+  if (!s || /\s/.test(s)) return false;
+  if (s.length > 20) return false;
+  if (/^(name|unit|min|max|result|test)$/i.test(s)) return false;
+  if (isKnownLabUnitToken(s)) return false;
+  if (/^[-+]?\d/.test(s)) return false;
+  return /^[A-Za-z][A-Za-z0-9%#/_-]*$/.test(s);
+}
+
+/** 항목명이 빠진 "머리 없는 값 행": 단위로 시작하고 다음 토큰이 숫자. 예: "fL 61.6 73.5 68.6 NORMAL". */
+function isHeadlessUnitValueLine(text: string): boolean {
+  const toks = (text ?? "").trim().split(/\s+/).filter(Boolean);
+  if (toks.length < 2) return false;
+  return isKnownLabUnitToken(toks[0] ?? "") && /^[-+<]?\d/.test(toks[1] ?? "");
+}
+
+/**
+ * 전사 LLM 이 표의 한 행을 확률적으로 쪼개, 항목명만 한 줄로 떨어지고 그 값 행이
+ * 단위로 시작하는(머리 없는) 케이스를 결정적으로 다시 붙인다(2차 방어). 예:
+ *   "MCV" + "fL 61.6 73.5 68.6 NORMAL" → "MCV fL 61.6 73.5 68.6 NORMAL"
+ * 프롬프트에 "행=한 줄" 지시가 있어도(1차) LLM 이 가끔 어기므로 파서에서 보정한다.
+ */
+function mergeOrphanItemNameLines(lines: BucketedLine[]): BucketedLine[] {
+  const out: BucketedLine[] = [];
+  for (let i = 0; i < lines.length; i++) {
+    const cur = lines[i]!;
+    const nxt = lines[i + 1];
+    if (nxt && isBareItemNameLine(cur.text) && isHeadlessUnitValueLine(nxt.text)) {
+      out.push({ ...cur, text: `${cur.text.trim()} ${nxt.text.trim()}` });
+      i += 1; // 값 행 소비
+      continue;
+    }
+    out.push(cur);
+  }
+  return out;
+}
+
 /**
  * 값이 정성 "정상"의 잘린 표기(norm/nom, 반복)인지. 예: UBG "nom nom nom"(Min·Max·Result 모두 norm).
  * 분석기가 우로빌리노겐 등을 "normal"로 리포트하고 OCR이 norm→nom 으로 자른 케이스.
@@ -1726,6 +1771,8 @@ function parseLabItemsFromGroupLines(lines: BucketedLine[], chartKind: ChartKind
   }
 
   const items: LabItem[] = [];
+  // 전사 LLM 이 표 한 행을 쪼개 항목명이 값 행과 분리된 경우를 먼저 다시 붙인다(예: "MCV" + "fL …").
+  const lines2 = mergeOrphanItemNameLines(lines);
   const qualitativeToken = "(Normal|Negative|Positive|Abnormal|Reactive|Nonreactive|Trace)";
   const numericRowRegex =
     /^(.+?)\s+([A-Za-z%/]+)\s+([-+]?\d+(?:[.,]\d+)?)\s+([-+]?\d+(?:[.,]\d+)?)\s+([-+<]?\s*\d+(?:[.,]\d+)?(?:[!A-Za-z]+)?)(?:\s+(NORMAL|LOW|HIGH|UNDER))?$/i;
@@ -1735,7 +1782,7 @@ function parseLabItemsFromGroupLines(lines: BucketedLine[], chartKind: ChartKind
 
   const preferNumericFirst = chartKind !== "intovet";
 
-  for (const line of lines) {
+  for (const line of lines2) {
     const text = line.text.trim().replace(/\s+/g, " ");
     if (!text) continue;
 
@@ -1807,7 +1854,7 @@ function parseLabItemsFromGroupLines(lines: BucketedLine[], chartKind: ChartKind
     }
   }
 
-  const normalized = lines.map((line) => line.text.trim()).filter(Boolean);
+  const normalized = lines2.map((line) => line.text.trim()).filter(Boolean);
   const headerIndex = normalized.findIndex((line, index) => {
     return (
       /^name$/i.test(line) &&
