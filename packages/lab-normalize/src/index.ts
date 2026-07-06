@@ -87,6 +87,9 @@ const DIRECT_ALIASES: Record<string, string> = {
   ATIII: 'AT III',
   PLATELETFUNC: 'Platelet func',
   OSMCA: 'OSM CA',
+  OSMOLALITY: 'OSM',
+  OSMOLARITY: 'OSM',
+  OSMOLALITYCALC: 'OSM CA', // 계산 삼투압(calculated osmolality)
   CCRP: 'CRP',
   CANINECRP: 'CRP', // Canine CRP (개 CRP) → CRP
   FSAA: 'SAA',
