@@ -1098,37 +1098,24 @@ function CaseImageThumb({ fileName, meta, onRemove }: { fileName: string; meta: 
 }
 
 // ── 2단계 에디터 ──
-// 해시태그 섹션에 묶여 표시되는 행위 카드(읽기 전용). 인과 흐름에서 그 태그가 붙은 카드를 요약해 보여준다.
-function OutlineActionCard({ a }: { a: Action }) {
+// 아웃라인 섹션 좌측 행위 카드 칩 — 제목(what)만 보이고, hover 하면 목적·결과(있으면 상세/절차)를 툴팁으로.
+function OutlineActionChip({ a }: { a: Action }) {
+  const [hover, setHover] = useState(false);
+  const isMed = (a.types ?? []).includes('medical');
+  const isSurg = (a.types ?? []).includes('surgical');
+  const hasDetail = Boolean(a.why.trim() || a.result.trim() || (isMed && a.detail.trim()) || (isSurg && (a.procedure ?? []).length > 0));
   return (
-    <div style={{ ...actionBox, padding: '8px 10px' }}>
-      <div style={{ fontSize: 12.5, fontWeight: 700, color: actionWhatColor }}>{a.what || '—'}</div>
-      {a.why.trim() ? (
-        <div style={{ display: 'flex', gap: 6, marginTop: 4, fontSize: 12, color: 'var(--text-secondary)' }}>
-          <span style={viewMiniLabel}>목적</span><span style={{ whiteSpace: 'pre-wrap' }}>{a.why}</span>
-        </div>
-      ) : null}
-      {a.result.trim() ? (
-        <div style={{ display: 'flex', gap: 6, marginTop: 3, fontSize: 12, color: 'var(--text-secondary)' }}>
-          <span style={viewMiniLabel}>결과</span><span style={{ whiteSpace: 'pre-wrap' }}>{a.result}</span>
-        </div>
-      ) : null}
-      {(a.types ?? []).includes('medical') && a.detail.trim() ? (
-        <div style={{ display: 'flex', gap: 6, marginTop: 3, fontSize: 12, color: 'var(--text-secondary)' }}>
-          <span style={viewMiniLabel}>상세</span><span style={{ whiteSpace: 'pre-wrap' }}>{a.detail}</span>
-        </div>
-      ) : null}
-      {(a.types ?? []).includes('surgical') && (a.procedure ?? []).length > 0 ? (
-        <div style={{ marginTop: 5, display: 'grid', gap: 5 }}>
-          {a.procedure.map((s, si) => (
-            <div key={si} style={procBox}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span style={procNumBadge}>{si + 1}</span>
-                <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)' }}>{s.step || '—'}</span>
-              </div>
-              {s.note.trim() ? <div style={{ marginTop: 3, fontSize: 11.5, color: 'var(--text-secondary)', whiteSpace: 'pre-wrap' }}>{s.note}</div> : null}
-            </div>
-          ))}
+    <div style={{ position: 'relative' }} onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}>
+      <div style={{ ...actionBox, padding: '5px 9px', cursor: hasDetail ? 'help' : 'default', display: 'flex', alignItems: 'center', gap: 5 }}>
+        <span style={{ flex: 1, minWidth: 0, fontSize: 12, fontWeight: 700, color: actionWhatColor, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.what || '—'}</span>
+        {hasDetail ? <span style={{ flexShrink: 0, fontSize: 10, color: 'var(--text-muted)' }}>ⓘ</span> : null}
+      </div>
+      {hover && hasDetail ? (
+        <div style={{ position: 'absolute', top: -2, left: '100%', marginLeft: 8, zIndex: 60, width: 280, maxWidth: '60vw', background: 'var(--text)', color: '#fff', borderRadius: 8, padding: '9px 11px', boxShadow: '0 8px 24px rgba(0,0,0,0.28)', fontSize: 11.5, lineHeight: 1.55, whiteSpace: 'pre-wrap' }}>
+          {a.why.trim() ? <div><b style={{ opacity: 0.7 }}>목적 </b>{a.why}</div> : null}
+          {a.result.trim() ? <div style={{ marginTop: a.why.trim() ? 4 : 0 }}><b style={{ opacity: 0.7 }}>결과 </b>{a.result}</div> : null}
+          {isMed && a.detail.trim() ? <div style={{ marginTop: 4 }}><b style={{ opacity: 0.7 }}>상세 </b>{a.detail}</div> : null}
+          {isSurg && (a.procedure ?? []).length > 0 ? <div style={{ marginTop: 4 }}><b style={{ opacity: 0.7 }}>절차 </b>{a.procedure.map((s, si) => `${si + 1}. ${s.step}`).join('  →  ')}</div> : null}
         </div>
       ) : null}
     </div>
@@ -1182,59 +1169,57 @@ function SectionCard({ s, i, tagCards, updateSection, moveSection, removeSection
         </div>
       </div>
 
-      {/* 이 태그가 붙은 인과 흐름 카드(읽기 전용) — 편집/읽기 공통으로 표시 */}
-      {s.tag && tagCards.length ? (
-        <div style={{ display: 'grid', gap: 5, marginBottom: 10 }}>
-          <span style={fieldLabel}>이 섹션의 행위 카드 ({tagCards.length}) — 인과 흐름에서 이 태그가 붙은 항목</span>
-          <div style={{ display: 'grid', gap: 6 }}>
-            {tagCards.map((a, ai) => <OutlineActionCard key={ai} a={a} />)}
+      {/* 본문: 좌(행위 카드 제목 · hover 상세) 3 | 우(핵심요약·팩트·이미지) 7 */}
+      <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start' }}>
+        {/* 좌 — 이 태그가 붙은 인과 흐름 카드(제목만, hover 로 상세). 카드 없으면(서술 섹션) 생략 */}
+        {s.tag && tagCards.length ? (
+          <div style={{ flex: '3 1 0', minWidth: 0, display: 'grid', gap: 5, alignContent: 'start' }}>
+            <span style={fieldLabel}>행위 카드 {tagCards.length}개</span>
+            <div style={{ display: 'grid', gap: 4 }}>
+              {tagCards.map((a, ai) => <OutlineActionChip key={ai} a={a} />)}
+            </div>
           </div>
-        </div>
-      ) : null}
+        ) : null}
 
-      {edit ? (
-        <div style={{ display: 'grid', gap: 10 }}>
-          <LabeledTextarea label="핵심 요약 (한 줄에 하나 · 서술 방향)" value={s.points.join('\n')} onChange={(v) => updateSection(i, { points: v.split('\n') })} rows={3} />
-          <LabeledTextarea label="팩트 facts (한 줄에 하나 · 반드시 들어갈 데이터)" value={s.facts.join('\n')} onChange={(v) => updateSection(i, { facts: v.split('\n') })} rows={3} />
+        {/* 우 — 핵심 요약 + 팩트 (+ 이미지) */}
+        <div style={{ flex: s.tag && tagCards.length ? '7 1 0' : '1 1 0', minWidth: 0, display: 'grid', gap: 10 }}>
+          {edit ? (
+            <>
+              <LabeledTextarea label="핵심 요약 (한 줄에 하나 · 서술 방향)" value={s.points.join('\n')} onChange={(v) => updateSection(i, { points: v.split('\n') })} rows={3} />
+              <LabeledTextarea label="팩트 facts (한 줄에 하나 · 반드시 들어갈 데이터)" value={s.facts.join('\n')} onChange={(v) => updateSection(i, { facts: v.split('\n') })} rows={3} />
+            </>
+          ) : (
+            <>
+              <div style={{ display: 'grid', gap: 4 }}>
+                <span style={fieldLabel}>핵심 요약</span>
+                {points.length ? (
+                  <ul style={{ ...listUl, color: 'var(--text)' }}>
+                    {points.map((p, k) => <li key={k} style={{ listStyleType: 'disc' }}>{p}</li>)}
+                  </ul>
+                ) : <span style={{ fontSize: 12.5, color: 'var(--text-muted)' }}>—</span>}
+              </div>
+              {facts.length ? (
+                <div style={{ display: 'grid', gap: 4 }}>
+                  <span style={fieldLabel}>팩트</span>
+                  <ul style={{ ...listUl, color: 'var(--text-secondary)' }}>
+                    {facts.map((f, k) => <li key={k} style={{ listStyleType: 'disc' }}>{f}</li>)}
+                  </ul>
+                </div>
+              ) : null}
+            </>
+          )}
           {s.imageFileNames.length > 0 ? (
             <div style={{ display: 'grid', gap: 4 }}>
               <span style={fieldLabel}>관련 이미지</span>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
                 {s.imageFileNames.map((fn) => (
-                  <CaseImageThumb key={fn} fileName={fn} meta={imageMeta(fn)} onRemove={() => updateSection(i, { imageFileNames: s.imageFileNames.filter((x) => x !== fn) })} />
+                  <CaseImageThumb key={fn} fileName={fn} meta={imageMeta(fn)} onRemove={edit ? () => updateSection(i, { imageFileNames: s.imageFileNames.filter((x) => x !== fn) }) : undefined} />
                 ))}
               </div>
             </div>
           ) : null}
         </div>
-      ) : (
-        <div style={{ display: 'grid', gap: 10 }}>
-          <div style={{ display: 'grid', gap: 4 }}>
-            <span style={fieldLabel}>핵심 요약</span>
-            {points.length ? (
-              <ul style={{ ...listUl, color: 'var(--text)' }}>
-                {points.map((p, k) => <li key={k} style={{ listStyleType: 'disc' }}>{p}</li>)}
-              </ul>
-            ) : <span style={{ fontSize: 12.5, color: 'var(--text-muted)' }}>—</span>}
-          </div>
-          {facts.length ? (
-            <div style={{ display: 'grid', gap: 4 }}>
-              <span style={fieldLabel}>팩트</span>
-              <ul style={{ ...listUl, color: 'var(--text-secondary)' }}>
-                {facts.map((f, k) => <li key={k} style={{ listStyleType: 'disc' }}>{f}</li>)}
-              </ul>
-            </div>
-          ) : null}
-          {s.imageFileNames.length > 0 ? (
-            <div style={{ display: 'grid', gap: 4 }}>
-              <span style={fieldLabel}>관련 이미지</span>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
-                {s.imageFileNames.map((fn) => <CaseImageThumb key={fn} fileName={fn} meta={imageMeta(fn)} />)}
-              </div>
-            </div>
-          ) : null}
-        </div>
-      )}
+      </div>
     </div>
   );
 }
