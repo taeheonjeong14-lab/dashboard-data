@@ -418,7 +418,8 @@ export function CaseBlogButton({
     setGenLoading(3); setError(null); setSavedMsg('');
     try {
       await callSave('blog_outline', { outline, caseOverview });
-      const g = await callGenerate({ contentType: 'blog_post', outline });
+      // causalFlow 도 함께: 수술 절차(procedure) 등 세부는 outline facts 가 아니라 causalFlow 에서 읽어 풀어씀.
+      const g = await callGenerate({ contentType: 'blog_post', outline, causalFlow: causal });
       setBlog(asBlog(g));
       setBlogBasis(JSON.stringify(outline));
       setStep(3);
