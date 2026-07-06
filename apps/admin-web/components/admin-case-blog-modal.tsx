@@ -6,10 +6,12 @@ import Link from 'next/link';
 // ── 타입 ──────────────────────────────────────────────────────────────────
 type StepNum = 1 | 2 | 3 | 4 | 5;
 type OverviewItem = { label: string; value: string };
-// 액션 1개 = 한 행위(무엇을 했나) + 그 이유(왜) + 도출 결과 + 성격 해시태그(types) + 상세(detail). UI에서 카드 하나.
-// types: 그 "행위" 하나의 성격(검사/진단·술 전 검사·외과·술 후 회복·내과·입원·퇴원·기타). 여러 개 가능, 애매하면 '기타'.
-// detail: '상세 내용' — #수술/#내과 치료 카드에만. 수술=시술 절차 시간순, 내과=처방 약 종류. 그 외엔 ''.
-type Action = { what: string; why: string; result: string; types: string[]; detail: string };
+// 수술 절차 한 단계 = 절차 이름 + 그 절차에 대한 부연 설명.
+type ProcStep = { step: string; note: string };
+// 액션 1개 = 한 행위(무엇을 했나) + 그 이유(왜) + 도출 결과 + 성격 해시태그(types) + 상세. UI에서 카드 하나.
+// types: 그 "행위" 하나의 성격(검사/진단·술 전 검사·수술·술 후 회복·내과·입원·퇴원·기타). 여러 개 가능, 애매하면 '기타'.
+// procedure: #수술 카드의 시술 절차(단계별 {절차, 설명}). detail: #내과 치료 카드의 처방 약 종류(문자열). 그 외 태그면 둘 다 비움.
+type Action = { what: string; why: string; result: string; types: string[]; detail: string; procedure: ProcStep[] };
 type Phase = { id: string; name: string; period: string; actions: Action[]; nextStep: string[] };
 type CausalFlow = { axis: string; anesthesia: boolean; phases: Phase[] };
 // 2단계 — 진단·치료 세부 흐름
@@ -70,6 +72,9 @@ function hashChip(on: boolean): CSSProperties {
     transition: 'all 0.1s ease',
   };
 }
+// 수술 절차 하위 박스(카드 안의 가로로 긴 박스) — 편집/읽기 공용 틀 + 단계 번호 배지.
+const procBox: CSSProperties = { border: '1px solid var(--border)', borderRadius: 8, padding: '8px 10px', background: 'var(--bg)' };
+const procNumBadge: CSSProperties = { flexShrink: 0, width: 18, height: 18, borderRadius: 999, background: 'var(--accent)', color: '#fff', fontSize: 11, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center' };
 // 읽기 모드 — 행위 제목 우측에 붙는 작은 성격 태그 스티커.
 const tagSticker: CSSProperties = {
   fontSize: 10.5, fontWeight: 700, lineHeight: 1.5, whiteSpace: 'nowrap',
@@ -92,23 +97,31 @@ const toLines = (v: unknown): string[] =>
   Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : typeof v === 'string' && v.trim() ? [v] : [];
 const str = (v: unknown): string => (typeof v === 'string' ? v : '');
 
+// 수술 절차 배열 정규화: [{step, note}] 만 남기고 빈 단계는 제거.
+function asProcedure(v: unknown): ProcStep[] {
+  if (!Array.isArray(v)) return [];
+  return v
+    .map((s) => { const y = (s ?? {}) as Record<string, unknown>; return { step: str(y.step), note: str(y.note) }; })
+    .filter((s) => s.step.trim() || s.note.trim());
+}
+
 // phase 를 { actions, nextStep } 로 정규화. 새 구조(actions/nextStep)면 그대로,
 // 옛 구조(what[]/why[]/toNext[])면 자동 변환: what[i]↔why[i] 를 액션으로 짝짓고, toNext 는 nextStep 으로.
 function asActionsAndNext(x: Record<string, unknown>): { actions: Action[]; nextStep: string[] } {
   if (Array.isArray(x.actions)) {
     const actions = x.actions.map((a) => {
       const y = (a ?? {}) as Record<string, unknown>;
-      return { what: str(y.what), why: str(y.why), result: str(y.result), types: normTypes(y.types ?? y.type), detail: str(y.detail) };
+      return { what: str(y.what), why: str(y.why), result: str(y.result), types: normTypes(y.types ?? y.type), detail: str(y.detail), procedure: asProcedure(y.procedure) };
     });
     return { actions, nextStep: toLines(x.nextStep) };
   }
   // 옛 구조 변환
   const whats = toLines(x.what);
   const whys = toLines(x.why);
-  const actions: Action[] = whats.map((w, i) => ({ what: w, why: whys[i] ?? '', result: '', types: [], detail: '' }));
+  const actions: Action[] = whats.map((w, i) => ({ what: w, why: whys[i] ?? '', result: '', types: [], detail: '', procedure: [] }));
   // what 이 없는데 why 만 있으면(드묾) 이유들만이라도 액션으로 보존
   if (actions.length === 0 && whys.length > 0) {
-    for (const w of whys) actions.push({ what: '', why: w, result: '', types: [], detail: '' });
+    for (const w of whys) actions.push({ what: '', why: w, result: '', types: [], detail: '', procedure: [] });
   }
   return { actions, nextStep: toLines(x.toNext) };
 }
@@ -215,7 +228,7 @@ const TREAT_TYPE_LABEL: Record<string, string> = { surgical: '수술형', medica
 
 // 변경된 부분을 사람이 읽을 수 있는 목록으로 — 재생성 확인창에 표시.
 const arrEq = (a: string[], b: string[]): boolean => a.join('') === b.join('');
-const actionsKey = (a: Action[]): string => a.map((x) => `${x.what}|${x.why}|${x.result}|${x.types.join(',')}|${x.detail}`).join('§');
+const actionsKey = (a: Action[]): string => a.map((x) => `${x.what}|${x.why}|${x.result}|${x.types.join(',')}|${x.detail}|${x.procedure.map((s) => `${s.step}~${s.note}`).join('¶')}`).join('§');
 function diffCausal(prev: CausalFlow, next: CausalFlow): string[] {
   const changes: string[] = [];
   if (prev.axis !== next.axis) changes.push('흐름의 축');
@@ -854,7 +867,12 @@ function PhaseCard({ p, isLast, busy, regenBusy, onUp, onDown, onRemove, update,
   const setActions = (actions: Action[]) => update({ actions });
   const updAction = (ai: number, patch: Partial<Action>) => setActions(p.actions.map((a, j) => (j === ai ? { ...a, ...patch } : a)));
   const moveAction = (ai: number, dir: -1 | 1) => { const j = ai + dir; if (j < 0 || j >= p.actions.length) return; const a = [...p.actions]; [a[ai], a[j]] = [a[j]!, a[ai]!]; setActions(a); };
-  const addAction = () => setActions([...p.actions, { what: '', why: '', result: '', types: [], detail: '' }]);
+  const addAction = () => setActions([...p.actions, { what: '', why: '', result: '', types: [], detail: '', procedure: [] }]);
+  // 수술 절차(procedure) 편집 헬퍼
+  const updProc = (ai: number, si: number, patch: Partial<ProcStep>) =>
+    updAction(ai, { procedure: (p.actions[ai]?.procedure ?? []).map((s, j) => (j === si ? { ...s, ...patch } : s)) });
+  const addProc = (ai: number) => updAction(ai, { procedure: [...(p.actions[ai]?.procedure ?? []), { step: '', note: '' }] });
+  const rmProc = (ai: number, si: number) => updAction(ai, { procedure: (p.actions[ai]?.procedure ?? []).filter((_, j) => j !== si) });
   const rmAction = (ai: number) => setActions(p.actions.filter((_, j) => j !== ai));
   // 행위(카드)별 성격 태그 토글. 외과↔내과는 상호 배타 — 켤 때 다른 하나는 끈다.
   const toggleActionType = (ai: number, t: string) => {
@@ -943,15 +961,25 @@ function PhaseCard({ p, isLast, busy, regenBusy, onUp, onDown, onRemove, update,
                     <AutoTextarea label="목적" value={a.why} onChange={(v) => updAction(ai, { why: v })} placeholder="임상적 이유" />
                     <AutoTextarea label="결과" value={a.result} onChange={(v) => updAction(ai, { result: v })} placeholder="도출된 결과" />
                   </div>
-                  {/* 상세 내용 — #수술/#내과 치료 카드에만 */}
-                  {(a.types ?? []).some((t) => t === 'surgical' || t === 'medical') ? (
+                  {/* 수술 절차(단계별) — #수술 카드에만. 한 단계 = 가로로 긴 박스(절차 + 부연 설명) */}
+                  {(a.types ?? []).includes('surgical') ? (
+                    <div style={{ marginTop: 8, display: 'grid', gap: 6 }}>
+                      <span style={fieldLabel}>수술 절차 (단계별 · 시간순)</span>
+                      {(a.procedure ?? []).map((s, si) => (
+                        <div key={si} style={procBox}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <span style={procNumBadge}>{si + 1}</span>
+                            <input value={s.step} onChange={(e) => updProc(ai, si, { step: e.target.value })} placeholder="절차 (예: 병변 절제)" style={{ ...inputStyle, flex: 1, fontWeight: 700 }} />
+                            <button type="button" style={btnTiny} onClick={() => rmProc(ai, si)} disabled={busy} title="이 절차 삭제">✕</button>
+                          </div>
+                          <textarea value={s.note} onChange={(e) => updProc(ai, si, { note: e.target.value })} placeholder="이 절차에 대한 부연 설명 (무엇을·어떻게/왜)" rows={2} style={{ ...inputStyle, marginTop: 6, resize: 'vertical' }} />
+                        </div>
+                      ))}
+                      <button type="button" style={{ ...btnTiny, alignSelf: 'flex-start' }} onClick={() => addProc(ai)} disabled={busy}>+ 절차 추가</button>
+                    </div>
+                  ) : (a.types ?? []).includes('medical') ? (
                     <div style={{ marginTop: 8 }}>
-                      <AutoTextarea
-                        label={(a.types ?? []).includes('surgical') ? '상세 내용 (수술 절차 · 시간순)' : '상세 내용 (처방한 약의 종류)'}
-                        value={a.detail}
-                        onChange={(v) => updAction(ai, { detail: v })}
-                        placeholder={(a.types ?? []).includes('surgical') ? '마취 → 절개 → … → 봉합 순으로 간단명료하게' : '예: 항생제, 소염진통제 등 성분·약효 분류'}
-                      />
+                      <AutoTextarea label="상세 내용 (처방한 약의 종류)" value={a.detail} onChange={(v) => updAction(ai, { detail: v })} placeholder="예: 항생제, 소염진통제 등 성분·약효 분류" />
                     </div>
                   ) : null}
                 </div>
@@ -1001,6 +1029,19 @@ function PhaseCard({ p, isLast, busy, regenBusy, onUp, onDown, onRemove, update,
                   {a.detail.trim() ? (
                     <div style={{ display: 'flex', gap: 6, marginTop: 4, fontSize: 12.5, color: 'var(--text-secondary)' }}>
                       <span style={viewMiniLabel}>상세</span><span style={{ whiteSpace: 'pre-wrap' }}>{a.detail}</span>
+                    </div>
+                  ) : null}
+                  {(a.procedure ?? []).length > 0 ? (
+                    <div style={{ marginTop: 6, display: 'grid', gap: 6 }}>
+                      {a.procedure.map((s, si) => (
+                        <div key={si} style={procBox}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <span style={procNumBadge}>{si + 1}</span>
+                            <span style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text)' }}>{s.step || '—'}</span>
+                          </div>
+                          {s.note.trim() ? <div style={{ marginTop: 4, fontSize: 12, color: 'var(--text-secondary)', whiteSpace: 'pre-wrap' }}>{s.note}</div> : null}
+                        </div>
+                      ))}
                     </div>
                   ) : null}
                 </div>
