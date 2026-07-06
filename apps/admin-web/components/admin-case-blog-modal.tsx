@@ -195,9 +195,9 @@ function diffDetail(prev: DetailFlow, next: DetailFlow): string[] {
 }
 // 행위(action) 성격(해시태그). 한 행위에 여러 개 가능, 애매하면 '기타'.
 const ACTION_TYPE_LABEL: Record<string, string> = {
-  exam_dx: '검사 및 진단', preop: '술 전 검사', surgical: '외과 치료', postop_recovery: '술 후 회복', medical: '내과 치료', admission: '입원 치료', discharge: '퇴원', other: '기타',
+  exam_dx: '검사 및 진단', preop: '술 전 검사', surgical: '외과 치료', postop_recovery: '술 후 회복', postop_followup: '술 후 경과확인', medical: '내과 치료', admission: '입원 치료', discharge: '퇴원', other: '기타',
 };
-const ACTION_TYPE_ORDER = ['exam_dx', 'preop', 'surgical', 'postop_recovery', 'medical', 'admission', 'discharge', 'other'];
+const ACTION_TYPE_ORDER = ['exam_dx', 'preop', 'surgical', 'postop_recovery', 'postop_followup', 'medical', 'admission', 'discharge', 'other'];
 // 옛 값 → 신규 키 매핑(검사/진단 → 검사 및 진단으로 통합).
 const LEGACY_TYPE_MAP: Record<string, string> = { diagnostic: 'exam_dx', diagnosis: 'exam_dx' };
 // 외과·내과는 한 행위에 하나만(상호 배타). 둘 다면 외과 우선.
