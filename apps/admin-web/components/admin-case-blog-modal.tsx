@@ -51,8 +51,8 @@ const inputStyle: CSSProperties = {
   outline: 'none', boxSizing: 'border-box', resize: 'vertical', wordBreak: 'break-word', whiteSpace: 'pre-wrap',
 };
 const cardBox: CSSProperties = { background: '#fff', border: '1px solid var(--border)', borderRadius: 10, padding: '12px 14px' };
-const actionBox: CSSProperties = { background: 'var(--bg-subtle)', border: '1px solid #4ade1a', borderRadius: 8, padding: '10px 12px' };
-const actionWhatColor = '#3fb500'; // '무엇을 했나' 강조 형광 초록
+const actionBox: CSSProperties = { background: 'var(--bg-subtle)', border: '1px solid #1bfc06', borderRadius: 8, padding: '10px 12px' };
+const actionWhatColor = '#1bfc06'; // '무엇을 했나' 강조 형광 초록
 // 읽기 전용 뷰의 '왜/결과' 인라인 라벨.
 const viewMiniLabel: CSSProperties = { flexShrink: 0, fontSize: 11, fontWeight: 800, color: 'var(--text-muted)', minWidth: 30 };
 // Next step — 보라 테두리 박스.
@@ -195,7 +195,7 @@ function diffDetail(prev: DetailFlow, next: DetailFlow): string[] {
 }
 // 행위(action) 성격(해시태그). 한 행위에 여러 개 가능, 애매하면 '기타'.
 const ACTION_TYPE_LABEL: Record<string, string> = {
-  exam_dx: '검사 및 진단', preop: '술 전 검사', surgical: '외과 치료', postop_recovery: '술 후 회복', postop_followup: '술 후 경과확인', medical: '내과 치료', admission: '입원 치료', discharge: '퇴원', other: '기타',
+  exam_dx: '검사 및 진단', preop: '술 전 검사', surgical: '수술', postop_recovery: '술 후 회복', postop_followup: '술 후 경과확인', medical: '내과 치료', admission: '입원 치료', discharge: '퇴원', other: '기타',
 };
 const ACTION_TYPE_ORDER = ['exam_dx', 'preop', 'surgical', 'postop_recovery', 'postop_followup', 'medical', 'admission', 'discharge', 'other'];
 // 옛 값 → 신규 키 매핑(검사/진단 → 검사 및 진단으로 통합).
