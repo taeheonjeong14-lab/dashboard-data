@@ -14,7 +14,8 @@ type ProcStep = { step: string; note: string };
 type Action = { what: string; why: string; result: string; types: string[]; detail: string; procedure: ProcStep[] };
 type Phase = { id: string; name: string; period: string; actions: Action[]; nextStep: string[] };
 type CausalFlow = { axis: string; anesthesia: boolean; phases: Phase[] };
-type Section = { id: string; label: string; period: string; points: string[]; facts: string[]; imageFileNames: string[] };
+// tag: 해시태그 섹션이면 ACTION_TYPE 키(exam_dx 등), 고정 서술 섹션(인트로/질환소개/…)이면 ''.
+type Section = { id: string; tag: string; label: string; period: string; points: string[]; facts: string[]; imageFileNames: string[] };
 type CaseImg = { fileName: string; signedUrl: string | null; caption: string };
 type OverviewCheck = { item: string; reflectedIn: string };
 type Outline = { title_candidates: string[]; sections: Section[]; overviewCheck: OverviewCheck[] };
@@ -155,7 +156,8 @@ function asOutline(raw: unknown): Outline {
     title_candidates: toLines(o.title_candidates),
     sections: sections.map((s) => {
       const x = (s ?? {}) as Record<string, unknown>;
-      return { id: str(x.id) || `sec_${uid()}`, label: str(x.label), period: str(x.period), points: toLines(x.points), facts: toLines(x.facts), imageFileNames: toLines(x.imageFileNames) };
+      const tagRaw = str(x.tag);
+      return { id: str(x.id) || `sec_${uid()}`, tag: tagRaw in ACTION_TYPE_LABEL ? tagRaw : '', label: str(x.label), period: str(x.period), points: toLines(x.points), facts: toLines(x.facts), imageFileNames: toLines(x.imageFileNames) };
     }),
     overviewCheck: checks.map((c) => {
       const x = (c ?? {}) as Record<string, unknown>;
@@ -580,7 +582,7 @@ export function CaseBlogButton({
     }); dirty();
   }
   function addSection() {
-    setOutline((o) => (o ? { ...o, sections: [...o.sections, { id: `sec_${uid()}`, label: '', period: '', points: [], facts: [], imageFileNames: [] }] } : o)); dirty();
+    setOutline((o) => (o ? { ...o, sections: [...o.sections, { id: `sec_${uid()}`, tag: '', label: '', period: '', points: [], facts: [], imageFileNames: [] }] } : o)); dirty();
   }
   function removeSection(i: number) {
     setOutline((o) => (o ? { ...o, sections: o.sections.filter((_, j) => j !== i) } : o)); dirty();
@@ -711,7 +713,7 @@ export function CaseBlogButton({
                     />
                   ) : step === 2 ? (
                     genLoading === 2 && !outline ? <Loading text="AI가 아웃라인을 배치하는 중…" /> : (
-                      <OutlineEditor outline={outline} updateSection={updateSection} moveSection={moveSection} addSection={addSection} removeSection={removeSection} setOutline={(o) => { setOutline(o); dirty(); }} imageMeta={(fn) => imageMetaByName.get(fn) ?? null} />
+                      <OutlineEditor outline={outline} causal={causal} updateSection={updateSection} moveSection={moveSection} addSection={addSection} removeSection={removeSection} setOutline={(o) => { setOutline(o); dirty(); }} imageMeta={(fn) => imageMetaByName.get(fn) ?? null} />
                     )
                   ) : step === 3 ? (
                     genLoading === 3 && !blog ? <Loading text="AI가 블로그 글을 작성하는 중…" /> : (
@@ -1089,14 +1091,55 @@ function CaseImageThumb({ fileName, meta, onRemove }: { fileName: string; meta: 
 }
 
 // ── 2단계 에디터 ──
-function OutlineEditor({ outline, updateSection, moveSection, addSection, removeSection, setOutline, imageMeta }: {
+// 해시태그 섹션에 묶여 표시되는 행위 카드(읽기 전용). 인과 흐름에서 그 태그가 붙은 카드를 요약해 보여준다.
+function OutlineActionCard({ a }: { a: Action }) {
+  return (
+    <div style={{ ...actionBox, padding: '8px 10px' }}>
+      <div style={{ fontSize: 12.5, fontWeight: 700, color: actionWhatColor }}>{a.what || '—'}</div>
+      {a.why.trim() ? (
+        <div style={{ display: 'flex', gap: 6, marginTop: 4, fontSize: 12, color: 'var(--text-secondary)' }}>
+          <span style={viewMiniLabel}>목적</span><span style={{ whiteSpace: 'pre-wrap' }}>{a.why}</span>
+        </div>
+      ) : null}
+      {a.result.trim() ? (
+        <div style={{ display: 'flex', gap: 6, marginTop: 3, fontSize: 12, color: 'var(--text-secondary)' }}>
+          <span style={viewMiniLabel}>결과</span><span style={{ whiteSpace: 'pre-wrap' }}>{a.result}</span>
+        </div>
+      ) : null}
+      {(a.types ?? []).includes('medical') && a.detail.trim() ? (
+        <div style={{ display: 'flex', gap: 6, marginTop: 3, fontSize: 12, color: 'var(--text-secondary)' }}>
+          <span style={viewMiniLabel}>상세</span><span style={{ whiteSpace: 'pre-wrap' }}>{a.detail}</span>
+        </div>
+      ) : null}
+      {(a.types ?? []).includes('surgical') && (a.procedure ?? []).length > 0 ? (
+        <div style={{ marginTop: 5, display: 'grid', gap: 5 }}>
+          {a.procedure.map((s, si) => (
+            <div key={si} style={procBox}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={procNumBadge}>{si + 1}</span>
+                <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)' }}>{s.step || '—'}</span>
+              </div>
+              {s.note.trim() ? <div style={{ marginTop: 3, fontSize: 11.5, color: 'var(--text-secondary)', whiteSpace: 'pre-wrap' }}>{s.note}</div> : null}
+            </div>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function OutlineEditor({ outline, causal, updateSection, moveSection, addSection, removeSection, setOutline, imageMeta }: {
   outline: Outline | null;
+  causal: CausalFlow | null;
   updateSection: (i: number, patch: Partial<Section>) => void;
   moveSection: (i: number, dir: -1 | 1) => void; addSection: () => void; removeSection: (i: number) => void;
   setOutline: (o: Outline) => void;
   imageMeta: (fileName: string) => CaseImg | null;
 }) {
   if (!outline) return <div style={{ fontSize: 13, color: 'var(--text-muted)', padding: 12 }}>아웃라인이 없습니다. “다시 생성”을 눌러 주세요.</div>;
+  // 해시태그 섹션에 묶일 카드: 인과 흐름 전 단계에서 그 태그가 붙은 행위(다중 태그면 여러 섹션에 중복 등장).
+  const cardsForTag = (tag: string): Action[] =>
+    tag && causal ? causal.phases.flatMap((p) => p.actions.filter((a) => (a.types ?? []).includes(tag))) : [];
   return (
     <div style={{ display: 'grid', gap: 12 }}>
       <div style={cardBox}>
@@ -1110,14 +1153,32 @@ function OutlineEditor({ outline, updateSection, moveSection, addSection, remove
           />
         </div>
       </div>
-      {outline.sections.map((s, i) => (
+      {outline.sections.map((s, i) => {
+        const tagCards = cardsForTag(s.tag);
+        return (
         <div key={s.id} style={cardBox}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 10 }}>
-            <input value={s.label} onChange={(e) => updateSection(i, { label: e.target.value })} placeholder="섹션명" style={{ ...inputStyle, fontWeight: 700, maxWidth: 280 }} />
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, minWidth: 0 }}>
+              <input value={s.label} onChange={(e) => updateSection(i, { label: e.target.value })} placeholder="섹션명" style={{ ...inputStyle, fontWeight: 700, maxWidth: 280 }} />
+              {s.tag ? <span style={tagSticker}>#{ACTION_TYPE_LABEL[s.tag] ?? s.tag}</span> : null}
+            </div>
             <RowTools onUp={() => moveSection(i, -1)} onDown={() => moveSection(i, 1)} onRemove={() => removeSection(i)} />
           </div>
           <div style={{ display: 'grid', gap: 10 }}>
-            <LabeledTextarea label="요점 points (한 줄에 하나 · 서술 방향)" value={s.points.join('\n')} onChange={(v) => updateSection(i, { points: v.split('\n') })} rows={3} />
+            {/* 해시태그 섹션이면 그 태그가 붙은 인과 흐름 카드를 읽기 전용으로 묶어 보여준다(고정 서술 섹션은 카드 없음). */}
+            {s.tag ? (
+              <div style={{ display: 'grid', gap: 5 }}>
+                <span style={fieldLabel}>이 섹션의 행위 카드 ({tagCards.length}) — 인과 흐름에서 이 태그가 붙은 항목</span>
+                {tagCards.length ? (
+                  <div style={{ display: 'grid', gap: 6 }}>
+                    {tagCards.map((a, ai) => <OutlineActionCard key={ai} a={a} />)}
+                  </div>
+                ) : (
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)', padding: '2px 2px' }}>이 태그가 붙은 카드가 없습니다.</div>
+                )}
+              </div>
+            ) : null}
+            <LabeledTextarea label="핵심 요약 (한 줄에 하나 · 서술 방향)" value={s.points.join('\n')} onChange={(v) => updateSection(i, { points: v.split('\n') })} rows={3} />
             <LabeledTextarea label="팩트 facts (한 줄에 하나 · 반드시 들어갈 데이터)" value={s.facts.join('\n')} onChange={(v) => updateSection(i, { facts: v.split('\n') })} rows={3} />
             {s.imageFileNames.length > 0 ? (
               <div style={{ display: 'grid', gap: 4 }}>
@@ -1136,7 +1197,8 @@ function OutlineEditor({ outline, updateSection, moveSection, addSection, remove
             ) : null}
           </div>
         </div>
-      ))}
+        );
+      })}
       <button type="button" style={{ ...btnSecondary, width: '100%' }} onClick={addSection}>+ 섹션 추가</button>
     </div>
   );
