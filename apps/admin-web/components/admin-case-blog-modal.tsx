@@ -51,8 +51,8 @@ const inputStyle: CSSProperties = {
   outline: 'none', boxSizing: 'border-box', resize: 'vertical', wordBreak: 'break-word', whiteSpace: 'pre-wrap',
 };
 const cardBox: CSSProperties = { background: '#fff', border: '1px solid var(--border)', borderRadius: 10, padding: '12px 14px' };
-const actionBox: CSSProperties = { background: 'var(--bg-subtle)', border: '1px solid #1bfc06', borderRadius: 8, padding: '10px 12px' };
-const actionWhatColor = '#1bfc06'; // '무엇을 했나' 강조 형광 초록
+const actionBox: CSSProperties = { background: 'var(--bg-subtle)', border: '1px solid #4ade1a', borderRadius: 8, padding: '10px 12px' };
+const actionWhatColor = '#3fb500'; // '무엇을 했나' 강조 형광 초록
 // 읽기 전용 뷰의 '왜/결과' 인라인 라벨.
 const viewMiniLabel: CSSProperties = { flexShrink: 0, fontSize: 11, fontWeight: 800, color: 'var(--text-muted)', minWidth: 30 };
 // Next step — 보라 테두리 박스.
@@ -825,8 +825,8 @@ function RowTools({ onUp, onDown, onRemove, busy }: { onUp: () => void; onDown: 
 
 // 한 날짜(phase) 카드: 날짜를 제목처럼, 행위별 카드(무엇/왜/결과 + 성격 해시태그),
 // 맨 아래 Next step + 날짜별 다시 생성(피드백 반영).
-function PhaseCard({ p, busy, regenBusy, onUp, onDown, onRemove, update, onRegen }: {
-  p: Phase; busy: boolean; regenBusy: boolean; onUp: () => void; onDown: () => void; onRemove: () => void;
+function PhaseCard({ p, isLast, busy, regenBusy, onUp, onDown, onRemove, update, onRegen }: {
+  p: Phase; isLast: boolean; busy: boolean; regenBusy: boolean; onUp: () => void; onDown: () => void; onRemove: () => void;
   update: (patch: Partial<Phase>) => void; onRegen: (feedback: string) => void;
 }) {
   const [feedback, setFeedback] = useState('');
@@ -930,16 +930,18 @@ function PhaseCard({ p, busy, regenBusy, onUp, onDown, onRemove, update, onRegen
             <button type="button" style={{ ...btnTiny, alignSelf: 'flex-start' }} onClick={addAction} disabled={busy}>+ 행위 추가</button>
           </div>
 
-          {/* Next step(편집) */}
-          <div style={nextStepBox}>
-            <span style={nextStepLabel}>NEXT STEP (이 날 결정한 다음 단계 · 한 줄에 한 항목)</span>
-            <textarea
-              value={p.nextStep.join('\n')}
-              onChange={(e) => update({ nextStep: e.target.value.split('\n') })}
-              rows={2}
-              style={{ ...inputStyle, marginTop: 4 }}
-            />
-          </div>
+          {/* Next step(편집) — 마지막 날짜는 다음 단계가 없으므로 숨김 */}
+          {!isLast ? (
+            <div style={nextStepBox}>
+              <span style={nextStepLabel}>NEXT STEP (이 날 결정한 다음 단계 · 한 줄에 한 항목)</span>
+              <textarea
+                value={p.nextStep.join('\n')}
+                onChange={(e) => update({ nextStep: e.target.value.split('\n') })}
+                rows={2}
+                style={{ ...inputStyle, marginTop: 4 }}
+              />
+            </div>
+          ) : null}
         </>
       ) : (
         <>
@@ -971,8 +973,8 @@ function PhaseCard({ p, busy, regenBusy, onUp, onDown, onRemove, update, onRegen
             </div>
           )}
 
-          {/* Next step(읽기 전용) */}
-          {nextSteps.length > 0 ? (
+          {/* Next step(읽기 전용) — 마지막 날짜는 숨김 */}
+          {!isLast && nextSteps.length > 0 ? (
             <div style={nextStepBox}>
               <span style={nextStepLabel}>NEXT STEP</span>
               <ul style={{ margin: '4px 0 0', paddingLeft: 18, listStyleType: 'disc', fontSize: 13, color: 'var(--text)', lineHeight: 1.5 }}>
@@ -1062,7 +1064,7 @@ function CausalEditor({ causal, busy, setField, updatePhase, movePhase, addPhase
     <div style={{ display: 'grid', gap: 12 }}>
       <AxisCard axis={causal.axis} anesthesia={causal.anesthesia} busy={busy} setField={setField} />
       {causal.phases.map((p, i) => (
-        <PhaseCard key={p.id} p={p} busy={busy || phaseBusy !== null} regenBusy={phaseBusy === i}
+        <PhaseCard key={p.id} p={p} isLast={i === causal.phases.length - 1} busy={busy || phaseBusy !== null} regenBusy={phaseBusy === i}
           onUp={() => movePhase(i, -1)} onDown={() => movePhase(i, 1)} onRemove={() => removePhase(i)}
           update={(patch) => updatePhase(i, patch)} onRegen={(fb) => regenPhase(i, fb)} />
       ))}
