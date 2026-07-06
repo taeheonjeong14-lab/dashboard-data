@@ -805,6 +805,35 @@ function groupLabByDate(lines: BucketedLine[]): LabByDateGroup[] {
   }));
 }
 
+/**
+ * 헤더에 요검사 키워드가 없어도 그룹 "내용"으로 UA(요검사) 패널을 감지한다.
+ * 혈액 패널엔 등장하지 않는 소변 전용 신호(SG·UBG·Nitrite·LEU esterase·BLD 잠혈·Ery/µL·Leu/µL·/HPF 등)를
+ * 2개 이상 포함하면 UA 로 본다(혈액 그룹은 이런 신호가 0개라 오작동하지 않음).
+ * UA 로 잡히면 매핑 단계에서 BIL/BLD/KET/PRO/GLU/pH 를 소변 전용 이름(U-*)으로 정규화한다.
+ */
+function groupContentLooksLikeUrinalysis(lines: BucketedLine[]): boolean {
+  const text = lines.map((l) => l.text).join(" ").toUpperCase();
+  const signals: RegExp[] = [
+    /\bU?SG\b/,                       // (U)SG 비중
+    /SPECIFIC\s*GRAVITY/,
+    /\bUBG\b|UROBILINOGEN|\bURO\b/,   // 우로빌리노겐
+    /\bNIT\b|NITRITE/,                // 아질산염
+    /\bLEU\b|LEUKOCYTE/,              // 백혈구 에스터라제
+    /\bBLD\b/,                        // 소변 잠혈(혈액 패널엔 없음)
+    /ERY\s*\/\s*[ΜМµμU]?L/,           // Ery/µL
+    /LEU\s*\/\s*[ΜМµμU]?L/,           // Leu/µL
+    /\/\s*HPF|\/\s*LPF/,              // /HPF·/LPF
+  ];
+  let hits = 0;
+  for (const rx of signals) {
+    if (rx.test(text)) {
+      hits += 1;
+      if (hits >= 2) return true;
+    }
+  }
+  return false;
+}
+
 function groupLabLinesByDate(lines: BucketedLine[]): LabByDateLinesGroup[] {
   const groups = new Map<string, BucketedLine[]>();
   const uaByKey = new Map<string, boolean>();
@@ -829,7 +858,7 @@ function groupLabLinesByDate(lines: BucketedLine[]): LabByDateLinesGroup[] {
   return [...groups.entries()].map(([dateTime, groupLines]) => ({
     dateTime,
     lines: groupLines,
-    isUrinalysis: uaByKey.get(dateTime) === true,
+    isUrinalysis: uaByKey.get(dateTime) === true || groupContentLooksLikeUrinalysis(groupLines),
   }));
 }
 
