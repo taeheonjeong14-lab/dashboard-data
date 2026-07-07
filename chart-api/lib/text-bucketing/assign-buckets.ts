@@ -10,6 +10,7 @@ import {
   extractWoorienChartBodyVisitDate,
   isPlusVetChartVisitHeaderLine,
   isPlusVetLabMachinePanelHeaderLine,
+  isPlusVetLabPanelTitleLine,
   isVisitContextLine,
 } from '@/lib/text-bucketing/chart-dates';
 import type { OcrRow } from '@/lib/google-vision';
@@ -200,7 +201,7 @@ export function assignLinesToBuckets(
         buckets.chartBody.push({ page: line.page, text: line.text, corrected: false });
         continue;
       }
-      if (isPlusVetLabMachinePanelHeaderLine(line.text)) {
+      if (isPlusVetLabMachinePanelHeaderLine(line.text) || isPlusVetLabPanelTitleLine(line.text)) {
         section = 'lab';
         buckets.lab.push(minimalOcrCorrection(line, ocrRows));
         continue;

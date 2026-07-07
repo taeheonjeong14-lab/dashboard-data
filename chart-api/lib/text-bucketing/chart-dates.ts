@@ -91,6 +91,24 @@ export function isPlusVetLabMachinePanelHeaderLine(text: string): boolean {
   return false;
 }
 
+/**
+ * PlusVet lab 패널 헤더 3번째 형태: `검사유형(한글명) | 장비명`.
+ *  예) `Serum Analysis(혈청 분석) | V200`, `Biochemical Analysis(생화학 분석) | Catalyst One`, `CBC(전혈구 검사) | ProCyte One`
+ * 날짜시각도 '진단 검사 결과' 제목도 없이 곧장 패널이 시작되는(본문 없는 혈검-only) 차트용.
+ * 파이프 "앞"(검사유형명)에 패널 키워드가 있어야 하고, 뒤가 방문유형이면 제외한다.
+ * (데이터 행 `MPV … (fL) | 11.5` 는 파이프 앞에 패널 키워드가 없어 자연 제외)
+ */
+export function isPlusVetLabPanelTitleLine(text: string): boolean {
+  const t = text.replace(/\s+/g, ' ').trim();
+  const pipe = t.indexOf('|');
+  if (pipe < 0) return false;
+  const before = t.slice(0, pipe);
+  const after = t.slice(pipe + 1).trim();
+  if (!after) return false;
+  if (/^(재진|초진|예진|응급|검진|당일|복진|외래)(?![가-힣])/.test(after)) return false;
+  return /\bCBC\b|\bAnalysis\b|Biochemical|Blood\s*Gas|\bKit\b|Electrolyte|Urine|전혈구|혈청\s*분석|생화학\s*분석|요\s*검사|전해질/i.test(before);
+}
+
 /** PlusVet 차트 본문 방문 헤더 — lab 구간을 끊고 chartBody로 복귀 */
 export function isPlusVetChartVisitHeaderLine(text: string): boolean {
   const hit = matchPlusVetDatetimePipeRest(text);
