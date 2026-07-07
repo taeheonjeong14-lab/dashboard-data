@@ -1,5 +1,5 @@
 import type { ChartKind } from '@/lib/text-bucketing/chart-kind';
-import { isVisitContextLine, extractWoorienLooseVisitDateTime, isPlusVetLabMachinePanelHeaderLine, isPlusVetLabPanelTitleLine } from '@/lib/text-bucketing/chart-dates';
+import { isVisitContextLine, extractWoorienLooseVisitDateTime, isPlusVetLabMachinePanelHeaderLine } from '@/lib/text-bucketing/chart-dates';
 
 /**
  * 상단 환자/병원 블록이 끝나고 본 차트가 시작됐다고 볼 조건.
@@ -27,7 +27,6 @@ export function shouldEndBasicInfo(lineText: string, kind: ChartKind): boolean {
     // (그렇지 않으면 기본정보가 안 닫혀 '진단 검사 결과' 제목·기기 패널·검사 데이터가 통째로 basicInfo 로 감)
     if (isPlusVetDiagnosticResultsSectionTitle('', lineText)) return true;
     if (isPlusVetLabMachinePanelHeaderLine(lineText)) return true;
-    if (isPlusVetLabPanelTitleLine(lineText)) return true;
   }
   if (kind === 'intovet') return false;
   const t = lineText.trim();

@@ -59,12 +59,36 @@ export function assignLinesToBuckets(
   let basicInfoOpen = true;
   /** PlusVet: "진단 검사 결과" 이후 ~ 첫 시각 앵커 전까지는 chartBody (중복 기본정보) */
   let plusvetDiagnosticResultsSection = false;
+  /** PlusVet: "진단 결과 추이"(트렌드) 섹션 스킵 중 — 아무 버킷에도 넣지 않는다 */
+  let skipPlusvetTrend = false;
 
   for (let i = 0; i < sanitizedLines.length; i += 1) {
     const line = sanitizedLines[i];
     const next1 = sanitizedLines[i + 1]?.text ?? '';
     const next2 = sanitizedLines[i + 2]?.text ?? '';
     const normalized = line.text.toLowerCase();
+
+    // PlusVet '진단 결과 추이'(트렌드) 섹션은 '진단 검사 결과'와 같은 내용의 다른 표현 → 통째로 무시(버킷팅 안 함).
+    // 트렌드 시작 신호: '진단 결과 추이' 제목, 또는 트렌드형 패널헤더(`패널(한글) | 장비`, 날짜시각 없음 — 정상은 `날짜|패널`).
+    // 스킵 중 '진짜 섹션' 시작(정상 lab 패널·방문헤더·Subjective·진단 검사 결과 제목·접종·바이탈)이 오면 재개.
+    if (chartKind === 'plusvet') {
+      if (skipPlusvetTrend) {
+        const resume =
+          isPlusVetLabMachinePanelHeaderLine(line.text) ||
+          isPlusVetChartVisitHeaderLine(line.text) ||
+          /^subjective\b/i.test(line.text.replace(/\s+/g, ' ').trim()) ||
+          isPlusVetDiagnosticResultsSectionTitle(normalized, line.text) ||
+          isEnglishVaccinationSectionHeaderLine(line.text) ||
+          isVitalsSectionHeaderLine(line.text);
+        if (!resume) continue; // 트렌드 내부 줄 → 드롭
+        skipPlusvetTrend = false; // 재개: 아래 정상 로직으로 처리
+      } else if (isDiagnosisTrendSectionTitle(line.text) || isPlusVetLabPanelTitleLine(line.text)) {
+        skipPlusvetTrend = true;
+        basicInfoOpen = false; // 기본정보 오염 방지(트렌드가 첫 섹션인 경우)
+        continue; // 트렌드 시작 줄 드롭
+      }
+    }
+
     if (basicInfoOpen) {
       const efriendsVisitContextPair =
         chartKind === 'efriends' &&
@@ -201,7 +225,7 @@ export function assignLinesToBuckets(
         buckets.chartBody.push({ page: line.page, text: line.text, corrected: false });
         continue;
       }
-      if (isPlusVetLabMachinePanelHeaderLine(line.text) || isPlusVetLabPanelTitleLine(line.text)) {
+      if (isPlusVetLabMachinePanelHeaderLine(line.text)) {
         section = 'lab';
         buckets.lab.push(minimalOcrCorrection(line, ocrRows));
         continue;
