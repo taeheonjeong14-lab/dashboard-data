@@ -281,12 +281,20 @@ function labFlagMark(flag: LabItem['flag']): { text: string; color: string } | n
   if (flag === 'low') return { text: '↓', color: 'var(--accent)' };
   return null;
 }
-// PDF에서 추출된 검사결과를 날짜별로 보여주는 좌측 참고 패널. 항목: 이름 · 값(단위) · 이상치 화살표 · 참고범위.
-function LabResultsPanel({ dates }: { dates: LabDate[] }) {
+// PDF에서 추출된 검사결과를 날짜별로 보여주는 좌측 참고 패널. 항목: 이름 · 값(단위) · 이상치 화살표 · 참고범위. 헤더 클릭으로 접기/펼치기.
+function LabResultsPanel({ dates, open, onToggle }: { dates: LabDate[]; open: boolean; onToggle: () => void }) {
   if (!dates.length) return null;
   return (
     <div style={cardBox}>
-      <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)', marginBottom: 8 }}>검사결과 (PDF 추출)</div>
+      <button
+        type="button"
+        onClick={onToggle}
+        style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: open ? 8 : 0, background: 'none', border: 'none', padding: 0, width: '100%', textAlign: 'left', cursor: 'pointer' }}
+      >
+        <span style={{ fontSize: 11, color: 'var(--text-muted)', width: 10 }}>{open ? '▾' : '▸'}</span>
+        <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)' }}>검사결과 (PDF 추출)</span>
+      </button>
+      {open ? (
       <div style={{ display: 'grid', gap: 10 }}>
         {dates.map((d, di) => (
           <div key={di} style={{ display: 'grid', gap: 3 }}>
@@ -308,6 +316,7 @@ function LabResultsPanel({ dates }: { dates: LabDate[] }) {
           </div>
         ))}
       </div>
+      ) : null}
     </div>
   );
 }
@@ -336,6 +345,8 @@ export function CaseBlogButton({
   const [blog, setBlog] = useState<BlogPost | null>(null);
   const [caseImages, setCaseImages] = useState<CaseImg[]>([]); // 파일명→signedUrl (섹션 썸네일용)
   const [labDates, setLabDates] = useState<LabDate[]>([]); // PDF 추출 검사결과(날짜별) — 좌측 참고 패널
+  const [overviewOpen, setOverviewOpen] = useState(true); // 좌측 케이스 개요 접기/펼치기
+  const [labOpen, setLabOpen] = useState(true); // 좌측 검사결과 접기/펼치기
   const [loadedRunId, setLoadedRunId] = useState<string | null>(null);
   // 하위 단계가 "어떤 입력으로" 생성됐는지 서명(JSON). 입력이 바뀌면 재생성 확인을 띄운다.
   const [outlineBasis, setOutlineBasis] = useState(''); // outline 을 만든 causal 의 서명
@@ -734,31 +745,38 @@ export function CaseBlogButton({
             <div style={{ flex: 1, minHeight: 0, display: 'flex', gap: 16, padding: '14px 20px', overflow: 'hidden' }}>
               {/* 좌 — 케이스 개요 */}
               <div style={{ flex: '3.5 1 0', minWidth: 0, display: 'flex', flexDirection: 'column' }}>
-                <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginBottom: 8 }}>
+                <button
+                  type="button"
+                  onClick={() => setOverviewOpen((v) => !v)}
+                  style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginBottom: 8, background: 'none', border: 'none', padding: 0, width: '100%', textAlign: 'left', cursor: 'pointer' }}
+                >
+                  <span style={{ fontSize: 11, color: 'var(--text-muted)', width: 10 }}>{overviewOpen ? '▾' : '▸'}</span>
                   <span style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text)' }}>케이스 개요 (담당자 작성)</span>
                   {missingOverview > 0 ? <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--danger)' }}>⚠ 미작성 {missingOverview}</span> : null}
-                </div>
+                </button>
                 <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', display: 'grid', gap: 12, alignContent: 'start' }}>
-                  <div style={cardBox}>
-                    {caseOverview.length ? (
-                      <div style={{ display: 'grid', gap: 10 }}>
-                        {caseOverview.map((o) => {
-                          const empty = !o.value;
-                          return (
-                            <div key={o.label} style={{ display: 'grid', gap: 2 }}>
-                              <span style={{ fontSize: 11, fontWeight: 700, color: empty ? 'var(--danger)' : 'var(--text-muted)' }}>{o.label}</span>
-                              <span style={{ fontSize: 12.5, color: empty ? 'var(--danger)' : 'var(--text)', whiteSpace: 'pre-wrap', fontStyle: empty ? 'italic' : 'normal' }}>{empty ? '미작성' : o.value}</span>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    ) : (
-                      <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{genLoading === 1 ? '불러오는 중…' : '케이스 개요 없음'}</div>
-                    )}
-                  </div>
+                  {overviewOpen ? (
+                    <div style={cardBox}>
+                      {caseOverview.length ? (
+                        <div style={{ display: 'grid', gap: 10 }}>
+                          {caseOverview.map((o) => {
+                            const empty = !o.value;
+                            return (
+                              <div key={o.label} style={{ display: 'grid', gap: 2 }}>
+                                <span style={{ fontSize: 11, fontWeight: 700, color: empty ? 'var(--danger)' : 'var(--text-muted)' }}>{o.label}</span>
+                                <span style={{ fontSize: 12.5, color: empty ? 'var(--danger)' : 'var(--text)', whiteSpace: 'pre-wrap', fontStyle: empty ? 'italic' : 'normal' }}>{empty ? '미작성' : o.value}</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{genLoading === 1 ? '불러오는 중…' : '케이스 개요 없음'}</div>
+                      )}
+                    </div>
+                  ) : null}
 
                   {/* PDF 추출 검사결과(날짜별) — 케이스 개요 아래 참고 패널 */}
-                  <LabResultsPanel dates={labDates} />
+                  <LabResultsPanel dates={labDates} open={labOpen} onToggle={() => setLabOpen((v) => !v)} />
                 </div>
               </div>
 
