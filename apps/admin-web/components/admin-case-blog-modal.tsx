@@ -1345,36 +1345,91 @@ function OutlineEditor({ outline, causal, updateSection, moveSection, addSection
 }
 
 // ── 3단계 에디터 ──
+// 블로그 본문(마크다운)을 "## 헤딩" 기준으로 섹션 분할. 첫 헤딩 앞 내용은 heading="" 로.
+function parseBlogSections(md: string): { heading: string; body: string }[] {
+  const out: { heading: string; body: string }[] = [];
+  let cur: { heading: string; body: string } | null = null;
+  for (const line of md.split('\n')) {
+    const m = /^#{1,4}\s+(.*)$/.exec(line.trim());
+    if (m) {
+      if (cur) out.push(cur);
+      cur = { heading: m[1].trim(), body: '' };
+    } else {
+      if (!cur) cur = { heading: '', body: '' };
+      cur.body += (cur.body ? '\n' : '') + line;
+    }
+  }
+  if (cur) out.push(cur);
+  return out.filter((s) => s.heading || s.body.trim());
+}
+
+// 블로그 섹션 본문 렌더 — 빈 줄로 문단 분리, "[사진: 설명]" 은 칩으로 표시.
+function BlogBody({ body }: { body: string }) {
+  const blocks = body.split(/\n\s*\n/).map((b) => b.trim()).filter(Boolean);
+  return (
+    <div style={{ display: 'grid', gap: 8 }}>
+      {blocks.map((b, i) => {
+        const photo = /^\[사진:\s*(.*?)\]$/.exec(b);
+        if (photo) {
+          return (
+            <div key={i} style={{ justifySelf: 'start', fontSize: 11.5, fontWeight: 600, color: 'var(--text-muted)', background: 'var(--bg-subtle)', border: '1px dashed var(--border-strong)', borderRadius: 6, padding: '4px 10px' }}>
+              📷 {photo[1] || '사진'}
+            </div>
+          );
+        }
+        return <p key={i} style={{ margin: 0, fontSize: 13.5, lineHeight: 1.75, color: 'var(--text)', whiteSpace: 'pre-wrap' }}>{b}</p>;
+      })}
+    </div>
+  );
+}
+
 function BlogEditor({ blog, setField, outline, imageMeta }: {
   blog: BlogPost | null;
   setField: <K extends keyof BlogPost>(k: K, v: BlogPost[K]) => void;
   outline: Outline | null;
   imageMeta: (fileName: string) => CaseImg | null;
 }) {
-  const liveCount = blog ? blog.bodyMarkdown.length : 0;
+  const [edit, setEdit] = useState(false);
+  if (!blog) return <div style={{ fontSize: 13, color: 'var(--text-muted)', padding: 12 }}>블로그 글이 없습니다. “다시 생성”을 눌러 주세요.</div>;
+  const liveCount = blog.bodyMarkdown.length;
   const inRange = liveCount >= 2500 && liveCount <= 3500;
   const sectionsWithImages = (outline?.sections ?? []).filter((s) => s.imageFileNames.length > 0);
+  const sections = parseBlogSections(blog.bodyMarkdown);
   return (
     <div style={{ display: 'grid', gap: 12 }}>
-      {blog ? (
-        <>
-          {sectionsWithImages.length > 0 ? (
-            <div style={cardBox}>
-              <div style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text)', marginBottom: 8 }}>관련 이미지 (아웃라인 연결 · 참고용)</div>
-              <div style={{ display: 'grid', gap: 10 }}>
-                {sectionsWithImages.map((s) => (
-                  <div key={s.id} style={{ display: 'grid', gap: 5 }}>
-                    <span style={fieldLabel}>{s.label || '(섹션명 없음)'}</span>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
-                      {s.imageFileNames.map((fn) => (
-                        <CaseImageThumb key={fn} fileName={fn} meta={imageMeta(fn)} />
-                      ))}
-                    </div>
-                  </div>
-                ))}
+      {/* 상단 바: 글자수 + 읽기/수기수정 토글 */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+        <span style={{ fontSize: 11, fontWeight: 700, color: inRange ? 'var(--success)' : 'var(--danger)' }}>{liveCount.toLocaleString()}자 (목표 2,500~3,500)</span>
+        <button
+          type="button"
+          onClick={() => setEdit((v) => !v)}
+          style={edit ? { ...btnTiny, background: 'var(--accent)', color: '#fff', borderColor: 'var(--accent)' } : btnTiny}
+        >
+          {edit ? '수정 완료' : '수기 수정'}
+        </button>
+      </div>
+
+      {/* 관련 이미지 (아웃라인 연결 · 참고용) — 양 모드 공통 */}
+      {sectionsWithImages.length > 0 ? (
+        <div style={cardBox}>
+          <div style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text)', marginBottom: 8 }}>관련 이미지 (아웃라인 연결 · 참고용)</div>
+          <div style={{ display: 'grid', gap: 10 }}>
+            {sectionsWithImages.map((s) => (
+              <div key={s.id} style={{ display: 'grid', gap: 5 }}>
+                <span style={fieldLabel}>{s.label || '(섹션명 없음)'}</span>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+                  {s.imageFileNames.map((fn) => (
+                    <CaseImageThumb key={fn} fileName={fn} meta={imageMeta(fn)} />
+                  ))}
+                </div>
               </div>
-            </div>
-          ) : null}
+            ))}
+          </div>
+        </div>
+      ) : null}
+
+      {edit ? (
+        <>
           <div style={cardBox}>
             <div style={{ display: 'grid', gap: 3 }}>
               <span style={fieldLabel}>제목</span>
@@ -1382,18 +1437,40 @@ function BlogEditor({ blog, setField, outline, imageMeta }: {
             </div>
           </div>
           <div style={cardBox}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-              <span style={fieldLabel}>본문 (마크다운)</span>
-              <span style={{ fontSize: 11, fontWeight: 700, color: inRange ? 'var(--success)' : 'var(--danger)' }}>{liveCount.toLocaleString()}자 (목표 2,500~3,500)</span>
-            </div>
-            <textarea value={blog.bodyMarkdown} onChange={(e) => setField('bodyMarkdown', e.target.value)} rows={20} style={inputStyle} />
+            <div style={{ marginBottom: 6 }}><span style={fieldLabel}>본문 (마크다운) — 섹션은 "## 섹션명: 소제목"</span></div>
+            <textarea value={blog.bodyMarkdown} onChange={(e) => setField('bodyMarkdown', e.target.value)} rows={22} style={inputStyle} />
           </div>
           <div style={cardBox}>
             <LabeledTextarea label="태그 (한 줄에 하나)" value={blog.tags.join('\n')} onChange={(v) => setField('tags', v.split('\n').map((t) => t.trim()).filter(Boolean))} rows={2} />
           </div>
         </>
       ) : (
-        <div style={{ fontSize: 13, color: 'var(--text-muted)', padding: 12 }}>블로그 글이 없습니다. “다시 생성”을 눌러 주세요.</div>
+        <>
+          {/* 제목 — 가장 큰 헤딩 */}
+          <div style={cardBox}>
+            <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--text)', lineHeight: 1.4 }}>{blog.title || '(제목 없음)'}</div>
+          </div>
+          {/* 섹션별 카드 — 제목 라인은 크고 굵은 색 글씨 */}
+          {sections.length ? sections.map((sec, i) => (
+            <div key={i} style={cardBox}>
+              {sec.heading ? (
+                <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--accent)', lineHeight: 1.4, marginBottom: 8 }}>{sec.heading}</div>
+              ) : null}
+              <BlogBody body={sec.body} />
+            </div>
+          )) : (
+            <div style={cardBox}><BlogBody body={blog.bodyMarkdown} /></div>
+          )}
+          {/* 태그 칩 */}
+          {blog.tags.length ? (
+            <div style={cardBox}>
+              <span style={fieldLabel}>태그</span>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 6 }}>
+                {blog.tags.map((t, i) => <span key={i} style={tagSticker}>#{t}</span>)}
+              </div>
+            </div>
+          ) : null}
+        </>
       )}
     </div>
   );
