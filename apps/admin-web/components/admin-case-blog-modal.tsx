@@ -17,6 +17,9 @@ type CausalFlow = { axis: string; anesthesia: boolean; phases: Phase[] };
 // tag: 해시태그 섹션이면 ACTION_TYPE 키(exam_dx 등), 고정 서술 섹션(인트로/질환소개/…)이면 ''.
 type Section = { id: string; tag: string; label: string; period: string; points: string[]; facts: string[]; imageFileNames: string[] };
 type CaseImg = { fileName: string; signedUrl: string | null; caption: string };
+// PDF 추출 검사결과(날짜별). /api/admin/runs/[runId]/detail 의 labItemsByDate.
+type LabItem = { itemName: string; valueText: string; unit: string | null; referenceRange: string | null; flag: 'low' | 'high' | 'normal' | 'unknown' | '' };
+type LabDate = { dateTime: string; items: LabItem[] };
 type OverviewCheck = { item: string; reflectedIn: string };
 type Outline = { title_candidates: string[]; sections: Section[]; overviewCheck: OverviewCheck[] };
 type BlogPost = { title: string; bodyMarkdown: string; tags: string[]; charCount: number };
@@ -272,6 +275,43 @@ function AutoTextarea({ label, value, onChange, placeholder }: { label: string; 
   );
 }
 
+// 이상치 방향 표시: 높음 ↑(빨강)/낮음 ↓(파랑). 정상·미판정은 표시 없음.
+function labFlagMark(flag: LabItem['flag']): { text: string; color: string } | null {
+  if (flag === 'high') return { text: '↑', color: 'var(--danger)' };
+  if (flag === 'low') return { text: '↓', color: 'var(--accent)' };
+  return null;
+}
+// PDF에서 추출된 검사결과를 날짜별로 보여주는 좌측 참고 패널. 항목: 이름 · 값(단위) · 이상치 화살표 · 참고범위.
+function LabResultsPanel({ dates }: { dates: LabDate[] }) {
+  if (!dates.length) return null;
+  return (
+    <div style={cardBox}>
+      <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)', marginBottom: 8 }}>검사결과 (PDF 추출)</div>
+      <div style={{ display: 'grid', gap: 10 }}>
+        {dates.map((d, di) => (
+          <div key={di} style={{ display: 'grid', gap: 3 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', letterSpacing: '-0.01em' }}>{d.dateTime || '날짜 미상'}</div>
+            <div style={{ display: 'grid', gap: 2 }}>
+              {d.items.map((it, ii) => {
+                const mark = labFlagMark(it.flag);
+                return (
+                  <div key={ii} style={{ fontSize: 11.5, lineHeight: 1.45, color: 'var(--text-secondary)' }}>
+                    <span style={{ fontWeight: 700, color: 'var(--text)' }}>{it.itemName || '—'}</span>{' '}
+                    <span style={{ color: mark ? mark.color : 'var(--text-secondary)', fontWeight: mark ? 700 : 400 }}>
+                      {it.valueText}{it.unit ? ` ${it.unit}` : ''}{mark ? ` ${mark.text}` : ''}
+                    </span>
+                    {it.referenceRange ? <span style={{ color: 'var(--text-muted)', fontSize: 10.5 }}> ({it.referenceRange})</span> : null}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 /**
  * 진료케이스 작성 — 3단계 위저드.
  * 1) 인과 흐름(causalFlow) → 2) 섹션 아웃라인(outline) → 3) 블로그 글(blogPost).
@@ -295,6 +335,7 @@ export function CaseBlogButton({
   const [outline, setOutline] = useState<Outline | null>(null);
   const [blog, setBlog] = useState<BlogPost | null>(null);
   const [caseImages, setCaseImages] = useState<CaseImg[]>([]); // 파일명→signedUrl (섹션 썸네일용)
+  const [labDates, setLabDates] = useState<LabDate[]>([]); // PDF 추출 검사결과(날짜별) — 좌측 참고 패널
   const [loadedRunId, setLoadedRunId] = useState<string | null>(null);
   // 하위 단계가 "어떤 입력으로" 생성됐는지 서명(JSON). 입력이 바뀌면 재생성 확인을 띄운다.
   const [outlineBasis, setOutlineBasis] = useState(''); // outline 을 만든 causal 의 서명
@@ -532,9 +573,42 @@ export function CaseBlogButton({
     }
   }
 
+  // PDF 추출 검사결과(날짜별). 좌측 참고 패널용. 열 때마다 새로 가져온다.
+  async function loadLabResults() {
+    try {
+      const res = await fetch(`/api/admin/runs/${encodeURIComponent(runId)}/detail`, { credentials: 'include' });
+      const data = (await res.json()) as { labItemsByDate?: unknown };
+      const arr = res.ok && Array.isArray(data.labItemsByDate) ? data.labItemsByDate : [];
+      const dates: LabDate[] = arr
+        .map((dRaw) => {
+          const d = (dRaw ?? {}) as Record<string, unknown>;
+          const itemsRaw = Array.isArray(d.items) ? d.items : [];
+          const items: LabItem[] = itemsRaw
+            .map((iRaw) => {
+              const it = (iRaw ?? {}) as Record<string, unknown>;
+              const flag = String(it.flag ?? '');
+              return {
+                itemName: String(it.itemName ?? ''),
+                valueText: String(it.valueText ?? ''),
+                unit: it.unit != null ? String(it.unit) : null,
+                referenceRange: it.referenceRange != null ? String(it.referenceRange) : null,
+                flag: (['low', 'high', 'normal', 'unknown'].includes(flag) ? flag : '') as LabItem['flag'],
+              };
+            })
+            .filter((it) => it.itemName || it.valueText);
+          return { dateTime: String(d.dateTime ?? ''), items };
+        })
+        .filter((d) => d.items.length);
+      setLabDates(dates);
+    } catch {
+      /* 검사결과 없거나 조회 실패 시 무시 */
+    }
+  }
+
   function openModal() {
     setOpen(true); setError(null); setSavedMsg('');
     void loadCaseImages();
+    void loadLabResults();
     if (loadedRunId !== runId) {
       setStep(1); setCausal(null); setOutline(null); setBlog(null); setCaseOverview([]); setConfirmed(false);
       void loadAll();
@@ -667,20 +741,8 @@ export function CaseBlogButton({
                     )}
                   </div>
 
-                  {/* 개요 누락 점검 — 2단계 아웃라인 기준, 케이스 개요 아래에 표시 */}
-                  {step === 2 && outline && outline.overviewCheck.length ? (
-                    <div style={cardBox}>
-                      <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)', marginBottom: 8 }}>개요 누락 점검</div>
-                      <div style={{ display: 'grid', gap: 5 }}>
-                        {outline.overviewCheck.map((c, i) => (
-                          <div key={i} style={{ fontSize: 12, color: 'var(--text-secondary)', display: 'flex', gap: 6 }}>
-                            <span style={{ color: c.reflectedIn ? 'var(--success)' : 'var(--danger)', fontWeight: 700 }}>{c.reflectedIn ? '✓' : '✕'}</span>
-                            <span>{c.item}{c.reflectedIn ? ` → ${c.reflectedIn}` : ' (미반영)'}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  ) : null}
+                  {/* PDF 추출 검사결과(날짜별) — 케이스 개요 아래 참고 패널 */}
+                  <LabResultsPanel dates={labDates} />
                 </div>
               </div>
 
