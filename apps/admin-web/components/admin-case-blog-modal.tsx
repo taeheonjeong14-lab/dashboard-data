@@ -289,10 +289,10 @@ function LabResultsPanel({ dates, open, onToggle }: { dates: LabDate[]; open: bo
       <button
         type="button"
         onClick={onToggle}
-        style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: open ? 8 : 0, background: 'none', border: 'none', padding: 0, width: '100%', textAlign: 'left', cursor: 'pointer' }}
+        style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: open ? 10 : 0, background: 'var(--accent-subtle)', border: 'none', borderRadius: 6, padding: '6px 9px', width: '100%', textAlign: 'left', cursor: 'pointer' }}
       >
-        <span style={{ fontSize: 11, color: 'var(--text-muted)', width: 10 }}>{open ? '▾' : '▸'}</span>
-        <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)' }}>검사결과 (PDF 추출)</span>
+        <span style={{ fontSize: 11, color: 'var(--accent)', width: 10 }}>{open ? '▾' : '▸'}</span>
+        <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--accent)' }}>검사결과 (PDF 추출)</span>
       </button>
       {open ? (
       <div style={{ display: 'grid', gap: 10 }}>
@@ -745,19 +745,20 @@ export function CaseBlogButton({
             <div style={{ flex: 1, minHeight: 0, display: 'flex', gap: 16, padding: '14px 20px', overflow: 'hidden' }}>
               {/* 좌 — 케이스 개요 */}
               <div style={{ flex: '3.5 1 0', minWidth: 0, display: 'flex', flexDirection: 'column' }}>
-                <button
-                  type="button"
-                  onClick={() => setOverviewOpen((v) => !v)}
-                  style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginBottom: 8, background: 'none', border: 'none', padding: 0, width: '100%', textAlign: 'left', cursor: 'pointer' }}
-                >
-                  <span style={{ fontSize: 11, color: 'var(--text-muted)', width: 10 }}>{overviewOpen ? '▾' : '▸'}</span>
-                  <span style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text)' }}>케이스 개요 (담당자 작성)</span>
-                  {missingOverview > 0 ? <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--danger)' }}>⚠ 미작성 {missingOverview}</span> : null}
-                </button>
                 <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', display: 'grid', gap: 12, alignContent: 'start' }}>
-                  {overviewOpen ? (
-                    <div style={cardBox}>
-                      {caseOverview.length ? (
+                  {/* 케이스 개요 카드 — 검사결과 카드와 같은 레벨(카드 안 헤더 토글) */}
+                  <div style={cardBox}>
+                    <button
+                      type="button"
+                      onClick={() => setOverviewOpen((v) => !v)}
+                      style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginBottom: overviewOpen ? 10 : 0, background: 'var(--accent-subtle)', border: 'none', borderRadius: 6, padding: '6px 9px', width: '100%', textAlign: 'left', cursor: 'pointer' }}
+                    >
+                      <span style={{ fontSize: 11, color: 'var(--accent)', width: 10 }}>{overviewOpen ? '▾' : '▸'}</span>
+                      <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--accent)' }}>케이스 개요 (담당자 작성)</span>
+                      {missingOverview > 0 ? <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--danger)' }}>⚠ 미작성 {missingOverview}</span> : null}
+                    </button>
+                    {overviewOpen ? (
+                      caseOverview.length ? (
                         <div style={{ display: 'grid', gap: 10 }}>
                           {caseOverview.map((o) => {
                             const empty = !o.value;
@@ -771,11 +772,11 @@ export function CaseBlogButton({
                         </div>
                       ) : (
                         <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{genLoading === 1 ? '불러오는 중…' : '케이스 개요 없음'}</div>
-                      )}
-                    </div>
-                  ) : null}
+                      )
+                    ) : null}
+                  </div>
 
-                  {/* PDF 추출 검사결과(날짜별) — 케이스 개요 아래 참고 패널 */}
+                  {/* PDF 추출 검사결과(날짜별) — 케이스 개요와 같은 레벨의 카드 */}
                   <LabResultsPanel dates={labDates} open={labOpen} onToggle={() => setLabOpen((v) => !v)} />
                 </div>
               </div>
