@@ -46,10 +46,27 @@ const btnTiny: CSSProperties = {
   padding: '2px 7px', fontSize: 11, fontWeight: 600, borderRadius: 5,
   background: '#fff', color: 'var(--text-secondary)', border: '1px solid var(--border-strong)', cursor: 'pointer',
 };
-// 아이콘 버튼 — 색 없이 회색 선 글리프만(수정 ✎ / 다시생성 ↻ / 삭제 ✕ / 간결화 ✂). title 로 설명.
-const iconBtn: CSSProperties = { ...btnTiny, fontSize: 13, padding: '3px 7px', lineHeight: 1 };
-const iconBtnActive: CSSProperties = { ...iconBtn, background: 'var(--bg-subtle)', borderColor: 'var(--text-muted)' }; // 편집 활성(색 없이 회색 강조)
-const iconBtnDanger: CSSProperties = { ...iconBtn, color: 'var(--danger)' }; // 삭제 — 빨간 ✕
+// 아이콘 버튼 — 색 없이 회색 선 SVG 아이콘만. title 로 설명.
+const iconBtn: CSSProperties = { ...btnTiny, padding: '4px 6px', lineHeight: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' };
+const iconBtnActive: CSSProperties = { ...iconBtn, background: 'var(--bg-subtle)', borderColor: 'var(--text-muted)', color: 'var(--text)' }; // 편집 활성(색 없이 회색 강조)
+const iconBtnDanger: CSSProperties = { ...iconBtn, color: 'var(--danger)' }; // 삭제 — 빨간 X
+// 납작한 보조 버튼(전체 다시 생성 · 이미지 다시 분석 등 헤더용).
+const btnFlat: CSSProperties = { ...btnSecondary, padding: '4px 12px', fontSize: 12, fontWeight: 600 };
+
+// 선 스타일 SVG 아이콘 — stroke=currentColor 라 버튼 색을 따라간다(세련·일관).
+function Icon({ name, size = 14 }: { name: 'edit' | 'check' | 'refresh' | 'x' | 'condense' | 'up' | 'down'; size?: number }) {
+  const p = { width: size, height: size, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const, 'aria-hidden': true, style: { display: 'block' } };
+  switch (name) {
+    case 'edit': return <svg {...p}><path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z" /></svg>;
+    case 'check': return <svg {...p}><polyline points="20 6 9 17 4 12" /></svg>;
+    case 'refresh': return <svg {...p}><polyline points="23 4 23 10 17 10" /><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" /></svg>;
+    case 'x': return <svg {...p}><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>;
+    case 'condense': return <svg {...p}><polyline points="4 14 10 14 10 20" /><polyline points="20 10 14 10 14 4" /><line x1="14" y1="10" x2="21" y2="3" /><line x1="3" y1="21" x2="10" y2="14" /></svg>;
+    case 'up': return <svg {...p}><polyline points="18 15 12 9 6 15" /></svg>;
+    case 'down': return <svg {...p}><polyline points="6 9 12 15 18 9" /></svg>;
+    default: return null;
+  }
+}
 const fieldLabel: CSSProperties = { fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', letterSpacing: '-0.01em' };
 const inputStyle: CSSProperties = {
   width: '100%', padding: '7px 10px', fontSize: 13, lineHeight: 1.5,
@@ -752,7 +769,7 @@ export function CaseBlogButton({
               {/* 좌 — 케이스 개요 */}
               <div style={{ flex: '3.5 1 0', minWidth: 0, display: 'flex', flexDirection: 'column' }}>
                 {/* 우측 컨트롤 헤더와 같은 높이의 스페이서 — 좌우 카드 시작 높이 정렬 */}
-                <div style={{ height: 34, marginBottom: 8, flexShrink: 0 }} aria-hidden />
+                <div style={{ height: 28, marginBottom: 8, flexShrink: 0 }} aria-hidden />
                 <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', display: 'grid', gap: 8, alignContent: 'start' }}>
                   {/* 케이스 개요 카드 — 검사결과 카드와 같은 레벨(카드 안 헤더 토글) */}
                   <div style={refCardBox}>
@@ -791,16 +808,16 @@ export function CaseBlogButton({
 
               {/* 우 — 단계 편집 */}
               <div style={{ flex: '6.5 1 0', minWidth: 0, display: 'flex', flexDirection: 'column' }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8, height: 34, marginBottom: 8, flexShrink: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8, height: 28, marginBottom: 8, flexShrink: 0 }}>
                   {savedMsg ? <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--success)' }}>{savedMsg}</span> : null}
                   {step === 4 ? (
-                    <button type="button" style={btnSecondary} onClick={() => void genImages()} disabled={busy}>
+                    <button type="button" style={btnFlat} onClick={() => void genImages()} disabled={busy}>
                       {genLoading === 4 ? '분석 중…' : '이미지 다시 분석'}
                     </button>
                   ) : confirmed ? (
                     <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)' }}>확정됨 · 수기 수정만 가능</span>
                   ) : (
-                    <button type="button" style={btnSecondary} onClick={() => { if (step === 1) void genCausal(); else if (step === 2) void genOutline(); else void genBlog(); }} disabled={busy}>
+                    <button type="button" style={btnFlat} onClick={() => { if (step === 1) void genCausal(); else if (step === 2) void genOutline(); else void genBlog(); }} disabled={busy}>
                       {genLoading === step ? '생성 중…' : '전체 다시 생성'}
                     </button>
                   )}
@@ -872,9 +889,9 @@ function Loading({ text }: { text: string }) {
 function RowTools({ onUp, onDown, onRemove, busy }: { onUp: () => void; onDown: () => void; onRemove: () => void; busy?: boolean }) {
   return (
     <div style={{ display: 'flex', gap: 4 }}>
-      <button type="button" style={iconBtn} onClick={onUp} disabled={busy} title="위로 이동" aria-label="위로 이동">↑</button>
-      <button type="button" style={iconBtn} onClick={onDown} disabled={busy} title="아래로 이동" aria-label="아래로 이동">↓</button>
-      <button type="button" style={iconBtnDanger} onClick={onRemove} disabled={busy} title="삭제" aria-label="삭제">✕</button>
+      <button type="button" style={iconBtn} onClick={onUp} disabled={busy} title="위로 이동" aria-label="위로 이동"><Icon name="up" /></button>
+      <button type="button" style={iconBtn} onClick={onDown} disabled={busy} title="아래로 이동" aria-label="아래로 이동"><Icon name="down" /></button>
+      <button type="button" style={iconBtnDanger} onClick={onRemove} disabled={busy} title="삭제" aria-label="삭제"><Icon name="x" /></button>
     </div>
   );
 }
@@ -928,7 +945,7 @@ function PhaseCard({ p, isLast, busy, regenBusy, onUp, onDown, onRemove, update,
         )}
         <div style={{ display: 'flex', gap: 5, flexShrink: 0, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
           <button type="button" onClick={() => setRegenOpen(true)} disabled={busy} style={iconBtn} title="이 날짜 다시 생성" aria-label="이 날짜 다시 생성">
-            {regenBusy ? '…' : '↻'}
+            {regenBusy ? '…' : <Icon name="refresh" />}
           </button>
           <button
             type="button"
@@ -938,15 +955,15 @@ function PhaseCard({ p, isLast, busy, regenBusy, onUp, onDown, onRemove, update,
             title={editMode ? '수정 완료' : '수기 수정'}
             aria-label={editMode ? '수정 완료' : '수기 수정'}
           >
-            {editMode ? '✓' : '✎'}
+            {editMode ? <Icon name="check" /> : <Icon name="edit" />}
           </button>
           {editMode ? (
             <>
-              <button type="button" style={iconBtn} onClick={onUp} disabled={busy} title="위로 이동" aria-label="위로 이동">↑</button>
-              <button type="button" style={iconBtn} onClick={onDown} disabled={busy} title="아래로 이동" aria-label="아래로 이동">↓</button>
+              <button type="button" style={iconBtn} onClick={onUp} disabled={busy} title="위로 이동" aria-label="위로 이동"><Icon name="up" /></button>
+              <button type="button" style={iconBtn} onClick={onDown} disabled={busy} title="아래로 이동" aria-label="아래로 이동"><Icon name="down" /></button>
             </>
           ) : null}
-          <button type="button" style={iconBtnDanger} onClick={onRemove} disabled={busy} title="삭제" aria-label="삭제">✕</button>
+          <button type="button" style={iconBtnDanger} onClick={onRemove} disabled={busy} title="삭제" aria-label="삭제"><Icon name="x" /></button>
         </div>
       </div>
 
@@ -1128,7 +1145,7 @@ function AxisCard({ axis, anesthesia, busy, setField }: {
         <span style={{ fontSize: 13, fontWeight: 800, color: 'var(--text)' }}>흐름 요약</span>
         <button type="button" onClick={() => setEdit((v) => !v)} disabled={busy}
           style={edit ? iconBtnActive : iconBtn} title={edit ? '수정 완료' : '수기 수정'} aria-label={edit ? '수정 완료' : '수기 수정'}>
-          {edit ? '✓' : '✎'}
+          {edit ? <Icon name="check" /> : <Icon name="edit" />}
         </button>
       </div>
       {edit ? (
@@ -1258,15 +1275,15 @@ function SectionCard({ s, i, tagCards, updateSection, moveSection, removeSection
             style={edit ? iconBtnActive : iconBtn}
             title={edit ? '수정 완료' : '수기 수정'} aria-label={edit ? '수정 완료' : '수기 수정'}
           >
-            {edit ? '✓' : '✎'}
+            {edit ? <Icon name="check" /> : <Icon name="edit" />}
           </button>
           {edit ? (
             <>
-              <button type="button" style={iconBtn} onClick={() => moveSection(i, -1)} title="위로 이동" aria-label="위로 이동">↑</button>
-              <button type="button" style={iconBtn} onClick={() => moveSection(i, 1)} title="아래로 이동" aria-label="아래로 이동">↓</button>
+              <button type="button" style={iconBtn} onClick={() => moveSection(i, -1)} title="위로 이동" aria-label="위로 이동"><Icon name="up" /></button>
+              <button type="button" style={iconBtn} onClick={() => moveSection(i, 1)} title="아래로 이동" aria-label="아래로 이동"><Icon name="down" /></button>
             </>
           ) : null}
-          <button type="button" style={iconBtnDanger} onClick={() => removeSection(i)} title="삭제" aria-label="삭제">✕</button>
+          <button type="button" style={iconBtnDanger} onClick={() => removeSection(i)} title="삭제" aria-label="삭제"><Icon name="x" /></button>
         </div>
       </div>
 
@@ -1524,9 +1541,9 @@ function BlogEditor({ blog, setField, outline, imageMeta, generateSection, confi
                       <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--accent)' }}>{busy?.mode === 'condense' ? '간결화 중…' : '생성 중…'}</span>
                     ) : (
                       <>
-                        {!confirmed ? <button type="button" style={iconBtn} disabled={Boolean(busy)} onClick={() => setRegen({ index: i, text: '' })} title="다시 생성" aria-label="다시 생성">↻</button> : null}
-                        <button type="button" style={iconBtn} disabled={Boolean(busy)} onClick={() => setDraft({ index: i, heading: sec.heading, body: sec.body })} title="수기 수정" aria-label="수기 수정">✎</button>
-                        {!confirmed ? <button type="button" style={iconBtn} disabled={Boolean(busy)} onClick={() => void runOp(i, 'condense', '')} title="간결화" aria-label="간결화">{'✂︎'}</button> : null}
+                        {!confirmed ? <button type="button" style={iconBtn} disabled={Boolean(busy)} onClick={() => setRegen({ index: i, text: '' })} title="다시 생성" aria-label="다시 생성"><Icon name="refresh" /></button> : null}
+                        <button type="button" style={iconBtn} disabled={Boolean(busy)} onClick={() => setDraft({ index: i, heading: sec.heading, body: sec.body })} title="수기 수정" aria-label="수기 수정"><Icon name="edit" /></button>
+                        {!confirmed ? <button type="button" style={iconBtn} disabled={Boolean(busy)} onClick={() => void runOp(i, 'condense', '')} title="간결화" aria-label="간결화"><Icon name="condense" /></button> : null}
                       </>
                     )}
                   </div>
@@ -1541,7 +1558,7 @@ function BlogEditor({ blog, setField, outline, imageMeta, generateSection, confi
           <div style={cardBox}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 8 }}>
               <span style={fieldLabel}>태그</span>
-              <button type="button" style={tagsEdit ? iconBtnActive : iconBtn} onClick={() => setTagsEdit((v) => !v)} title={tagsEdit ? '수정 완료' : '수기 수정'} aria-label={tagsEdit ? '수정 완료' : '수기 수정'}>{tagsEdit ? '✓' : '✎'}</button>
+              <button type="button" style={tagsEdit ? iconBtnActive : iconBtn} onClick={() => setTagsEdit((v) => !v)} title={tagsEdit ? '수정 완료' : '수기 수정'} aria-label={tagsEdit ? '수정 완료' : '수기 수정'}>{tagsEdit ? <Icon name="check" /> : <Icon name="edit" />}</button>
             </div>
             {tagsEdit ? (
               <textarea
