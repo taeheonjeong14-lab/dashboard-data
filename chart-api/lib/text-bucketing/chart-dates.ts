@@ -184,6 +184,13 @@ function normalizeYmdDateOnly(text: string): string | null {
 export function extractEfriendsVisitDateKey(text: string): string | null {
   const t = text.replace(/\s+/g, ' ').trim();
   if (!t) return null;
+  // 한국어 eFriends: '내원일 : 26-03-16'(2자리 연도) / '내원일 : 2026-03-16'(4자리) 방문 헤더
+  const korVisit = t.match(/^내원일\s*[:：]\s*(20\d{2}|\d{2})[./-](\d{1,2})[./-](\d{1,2})\b/);
+  if (korVisit?.[1]) {
+    const yy = korVisit[1];
+    const year = yy.length === 2 ? `20${yy}` : yy;
+    return normalizeYmdParts(year, korVisit[2] ?? '', korVisit[3] ?? '');
+  }
   const labeled = t.match(/^date\s*:\s*(20\d{2}[./-]\d{1,2}[./-]\d{1,2})\b/i);
   if (labeled?.[1]) {
     return normalizeYmdDateOnly(labeled[1]);
