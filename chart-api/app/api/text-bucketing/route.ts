@@ -396,12 +396,16 @@ function parseEfriendsBasicInfoFromText(block: string): ParsedBasicInfo {
     .map((line) => line.trim())
     .filter(Boolean);
   const filtered = lines.filter((line) => !/^client\s*&\s*patient\s+information$/i.test(line));
+  // 2열 레이아웃(한 줄에 "라벨: 값 라벨: 값") 대응: 값을 다음 라벨 직전까지로 자른다.
+  const EF_NEXT_LABEL = /\s+(?:환자\s*ID|환자|보호자|주소|전화번호|핸드폰|품종|종|성별|성|색깔|생년월일|생일|광견병접종\s*#|마이크로칩\s*#|동물등록\s*#|species|breed|patient|client|owner|birth|dob|sex|gender|weight)\s*[:：]/i;
   const pickByLabel = (patterns: RegExp[]): string | null => {
     for (const line of filtered) {
       for (const re of patterns) {
         const m = line.match(re);
         if (!m?.[1]) continue;
-        const v = m[1].trim();
+        let v = m[1].trim();
+        const nm = v.match(EF_NEXT_LABEL);
+        if (nm && nm.index !== undefined) v = v.slice(0, nm.index).trim();
         if (!v) continue;
         if (/^(information|client|patient|owner|species|breed|birth|dob|sex)$/i.test(v)) continue;
         return v;
@@ -419,24 +423,25 @@ function parseEfriendsBasicInfoFromText(block: string): ParsedBasicInfo {
     const d = String(Number.parseInt(ymd[3] ?? "0", 10)).padStart(2, "0");
     return `${ymd[1]}-${m}-${d}`;
   };
+  // 라벨은 줄 어디서든(2열 우측 포함) 매칭. '종'은 '품종'의 종을 오탐하지 않게 lookbehind.
   const speciesRaw = pickByLabel([
-    /^(?:species|종)\s*[:：]\s*(.+)$/i,
-    /^(?:축종)\s*[:：]\s*(.+)$/i,
+    /(?:species|(?<!품)종)\s*[:：]\s*(.+)$/i,
+    /(?:축종)\s*[:：]\s*(.+)$/i,
   ]);
   const breedRaw = pickByLabel([
-    /^(?:breed|품종)\s*[:：]\s*(.+)$/i,
-    /^(?:상세품종)\s*[:：]\s*(.+)$/i,
+    /(?:breed|품종)\s*[:：]\s*(.+)$/i,
+    /(?:상세품종)\s*[:：]\s*(.+)$/i,
   ]);
   const sexRaw = extractEfriendsSexRaw(filtered, block);
   const birthRaw = pickByLabel([
-    /^(?:birth|dob|생년월일|생일)\s*[:：]\s*(.+)$/i,
-    /^(?:환자\s*생일)\s*[:：]\s*(.+)$/i,
+    /(?:birth|dob|생년월일|생일)\s*[:：]\s*(.+)$/i,
+    /(?:환자\s*생일)\s*[:：]\s*(.+)$/i,
   ]);
 
   return {
     hospitalName: null,
-    ownerName: pickByLabel([/^(?:client|owner|보호자)\s*[:：]\s*(.+)$/i]),
-    patientName: pickByLabel([/^(?:patient|환자)\s*[:：]\s*(.+)$/i]),
+    ownerName: pickByLabel([/(?:client|owner|보호자)\s*[:：]\s*(.+)$/i]),
+    patientName: pickByLabel([/(?:patient|환자)\s*[:：]\s*(.+)$/i]),
     species: speciesRaw,
     breed: breedRaw,
     birth: birthRaw ? normalizeCompactDate(birthRaw) ?? birthRaw : null,
