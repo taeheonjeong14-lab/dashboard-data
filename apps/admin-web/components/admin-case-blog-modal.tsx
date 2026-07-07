@@ -468,6 +468,22 @@ export function CaseBlogButton({
     finally { setGenLoading(null); }
   }
 
+  // 3단계 블로그 글의 한 섹션만 다시 생성(피드백 반영)/간결화(내용 유지·글자수 ~10%↓). 실패 시 null.
+  async function generateBlogSection(args: { mode: 'regenerate' | 'condense'; heading: string; body: string; feedback: string }): Promise<{ heading: string; body: string } | null> {
+    setError(null);
+    try {
+      const g = await callGenerate({ contentType: 'blog_section', mode: args.mode, heading: args.heading, body: args.body, feedback: args.feedback });
+      const sec = (g.section ?? {}) as { heading?: unknown; body?: unknown };
+      const body = typeof sec.body === 'string' ? sec.body : '';
+      if (!body.trim()) return null;
+      const heading = typeof sec.heading === 'string' && sec.heading.trim() ? sec.heading.trim() : args.heading;
+      return { heading, body };
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '섹션 처리 실패');
+      return null;
+    }
+  }
+
   // 5단계 — 진단 기반 섹션별 이미지 배정(비전). 결과를 아웃라인 imageFileNames 에 반영·저장.
   async function genImages() {
     if (!outline) return;
@@ -786,7 +802,7 @@ export function CaseBlogButton({
                     )
                   ) : step === 3 ? (
                     genLoading === 3 && !blog ? <Loading text="AI가 블로그 글을 작성하는 중…" /> : (
-                      <BlogEditor blog={blog} setField={setBlogField} outline={outline} imageMeta={(fn) => imageMetaByName.get(fn) ?? null} />
+                      <BlogEditor blog={blog} setField={setBlogField} outline={outline} imageMeta={(fn) => imageMetaByName.get(fn) ?? null} generateSection={generateBlogSection} confirmed={confirmed} />
                     )
                   ) : (
                     genLoading === 4 ? <Loading text="AI가 진단 기반으로 이미지를 배정하는 중…" /> : (
@@ -1383,29 +1399,56 @@ function BlogBody({ body }: { body: string }) {
   );
 }
 
-function BlogEditor({ blog, setField, outline, imageMeta }: {
+// 섹션 배열 → 마크다운 재구성. "## 제목\n\n본문" 블록을 빈 줄로 잇는다.
+function rebuildBlogMarkdown(sections: { heading: string; body: string }[]): string {
+  return sections
+    .map((s) => [s.heading.trim() ? `## ${s.heading.trim()}` : '', s.body.trim()].filter(Boolean).join('\n\n'))
+    .filter(Boolean)
+    .join('\n\n');
+}
+
+function BlogEditor({ blog, setField, outline, imageMeta, generateSection, confirmed }: {
   blog: BlogPost | null;
   setField: <K extends keyof BlogPost>(k: K, v: BlogPost[K]) => void;
   outline: Outline | null;
   imageMeta: (fileName: string) => CaseImg | null;
+  generateSection: (args: { mode: 'regenerate' | 'condense'; heading: string; body: string; feedback: string }) => Promise<{ heading: string; body: string } | null>;
+  confirmed: boolean;
 }) {
-  const [edit, setEdit] = useState(false);
+  const [fullEdit, setFullEdit] = useState(false);
+  const [draft, setDraft] = useState<{ index: number; heading: string; body: string } | null>(null); // 인라인 수기 수정 중인 섹션
+  const [busy, setBusy] = useState<{ index: number; mode: 'regenerate' | 'condense' } | null>(null); // AI 처리 중인 섹션
+  const [regen, setRegen] = useState<{ index: number; text: string } | null>(null); // 다시 생성 피드백 모달
   if (!blog) return <div style={{ fontSize: 13, color: 'var(--text-muted)', padding: 12 }}>블로그 글이 없습니다. “다시 생성”을 눌러 주세요.</div>;
   const liveCount = blog.bodyMarkdown.length;
   const inRange = liveCount >= 2500 && liveCount <= 3500;
   const sectionsWithImages = (outline?.sections ?? []).filter((s) => s.imageFileNames.length > 0);
   const sections = parseBlogSections(blog.bodyMarkdown);
+
+  // 섹션 i 를 새 내용으로 교체 → 전체 마크다운 재구성해 저장(수기수정·재생성·간결화 공통).
+  const applySection = (index: number, next: { heading: string; body: string }) => {
+    setField('bodyMarkdown', rebuildBlogMarkdown(sections.map((s, j) => (j === index ? next : s))));
+  };
+  const runOp = async (index: number, mode: 'regenerate' | 'condense', feedback: string) => {
+    const sec = sections[index];
+    if (!sec || busy) return;
+    setBusy({ index, mode });
+    const res = await generateSection({ mode, heading: sec.heading, body: sec.body, feedback });
+    if (res) applySection(index, res);
+    setBusy(null);
+  };
+
   return (
     <div style={{ display: 'grid', gap: 12 }}>
-      {/* 상단 바: 글자수 + 읽기/수기수정 토글 */}
+      {/* 상단 바: 총 글자수 + 전체 편집 토글(제목·태그·원본) */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-        <span style={{ fontSize: 11, fontWeight: 700, color: inRange ? 'var(--success)' : 'var(--danger)' }}>{liveCount.toLocaleString()}자 (목표 2,500~3,500)</span>
+        <span style={{ fontSize: 11, fontWeight: 700, color: inRange ? 'var(--success)' : 'var(--danger)' }}>총 {liveCount.toLocaleString()}자 (목표 2,500~3,500)</span>
         <button
           type="button"
-          onClick={() => setEdit((v) => !v)}
-          style={edit ? { ...btnTiny, background: 'var(--accent)', color: '#fff', borderColor: 'var(--accent)' } : btnTiny}
+          onClick={() => setFullEdit((v) => !v)}
+          style={fullEdit ? { ...btnTiny, background: 'var(--accent)', color: '#fff', borderColor: 'var(--accent)' } : btnTiny}
         >
-          {edit ? '수정 완료' : '수기 수정'}
+          {fullEdit ? '편집 완료' : '전체 편집'}
         </button>
       </div>
 
@@ -1428,7 +1471,7 @@ function BlogEditor({ blog, setField, outline, imageMeta }: {
         </div>
       ) : null}
 
-      {edit ? (
+      {fullEdit ? (
         <>
           <div style={cardBox}>
             <div style={{ display: 'grid', gap: 3 }}>
@@ -1450,15 +1493,46 @@ function BlogEditor({ blog, setField, outline, imageMeta }: {
           <div style={cardBox}>
             <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--text)', lineHeight: 1.4 }}>{blog.title || '(제목 없음)'}</div>
           </div>
-          {/* 섹션별 카드 — 제목 라인은 크고 굵은 색 글씨 */}
-          {sections.length ? sections.map((sec, i) => (
-            <div key={i} style={cardBox}>
-              {sec.heading ? (
-                <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--accent)', lineHeight: 1.4, marginBottom: 8 }}>{sec.heading}</div>
-              ) : null}
-              <BlogBody body={sec.body} />
-            </div>
-          )) : (
+          {/* 섹션별 카드 — 제목 라인은 크고 굵은 색 글씨 + [다시 생성/수기 수정/간결화] + 글자수 */}
+          {sections.length ? sections.map((sec, i) => {
+            const isBusy = busy?.index === i;
+            const count = sec.body.trim().length;
+            if (draft?.index === i) {
+              return (
+                <div key={i} style={cardBox}>
+                  <input value={draft.heading} onChange={(e) => setDraft({ ...draft, heading: e.target.value })} placeholder="섹션 제목" style={{ ...inputStyle, fontWeight: 800, color: 'var(--accent)', marginBottom: 8 }} />
+                  <textarea value={draft.body} onChange={(e) => setDraft({ ...draft, body: e.target.value })} rows={12} style={inputStyle} />
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 }}>
+                    <span style={{ fontSize: 10.5, fontWeight: 700, color: 'var(--text-muted)' }}>{draft.body.trim().length}자</span>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      <button type="button" style={btnTiny} onClick={() => setDraft(null)}>취소</button>
+                      <button type="button" style={{ ...btnTiny, background: 'var(--accent)', color: '#fff', borderColor: 'var(--accent)' }} onClick={() => { applySection(i, { heading: draft.heading, body: draft.body }); setDraft(null); }}>수정 완료</button>
+                    </div>
+                  </div>
+                </div>
+              );
+            }
+            return (
+              <div key={i} style={{ ...cardBox, opacity: isBusy ? 0.55 : 1 }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8, marginBottom: 8 }}>
+                  <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--accent)', lineHeight: 1.4, flex: 1, minWidth: 0 }}>{sec.heading || '(제목 없음)'}</div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                    <span style={{ fontSize: 10.5, fontWeight: 700, color: 'var(--text-muted)' }}>{count.toLocaleString()}자</span>
+                    {isBusy ? (
+                      <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--accent)' }}>{busy?.mode === 'condense' ? '간결화 중…' : '생성 중…'}</span>
+                    ) : (
+                      <>
+                        {!confirmed ? <button type="button" style={btnTiny} disabled={Boolean(busy)} onClick={() => setRegen({ index: i, text: '' })}>다시 생성</button> : null}
+                        <button type="button" style={btnTiny} disabled={Boolean(busy)} onClick={() => setDraft({ index: i, heading: sec.heading, body: sec.body })}>수기 수정</button>
+                        {!confirmed ? <button type="button" style={btnTiny} disabled={Boolean(busy)} onClick={() => void runOp(i, 'condense', '')}>간결화</button> : null}
+                      </>
+                    )}
+                  </div>
+                </div>
+                <BlogBody body={sec.body} />
+              </div>
+            );
+          }) : (
             <div style={cardBox}><BlogBody body={blog.bodyMarkdown} /></div>
           )}
           {/* 태그 칩 */}
@@ -1472,6 +1546,31 @@ function BlogEditor({ blog, setField, outline, imageMeta }: {
           ) : null}
         </>
       )}
+
+      {/* 다시 생성 — 피드백 입력 모달 */}
+      {regen ? (
+        <div style={regenOverlay} onClick={() => setRegen(null)}>
+          <div style={regenDialog} onClick={(e) => e.stopPropagation()}>
+            <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text)' }}>이 섹션 다시 생성</div>
+            <div style={{ fontSize: 12.5, color: 'var(--text-secondary)', marginTop: 4, marginBottom: 10 }}>
+              어떤 부분을 어떻게 고칠지 알려주세요. 그 내용을 반영해 이 섹션만 다시 씁니다.
+              <br />(비워두면 뜻은 유지한 채 문장 품질만 개선)
+            </div>
+            <textarea
+              value={regen.text}
+              onChange={(e) => setRegen({ ...regen, text: e.target.value })}
+              placeholder="예: 검사 결과를 더 짧게 / 보호자 공감 문장을 앞에 / 이 부분 톤을 더 부드럽게"
+              rows={4}
+              autoFocus
+              style={inputStyle}
+            />
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 12 }}>
+              <button type="button" style={btnSecondary} onClick={() => setRegen(null)}>취소</button>
+              <button type="button" style={btnPrimary} onClick={() => { const r = regen; setRegen(null); void runOp(r.index, 'regenerate', r.text); }}>다시 생성</button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
