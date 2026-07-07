@@ -13,6 +13,9 @@ export function shouldEndBasicInfo(lineText: string, kind: ChartKind): boolean {
     if (/^(check list|soap history|laboratory result)\b/i.test(t)) return true;
     if (/\bradiology\s+result\b/i.test(t)) return true;
     if (/^date\s*:\s*20\d{2}[./-]\d{1,2}[./-]\d{1,2}\b/i.test(t)) return true;
+    // 한국어 eFriends 양식: '진료 기록' 섹션 헤더 / '내원일 : yy-mm-dd' 방문 헤더에서 기본정보 종료.
+    if (/^진료\s*기록\b/.test(t)) return true;
+    if (/^내원일\s*[:：]/.test(t)) return true;
   }
   if (kind === 'woorien_pms') {
     const t = lineText.replace(/\s+/g, ' ').trim();
