@@ -418,14 +418,18 @@ def is_place_card_ad(card) -> bool:
         return False
 
 
-# 플레이스 섹션: #place-main-section-root → ul.zPw6U → li (광고 제외 후 순위 카운트)
+# 플레이스 섹션 두 가지 레이아웃:
+#  (A) 표준 팩: #place-main-section-root → ul.zPw6U → li.c1sly, 이름 span.jVsoy
+#  (B) 지역형:  #loc-main-section-root → div.wObwH 카드, 이름 span.Ypcqn (넓은 지역/진료 키워드에서 이 레이아웃으로 그려짐)
+# 광고 제외 후 순위 카운트.
 SELECTOR_PLACE_CONTAINER = [
     "#place-main-section-root ul.zPw6U",
     "#place-main-section-root ul[class*='zPw6U']",
     "ul.zPw6U",
+    "#loc-main-section-root",  # 지역형(B) — 없으면 다음으로, 있으면 여기서 카드 탐색
 ]
-# 한 항목: li.c1sly 또는 data-nmb_vcl-doc-id / data-nmb_vcle-doc-id
-CARD_PLACE = "li.c1sly"
+# 한 항목: (A) li.c1sly / data-nmb_vcl-doc-id, (B) div.wObwH
+CARD_PLACE = "li.c1sly, div.wObwH"
 
 
 def _normalize_store_name(s: str) -> str:
@@ -454,7 +458,7 @@ def find_place_rank_in_page(page, container_selector: str, store_name: str) -> t
             if is_place_card_ad(li):
                 continue
             rank += 1
-            name_el = li.query_selector("span.jVsoy")
+            name_el = li.query_selector("span.jVsoy, span.Ypcqn")
             name = (name_el.inner_text() or "").strip() if name_el else ""
             if _normalize_store_name(name) == target or (target in _normalize_store_name(name)) or (name and target in name):
                 return rank, None  # 플레이스는 URL 수집하지 않음
@@ -522,7 +526,7 @@ def _place_first_card_text(page, container_sel: str) -> str:
             cards = ul.query_selector_all("li[data-nmb_vcl-doc-id], li[data-nmb_vcle-doc-id]")
         if not cards:
             return ""
-        el = cards[0].query_selector("span.jVsoy")
+        el = cards[0].query_selector("span.jVsoy, span.Ypcqn")
         if el:
             return (el.inner_text() or "").strip()
         return (cards[0].inner_text() or "").strip()[:50]
@@ -569,7 +573,7 @@ def get_place_ranks_with_pagination(page, keyword: str, targets: list[str]) -> d
                 if is_place_card_ad(li):
                     continue
                 rank += 1
-                name_el = li.query_selector("span.jVsoy")
+                name_el = li.query_selector("span.jVsoy, span.Ypcqn")
                 name = (name_el.inner_text() or "").strip() if name_el else ""
                 nn = _normalize_store_name(name)
                 for nt, orig in norm_map.items():
