@@ -53,16 +53,16 @@ const inputStyle: CSSProperties = {
   outline: 'none', boxSizing: 'border-box', resize: 'vertical', wordBreak: 'break-word', whiteSpace: 'pre-wrap',
 };
 const cardBox: CSSProperties = { background: '#fff', border: '1px solid var(--border)', borderRadius: 10, padding: '12px 14px' };
-// 좌측 참고 패널(케이스 개요·검사결과) — 우측 메인 섹션과 구분되게 연두 테두리.
-const refCardBox: CSSProperties = { ...cardBox, border: '1.5px solid #8bc34a' };
+// 좌측 참고 패널(케이스 개요·검사결과) — 우측 메인 섹션과 구분되게 연두 테두리, 여백은 조금 작게.
+const refCardBox: CSSProperties = { ...cardBox, border: '1.5px solid #8bc34a', padding: '9px 11px' };
 // 행위(action) 박스 — 옅은 배경으로 구분(테두리 없이 플랫하게).
 const actionBox: CSSProperties = { background: 'var(--bg-subtle)', border: 'none', borderRadius: 8, padding: '10px 12px' };
 const actionWhatColor = 'var(--text)'; // '무엇을 했나' 강조 — 색 대신 굵기로
 // 읽기 전용 뷰의 '왜/결과' 인라인 라벨.
 const viewMiniLabel: CSSProperties = { flexShrink: 0, fontSize: 11, fontWeight: 800, color: 'var(--text-muted)', minWidth: 30 };
-// Next step — 강조색 없이 옅은 회색 박스.
-const nextStepBox: CSSProperties = { marginTop: 12, border: '1px solid var(--border)', borderRadius: 8, padding: '10px 12px', background: 'var(--bg-subtle)' };
-const nextStepLabel: CSSProperties = { fontSize: 11, fontWeight: 800, letterSpacing: '0.02em', color: 'var(--text-muted)' };
+// Next step — 액션 카드(회색)와 구분되게 accent 톤 박스 + accent 라벨.
+const nextStepBox: CSSProperties = { marginTop: 12, border: '1px solid var(--accent)', borderRadius: 8, padding: '10px 12px', background: 'var(--accent-subtle)' };
+const nextStepLabel: CSSProperties = { fontSize: 11, fontWeight: 800, letterSpacing: '0.02em', color: 'var(--accent)' };
 // 성격 해시태그 칩(선택 on/off): 선택된 것만 accent, 평소엔 회색.
 function hashChip(on: boolean): CSSProperties {
   return {
@@ -291,10 +291,10 @@ function LabResultsPanel({ dates, open, onToggle }: { dates: LabDate[]; open: bo
       <button
         type="button"
         onClick={onToggle}
-        style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: open ? 10 : 0, background: 'var(--accent-subtle)', border: 'none', borderRadius: 6, padding: '6px 9px', width: '100%', textAlign: 'left', cursor: 'pointer' }}
+        style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: open ? 8 : 0, background: 'none', border: 'none', padding: 0, width: '100%', textAlign: 'left', cursor: 'pointer' }}
       >
-        <span style={{ fontSize: 11, color: 'var(--accent)', width: 10 }}>{open ? '▾' : '▸'}</span>
-        <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--accent)' }}>검사결과 (PDF 추출)</span>
+        <span style={{ fontSize: 11, color: 'var(--text-muted)', width: 10 }}>{open ? '▾' : '▸'}</span>
+        <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)' }}>검사결과 (PDF 추출)</span>
       </button>
       {open ? (
       <div style={{ display: 'grid', gap: 10 }}>
@@ -747,16 +747,18 @@ export function CaseBlogButton({
             <div style={{ flex: 1, minHeight: 0, display: 'flex', gap: 16, padding: '14px 20px', overflow: 'hidden' }}>
               {/* 좌 — 케이스 개요 */}
               <div style={{ flex: '3.5 1 0', minWidth: 0, display: 'flex', flexDirection: 'column' }}>
-                <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', display: 'grid', gap: 12, alignContent: 'start' }}>
+                {/* 우측 컨트롤 헤더와 같은 높이의 스페이서 — 좌우 카드 시작 높이 정렬 */}
+                <div style={{ height: 32, marginBottom: 8, flexShrink: 0 }} aria-hidden />
+                <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', display: 'grid', gap: 8, alignContent: 'start' }}>
                   {/* 케이스 개요 카드 — 검사결과 카드와 같은 레벨(카드 안 헤더 토글) */}
                   <div style={refCardBox}>
                     <button
                       type="button"
                       onClick={() => setOverviewOpen((v) => !v)}
-                      style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginBottom: overviewOpen ? 10 : 0, background: 'var(--accent-subtle)', border: 'none', borderRadius: 6, padding: '6px 9px', width: '100%', textAlign: 'left', cursor: 'pointer' }}
+                      style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginBottom: overviewOpen ? 8 : 0, background: 'none', border: 'none', padding: 0, width: '100%', textAlign: 'left', cursor: 'pointer' }}
                     >
-                      <span style={{ fontSize: 11, color: 'var(--accent)', width: 10 }}>{overviewOpen ? '▾' : '▸'}</span>
-                      <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--accent)' }}>케이스 개요 (담당자 작성)</span>
+                      <span style={{ fontSize: 11, color: 'var(--text-muted)', width: 10 }}>{overviewOpen ? '▾' : '▸'}</span>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)' }}>케이스 개요 (담당자 작성)</span>
                       {missingOverview > 0 ? <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--danger)' }}>⚠ 미작성 {missingOverview}</span> : null}
                     </button>
                     {overviewOpen ? (
@@ -785,7 +787,7 @@ export function CaseBlogButton({
 
               {/* 우 — 단계 편집 */}
               <div style={{ flex: '6.5 1 0', minWidth: 0, display: 'flex', flexDirection: 'column' }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8, minHeight: 24, marginBottom: 8 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8, height: 32, marginBottom: 8, flexShrink: 0 }}>
                   {savedMsg ? <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--success)' }}>{savedMsg}</span> : null}
                   {step === 4 ? (
                     <button type="button" style={btnSecondary} onClick={() => void genImages()} disabled={busy}>
