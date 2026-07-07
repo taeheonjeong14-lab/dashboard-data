@@ -748,7 +748,7 @@ export function CaseBlogButton({
               {/* 좌 — 케이스 개요 */}
               <div style={{ flex: '3.5 1 0', minWidth: 0, display: 'flex', flexDirection: 'column' }}>
                 {/* 우측 컨트롤 헤더와 같은 높이의 스페이서 — 좌우 카드 시작 높이 정렬 */}
-                <div style={{ height: 32, marginBottom: 8, flexShrink: 0 }} aria-hidden />
+                <div style={{ height: 34, marginBottom: 8, flexShrink: 0 }} aria-hidden />
                 <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', display: 'grid', gap: 8, alignContent: 'start' }}>
                   {/* 케이스 개요 카드 — 검사결과 카드와 같은 레벨(카드 안 헤더 토글) */}
                   <div style={refCardBox}>
@@ -787,7 +787,7 @@ export function CaseBlogButton({
 
               {/* 우 — 단계 편집 */}
               <div style={{ flex: '6.5 1 0', minWidth: 0, display: 'flex', flexDirection: 'column' }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8, height: 32, marginBottom: 8, flexShrink: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8, height: 34, marginBottom: 8, flexShrink: 0 }}>
                   {savedMsg ? <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--success)' }}>{savedMsg}</span> : null}
                   {step === 4 ? (
                     <button type="button" style={btnSecondary} onClick={() => void genImages()} disabled={busy}>
@@ -795,7 +795,11 @@ export function CaseBlogButton({
                     </button>
                   ) : confirmed ? (
                     <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)' }}>확정됨 · 수기 수정만 가능</span>
-                  ) : null}
+                  ) : (
+                    <button type="button" style={btnSecondary} onClick={() => { if (step === 1) void genCausal(); else if (step === 2) void genOutline(); else void genBlog(); }} disabled={busy}>
+                      {genLoading === step ? '생성 중…' : '전체 다시 생성'}
+                    </button>
+                  )}
                 </div>
 
                 <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', paddingRight: 4 }}>
