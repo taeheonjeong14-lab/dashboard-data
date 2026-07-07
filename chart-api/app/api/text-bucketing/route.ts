@@ -293,6 +293,23 @@ function normalizeForLabelLookup(s: string): string {
   return s.replace(/\s*\/\s*/g, "/").replace(/\s+/g, " ").trim();
 }
 
+// 라벨을 "글자 사이 공백 허용" 패턴으로 (OCR이 "동물명"→"동물 명"처럼 공백 삽입).
+function plusVetLabelPattern(label: string): string {
+  return [...label].filter((c) => !/\s/.test(c)).map((c) => (c === "/" ? "/" : c)).join("\\s*");
+}
+const PLUSVET_LABEL_STRIP_TO_FIELD: Record<string, string> = Object.fromEntries(
+  Object.entries(PLUSVET_LABEL_FIELD_MAP).map(([k, v]) => [k.replace(/\s+/g, ""), v]),
+);
+const PLUSVET_LABEL_SCAN_RE = new RegExp(
+  "(" +
+    Object.keys(PLUSVET_LABEL_FIELD_MAP)
+      .sort((a, b) => b.length - a.length)
+      .map(plusVetLabelPattern)
+      .join("|") +
+    ")",
+  "g",
+);
+
 /**
  * PlusVet basicInfo: OCR이 라벨을 묶어서 먼저 출력한 뒤 값을 묶어 출력하는 경우에도
  * FIFO 큐로 순서를 보존해 올바르게 매칭한다.
@@ -312,60 +329,41 @@ function parsePlusVetBasicInfoFromText(block: string): ParsedBasicInfo {
     }
   }
 
-  // 긴 라벨 먼저 — "보호자"가 "보호자 성함" 앞에 매칭되는 것을 방지
-  const sortedLabels = Object.entries(PLUSVET_LABEL_FIELD_MAP)
-    .sort(([a], [b]) => b.length - a.length);
-
   const extracted: Record<string, string> = {};
   const pending: string[] = []; // FIFO 큐: 아직 값을 못 받은 라벨(필드명) 목록
 
   for (const line of rawLines) {
-    const normalized = normalizeForLabelLookup(line);
-
-    // Case 1: 라벨만 있는 줄 → 큐에 push
-    const exactField = PLUSVET_LABEL_FIELD_MAP[normalized];
-    if (exactField !== undefined) {
-      pending.push(exactField);
-      continue;
+    // 한 줄에서 라벨(공백 허용)을 모두 찾아 라벨-값 구간으로 쪼갠다.
+    // OCR이 좌우 2열을 한 줄로 합치고 글자 사이 공백까지 넣는 경우 처리:
+    //   "보호자 성함 이주은 동물 명 메리" → 보호자=이주은, 동물명=메리
+    PLUSVET_LABEL_SCAN_RE.lastIndex = 0;
+    const hits: Array<{ start: number; end: number; field: string }> = [];
+    let mm: RegExpExecArray | null;
+    while ((mm = PLUSVET_LABEL_SCAN_RE.exec(line)) !== null) {
+      const field = PLUSVET_LABEL_STRIP_TO_FIELD[mm[0].replace(/\s+/g, "")];
+      if (field) hits.push({ start: mm.index, end: mm.index + mm[0].length, field });
+      if (mm.index === PLUSVET_LABEL_SCAN_RE.lastIndex) PLUSVET_LABEL_SCAN_RE.lastIndex += 1;
     }
 
-    // Case 2: 한 줄에 "라벨 값 [라벨 값 …]" 여러 쌍이 올 수 있다(표가 한 줄로 합쳐진 경우:
-    //  "보호자 성함 권숙자 동물명 콩"). 줄 안 모든 라벨 위치를 찾고(긴 라벨 우선·단어경계),
-    //  각 값 = 다음 라벨 직전까지로 자른다. 단일 쌍 줄도 동일하게 동작(값=줄 끝까지).
-    const labelHits: Array<{ field: string; valueStart: number; matchStart: number }> = [];
-    for (let p = 0; p < normalized.length; ) {
-      let hit: { label: string; field: string } | null = null;
-      for (const [label, field] of sortedLabels) {
-        if (
-          normalized.startsWith(label, p) &&
-          (p + label.length >= normalized.length || normalized[p + label.length] === " ")
-        ) {
-          hit = { label, field };
-          break; // 긴 라벨 우선(정렬돼 있음)
+    if (hits.length > 0) {
+      for (let k = 0; k < hits.length; k += 1) {
+        const cur = hits[k]!;
+        const next = hits[k + 1];
+        const value = line.slice(cur.end, next ? next.start : line.length).trim();
+        if (value) {
+          if (!extracted[cur.field]) extracted[cur.field] = value;
+        } else {
+          pending.push(cur.field); // 라벨만 있는 구간 → 이후 값 줄에서 채움
         }
       }
-      if (hit) {
-        labelHits.push({ field: hit.field, valueStart: p + hit.label.length, matchStart: p });
-        p += hit.label.length;
-      } else {
-        p += 1;
-      }
-    }
-    if (labelHits.length > 0) {
-      for (let k = 0; k < labelHits.length; k += 1) {
-        const valueEnd = k + 1 < labelHits.length ? labelHits[k + 1].matchStart : normalized.length;
-        const value = normalized.slice(labelHits[k].valueStart, valueEnd).trim();
-        if (value && !extracted[labelHits[k].field]) extracted[labelHits[k].field] = value;
-      }
       continue;
     }
 
-    // Case 3: 값 줄 → 큐에서 꺼내 매칭
+    // 라벨 없는 줄 = 값 줄 → 큐에서 꺼내 매칭. 큐가 비면 병원명/주소 헤더로 간주하고 무시.
     if (pending.length > 0) {
       const target = pending.shift()!;
-      if (!extracted[target]) extracted[target] = line;
+      if (!extracted[target]) extracted[target] = line.trim();
     }
-    // pending이 비어있으면 병원명/주소 등 헤더로 간주하고 무시
   }
 
   const speciesBreedRaw = extracted["speciesBreed"] ?? null;
