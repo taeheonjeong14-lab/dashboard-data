@@ -182,10 +182,10 @@ function asBlog(raw: unknown): BlogPost {
 const ACTION_TYPE_LABEL: Record<string, string> = {
   intro: '인트로', disease_intro: '질환 소개', visit_background: '내원 배경',
   exam_dx: '검사 및 진단', preop: '술 전 검사', surgical: '수술', medical: '내과 치료', recovery: '회복 및 경과 확인', aftercare: '사후 관리 안내', other: '기타',
-  director_note: '원장님 한마디', outro: '아웃트로',
+  director_note: '원장님 한마디', outro: '아웃트로', faq: '자주 묻는 질문',
 };
-// 2단계 섹션 배치 순서 = 이 순서(서술 앞 3 → 진료 7 → 서술 뒤 2). 서술 태그는 2단계 섹션 전용.
-const ACTION_TYPE_ORDER = ['intro', 'disease_intro', 'visit_background', 'exam_dx', 'preop', 'surgical', 'medical', 'recovery', 'aftercare', 'other', 'director_note', 'outro'];
+// 2단계 섹션 배치 순서 = 이 순서(서술 앞 3 → 진료 7 → 서술 뒤 3: 원장님 한마디·아웃트로·FAQ). 서술 태그는 2단계 섹션 전용.
+const ACTION_TYPE_ORDER = ['intro', 'disease_intro', 'visit_background', 'exam_dx', 'preop', 'surgical', 'medical', 'recovery', 'aftercare', 'other', 'director_note', 'outro', 'faq'];
 // 1단계 행위 카드에 붙일 수 있는 진료 태그(7종). 서술 태그(intro~outro)는 실제 진료 행위가 아니라 여기서 제외.
 const CLINICAL_TAG_ORDER = ['exam_dx', 'preop', 'surgical', 'medical', 'recovery', 'aftercare', 'other'];
 // 옛 값 → 신규 키 매핑. 입원·퇴원·술후회복·술후경과확인은 모두 '회복 및 경과 확인'의 한 단계로 흡수.
