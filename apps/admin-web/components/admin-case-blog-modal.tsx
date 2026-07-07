@@ -53,32 +53,32 @@ const inputStyle: CSSProperties = {
   outline: 'none', boxSizing: 'border-box', resize: 'vertical', wordBreak: 'break-word', whiteSpace: 'pre-wrap',
 };
 const cardBox: CSSProperties = { background: '#fff', border: '1px solid var(--border)', borderRadius: 10, padding: '12px 14px' };
-const actionBox: CSSProperties = { background: 'var(--bg-subtle)', border: '1px solid #4ade1a', borderRadius: 8, padding: '10px 12px' };
-const actionWhatColor = '#3fb500'; // '무엇을 했나' 강조 형광 초록
+// 행위(action) 박스 — 옅은 배경으로 구분(테두리 없이 플랫하게).
+const actionBox: CSSProperties = { background: 'var(--bg-subtle)', border: 'none', borderRadius: 8, padding: '10px 12px' };
+const actionWhatColor = 'var(--text)'; // '무엇을 했나' 강조 — 색 대신 굵기로
 // 읽기 전용 뷰의 '왜/결과' 인라인 라벨.
 const viewMiniLabel: CSSProperties = { flexShrink: 0, fontSize: 11, fontWeight: 800, color: 'var(--text-muted)', minWidth: 30 };
-// Next step — 보라 테두리 박스.
-const NEXT_STEP_PURPLE = '#a855f7';
-const nextStepBox: CSSProperties = { marginTop: 12, border: `1px solid ${NEXT_STEP_PURPLE}`, borderRadius: 8, padding: '10px 12px', background: 'rgba(168,85,247,0.06)' };
-const nextStepLabel: CSSProperties = { fontSize: 11, fontWeight: 800, letterSpacing: '0.02em', color: NEXT_STEP_PURPLE };
-// 성격 해시태그 칩(선택 on/off): 선택 시 파란 테두리 + 반투명 파랑 배경.
+// Next step — 강조색 없이 옅은 회색 박스.
+const nextStepBox: CSSProperties = { marginTop: 12, border: '1px solid var(--border)', borderRadius: 8, padding: '10px 12px', background: 'var(--bg-subtle)' };
+const nextStepLabel: CSSProperties = { fontSize: 11, fontWeight: 800, letterSpacing: '0.02em', color: 'var(--text-muted)' };
+// 성격 해시태그 칩(선택 on/off): 선택된 것만 accent, 평소엔 회색.
 function hashChip(on: boolean): CSSProperties {
   return {
     padding: '4px 11px', fontSize: 12, fontWeight: 700, borderRadius: 999, cursor: 'pointer',
-    border: `1px solid ${on ? 'var(--accent)' : 'var(--border-strong)'}`,
-    background: on ? 'rgba(49, 130, 246, 0.14)' : '#fff',
+    border: `1px solid ${on ? 'var(--accent)' : 'var(--border)'}`,
+    background: on ? 'rgba(49, 130, 246, 0.12)' : '#fff',
     color: on ? 'var(--accent)' : 'var(--text-muted)',
     transition: 'all 0.1s ease',
   };
 }
-// 수술 절차 하위 박스(카드 안의 가로로 긴 박스) — 편집/읽기 공용 틀 + 단계 번호 배지.
-const procBox: CSSProperties = { border: '1px solid var(--border)', borderRadius: 8, padding: '8px 10px', background: 'var(--bg)' };
-const procNumBadge: CSSProperties = { flexShrink: 0, width: 18, height: 18, borderRadius: 999, background: 'var(--accent)', color: '#fff', fontSize: 11, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center' };
-// 읽기 모드 — 행위 제목 우측에 붙는 작은 성격 태그 스티커.
+// 수술 절차 하위 박스 — 테두리 없이 흰 배경으로(옅은 회색 액션박스 위에 얹혀 구분).
+const procBox: CSSProperties = { borderRadius: 6, padding: '8px 10px', background: 'var(--bg)' };
+const procNumBadge: CSSProperties = { flexShrink: 0, width: 18, height: 18, borderRadius: 999, background: 'var(--text-muted)', color: '#fff', fontSize: 11, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center' };
+// 읽기 모드 — 행위 제목 우측 성격 태그 스티커(회색, 차분하게).
 const tagSticker: CSSProperties = {
   fontSize: 10.5, fontWeight: 700, lineHeight: 1.5, whiteSpace: 'nowrap',
   padding: '1px 7px', borderRadius: 999,
-  border: '1px solid var(--accent)', background: 'rgba(49, 130, 246, 0.14)', color: 'var(--accent)',
+  border: '1px solid var(--border)', background: 'var(--bg-subtle)', color: 'var(--text-muted)',
 };
 // 날짜별 다시 생성 입력 모달.
 const regenOverlay: CSSProperties = {
