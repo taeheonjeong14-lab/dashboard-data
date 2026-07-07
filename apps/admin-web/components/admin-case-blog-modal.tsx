@@ -782,7 +782,7 @@ export function CaseBlogButton({
                     />
                   ) : step === 2 ? (
                     genLoading === 2 && !outline ? <Loading text="AI가 아웃라인을 배치하는 중…" /> : (
-                      <OutlineEditor outline={outline} causal={causal} updateSection={updateSection} moveSection={moveSection} addSection={addSection} removeSection={removeSection} setOutline={(o) => { setOutline(o); dirty(); }} imageMeta={(fn) => imageMetaByName.get(fn) ?? null} />
+                      <OutlineEditor outline={outline} causal={causal} updateSection={updateSection} moveSection={moveSection} addSection={addSection} removeSection={removeSection} imageMeta={(fn) => imageMetaByName.get(fn) ?? null} />
                     )
                   ) : step === 3 ? (
                     genLoading === 3 && !blog ? <Loading text="AI가 블로그 글을 작성하는 중…" /> : (
@@ -1310,12 +1310,11 @@ function SectionCard({ s, i, tagCards, updateSection, moveSection, removeSection
   );
 }
 
-function OutlineEditor({ outline, causal, updateSection, moveSection, addSection, removeSection, setOutline, imageMeta }: {
+function OutlineEditor({ outline, causal, updateSection, moveSection, addSection, removeSection, imageMeta }: {
   outline: Outline | null;
   causal: CausalFlow | null;
   updateSection: (i: number, patch: Partial<Section>) => void;
   moveSection: (i: number, dir: -1 | 1) => void; addSection: () => void; removeSection: (i: number) => void;
-  setOutline: (o: Outline) => void;
   imageMeta: (fileName: string) => CaseImg | null;
 }) {
   if (!outline) return <div style={{ fontSize: 13, color: 'var(--text-muted)', padding: 12 }}>아웃라인이 없습니다. “다시 생성”을 눌러 주세요.</div>;
@@ -1328,17 +1327,6 @@ function OutlineEditor({ outline, causal, updateSection, moveSection, addSection
       : [];
   return (
     <div style={{ display: 'grid', gap: 12 }}>
-      <div style={cardBox}>
-        <div style={{ display: 'grid', gap: 3 }}>
-          <span style={fieldLabel}>제목 후보 (한 줄에 하나)</span>
-          <textarea
-            value={outline.title_candidates.join('\n')}
-            onChange={(e) => setOutline({ ...outline, title_candidates: e.target.value.split('\n') })}
-            rows={2}
-            style={{ ...inputStyle, minHeight: 72 }}
-          />
-        </div>
-      </div>
       {outline.sections.map((s, i) => (
         <SectionCard
           key={s.id}
