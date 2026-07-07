@@ -46,6 +46,10 @@ const btnTiny: CSSProperties = {
   padding: '2px 7px', fontSize: 11, fontWeight: 600, borderRadius: 5,
   background: '#fff', color: 'var(--text-secondary)', border: '1px solid var(--border-strong)', cursor: 'pointer',
 };
+// 아이콘 버튼 — 색 없이 회색 선 글리프만(수정 ✎ / 다시생성 ↻ / 삭제 ✕ / 간결화 ✂). title 로 설명.
+const iconBtn: CSSProperties = { ...btnTiny, fontSize: 13, padding: '3px 7px', lineHeight: 1 };
+const iconBtnActive: CSSProperties = { ...iconBtn, background: 'var(--bg-subtle)', borderColor: 'var(--text-muted)' }; // 편집 활성(색 없이 회색 강조)
+const iconBtnDanger: CSSProperties = { ...iconBtn, color: 'var(--danger)' }; // 삭제 — 빨간 ✕
 const fieldLabel: CSSProperties = { fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', letterSpacing: '-0.01em' };
 const inputStyle: CSSProperties = {
   width: '100%', padding: '7px 10px', fontSize: 13, lineHeight: 1.5,
@@ -868,9 +872,9 @@ function Loading({ text }: { text: string }) {
 function RowTools({ onUp, onDown, onRemove, busy }: { onUp: () => void; onDown: () => void; onRemove: () => void; busy?: boolean }) {
   return (
     <div style={{ display: 'flex', gap: 4 }}>
-      <button type="button" style={btnTiny} onClick={onUp} disabled={busy}>↑</button>
-      <button type="button" style={btnTiny} onClick={onDown} disabled={busy}>↓</button>
-      <button type="button" style={{ ...btnTiny, color: 'var(--danger)', borderColor: 'var(--danger-subtle)' }} onClick={onRemove} disabled={busy}>삭제</button>
+      <button type="button" style={iconBtn} onClick={onUp} disabled={busy} title="위로 이동" aria-label="위로 이동">↑</button>
+      <button type="button" style={iconBtn} onClick={onDown} disabled={busy} title="아래로 이동" aria-label="아래로 이동">↓</button>
+      <button type="button" style={iconBtnDanger} onClick={onRemove} disabled={busy} title="삭제" aria-label="삭제">✕</button>
     </div>
   );
 }
@@ -923,24 +927,26 @@ function PhaseCard({ p, isLast, busy, regenBusy, onUp, onDown, onRemove, update,
           </div>
         )}
         <div style={{ display: 'flex', gap: 5, flexShrink: 0, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-          <button type="button" onClick={() => setRegenOpen(true)} disabled={busy} style={btnTiny}>
-            {regenBusy ? '생성 중…' : '이 날짜 다시 생성'}
+          <button type="button" onClick={() => setRegenOpen(true)} disabled={busy} style={iconBtn} title="이 날짜 다시 생성" aria-label="이 날짜 다시 생성">
+            {regenBusy ? '…' : '↻'}
           </button>
           <button
             type="button"
             onClick={() => setEditMode((v) => !v)}
             disabled={busy}
-            style={editMode ? { ...btnTiny, background: 'var(--accent)', color: '#fff', borderColor: 'var(--accent)' } : btnTiny}
+            style={editMode ? iconBtnActive : iconBtn}
+            title={editMode ? '수정 완료' : '수기 수정'}
+            aria-label={editMode ? '수정 완료' : '수기 수정'}
           >
-            {editMode ? '수정 완료' : '수기 수정'}
+            {editMode ? '✓' : '✎'}
           </button>
           {editMode ? (
             <>
-              <button type="button" style={btnTiny} onClick={onUp} disabled={busy} title="위로 이동">↑</button>
-              <button type="button" style={btnTiny} onClick={onDown} disabled={busy} title="아래로 이동">↓</button>
+              <button type="button" style={iconBtn} onClick={onUp} disabled={busy} title="위로 이동" aria-label="위로 이동">↑</button>
+              <button type="button" style={iconBtn} onClick={onDown} disabled={busy} title="아래로 이동" aria-label="아래로 이동">↓</button>
             </>
           ) : null}
-          <button type="button" style={{ ...btnTiny, color: 'var(--danger)', borderColor: 'var(--danger-subtle)' }} onClick={onRemove} disabled={busy}>삭제</button>
+          <button type="button" style={iconBtnDanger} onClick={onRemove} disabled={busy} title="삭제" aria-label="삭제">✕</button>
         </div>
       </div>
 
@@ -1121,8 +1127,8 @@ function AxisCard({ axis, anesthesia, busy, setField }: {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: edit ? 10 : 8 }}>
         <span style={{ fontSize: 13, fontWeight: 800, color: 'var(--text)' }}>흐름 요약</span>
         <button type="button" onClick={() => setEdit((v) => !v)} disabled={busy}
-          style={edit ? { ...btnTiny, background: 'var(--accent)', color: '#fff', borderColor: 'var(--accent)' } : btnTiny}>
-          {edit ? '수정 완료' : '수기 수정'}
+          style={edit ? iconBtnActive : iconBtn} title={edit ? '수정 완료' : '수기 수정'} aria-label={edit ? '수정 완료' : '수기 수정'}>
+          {edit ? '✓' : '✎'}
         </button>
       </div>
       {edit ? (
@@ -1249,17 +1255,18 @@ function SectionCard({ s, i, tagCards, updateSection, moveSection, removeSection
           <button
             type="button"
             onClick={() => setEdit((v) => !v)}
-            style={edit ? { ...btnTiny, background: 'var(--accent)', color: '#fff', borderColor: 'var(--accent)' } : btnTiny}
+            style={edit ? iconBtnActive : iconBtn}
+            title={edit ? '수정 완료' : '수기 수정'} aria-label={edit ? '수정 완료' : '수기 수정'}
           >
-            {edit ? '수정 완료' : '수기 수정'}
+            {edit ? '✓' : '✎'}
           </button>
           {edit ? (
             <>
-              <button type="button" style={btnTiny} onClick={() => moveSection(i, -1)} title="위로 이동">↑</button>
-              <button type="button" style={btnTiny} onClick={() => moveSection(i, 1)} title="아래로 이동">↓</button>
+              <button type="button" style={iconBtn} onClick={() => moveSection(i, -1)} title="위로 이동" aria-label="위로 이동">↑</button>
+              <button type="button" style={iconBtn} onClick={() => moveSection(i, 1)} title="아래로 이동" aria-label="아래로 이동">↓</button>
             </>
           ) : null}
-          <button type="button" style={{ ...btnTiny, color: 'var(--danger)', borderColor: 'var(--danger-subtle)' }} onClick={() => removeSection(i)}>삭제</button>
+          <button type="button" style={iconBtnDanger} onClick={() => removeSection(i)} title="삭제" aria-label="삭제">✕</button>
         </div>
       </div>
 
@@ -1431,6 +1438,7 @@ function BlogEditor({ blog, setField, outline, imageMeta, generateSection, confi
   confirmed: boolean;
 }) {
   const [draft, setDraft] = useState<{ index: number; heading: string; body: string } | null>(null); // 인라인 수기 수정 중인 섹션
+  const [tagsEdit, setTagsEdit] = useState(false); // 태그 편집 모드(끄면 해시태그처럼 표시)
   const [busy, setBusy] = useState<{ index: number; mode: 'regenerate' | 'condense' } | null>(null); // AI 처리 중인 섹션
   const [regen, setRegen] = useState<{ index: number; text: string } | null>(null); // 다시 생성 피드백 모달
   if (!blog) return <div style={{ fontSize: 13, color: 'var(--text-muted)', padding: 12 }}>블로그 글이 없습니다. “다시 생성”을 눌러 주세요.</div>;
@@ -1516,9 +1524,9 @@ function BlogEditor({ blog, setField, outline, imageMeta, generateSection, confi
                       <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--accent)' }}>{busy?.mode === 'condense' ? '간결화 중…' : '생성 중…'}</span>
                     ) : (
                       <>
-                        {!confirmed ? <button type="button" style={btnTiny} disabled={Boolean(busy)} onClick={() => setRegen({ index: i, text: '' })}>다시 생성</button> : null}
-                        <button type="button" style={btnTiny} disabled={Boolean(busy)} onClick={() => setDraft({ index: i, heading: sec.heading, body: sec.body })}>수기 수정</button>
-                        {!confirmed ? <button type="button" style={btnTiny} disabled={Boolean(busy)} onClick={() => void runOp(i, 'condense', '')}>간결화</button> : null}
+                        {!confirmed ? <button type="button" style={iconBtn} disabled={Boolean(busy)} onClick={() => setRegen({ index: i, text: '' })} title="다시 생성" aria-label="다시 생성">↻</button> : null}
+                        <button type="button" style={iconBtn} disabled={Boolean(busy)} onClick={() => setDraft({ index: i, heading: sec.heading, body: sec.body })} title="수기 수정" aria-label="수기 수정">✎</button>
+                        {!confirmed ? <button type="button" style={iconBtn} disabled={Boolean(busy)} onClick={() => void runOp(i, 'condense', '')} title="간결화" aria-label="간결화">{'✂︎'}</button> : null}
                       </>
                     )}
                   </div>
@@ -1529,9 +1537,29 @@ function BlogEditor({ blog, setField, outline, imageMeta, generateSection, confi
           }) : (
             <div style={cardBox}><BlogBody body={blog.bodyMarkdown} /></div>
           )}
-          {/* 태그 (편집 가능) */}
+          {/* 태그 — 편집 아닐 땐 해시태그처럼, 편집 버튼(✎)으로 수정 */}
           <div style={cardBox}>
-            <LabeledTextarea label="태그 (한 줄에 하나)" value={blog.tags.join('\n')} onChange={(v) => setField('tags', v.split('\n').map((t) => t.trim()).filter(Boolean))} rows={2} />
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 8 }}>
+              <span style={fieldLabel}>태그</span>
+              <button type="button" style={tagsEdit ? iconBtnActive : iconBtn} onClick={() => setTagsEdit((v) => !v)} title={tagsEdit ? '수정 완료' : '수기 수정'} aria-label={tagsEdit ? '수정 완료' : '수기 수정'}>{tagsEdit ? '✓' : '✎'}</button>
+            </div>
+            {tagsEdit ? (
+              <textarea
+                value={blog.tags.join('\n')}
+                onChange={(e) => setField('tags', e.target.value.split('\n').map((t) => t.trim().replace(/^#/, '')).filter(Boolean))}
+                rows={3}
+                placeholder="한 줄에 하나"
+                style={inputStyle}
+              />
+            ) : blog.tags.length ? (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                {blog.tags.map((t, i) => (
+                  <span key={i} style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--accent)', background: 'var(--accent-subtle)', borderRadius: 999, padding: '3px 10px' }}>#{t}</span>
+                ))}
+              </div>
+            ) : (
+              <span style={{ fontSize: 12.5, color: 'var(--text-muted)' }}>태그 없음</span>
+            )}
           </div>
 
       {/* 다시 생성 — 피드백 입력 모달 */}
