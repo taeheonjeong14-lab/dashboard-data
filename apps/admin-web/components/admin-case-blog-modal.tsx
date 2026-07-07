@@ -53,6 +53,8 @@ const inputStyle: CSSProperties = {
   outline: 'none', boxSizing: 'border-box', resize: 'vertical', wordBreak: 'break-word', whiteSpace: 'pre-wrap',
 };
 const cardBox: CSSProperties = { background: '#fff', border: '1px solid var(--border)', borderRadius: 10, padding: '12px 14px' };
+// 좌측 참고 패널(케이스 개요·검사결과) — 우측 메인 섹션과 구분되게 연두 테두리.
+const refCardBox: CSSProperties = { ...cardBox, border: '1.5px solid #8bc34a' };
 // 행위(action) 박스 — 옅은 배경으로 구분(테두리 없이 플랫하게).
 const actionBox: CSSProperties = { background: 'var(--bg-subtle)', border: 'none', borderRadius: 8, padding: '10px 12px' };
 const actionWhatColor = 'var(--text)'; // '무엇을 했나' 강조 — 색 대신 굵기로
@@ -285,7 +287,7 @@ function labFlagMark(flag: LabItem['flag']): { text: string; color: string } | n
 function LabResultsPanel({ dates, open, onToggle }: { dates: LabDate[]; open: boolean; onToggle: () => void }) {
   if (!dates.length) return null;
   return (
-    <div style={cardBox}>
+    <div style={refCardBox}>
       <button
         type="button"
         onClick={onToggle}
@@ -345,8 +347,8 @@ export function CaseBlogButton({
   const [blog, setBlog] = useState<BlogPost | null>(null);
   const [caseImages, setCaseImages] = useState<CaseImg[]>([]); // 파일명→signedUrl (섹션 썸네일용)
   const [labDates, setLabDates] = useState<LabDate[]>([]); // PDF 추출 검사결과(날짜별) — 좌측 참고 패널
-  const [overviewOpen, setOverviewOpen] = useState(true); // 좌측 케이스 개요 접기/펼치기
-  const [labOpen, setLabOpen] = useState(true); // 좌측 검사결과 접기/펼치기
+  const [overviewOpen, setOverviewOpen] = useState(false); // 좌측 케이스 개요 접기/펼치기 (기본 닫힘)
+  const [labOpen, setLabOpen] = useState(false); // 좌측 검사결과 접기/펼치기 (기본 닫힘)
   const [loadedRunId, setLoadedRunId] = useState<string | null>(null);
   // 하위 단계가 "어떤 입력으로" 생성됐는지 서명(JSON). 입력이 바뀌면 재생성 확인을 띄운다.
   const [outlineBasis, setOutlineBasis] = useState(''); // outline 을 만든 causal 의 서명
@@ -747,7 +749,7 @@ export function CaseBlogButton({
               <div style={{ flex: '3.5 1 0', minWidth: 0, display: 'flex', flexDirection: 'column' }}>
                 <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', display: 'grid', gap: 12, alignContent: 'start' }}>
                   {/* 케이스 개요 카드 — 검사결과 카드와 같은 레벨(카드 안 헤더 토글) */}
-                  <div style={cardBox}>
+                  <div style={refCardBox}>
                     <button
                       type="button"
                       onClick={() => setOverviewOpen((v) => !v)}
@@ -783,23 +785,15 @@ export function CaseBlogButton({
 
               {/* 우 — 단계 편집 */}
               <div style={{ flex: '6.5 1 0', minWidth: 0, display: 'flex', flexDirection: 'column' }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 8 }}>
-                  <span style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text)' }}>
-                    {step === 1 ? '1단계 — 인과 흐름 (검수·수정)'
-                      : step === 2 ? '2단계 — 섹션 아웃라인 (검수·수정)'
-                      : step === 3 ? '3단계 — 블로그 글 (검수·수정)'
-                      : '4단계 — 이미지 (배정·수정)'}
-                  </span>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    {savedMsg ? <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--success)' }}>{savedMsg}</span> : null}
-                    {step === 4 ? (
-                      <button type="button" style={btnSecondary} onClick={() => void genImages()} disabled={busy}>
-                        {genLoading === 4 ? '분석 중…' : '이미지 다시 분석'}
-                      </button>
-                    ) : confirmed ? (
-                      <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)' }}>확정됨 · 수기 수정만 가능</span>
-                    ) : null}
-                  </div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8, minHeight: 24, marginBottom: 8 }}>
+                  {savedMsg ? <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--success)' }}>{savedMsg}</span> : null}
+                  {step === 4 ? (
+                    <button type="button" style={btnSecondary} onClick={() => void genImages()} disabled={busy}>
+                      {genLoading === 4 ? '분석 중…' : '이미지 다시 분석'}
+                    </button>
+                  ) : confirmed ? (
+                    <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)' }}>확정됨 · 수기 수정만 가능</span>
+                  ) : null}
                 </div>
 
                 <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', paddingRight: 4 }}>
@@ -1430,7 +1424,6 @@ function BlogEditor({ blog, setField, outline, imageMeta, generateSection, confi
   generateSection: (args: { mode: 'regenerate' | 'condense'; heading: string; body: string; feedback: string }) => Promise<{ heading: string; body: string } | null>;
   confirmed: boolean;
 }) {
-  const [fullEdit, setFullEdit] = useState(false);
   const [draft, setDraft] = useState<{ index: number; heading: string; body: string } | null>(null); // 인라인 수기 수정 중인 섹션
   const [busy, setBusy] = useState<{ index: number; mode: 'regenerate' | 'condense' } | null>(null); // AI 처리 중인 섹션
   const [regen, setRegen] = useState<{ index: number; text: string } | null>(null); // 다시 생성 피드백 모달
@@ -1455,19 +1448,12 @@ function BlogEditor({ blog, setField, outline, imageMeta, generateSection, confi
 
   return (
     <div style={{ display: 'grid', gap: 12 }}>
-      {/* 상단 바: 총 글자수 + 전체 편집 토글(제목·태그·원본) */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+      {/* 상단 바: 총 글자수 */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8 }}>
         <span style={{ fontSize: 11, fontWeight: 700, color: inRange ? 'var(--success)' : 'var(--danger)' }}>총 {liveCount.toLocaleString()}자 (목표 2,500~3,500)</span>
-        <button
-          type="button"
-          onClick={() => setFullEdit((v) => !v)}
-          style={fullEdit ? { ...btnTiny, background: 'var(--accent)', color: '#fff', borderColor: 'var(--accent)' } : btnTiny}
-        >
-          {fullEdit ? '편집 완료' : '전체 편집'}
-        </button>
       </div>
 
-      {/* 관련 이미지 (아웃라인 연결 · 참고용) — 양 모드 공통 */}
+      {/* 관련 이미지 (아웃라인 연결 · 참고용) */}
       {sectionsWithImages.length > 0 ? (
         <div style={cardBox}>
           <div style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text)', marginBottom: 8 }}>관련 이미지 (아웃라인 연결 · 참고용)</div>
@@ -1486,30 +1472,17 @@ function BlogEditor({ blog, setField, outline, imageMeta, generateSection, confi
         </div>
       ) : null}
 
-      {fullEdit ? (
-        <>
-          <div style={cardBox}>
-            <div style={{ display: 'grid', gap: 3 }}>
-              <span style={fieldLabel}>제목</span>
-              <input value={blog.title} onChange={(e) => setField('title', e.target.value)} style={{ ...inputStyle, fontWeight: 700 }} />
-            </div>
-          </div>
-          <div style={cardBox}>
-            <div style={{ marginBottom: 6 }}><span style={fieldLabel}>본문 (마크다운) — 섹션은 "## 섹션명: 소제목"</span></div>
-            <textarea value={blog.bodyMarkdown} onChange={(e) => setField('bodyMarkdown', e.target.value)} rows={22} style={inputStyle} />
-          </div>
-          <div style={cardBox}>
-            <LabeledTextarea label="태그 (한 줄에 하나)" value={blog.tags.join('\n')} onChange={(v) => setField('tags', v.split('\n').map((t) => t.trim()).filter(Boolean))} rows={2} />
-          </div>
-        </>
-      ) : (
-        <>
-          {/* 제목 — 가장 큰 헤딩 */}
-          <div style={cardBox}>
-            <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--text)', lineHeight: 1.4 }}>{blog.title || '(제목 없음)'}</div>
-          </div>
-          {/* 섹션별 카드 — 제목 라인은 크고 굵은 색 글씨 + [다시 생성/수기 수정/간결화] + 글자수 */}
-          {sections.length ? sections.map((sec, i) => {
+      {/* 제목 — 가장 큰 헤딩(인라인 편집 가능) */}
+      <div style={cardBox}>
+        <input
+          value={blog.title}
+          onChange={(e) => setField('title', e.target.value)}
+          placeholder="제목"
+          style={{ width: '100%', fontSize: 16, fontWeight: 800, color: 'var(--text)', lineHeight: 1.4, border: 'none', outline: 'none', background: 'transparent', padding: 0 }}
+        />
+      </div>
+      {/* 섹션별 카드 — 제목 라인은 크고 굵은 색 글씨 + [다시 생성/수기 수정/간결화] + 글자수 */}
+      {sections.length ? sections.map((sec, i) => {
             const isBusy = busy?.index === i;
             const count = sec.body.trim().length;
             if (draft?.index === i) {
@@ -1550,17 +1523,10 @@ function BlogEditor({ blog, setField, outline, imageMeta, generateSection, confi
           }) : (
             <div style={cardBox}><BlogBody body={blog.bodyMarkdown} /></div>
           )}
-          {/* 태그 칩 */}
-          {blog.tags.length ? (
-            <div style={cardBox}>
-              <span style={fieldLabel}>태그</span>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 6 }}>
-                {blog.tags.map((t, i) => <span key={i} style={tagSticker}>#{t}</span>)}
-              </div>
-            </div>
-          ) : null}
-        </>
-      )}
+          {/* 태그 (편집 가능) */}
+          <div style={cardBox}>
+            <LabeledTextarea label="태그 (한 줄에 하나)" value={blog.tags.join('\n')} onChange={(v) => setField('tags', v.split('\n').map((t) => t.trim()).filter(Boolean))} rows={2} />
+          </div>
 
       {/* 다시 생성 — 피드백 입력 모달 */}
       {regen ? (
