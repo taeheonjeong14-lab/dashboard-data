@@ -798,11 +798,7 @@ export function CaseBlogButton({
                       </button>
                     ) : confirmed ? (
                       <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)' }}>확정됨 · 수기 수정만 가능</span>
-                    ) : (
-                      <button type="button" style={btnSecondary} onClick={() => { if (step === 1) void genCausal(); else if (step === 2) void genOutline(); else void genBlog(); }} disabled={busy}>
-                        {genLoading === step ? '생성 중…' : '다시 생성'}
-                      </button>
-                    )}
+                    ) : null}
                   </div>
                 </div>
 
