@@ -7,7 +7,7 @@ import {
   parseVaccinationRecordsFromBucketLines,
   type ParsedVaccinationRecord,
 } from "@/lib/text-bucketing/vaccination-parse";
-import { parsePlusVetLabBucketLines, isUrinalysisPanelHeaderText } from "@/lib/text-bucketing/plusvet-lab-parse";
+import { parsePlusVetLabBucketLines, isUrinalysisPanelHeaderText, isPlusVetPatientInfoLine } from "@/lib/text-bucketing/plusvet-lab-parse";
 import { parsePlusVetPlanRows } from "@/lib/text-bucketing/plusvet-plan-parse";
 import {
   extractEfriendsLabAndPhysicalExamBuckets,
@@ -3633,7 +3633,26 @@ export async function POST(request: NextRequest) {
     const rawSubjectiveCount = effectivePdfLines.filter((l) => /^subjective\b/i.test((l.text ?? "").trim())).length;
     console.log(`[text-bucketing DEBUG] rawSubjectiveCount(추출단계 진료수)=${rawSubjectiveCount}`);
 
-    const sanitizedLines = [...pasteLines, ...effectivePdfLines];
+    // 플러스벳: 환자정보 블록이 폼필드/주석 레이어라 텍스트레이어(getTextContent)엔 안 잡히는 PDF가 있다
+    // (뷰어에선 선택되지만 콘텐츠 스트림 밖). OCR(페이지 렌더 전사)은 그걸 잡으므로, 텍스트레이어를 쓴 경우
+    // OCR에서 "환자정보 줄"만 골라 앞(basicInfo)으로 보충한다. OCR 미동작 시 자동 no-op.
+    const patientInfoFromOcr: OrderedLine[] = [];
+    if (chartType === "plusvet" && usingTextLayer && ocr.rows.length > 0) {
+      const haveText = new Set(effectivePdfLines.map((l) => (l.text ?? "").replace(/\s+/g, " ").trim()));
+      const seen = new Set<string>();
+      for (const row of ocr.rows) {
+        const t = (row.text ?? "").replace(/\s+/g, " ").trim();
+        if (!t || seen.has(t) || haveText.has(t)) continue;
+        if (!isPlusVetPatientInfoLine(t)) continue;
+        seen.add(t);
+        patientInfoFromOcr.push({ page: row.page, text: t });
+      }
+      if (patientInfoFromOcr.length > 0) {
+        console.log(`[text-bucketing] plusvet 환자정보 OCR 보충: ${patientInfoFromOcr.length}줄`);
+      }
+    }
+
+    const sanitizedLines = [...pasteLines, ...patientInfoFromOcr, ...effectivePdfLines];
 
     stage = "assignLinesToBuckets";
     let buckets = assignLinesToBuckets(sanitizedLines, ocr.rows, chartType);

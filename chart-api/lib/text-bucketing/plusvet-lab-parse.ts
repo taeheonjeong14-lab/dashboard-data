@@ -275,7 +275,7 @@ function numericFromValueText(valueText: string): number | null {
  * p5 "영상 검사 소견" 등에 반복 인쇄되는 환자/병원 메타데이터 줄.
  * "동물 등록 번호 3323" 처럼 숫자로 끝나면 lab 항목으로 오인되므로 제외한다.
  */
-function isPlusVetPatientInfoLine(t: string): boolean {
+export function isPlusVetPatientInfoLine(t: string): boolean {
   if (/^(동물\s*등록\s*번호|동물명|축종|품종|보호자|연락처|주소|나이|성별)(?=$|\s|[\d:：(/])/.test(t)) return true;
   if (/동물병원|동물메디컬센터|동물의료센터/.test(t)) return true;
   if (/\b\d{2,4}-\d{3,4}-\d{4}\b/.test(t)) return true; // 전화번호
