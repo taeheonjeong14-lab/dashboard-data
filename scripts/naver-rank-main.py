@@ -440,6 +440,55 @@ def _normalize_store_name(s: str) -> str:
     return " ".join(s.split())
 
 
+def _place_debug_on() -> bool:
+    """RANK_PLACE_DEBUG 가 켜져 있으면 플레이스 파싱 진단을 stderr 로 출력."""
+    v = (os.getenv("RANK_PLACE_DEBUG") or "").strip().lower()
+    return v in ("1", "true", "yes", "on")
+
+
+def _place_card_name(li) -> str:
+    """
+    카드(li.c1sly / div.wObwH ...)에서 상호명을 뽑는다.
+    네이버가 난독화 클래스(span.jVsoy·span.Ypcqn)를 자주 바꾸므로, 못 찾으면
+    카드 전체 텍스트로 폴백한다. 매칭은 부분일치라 카드 텍스트 안에 상호명이 있으면 잡힌다.
+    """
+    el = li.query_selector("span.jVsoy, span.Ypcqn")
+    if el:
+        t = (el.inner_text() or "").strip()
+        if t:
+            return t
+    # 폴백: 이름 span 을 못 찾음(클래스 변경 등) → 카드 전체 텍스트.
+    try:
+        return (li.inner_text() or "").strip()
+    except Exception:
+        return ""
+
+
+def _store_name_matches(target_norm: str, card_name: str) -> bool:
+    """
+    타깃(정규화된 상호명)이 카드 이름/텍스트와 일치하는지.
+    - 정규화 후 부분일치(양방향)
+    - 공백 위치 차이 무시(네이버 표기 vs DB 등록명): '허브 동물메디컬센터' ↔ '허브동물메디컬센터'
+    짧은 문자열 오탐을 줄이려 역방향(카드명 ⊂ 타깃)은 4자 이상일 때만 허용.
+    """
+    if not target_norm or not card_name:
+        return False
+    nn = _normalize_store_name(card_name)
+    if not nn:
+        return False
+    if target_norm == nn or target_norm in nn or target_norm in card_name:
+        return True
+    td = "".join(target_norm.split())
+    nd = "".join(nn.split())
+    if not td or not nd:
+        return False
+    if td == nd or td in nd:
+        return True
+    if len(nd) >= 4 and nd in td:
+        return True
+    return False
+
+
 def find_place_rank_in_page(page, container_selector: str, store_name: str) -> tuple[int | None, str | None]:
     """
     플레이스 리스트가 있는 페이지에서 '상호명'과 일치하는 항목의 순위(1부터)와 노출 URL을 반환.
@@ -458,9 +507,10 @@ def find_place_rank_in_page(page, container_selector: str, store_name: str) -> t
             if is_place_card_ad(li):
                 continue
             rank += 1
-            name_el = li.query_selector("span.jVsoy, span.Ypcqn")
-            name = (name_el.inner_text() or "").strip() if name_el else ""
-            if _normalize_store_name(name) == target or (target in _normalize_store_name(name)) or (name and target in name):
+            name = _place_card_name(li)
+            if _place_debug_on():
+                print(f"   [place-debug] #{rank} name={name[:60]!r}", file=sys.stderr)
+            if _store_name_matches(target, name):
                 return rank, None  # 플레이스는 URL 수집하지 않음
         return None, None
     except Exception:
@@ -551,6 +601,12 @@ def get_place_ranks_with_pagination(page, keyword: str, targets: list[str]) -> d
                 container_sel = sel
                 break
         if not container_sel:
+            if _place_debug_on():
+                print(
+                    f"   [place-debug] '{keyword}': 플레이스 컨테이너 없음 "
+                    f"(시도한 셀렉터: {SELECTOR_PLACE_CONTAINER}) — 레이아웃이 또 바뀌었을 수 있음",
+                    file=sys.stderr,
+                )
             return result
 
         total_rank_offset = 0
@@ -573,13 +629,13 @@ def get_place_ranks_with_pagination(page, keyword: str, targets: list[str]) -> d
                 if is_place_card_ad(li):
                     continue
                 rank += 1
-                name_el = li.query_selector("span.jVsoy, span.Ypcqn")
-                name = (name_el.inner_text() or "").strip() if name_el else ""
-                nn = _normalize_store_name(name)
+                name = _place_card_name(li)
+                if _place_debug_on():
+                    print(f"   [place-debug] '{keyword}' #{rank} name={name[:60]!r}", file=sys.stderr)
                 for nt, orig in norm_map.items():
                     if result.get(orig) is not None:
                         continue
-                    if nn == nt or (nt and nt in nn) or (name and nt in name):
+                    if _store_name_matches(nt, name):
                         result[orig] = rank
             total_rank_offset = rank
             if all(result.get(o) is not None for o in norm_map.values()):
