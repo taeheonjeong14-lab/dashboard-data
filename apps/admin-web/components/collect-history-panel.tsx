@@ -10,6 +10,7 @@ import {
   Clock,
   FileSpreadsheet,
   RefreshCw,
+  RotateCcw,
   CalendarClock,
   MousePointerClick,
   type LucideIcon,
@@ -131,6 +132,19 @@ function humanizeCollectError(raw?: string): string | null {
   return null;
 }
 
+// 다시 시작 시 재수집할 단계 키 목록을 계산한다.
+// - 단계별 에러가 있으면(부분 실패) 그 실패한 단계만 골라 재시도(성공 단계 불필요 재수집 방지).
+// - 단계별 에러가 없으면(리퍼/타임아웃/크래시로 통째 실패) 원래 잡의 범위(stepsFilter) 그대로 재시도.
+//   stepsFilter 도 없으면 undefined → run API 가 전체 단계로 처리.
+function retrySteps(item: HistoryItem): string[] | undefined {
+  const labelToKey = new Map(COLLECT_STEPS.map((s) => [s.label, s.key]));
+  const failedKeys = (item.failedSteps ?? [])
+    .map((s) => labelToKey.get(s.name))
+    .filter((k): k is string => Boolean(k));
+  if (failedKeys.length > 0) return failedKeys;
+  return item.stepsFilter ?? undefined;
+}
+
 function Badge({ icon: Icon, label, color, bg, border, spin }: Visual) {
   return (
     <span
@@ -175,6 +189,7 @@ export default function CollectHistoryPanel({ hospitals }: { hospitals: ChartHos
   const [items, setItems] = useState<HistoryItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [retryingKey, setRetryingKey] = useState<string | null>(null);
 
   const nameOf = useCallback(
     (hid: string | null) => (hid ? hospitals.find((h) => h.id === hid)?.name_ko ?? hid : '전체 병원'),
@@ -195,6 +210,32 @@ export default function CollectHistoryPanel({ hospitals }: { hospitals: ChartHos
       setLoading(false);
     }
   }, []);
+
+  // 실패한 자동 수집을 다시 큐에 넣는다(실패 단계만, 또는 원래 범위 그대로). 성공 시 목록을 새로고침.
+  const retry = useCallback(
+    async (item: HistoryItem) => {
+      if (!item.hospitalId) return;
+      setRetryingKey(item.key);
+      setError(null);
+      try {
+        const steps = retrySteps(item);
+        const res = await fetch('/api/admin/collect/run', {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ jobs: [{ hospitalId: item.hospitalId, ...(steps ? { steps } : {}) }] }),
+        });
+        const data = (await res.json()) as { ok?: boolean; error?: string };
+        if (!res.ok || !data.ok) throw new Error(data.error ?? '다시 시작에 실패했습니다.');
+        await load();
+      } catch (e) {
+        setError(e instanceof Error ? e.message : '다시 시작에 실패했습니다.');
+      } finally {
+        setRetryingKey(null);
+      }
+    },
+    [load],
+  );
 
   useEffect(() => {
     void load();
@@ -241,6 +282,13 @@ export default function CollectHistoryPanel({ hospitals }: { hospitals: ChartHos
             const src = sourceVisual(item);
             const dur = durationText(item.startedAt, item.finishedAt);
             const isFail = item.status === 'failed' || (item.errorRows ?? 0) > 0 || (item.failedSteps?.length ?? 0) > 0;
+            // 다시 시작: 자동 수집(auto)이고 병원이 지정돼 있으며 실패(또는 일부 단계 실패)한 경우에만.
+            // 경영통계 수동 업로드(manual_stats)는 파일 재업로드가 필요해 재시도 대상이 아니다.
+            const canRetry =
+              item.kind === 'auto' &&
+              !!item.hospitalId &&
+              (item.status === 'failed' || (item.failedSteps?.length ?? 0) > 0);
+            const isRetrying = retryingKey === item.key;
             return (
               <div
                 key={item.key}
@@ -267,7 +315,35 @@ export default function CollectHistoryPanel({ hospitals }: { hospitals: ChartHos
                       {dur && ` · ${dur}`}
                     </span>
                   </div>
-                  <Badge {...sv} />
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                    {canRetry && (
+                      <button
+                        type="button"
+                        onClick={() => void retry(item)}
+                        disabled={isRetrying}
+                        title="이 수집을 다시 실행합니다(실패한 단계 위주)"
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 4,
+                          fontSize: 12,
+                          fontWeight: 600,
+                          color: 'var(--accent)',
+                          background: 'var(--accent-subtle)',
+                          border: '1px solid rgba(29,78,216,0.22)',
+                          borderRadius: 8,
+                          padding: '5px 10px',
+                          cursor: isRetrying ? 'default' : 'pointer',
+                          opacity: isRetrying ? 0.6 : 1,
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        <RotateCcw size={12} className={isRetrying ? 'adminSpin' : undefined} />
+                        {isRetrying ? '요청 중…' : '다시 시작'}
+                      </button>
+                    )}
+                    <Badge {...sv} />
+                  </div>
                 </div>
 
                 {/* 진행 중 항목의 단계별 진행률 바 */}
