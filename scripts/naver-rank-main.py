@@ -489,6 +489,52 @@ def _store_name_matches(target_norm: str, card_name: str) -> bool:
     return False
 
 
+def _expand_place_section(page, container_sel) -> None:
+    """
+    지역형(loc) 플레이스 섹션은 초기 ~5개만 HTML에 그리고 나머지는 스크롤/'더보기' 로 지연 로딩한다.
+    카드 수가 더 안 늘 때까지 (1) 마지막 카드로 스크롤 (2) '더보기' 클릭 을 반복해 전부 로드시킨다.
+    표준 팩(zPw6U)에는 호출하지 않으므로 기존 페이지네이션 동작에는 영향 없음.
+    """
+    try:
+        for _ in range(10):
+            cont = page.query_selector(container_sel)
+            if not cont:
+                return
+            cards = cont.query_selector_all(CARD_PLACE)
+            before = len(cards)
+            # (1) 마지막 카드/섹션 끝으로 스크롤 → 지연 로딩 트리거
+            if cards:
+                try:
+                    cards[-1].scroll_into_view_if_needed(timeout=1500)
+                except Exception:
+                    pass
+            try:
+                page.evaluate("window.scrollBy(0, 1200)")
+            except Exception:
+                pass
+            page.wait_for_timeout(500)
+            # (2) '더보기' 요소가 있으면 클릭(클래스 비의존 — 텍스트로 탐색)
+            cont = page.query_selector(container_sel)
+            if cont:
+                for el in cont.query_selector_all("a, button"):
+                    tt = (el.inner_text() or "").strip()
+                    if tt and "더보기" in tt:
+                        try:
+                            el.click(timeout=1500)
+                            page.wait_for_timeout(700)
+                        except Exception:
+                            pass
+                        break
+            cont = page.query_selector(container_sel)
+            after = len(cont.query_selector_all(CARD_PLACE)) if cont else before
+            if _place_debug_on() and after != before:
+                print(f"   [place-debug] 섹션 확장: 카드 {before} → {after}", file=sys.stderr)
+            if after <= before:
+                return  # 더 안 늘어남 → 전부 로드됨
+    except Exception:
+        return
+
+
 def find_place_rank_in_page(page, container_selector: str, store_name: str) -> tuple[int | None, str | None]:
     """
     플레이스 리스트가 있는 페이지에서 '상호명'과 일치하는 항목의 순위(1부터)와 노출 URL을 반환.
@@ -618,6 +664,10 @@ def get_place_ranks_with_pagination(page, keyword: str, targets: list[str]) -> d
         extra_pages_after_store = int(os.getenv("PLACE_EXTRA_PAGES_AFTER_STORE", "6") or "6")
         pages_after_store = 0
         for _ in range(max_pages):
+            # 지역형(loc) 레이아웃은 초기 ~5개만 그려지고 나머지는 지연 로딩 → 읽기 전에 전부 펼친다.
+            # (표준 팩 zPw6U 는 페이지네이션으로 처리하므로 확장하지 않는다.)
+            if container_sel == "#loc-main-section-root":
+                _expand_place_section(page, container_sel)
             ul = page.query_selector(container_sel)
             if not ul:
                 break
