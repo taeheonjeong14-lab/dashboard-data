@@ -13,7 +13,9 @@ type ProcStep = { step: string; note: string };
 // procedure: #수술 카드의 시술 절차(단계별 {절차, 설명}). detail: #내과 치료 카드의 처방 약 종류(문자열). 그 외 태그면 둘 다 비움.
 type Action = { what: string; why: string; result: string; types: string[]; detail: string; procedure: ProcStep[] };
 type Phase = { id: string; name: string; period: string; actions: Action[]; nextStep: string[] };
-type CausalFlow = { axis: string; anesthesia: boolean; phases: Phase[] };
+// caseType: 케이스 종류. AI가 1단계에서 주질환명·동반질환명 기준으로 판정, 직원이 흐름 요약에서 수정 가능.
+// '' = 미판정(구버전 데이터). 태그 허용 범위를 제한한다(internal/surgical/both).
+type CausalFlow = { axis: string; caseType: string; anesthesia: boolean; phases: Phase[] };
 // tag: 해시태그 섹션이면 ACTION_TYPE 키(exam_dx 등), 고정 서술 섹션(인트로/질환소개/…)이면 ''.
 type Section = { id: string; tag: string; label: string; period: string; points: string[]; facts: string[]; imageFileNames: string[] };
 type CaseImg = { fileName: string; signedUrl: string | null; caption: string };
@@ -170,6 +172,7 @@ function asCausal(raw: unknown): CausalFlow {
   const phases = Array.isArray(o.phases) ? o.phases : [];
   return {
     axis: str(o.axis),
+    caseType: validCaseType(o.caseType),
     anesthesia: o.anesthesia === true,
     phases: phases.map(asPhase),
   };
@@ -209,6 +212,24 @@ const ACTION_TYPE_LABEL: Record<string, string> = {
 const ACTION_TYPE_ORDER = ['intro', 'disease_intro', 'visit_background', 'exam_dx', 'preop', 'surgical', 'medical', 'recovery', 'aftercare', 'other', 'director_note', 'outro', 'faq'];
 // 1단계 행위 카드에 붙일 수 있는 진료 태그(7종). 서술 태그(intro~outro)는 실제 진료 행위가 아니라 여기서 제외.
 const CLINICAL_TAG_ORDER = ['exam_dx', 'preop', 'surgical', 'medical', 'recovery', 'aftercare', 'other'];
+// 케이스 종류(caseType) — 주질환명·동반질환명 기준. 각 종류가 쓸 수 있는 진료 태그를 제한한다.
+const CASE_TYPE_LABEL: Record<string, string> = { internal: '내과', surgical: '수술', both: '내과+수술' };
+const CASE_TYPE_ORDER = ['internal', 'surgical', 'both'];
+function validCaseType(v: unknown): string { const s = String(v ?? '').trim().toLowerCase(); return s in CASE_TYPE_LABEL ? s : ''; }
+const ALLOWED_TAGS_BY_CASETYPE: Record<string, Set<string>> = {
+  internal: new Set(['exam_dx', 'medical', 'aftercare', 'other']),
+  surgical: new Set(['exam_dx', 'preop', 'surgical', 'recovery', 'aftercare', 'other']),
+  both: new Set(['exam_dx', 'preop', 'surgical', 'medical', 'recovery', 'aftercare', 'other']),
+};
+// caseType·카드 규칙에 어긋난 태그 키 목록(경고용, 직원 편집 시 자동 삭제하지 않고 표시만).
+function mismatchedTags(caseType: string, types: string[]): string[] {
+  const out: string[] = [];
+  const allowed = ALLOWED_TAGS_BY_CASETYPE[caseType];
+  if (allowed) for (const t of types) if (CLINICAL_TAG_ORDER.includes(t) && !allowed.has(t)) out.push(t);
+  // 같은 카드에 내과 치료 + 회복 및 경과 확인(내과 경과는 medical에 통합해야 함)
+  if (types.includes('medical') && types.includes('recovery') && !out.includes('recovery')) out.push('recovery');
+  return out;
+}
 // 옛 값 → 신규 키 매핑. 입원·퇴원·술후회복·술후경과확인은 모두 '회복 및 경과 확인'의 한 단계로 흡수.
 const LEGACY_TYPE_MAP: Record<string, string> = { diagnostic: 'exam_dx', diagnosis: 'exam_dx', postop_recovery: 'recovery', postop_followup: 'recovery', admission: 'recovery', discharge: 'recovery' };
 // 외과·내과는 한 행위에 하나만(상호 배타). 둘 다면 외과 우선.
@@ -228,6 +249,7 @@ const actionsKey = (a: Action[]): string => a.map((x) => `${x.what}|${x.why}|${x
 function diffCausal(prev: CausalFlow, next: CausalFlow): string[] {
   const changes: string[] = [];
   if (prev.axis !== next.axis) changes.push('흐름의 축');
+  if (prev.caseType !== next.caseType) changes.push('케이스 종류');
   if (prev.anesthesia !== next.anesthesia) changes.push('마취 동반 여부');
   const n = Math.max(prev.phases.length, next.phases.length);
   for (let i = 0; i < n; i++) {
@@ -898,8 +920,8 @@ function RowTools({ onUp, onDown, onRemove, busy }: { onUp: () => void; onDown: 
 
 // 한 날짜(phase) 카드: 날짜를 제목처럼, 행위별 카드(무엇/왜/결과 + 성격 해시태그),
 // 맨 아래 Next step + 날짜별 다시 생성(피드백 반영).
-function PhaseCard({ p, isLast, busy, regenBusy, onUp, onDown, onRemove, update, onRegen }: {
-  p: Phase; isLast: boolean; busy: boolean; regenBusy: boolean; onUp: () => void; onDown: () => void; onRemove: () => void;
+function PhaseCard({ p, caseType, isLast, busy, regenBusy, onUp, onDown, onRemove, update, onRegen }: {
+  p: Phase; caseType: string; isLast: boolean; busy: boolean; regenBusy: boolean; onUp: () => void; onDown: () => void; onRemove: () => void;
   update: (patch: Partial<Phase>) => void; onRegen: (feedback: string) => void;
 }) {
   const [feedback, setFeedback] = useState('');
@@ -1000,6 +1022,16 @@ function PhaseCard({ p, isLast, busy, regenBusy, onUp, onDown, onRemove, update,
                       </button>
                     ))}
                   </div>
+                  {(() => {
+                    const warn = mismatchedTags(caseType, a.types ?? []);
+                    if (warn.length === 0) return null;
+                    return (
+                      <div style={{ marginTop: 6, fontSize: 11.5, color: 'var(--danger)', display: 'flex', alignItems: 'flex-start', gap: 4 }}>
+                        <span>⚠️</span>
+                        <span>‘{CASE_TYPE_LABEL[caseType] ?? caseType}’ 케이스에 안 맞는 태그: {warn.map((t) => `#${ACTION_TYPE_LABEL[t]}`).join(', ')} — 확인 후 정리해 주세요.</span>
+                      </div>
+                    );
+                  })()}
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 8, alignItems: 'start' }}>
                     <AutoTextarea label="목적" value={a.why} onChange={(v) => updAction(ai, { why: v })} placeholder="임상적 이유" />
                     <AutoTextarea label="결과" value={a.result} onChange={(v) => updAction(ai, { result: v })} placeholder="도출된 결과" />
@@ -1058,6 +1090,9 @@ function PhaseCard({ p, isLast, busy, regenBusy, onUp, onDown, onRemove, update,
                     {ACTION_TYPE_ORDER.filter((t) => (a.types ?? []).includes(t)).map((t) => (
                       <span key={t} style={tagSticker}>#{ACTION_TYPE_LABEL[t]}</span>
                     ))}
+                    {mismatchedTags(caseType, a.types ?? []).length > 0 ? (
+                      <span title={`‘${CASE_TYPE_LABEL[caseType] ?? caseType}’ 케이스에 안 맞는 태그가 있습니다`} style={{ fontSize: 11.5, color: 'var(--danger)', fontWeight: 700 }}>⚠️ 태그 확인</span>
+                    ) : null}
                   </div>
                   {a.why.trim() ? (
                     <div style={{ display: 'flex', gap: 6, marginTop: 6, fontSize: 12.5, color: 'var(--text-secondary)' }}>
@@ -1133,12 +1168,13 @@ function PhaseCard({ p, isLast, busy, regenBusy, onUp, onDown, onRemove, update,
 }
 
 // ── 1단계 에디터 ──
-// 흐름 요약 카드(흐름의 축 + 전신마취): 기본은 읽기 전용, '수기 수정'으로 편집.
-function AxisCard({ axis, anesthesia, busy, setField }: {
-  axis: string; anesthesia: boolean; busy: boolean;
+// 흐름 요약 카드(케이스 종류 + 흐름의 축 + 전신마취): 기본은 읽기 전용, '수기 수정'으로 편집.
+function AxisCard({ axis, caseType, anesthesia, busy, setField }: {
+  axis: string; caseType: string; anesthesia: boolean; busy: boolean;
   setField: <K extends keyof CausalFlow>(k: K, v: CausalFlow[K]) => void;
 }) {
   const [edit, setEdit] = useState(false);
+  const caseLabel = CASE_TYPE_LABEL[caseType] ?? '미판정';
   return (
     <div style={cardBox}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: edit ? 10 : 8 }}>
@@ -1150,6 +1186,14 @@ function AxisCard({ axis, anesthesia, busy, setField }: {
       </div>
       {edit ? (
         <div style={{ display: 'grid', gap: 10 }}>
+          <label style={{ display: 'grid', gap: 4, fontSize: 12.5, color: 'var(--text-secondary)' }}>
+            케이스 종류 (주질환·동반질환 기준 — 태그 허용 범위를 정함)
+            <select value={caseType} onChange={(e) => setField('caseType', e.target.value)}
+              style={{ padding: '6px 8px', borderRadius: 8, border: '1px solid var(--border-strong)', background: '#fff', fontSize: 13 }}>
+              <option value="">미판정</option>
+              {CASE_TYPE_ORDER.map((t) => <option key={t} value={t}>{CASE_TYPE_LABEL[t]}</option>)}
+            </select>
+          </label>
           <LabeledTextarea label="한 줄 요약" value={axis} onChange={(v) => setField('axis', v)} rows={2} />
           <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, color: 'var(--text-secondary)', cursor: 'pointer' }}>
             <input type="checkbox" checked={anesthesia} onChange={(e) => setField('anesthesia', e.target.checked)} style={{ width: 15, height: 15 }} />
@@ -1158,6 +1202,11 @@ function AxisCard({ axis, anesthesia, busy, setField }: {
         </div>
       ) : (
         <div style={{ display: 'grid', gap: 8 }}>
+          <div>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 10px', borderRadius: 999, background: caseType ? 'var(--accent-subtle)' : 'var(--bg-subtle)', border: `1px solid ${caseType ? 'rgba(29,78,216,0.22)' : 'var(--border)'}`, color: caseType ? 'var(--accent)' : 'var(--text-muted)', fontSize: 12, fontWeight: 700 }}>
+              케이스 종류: {caseLabel}
+            </span>
+          </div>
           <div style={{ fontSize: 13.5, color: 'var(--text)', whiteSpace: 'pre-wrap' }}>{axis || '—'}</div>
           <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
             전신마취 동반: <b style={{ color: anesthesia ? 'var(--accent)' : 'var(--text-muted)' }}>{anesthesia ? '예' : '아니오'}</b>
@@ -1178,9 +1227,9 @@ function CausalEditor({ causal, busy, setField, updatePhase, movePhase, addPhase
   if (!causal) return <div style={{ fontSize: 13, color: 'var(--text-muted)', padding: 12 }}>인과 흐름이 없습니다. “다시 생성”을 눌러 주세요.</div>;
   return (
     <div style={{ display: 'grid', gap: 12 }}>
-      <AxisCard axis={causal.axis} anesthesia={causal.anesthesia} busy={busy} setField={setField} />
+      <AxisCard axis={causal.axis} caseType={causal.caseType} anesthesia={causal.anesthesia} busy={busy} setField={setField} />
       {causal.phases.map((p, i) => (
-        <PhaseCard key={p.id} p={p} isLast={i === causal.phases.length - 1} busy={busy || phaseBusy !== null} regenBusy={phaseBusy === i}
+        <PhaseCard key={p.id} p={p} caseType={causal.caseType} isLast={i === causal.phases.length - 1} busy={busy || phaseBusy !== null} regenBusy={phaseBusy === i}
           onUp={() => movePhase(i, -1)} onDown={() => movePhase(i, 1)} onRemove={() => removePhase(i)}
           update={(patch) => updatePhase(i, patch)} onRegen={(fb) => regenPhase(i, fb)} />
       ))}
