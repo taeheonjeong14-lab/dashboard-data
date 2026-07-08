@@ -1527,20 +1527,22 @@ function parseBlogSections(md: string): { heading: string; body: string }[] {
 }
 
 // 블로그 섹션 본문 렌더 — 빈 줄로 문단 분리, "[사진: 설명]" 은 칩으로 표시.
+// grid(justify-items 기본값이 브라우저/preflight에 따라 블록 <p>를 콘텐츠 폭으로 줄여 가운데로
+// 보이는 현상 방지 위해 flex 세로열 + 명시적 좌측정렬/전폭으로 고정.
 function BlogBody({ body }: { body: string }) {
   const blocks = body.split(/\n\s*\n/).map((b) => b.trim()).filter(Boolean);
   return (
-    <div style={{ display: 'grid', gap: 8 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 8, textAlign: 'left' }}>
       {blocks.map((b, i) => {
         const photo = /^\[사진:\s*(.*?)\]$/.exec(b);
         if (photo) {
           return (
-            <div key={i} style={{ justifySelf: 'start', fontSize: 11.5, fontWeight: 600, color: 'var(--text-muted)', background: 'var(--bg-subtle)', border: '1px dashed var(--border-strong)', borderRadius: 6, padding: '4px 10px' }}>
+            <div key={i} style={{ alignSelf: 'flex-start', fontSize: 11.5, fontWeight: 600, color: 'var(--text-muted)', background: 'var(--bg-subtle)', border: '1px dashed var(--border-strong)', borderRadius: 6, padding: '4px 10px' }}>
               📷 {photo[1] || '사진'}
             </div>
           );
         }
-        return <p key={i} style={{ margin: 0, fontSize: 13.5, lineHeight: 1.75, color: 'var(--text)', whiteSpace: 'pre-wrap' }}>{b}</p>;
+        return <p key={i} style={{ margin: 0, width: '100%', fontSize: 13.5, lineHeight: 1.75, color: 'var(--text)', textAlign: 'left', whiteSpace: 'pre-wrap' }}>{b}</p>;
       })}
     </div>
   );
