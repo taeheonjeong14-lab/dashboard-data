@@ -647,6 +647,29 @@ def get_place_ranks_with_pagination(page, keyword: str, targets: list[str]) -> d
                     break
             next_btn = page.query_selector('div.cmm_pgs.x5Efp a.cmm_pg_next:not([aria-disabled="true"])')
             if not next_btn:
+                # 표준 '다음페이지' 버튼이 없음 → 지역형(loc) 레이아웃일 수 있음. '더보기' 요소 후보를
+                # 덤프해서(클래스·href·tag) 지역형 페이지네이션을 구현할 근거를 남긴다.
+                if _place_debug_on():
+                    cont = page.query_selector(container_sel)
+                    cards_n = len(cont.query_selector_all(CARD_PLACE)) if cont else 0
+                    cands = []
+                    scope = cont or page
+                    try:
+                        for el in scope.query_selector_all("a, button"):
+                            tt = (el.inner_text() or "").strip()
+                            if tt and "더보기" in tt:
+                                tag = el.evaluate("e => e.tagName")
+                                cls = el.get_attribute("class") or ""
+                                href = el.get_attribute("href") or ""
+                                role = el.get_attribute("role") or ""
+                                cands.append(f"<{tag} text={tt[:24]!r} class={cls[:60]!r} role={role!r} href={href[:70]!r}>")
+                    except Exception as _e:
+                        cands.append(f"(enum 실패: {_e})")
+                    print(
+                        f"   [place-debug] '{keyword}': 다음버튼 없음 → 멈춤. container={container_sel}, "
+                        f"카드수={cards_n}, 더보기후보={cands if cands else '없음'}",
+                        file=sys.stderr,
+                    )
                 break
             prev_sig = _place_first_card_text(page, container_sel)
             next_btn.click()
