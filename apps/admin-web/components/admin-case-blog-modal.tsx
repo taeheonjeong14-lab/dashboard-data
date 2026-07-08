@@ -1287,6 +1287,57 @@ function OutlineActionChip({ a }: { a: Action }) {
   );
 }
 
+// 내과 치료·회복 및 경과 확인 섹션의 facts 를 시점 타임라인 그룹으로 파싱한다.
+// 규칙: 최상위(들여쓰기 없음) + ":"로 끝나는 줄 = 시점 헤더(노드), 들여쓴 줄 = 그 시점의 변화/처치.
+// 시점 헤더가 하나도 없으면 null → 일반 불릿으로 폴백(구조 안 맞는 데이터 보호).
+function parseTimeline(facts: string[]): { time: string; items: string[] }[] | null {
+  const groups: { time: string; items: string[] }[] = [];
+  let cur: { time: string; items: string[] } | null = null;
+  let sawHeader = false;
+  for (const raw of facts) {
+    if (!raw.trim()) continue;
+    const isSub = /^\s/.test(raw);
+    const text = raw.trim();
+    if (isSub) {
+      if (!cur) { cur = { time: '', items: [] }; groups.push(cur); }
+      cur.items.push(text);
+    } else if (text.endsWith(':')) {
+      sawHeader = true;
+      cur = { time: text.replace(/:$/, '').trim(), items: [] };
+      groups.push(cur);
+    } else {
+      cur = { time: text, items: [] };
+      groups.push(cur);
+    }
+  }
+  return sawHeader ? groups : null;
+}
+
+function TimelineFacts({ groups }: { groups: { time: string; items: string[] }[] }) {
+  return (
+    <div style={{ display: 'grid', gap: 0 }}>
+      {groups.map((g, i) => (
+        <div key={i} style={{ display: 'grid', gridTemplateColumns: '14px 1fr', gap: 9, alignItems: 'stretch' }}>
+          <div style={{ position: 'relative', display: 'flex', justifyContent: 'center' }}>
+            <div style={{ width: 9, height: 9, borderRadius: '50%', background: 'var(--accent)', marginTop: 4, zIndex: 1, flexShrink: 0 }} />
+            {i < groups.length - 1 ? (
+              <div style={{ position: 'absolute', top: 11, bottom: 0, left: '50%', transform: 'translateX(-50%)', width: 2, background: 'var(--border-strong)' }} />
+            ) : null}
+          </div>
+          <div style={{ paddingBottom: i < groups.length - 1 ? 12 : 0 }}>
+            {g.time ? <div style={{ fontSize: 12.5, fontWeight: 800, color: 'var(--text)' }}>{g.time}</div> : null}
+            {g.items.length > 0 ? (
+              <ul style={{ margin: '3px 0 0', paddingLeft: 15, listStyleType: 'circle', display: 'grid', gap: 2 }}>
+                {g.items.map((it, k) => <li key={k} style={{ fontSize: 12.5, color: 'var(--text-secondary)' }}>{it}</li>)}
+              </ul>
+            ) : null}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // 아웃라인 섹션 1개 = 읽기 편한 박스. 기본은 읽기 전용(해시태그 제목 + 핵심요약/팩트 불릿),
 // '수기 수정'으로 편집 모드(태그 선택 + 요약/팩트 입력). 1단계 PhaseCard 와 동일한 UX.
 function SectionCard({ s, i, tagCards, updateSection, moveSection, removeSection, imageMeta }: {
@@ -1372,30 +1423,38 @@ function SectionCard({ s, i, tagCards, updateSection, moveSection, removeSection
                   </ul>
                 ) : <span style={{ fontSize: 12.5, color: 'var(--text-muted)' }}>—</span>}
               </div>
-              {facts.length ? (
-                <div style={{ display: 'grid', gap: 4 }}>
-                  <span style={fieldLabel}>팩트</span>
-                  <ul style={{ ...listUl, color: 'var(--text-secondary)' }}>
-                    {facts.map((f, k) => {
-                      // 앞에 공백이 있으면 2차 불릿(들여쓰기), ":"로 끝나면 그룹 헤더(예: "혈액검사:").
-                      const isSub = /^\s/.test(f);
-                      const text = f.trim();
-                      const isHeader = !isSub && text.endsWith(':');
-                      return (
-                        <li
-                          key={k}
-                          style={{
-                            listStyleType: isSub ? 'circle' : 'disc',
-                            marginLeft: isSub ? 16 : 0,
-                            fontWeight: isHeader ? 700 : 400,
-                            color: isHeader ? 'var(--text)' : 'var(--text-secondary)',
-                          }}
-                        >{text}</li>
-                      );
-                    })}
-                  </ul>
-                </div>
-              ) : null}
+              {facts.length ? (() => {
+                // 내과 치료·회복 및 경과 확인 섹션은 시점 타임라인으로 렌더(시점 헤더가 있을 때만).
+                const timeline = (s.tag === 'medical' || s.tag === 'recovery') ? parseTimeline(facts) : null;
+                return (
+                  <div style={{ display: 'grid', gap: 4 }}>
+                    <span style={fieldLabel}>{timeline ? '경과 타임라인' : '팩트'}</span>
+                    {timeline ? (
+                      <TimelineFacts groups={timeline} />
+                    ) : (
+                      <ul style={{ ...listUl, color: 'var(--text-secondary)' }}>
+                        {facts.map((f, k) => {
+                          // 앞에 공백이 있으면 2차 불릿(들여쓰기), ":"로 끝나면 그룹 헤더(예: "혈액검사:").
+                          const isSub = /^\s/.test(f);
+                          const text = f.trim();
+                          const isHeader = !isSub && text.endsWith(':');
+                          return (
+                            <li
+                              key={k}
+                              style={{
+                                listStyleType: isSub ? 'circle' : 'disc',
+                                marginLeft: isSub ? 16 : 0,
+                                fontWeight: isHeader ? 700 : 400,
+                                color: isHeader ? 'var(--text)' : 'var(--text-secondary)',
+                              }}
+                            >{text}</li>
+                          );
+                        })}
+                      </ul>
+                    )}
+                  </div>
+                );
+              })() : null}
             </>
           )}
           {s.imageFileNames.length > 0 ? (
