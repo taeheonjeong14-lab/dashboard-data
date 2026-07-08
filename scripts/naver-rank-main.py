@@ -2328,6 +2328,15 @@ def main():
             pairs = [(target, kw) for kw in KEYWORDS] if target and KEYWORDS else []
         place_pairs = [(kw, store, None) for kw, store in (read_place_input_excel(input_path) if Path(input_path).exists() else [])]
 
+    # 플레이스 순위만 빠르게 보고 싶을 때(블로그가 먼저 다 돌아 오래 걸림) RANK_SKIP_BLOG=1.
+    if _is_truthy_env("RANK_SKIP_BLOG") and pairs:
+        print(f"⏭️ RANK_SKIP_BLOG=1 — 블로그 순위 {len(pairs)}개 건너뜀(플레이스만 수집)")
+        pairs = []
+    # 반대로 블로그만 보려면 RANK_SKIP_PLACE=1.
+    if _is_truthy_env("RANK_SKIP_PLACE") and place_pairs:
+        print(f"⏭️ RANK_SKIP_PLACE=1 — 플레이스 순위 {len(place_pairs)}개 건너뜀(블로그만 수집)")
+        place_pairs = []
+
     if not pairs and not place_pairs:
         if input_source == "db":
             print("❌ 활성화된 키워드 타깃이 없습니다. analytics.analytics_blog_keyword_targets를 확인하세요.")
