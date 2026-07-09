@@ -90,7 +90,7 @@ async function saveContent(srvc: Srvc, job: ExtractJob, runId: string): Promise<
   if (error) throw new Error(`콘텐츠 저장 실패: ${error.message}`);
 }
 
-type AdditionalDocResult = { filename: string; path: string; bucket: string; mime_type: string; text: string; error?: string };
+type AdditionalDocResult = { filename: string; path: string; bucket: string; mime_type: string; text: string; summary?: string; error?: string };
 
 // 추가 자료(외부 검사 결과서 등) — payload.additional_docs 의 각 파일을 chart-api 로 텍스트 추출.
 // 파일별 실패는 그 파일만 error 로 기록(케이스 추출은 계속). 비전 OCR 비용은 케이스 run 에 귀속해 과금.
@@ -109,9 +109,9 @@ async function enrichAdditionalDocs(job: ExtractJob, runId: string): Promise<Add
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${CHART_API_KEY}` },
         body: JSON.stringify({ storagePath: path, bucket: job.storage_bucket, mimeType, fileName: filename, hospitalId: job.hospital_id, runId }),
       });
-      const data = (await res.json().catch(() => ({}))) as { text?: string; error?: string };
+      const data = (await res.json().catch(() => ({}))) as { text?: string; summary?: string; error?: string };
       if (res.ok && typeof data.text === 'string') {
-        out.push({ filename, path, bucket: job.storage_bucket, mime_type: mimeType, text: data.text });
+        out.push({ filename, path, bucket: job.storage_bucket, mime_type: mimeType, text: data.text, summary: typeof data.summary === 'string' ? data.summary : '' });
       } else {
         out.push({ filename, path, bucket: job.storage_bucket, mime_type: mimeType, text: '', error: data.error || `추출 실패 (${res.status})` });
       }

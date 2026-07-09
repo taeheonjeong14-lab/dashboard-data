@@ -685,7 +685,7 @@ export function CaseImagesSection({ runId, onAddAnalysis }: { runId: string; onA
 
 type ChartTabKey = 'caseOverview' | 'emphasis' | 'additionalDocs' | 'basic' | 'vaccination' | 'chart' | 'plan' | 'lab' | 'vitals' | 'exam' | 'images' | 'debug';
 
-type AdditionalDoc = { filename?: string; path?: string; bucket?: string; mime_type?: string; text?: string; error?: string };
+type AdditionalDoc = { filename?: string; path?: string; bucket?: string; mime_type?: string; text?: string; summary?: string; error?: string };
 
 // 진료케이스(blog_case) 케이스개요 표시용 라벨 — hospital-ui 작성 순서.
 const CASE_OVERVIEW_LABELS: { key: string; label: string }[] = [
@@ -1651,9 +1651,22 @@ export function AdminRunExtractionDetail({
                 {d.error ? (
                   <span style={{ fontSize: 12.5, color: 'var(--danger)' }}>추출 실패: {d.error}</span>
                 ) : (
-                  <div style={{ fontSize: 13, color: (d.text ?? '').trim() ? 'var(--text)' : 'var(--text-muted)', whiteSpace: 'pre-wrap', lineHeight: 1.6, background: 'var(--bg-subtle)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '10px 12px', fontStyle: (d.text ?? '').trim() ? 'normal' : 'italic' }}>
-                    {(d.text ?? '').trim() || '추출된 텍스트가 없습니다.'}
-                  </div>
+                  <>
+                    {(d.summary ?? '').trim() ? (
+                      <div style={{ display: 'grid', gap: 3 }}>
+                        <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--accent)' }}>AI 요약 <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>(진료케이스 생성에 반영되는 내용)</span></span>
+                        <div style={{ fontSize: 13, color: 'var(--text)', whiteSpace: 'pre-wrap', lineHeight: 1.6, background: 'var(--accent-subtle)', border: '1px solid rgba(29,78,216,0.22)', borderRadius: 'var(--radius)', padding: '10px 12px' }}>
+                          {(d.summary ?? '').trim()}
+                        </div>
+                      </div>
+                    ) : null}
+                    <div style={{ display: 'grid', gap: 3 }}>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)' }}>추출 원문</span>
+                      <div style={{ fontSize: 13, color: (d.text ?? '').trim() ? 'var(--text)' : 'var(--text-muted)', whiteSpace: 'pre-wrap', lineHeight: 1.6, background: 'var(--bg-subtle)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '10px 12px', fontStyle: (d.text ?? '').trim() ? 'normal' : 'italic' }}>
+                        {(d.text ?? '').trim() || '추출된 텍스트가 없습니다.'}
+                      </div>
+                    </div>
+                  </>
                 )}
               </div>
             ))
