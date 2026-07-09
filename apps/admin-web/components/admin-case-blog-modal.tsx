@@ -35,6 +35,9 @@ const cardStyle: CSSProperties = {
   background: 'var(--bg-subtle)', borderRadius: 12, width: 'min(1680px, 96vw)',
   maxHeight: '94vh', display: 'flex', flexDirection: 'column', padding: 0,
   boxShadow: '0 10px 40px rgba(0,0,0,0.18)',
+  // ★모달이 렌더되는 위치(예: '작성 이어가기'는 textAlign:center 컨테이너 안)의 정렬을
+  // 상속받지 않도록 좌측정렬을 고정한다. 이게 없으면 1~3단계 본문이 통째로 가운데 정렬됨.
+  textAlign: 'left',
 };
 const btnPrimary: CSSProperties = {
   padding: '8px 14px', fontSize: 13, fontWeight: 700, borderRadius: 8,
