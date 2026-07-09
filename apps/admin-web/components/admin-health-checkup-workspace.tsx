@@ -31,7 +31,7 @@ import { AdminRunExtractionDetail } from '@/components/admin-run-extraction-deta
 import { HealthReportPreviewModal } from '@/components/health-report-preview-modal';
 
 const divider = 'var(--border)';
-const OVER_MAX_WARNING = ' (최대 글자수를 초과하였습니다. 현재 상태로 보고서를 다운로드할 경우 내용이 잘려 나옵니다.)';
+const OVER_MAX_WARNING = ' (권장 최대 글자수를 넘었습니다. 글자수로 자르지는 않지만, 한 페이지를 넘기면 다운로드 시 넘친 부분이 잘릴 수 있어요.)';
 
 const labelGrid: CSSProperties = { fontSize: 13, display: 'grid', gap: 4 };
 
@@ -1074,8 +1074,8 @@ export function AdminHealthCheckupWorkspace({
                 value={draft.overallSummary}
                 onChange={(e) => setDraft((d) => ({ ...d, overallSummary: e.target.value }))}
               />
-              <p style={{ margin: '6px 0 0', fontSize: 12, color: overallLen > HEALTH_CHECKUP_MAX_OVERALL_CHARS ? 'var(--danger)' : 'var(--warning)' }}>
-                {overallLen} / {HEALTH_CHECKUP_MAX_OVERALL_CHARS} (권장 최소 {HEALTH_CHECKUP_MIN_OVERALL_CHARS}자)
+              <p style={{ margin: '6px 0 0', fontSize: 12, color: 'var(--warning)' }}>
+                {overallLen} / 권장 최대 {HEALTH_CHECKUP_MAX_OVERALL_CHARS}자 (권장 최소 {HEALTH_CHECKUP_MIN_OVERALL_CHARS}자)
                 {overallLen > HEALTH_CHECKUP_MAX_OVERALL_CHARS ? OVER_MAX_WARNING : ''}
               </p>
             </div>
@@ -1103,8 +1103,8 @@ export function AdminHealthCheckupWorkspace({
                 value={draft.followUpCare}
                 onChange={(e) => setDraft((d) => ({ ...d, followUpCare: e.target.value }))}
               />
-              <p style={{ margin: '6px 0 0', fontSize: 12, color: followLen > HEALTH_CHECKUP_MAX_FOLLOW_UP_CHARS ? 'var(--danger)' : 'var(--warning)' }}>
-                {followLen} / {HEALTH_CHECKUP_MAX_FOLLOW_UP_CHARS} (권장 최소 {HEALTH_CHECKUP_MIN_FOLLOW_UP_CHARS}자)
+              <p style={{ margin: '6px 0 0', fontSize: 12, color: 'var(--warning)' }}>
+                {followLen} / 권장 최대 {HEALTH_CHECKUP_MAX_FOLLOW_UP_CHARS}자 (권장 최소 {HEALTH_CHECKUP_MIN_FOLLOW_UP_CHARS}자)
                 {followLen > HEALTH_CHECKUP_MAX_FOLLOW_UP_CHARS ? OVER_MAX_WARNING : ''}
               </p>
             </div>
@@ -1145,7 +1145,7 @@ export function AdminHealthCheckupWorkspace({
                       value={cardTitle}
                       onChange={(e) => setRecheckField(key, 'title', e.target.value)}
                     />
-                    <p style={{ margin: 0, fontSize: 11, color: cardTitle.length > HEALTH_CHECKUP_MAX_RECHECK_TITLE_CHARS ? 'var(--danger)' : 'var(--warning)', textAlign: 'right' }}>
+                    <p style={{ margin: 0, fontSize: 11, color: 'var(--warning)', textAlign: 'right' }}>
                       {cardTitle.length} / {HEALTH_CHECKUP_MAX_RECHECK_TITLE_CHARS}
                       {cardTitle.length > HEALTH_CHECKUP_MAX_RECHECK_TITLE_CHARS ? OVER_MAX_WARNING : ''}
                     </p>
@@ -1156,7 +1156,7 @@ export function AdminHealthCheckupWorkspace({
                       value={cardBody}
                       onChange={(e) => setRecheckField(key, 'body', e.target.value)}
                     />
-                    <p style={{ margin: 0, fontSize: 11, color: cardBody.length > HEALTH_CHECKUP_MAX_RECHECK_BODY_CHARS ? 'var(--danger)' : 'var(--warning)', textAlign: 'right' }}>
+                    <p style={{ margin: 0, fontSize: 11, color: 'var(--warning)', textAlign: 'right' }}>
                       {cardBody.length} / {HEALTH_CHECKUP_MAX_RECHECK_BODY_CHARS}
                       {cardBody.length > HEALTH_CHECKUP_MAX_RECHECK_BODY_CHARS ? OVER_MAX_WARNING : ''}
                     </p>
@@ -1244,7 +1244,7 @@ export function AdminHealthCheckupWorkspace({
                           value={row.content}
                           onChange={(e) => setRowContent(e.target.value)}
                         />
-                        <span style={{ fontSize: 11, color: row.content.length > rowMax ? 'var(--danger)' : 'var(--warning)' }}>
+                        <span style={{ fontSize: 11, color: 'var(--warning)' }}>
                           {row.content.length} / {rowMax}
                           {row.content.length > rowMax ? OVER_MAX_WARNING : ''}
                         </span>
@@ -1417,7 +1417,7 @@ export function AdminHealthCheckupWorkspace({
                   }))
                 }
               />
-              <p style={{ margin: '6px 0 0', fontSize: 12, color: (draft.labInterpretation ?? '').length > HEALTH_CHECKUP_LAB_INTERP_MAX_CHARS ? 'var(--danger)' : 'var(--warning)' }}>
+              <p style={{ margin: '6px 0 0', fontSize: 12, color: 'var(--warning)' }}>
                 {(draft.labInterpretation ?? '').length} / {HEALTH_CHECKUP_LAB_INTERP_MAX_CHARS}
                 {(draft.labInterpretation ?? '').length > HEALTH_CHECKUP_LAB_INTERP_MAX_CHARS ? OVER_MAX_WARNING : ''}
               </p>

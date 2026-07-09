@@ -20,13 +20,14 @@ import {
   HEALTH_CHECKUP_MAX_RECHECK_BODY_CHARS,
 } from '@/lib/chart-app/health-checkup-limits';
 
-// 섹션별 최대 글자수 초과분은 PDF·미리보기에서 잘라낸다(에디터 경고와 동일 동작).
+// 섹션별 글자수 상한은 이제 '권장'일 뿐, 글자수로 하드 컷 하지 않는다(clamp 기본 off).
+// 미리보기·PDF 모두 쓴 그대로 렌더하고, 고정 A4(297mm·overflow:hidden) 페이지가 넘침을 물리적으로 잘라낸다.
 const SYSTEMS_P34_ROW_MAX = 320;
 const SYSTEMS_P5_ROW_MAX = 250;
 const LAB_INTERPRETATION_MAX = 250;
 
-// enabled=false 면 자르지 않고 원문 그대로 반환(미리보기는 끝까지 보이도록, PDF만 잘라 인쇄).
-function clampChars(s: string, max: number, enabled = true): string {
+// enabled=false(기본) 면 자르지 않고 원문 그대로 반환. enabled=true 로 명시할 때만 글자수로 컷.
+function clampChars(s: string, max: number, enabled = false): string {
   return enabled && s.length > max ? s.slice(0, max) : s;
 }
 
@@ -233,11 +234,12 @@ export function buildHealthReportPreviewModel(params: {
   source: ReportSourceData;
   generated: HealthCheckupGeneratedContent;
   hospital: HospitalRow | null;
-  /** true(기본): 각 칸 최대 글자수로 자름(PDF 인쇄용). false: 자르지 않고 원문 전체(화면 미리보기용). */
+  /** 기본 false: 자르지 않고 원문 전체(미리보기·PDF 공통, 넘치면 A4 페이지가 물리적으로 잘라냄).
+   *  true 로 명시하면 각 칸 권장 글자수로 하드 컷. 현재는 어느 경로도 true 를 쓰지 않는다. */
   clamp?: boolean;
 }): HealthReportPreviewModel {
   const { source, generated, hospital } = params;
-  const clamp = params.clamp ?? true;
+  const clamp = params.clamp ?? false;
   const t = resolveHospitalReportTemplate(hospital);
   const tokenOverrides = t.tokenOverrides ?? null;
 
