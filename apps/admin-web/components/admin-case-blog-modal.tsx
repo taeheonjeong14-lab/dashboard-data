@@ -1027,11 +1027,16 @@ function PhaseCard({ p, caseType, isLast, busy, regenBusy, onUp, onDown, onRemov
                   </div>
                   {(() => {
                     const warn = mismatchedTags(caseType, a.types ?? []);
-                    if (warn.length === 0) return null;
+                    const afterMid = !isLast && (a.types ?? []).includes('aftercare');
+                    if (warn.length === 0 && !afterMid) return null;
                     return (
                       <div style={{ marginTop: 6, fontSize: 11.5, color: 'var(--danger)', display: 'flex', alignItems: 'flex-start', gap: 4 }}>
                         <span>⚠️</span>
-                        <span>‘{CASE_TYPE_LABEL[caseType] ?? caseType}’ 케이스에 안 맞는 태그: {warn.map((t) => `#${ACTION_TYPE_LABEL[t]}`).join(', ')} — 확인 후 정리해 주세요.</span>
+                        <span>
+                          {warn.length > 0 ? `‘${CASE_TYPE_LABEL[caseType] ?? caseType}’ 케이스에 안 맞는 태그: ${warn.map((t) => `#${ACTION_TYPE_LABEL[t]}`).join(', ')}. ` : ''}
+                          {afterMid ? '#사후 관리 안내는 마지막 날짜에만 붙입니다. ' : ''}
+                          확인 후 정리해 주세요.
+                        </span>
                       </div>
                     );
                   })()}
@@ -1093,8 +1098,8 @@ function PhaseCard({ p, caseType, isLast, busy, regenBusy, onUp, onDown, onRemov
                     {ACTION_TYPE_ORDER.filter((t) => (a.types ?? []).includes(t)).map((t) => (
                       <span key={t} style={tagSticker}>#{ACTION_TYPE_LABEL[t]}</span>
                     ))}
-                    {mismatchedTags(caseType, a.types ?? []).length > 0 ? (
-                      <span title={`‘${CASE_TYPE_LABEL[caseType] ?? caseType}’ 케이스에 안 맞는 태그가 있습니다`} style={{ fontSize: 11.5, color: 'var(--danger)', fontWeight: 700 }}>⚠️ 태그 확인</span>
+                    {(mismatchedTags(caseType, a.types ?? []).length > 0 || (!isLast && (a.types ?? []).includes('aftercare'))) ? (
+                      <span title={`‘${CASE_TYPE_LABEL[caseType] ?? caseType}’ 케이스에 안 맞는 태그 또는 중간 날짜 사후 관리 안내가 있습니다`} style={{ fontSize: 11.5, color: 'var(--danger)', fontWeight: 700 }}>⚠️ 태그 확인</span>
                     ) : null}
                   </div>
                   {a.why.trim() ? (
