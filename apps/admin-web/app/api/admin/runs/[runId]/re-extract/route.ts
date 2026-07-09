@@ -84,6 +84,33 @@ export async function POST(
 
   // 3) 재추출 잡 적재 — token_cost=0(과금 없음) + replace_run_id(덮어쓰기)
   const kind = sourceStorage.product === 'case_blog' ? 'blog_case' : 'hospital_notes';
+
+  // 진료케이스면 기존 "추가 자료" 경로를 잡 payload 에 실어, 워커가 다시 추출·요약하도록 한다.
+  // (이게 없으면 재추출이 원본 차트만 다시 파싱하고 추가 자료·요약은 손대지 않아, 요약이 안 채워짐.)
+  let additionalDocs: Array<{ path: string; filename: string; mime_type: string }> = [];
+  if (kind === 'blog_case') {
+    const { data: gen } = await supabase
+      .schema('health_report')
+      .from('generated_run_content')
+      .select('payload')
+      .eq('parse_run_id', runId)
+      .eq('content_type', 'blog_case')
+      .maybeSingle();
+    const docs = (gen?.payload as { additional_docs?: unknown } | null)?.additional_docs;
+    if (Array.isArray(docs)) {
+      additionalDocs = docs
+        .map((d) => {
+          const dd = (d ?? {}) as Record<string, unknown>;
+          return {
+            path: String(dd.path ?? '').trim(),
+            filename: String(dd.filename ?? '').trim(),
+            mime_type: String(dd.mime_type ?? dd.mimeType ?? '').trim(),
+          };
+        })
+        .filter((d) => d.path);
+    }
+  }
+
   const { data: job, error: jobErr } = await supabase
     .schema('health_report')
     .from('extract_jobs')
@@ -94,7 +121,7 @@ export async function POST(
       kind,
       storage_bucket: sourceStorage.bucket,
       storage_paths: sourceStorage.paths,
-      payload: {},
+      payload: additionalDocs.length ? { additional_docs: additionalDocs } : {},
       status: 'queued',
       token_cost: 0,
       replace_run_id: runId,
