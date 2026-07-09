@@ -2516,6 +2516,25 @@ def main():
     if _blocked_event.is_set():
         print("🛑 네이버 차단/캡차 감지로 수집을 중단했습니다 — 일부만 수집됨. "
               "잠시 후(가능하면 IP/시간대 변경) 재시도하세요.")
+
+    # ★가짜 성공 방지: 수집할 타깃이 있었는데 한 건도 못 모았으면(워커 전멸 — 대개 디버그 Chrome
+    #  연결 실패) 성공(exit 0)으로 끝내지 않고 실패로 종료한다. 그래야 잡이 '완료'가 아니라 '실패'로
+    #  표시되고 수집 내역에 원인(크롬 연결 등)이 드러난다.
+    blog_expected = _blog_valid_count > 0
+    place_expected = bool(place_pairs)
+    if (blog_expected and not results) or (place_expected and not place_results):
+        failed = []
+        if blog_expected and not results:
+            failed.append("블로그")
+        if place_expected and not place_results:
+            failed.append("플레이스")
+        print(
+            f"❌ {'/'.join(failed)} 순위를 한 건도 수집하지 못했습니다 — 워커 전멸(대개 디버그 "
+            f"Chrome(CDP) 연결 실패). 잡을 실패 처리합니다.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
     print("✅ 끝.")
 
 
