@@ -14,8 +14,6 @@ import {
   HEALTH_CHECKUP_MAX_OVERALL_CHARS,
   HEALTH_CHECKUP_MAX_RECHECK_BODY_CHARS,
   HEALTH_CHECKUP_MAX_RECHECK_TITLE_CHARS,
-  HEALTH_CHECKUP_MIN_FOLLOW_UP_CHARS,
-  HEALTH_CHECKUP_MIN_OVERALL_CHARS,
   HEALTH_CHECKUP_MUST_INCLUDE_MAX_CHARS,
   HEALTH_CHECKUP_SYSTEMS_ROW_MAX_CHARS,
 } from '@/lib/health-report-admin/limits';
@@ -1075,7 +1073,7 @@ export function AdminHealthCheckupWorkspace({
                 onChange={(e) => setDraft((d) => ({ ...d, overallSummary: e.target.value }))}
               />
               <p style={{ margin: '6px 0 0', fontSize: 12, color: 'var(--warning)' }}>
-                {overallLen} / 권장 최대 {HEALTH_CHECKUP_MAX_OVERALL_CHARS}자 (권장 최소 {HEALTH_CHECKUP_MIN_OVERALL_CHARS}자)
+                {overallLen} / 권장 최대 글자수 {HEALTH_CHECKUP_MAX_OVERALL_CHARS}
                 {overallLen > HEALTH_CHECKUP_MAX_OVERALL_CHARS ? OVER_MAX_WARNING : ''}
               </p>
             </div>
@@ -1104,7 +1102,7 @@ export function AdminHealthCheckupWorkspace({
                 onChange={(e) => setDraft((d) => ({ ...d, followUpCare: e.target.value }))}
               />
               <p style={{ margin: '6px 0 0', fontSize: 12, color: 'var(--warning)' }}>
-                {followLen} / 권장 최대 {HEALTH_CHECKUP_MAX_FOLLOW_UP_CHARS}자 (권장 최소 {HEALTH_CHECKUP_MIN_FOLLOW_UP_CHARS}자)
+                {followLen} / 권장 최대 글자수 {HEALTH_CHECKUP_MAX_FOLLOW_UP_CHARS}
                 {followLen > HEALTH_CHECKUP_MAX_FOLLOW_UP_CHARS ? OVER_MAX_WARNING : ''}
               </p>
             </div>
@@ -1146,7 +1144,7 @@ export function AdminHealthCheckupWorkspace({
                       onChange={(e) => setRecheckField(key, 'title', e.target.value)}
                     />
                     <p style={{ margin: 0, fontSize: 11, color: 'var(--warning)', textAlign: 'right' }}>
-                      {cardTitle.length} / {HEALTH_CHECKUP_MAX_RECHECK_TITLE_CHARS}
+                      {cardTitle.length} / 권장 최대 글자수 {HEALTH_CHECKUP_MAX_RECHECK_TITLE_CHARS}
                       {cardTitle.length > HEALTH_CHECKUP_MAX_RECHECK_TITLE_CHARS ? OVER_MAX_WARNING : ''}
                     </p>
                     <textarea
@@ -1157,7 +1155,7 @@ export function AdminHealthCheckupWorkspace({
                       onChange={(e) => setRecheckField(key, 'body', e.target.value)}
                     />
                     <p style={{ margin: 0, fontSize: 11, color: 'var(--warning)', textAlign: 'right' }}>
-                      {cardBody.length} / {HEALTH_CHECKUP_MAX_RECHECK_BODY_CHARS}
+                      {cardBody.length} / 권장 최대 글자수 {HEALTH_CHECKUP_MAX_RECHECK_BODY_CHARS}
                       {cardBody.length > HEALTH_CHECKUP_MAX_RECHECK_BODY_CHARS ? OVER_MAX_WARNING : ''}
                     </p>
                   </div>
@@ -1245,7 +1243,7 @@ export function AdminHealthCheckupWorkspace({
                           onChange={(e) => setRowContent(e.target.value)}
                         />
                         <span style={{ fontSize: 11, color: 'var(--warning)' }}>
-                          {row.content.length} / {rowMax}
+                          {row.content.length} / 권장 최대 글자수 {rowMax}
                           {row.content.length > rowMax ? OVER_MAX_WARNING : ''}
                         </span>
                       </label>
@@ -1292,7 +1290,7 @@ export function AdminHealthCheckupWorkspace({
                                   <div>
                                     <textarea rows={3} style={{ width: '100%', padding: 8, fontSize: 13 }} maxLength={200} value={opt.body} onChange={(e) => patchDiseaseOption(k, bi, oi, { body: e.target.value })} />
                                     <span style={{ fontSize: 11, color: opt.body.length > 250 ? 'var(--danger)' : 'var(--text-muted)' }}>
-                                      {opt.body.length} / 200{opt.body.length > 200 ? OVER_MAX_WARNING : ''}
+                                      {opt.body.length} / 권장 최대 글자수 200{opt.body.length > 200 ? OVER_MAX_WARNING : ''}
                                     </span>
                                   </div>
                                 )}
@@ -1418,7 +1416,7 @@ export function AdminHealthCheckupWorkspace({
                 }
               />
               <p style={{ margin: '6px 0 0', fontSize: 12, color: 'var(--warning)' }}>
-                {(draft.labInterpretation ?? '').length} / {HEALTH_CHECKUP_LAB_INTERP_MAX_CHARS}
+                {(draft.labInterpretation ?? '').length} / 권장 최대 글자수 {HEALTH_CHECKUP_LAB_INTERP_MAX_CHARS}
                 {(draft.labInterpretation ?? '').length > HEALTH_CHECKUP_LAB_INTERP_MAX_CHARS ? OVER_MAX_WARNING : ''}
               </p>
             </div>

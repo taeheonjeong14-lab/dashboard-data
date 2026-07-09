@@ -131,15 +131,13 @@ function formatPhone(raw: string): string {
   return `${d.slice(0, 3)}-${d.slice(3, 7)}-${d.slice(7)}`;
 }
 
-function CharCountLine({ current, max, min }: { current: number; max: number; min?: number }) {
+function CharCountLine({ current, max }: { current: number; max: number; min?: number }) {
   const overMax = current > max;
-  const belowMin = !overMax && min !== undefined && current < min;
-  const color = overMax ? '#b91c1c' : belowMin ? '#b45309' : '#a1a1aa';
-  const weight = overMax || belowMin ? '500' : '400';
+  const color = overMax ? '#b45309' : '#a1a1aa';
   return (
-    <p style={{ textAlign: 'right', fontSize: 11, color, fontWeight: weight, fontVariantNumeric: 'tabular-nums', margin: 0 }}>
-      {current} / {max}자{min !== undefined ? ` (최소 ${min}자)` : ''}
-      {overMax ? ' (최대 글자수를 초과하였습니다.)' : ''}
+    <p style={{ textAlign: 'right', fontSize: 11, color, fontWeight: overMax ? '500' : '400', fontVariantNumeric: 'tabular-nums', margin: 0 }}>
+      {current} / 권장 최대 글자수 {max}
+      {overMax ? ' (권장 최대 글자수를 넘었습니다. 페이지를 넘기면 넘친 부분이 잘릴 수 있어요.)' : ''}
     </p>
   );
 }
