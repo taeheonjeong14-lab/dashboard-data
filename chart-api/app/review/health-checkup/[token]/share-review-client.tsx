@@ -97,6 +97,23 @@ function updateRowsBlockOptionBody(
   });
 }
 
+/** 장기 rows 블록의 질환 후보 ON/OFF(diseaseOptions[i].enabled) 갱신.
+ *  외부 검토링크는 admin 이 만든 기존 후보를 켜고 끄기만 한다(새 후보 생성 불가). */
+function updateRowsBlockOptionEnabled(
+  blocks: HealthSystemsReportBlock[],
+  blockIndex: number,
+  optIndex: number,
+  enabled: boolean,
+): HealthSystemsReportBlock[] {
+  return blocks.map((b, bi) => {
+    if (bi !== blockIndex || b.variant !== 'rows' || !b.diseaseOptions) return b;
+    return {
+      ...b,
+      diseaseOptions: b.diseaseOptions.map((o, oi) => (oi === optIndex ? { ...o, enabled } : o)),
+    };
+  });
+}
+
 /** 질환 소개 입력칸을 노출할 페이지(3·4p)만. */
 const DISEASE_BOX_PAGE_KEYS: PageBlocksKey[] = ['systemsPage3Blocks', 'systemsPage3bBlocks', 'systemsPage4Blocks'];
 const DISEASE_BODY_MAX = 200;
@@ -188,6 +205,17 @@ function HealthCheckupReviewEditor({ draft, onChange, onSave, saving, activeSect
   ) => {
     const list = blocksForEdit(draft, pageKey);
     const next = updateRowsBlockOptionBody(list, blockIndex, optIndex, body);
+    onChange({ ...draft, [pageKey]: next });
+  };
+
+  const setSystemsOptionEnabled = (
+    pageKey: PageBlocksKey,
+    blockIndex: number,
+    optIndex: number,
+    enabled: boolean,
+  ) => {
+    const list = blocksForEdit(draft, pageKey);
+    const next = updateRowsBlockOptionEnabled(list, blockIndex, optIndex, enabled);
     onChange({ ...draft, [pageKey]: next });
   };
 
@@ -429,18 +457,33 @@ function HealthCheckupReviewEditor({ draft, onChange, onSave, saving, activeSect
                       <CharCountLine current={row.content.length} max={rowMax} />
                     </div>
                   ))}
-                  {DISEASE_BOX_PAGE_KEYS.includes(key) && (b.diseaseOptions ?? []).some((o) => o.enabled) && (
-                    <div style={{ minWidth: 0, marginTop: 4, paddingTop: 12, borderTop: '1px dashed #e4e4e7', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {DISEASE_BOX_PAGE_KEYS.includes(key) && (b.diseaseOptions ?? []).some((o) => (o.name ?? '').trim()) && (
+                    <div style={{ minWidth: 0, marginTop: 4, paddingTop: 12, borderTop: '1px dashed #e4e4e7', display: 'flex', flexDirection: 'column', gap: 10 }}>
                       <p style={{ fontSize: 11, fontWeight: 600, color: '#52525b', margin: 0 }}>
-                        질환 소개 박스 <span style={{ fontWeight: 400, color: '#a1a1aa' }}>(본문 편집)</span>
+                        질환 소개 박스 <span style={{ fontWeight: 400, color: '#a1a1aa' }}>(표시 여부 토글 · 본문 편집)</span>
                       </p>
                       {(b.diseaseOptions ?? []).map((opt, oi) =>
-                        opt.enabled ? (
-                          <label key={oi} style={{ display: 'block' }}>
-                            <span style={{ display: 'block', fontSize: 11, fontWeight: 500, color: '#52525b', marginBottom: 4 }}>{opt.name}{iranSuffix(opt.name)}?</span>
-                            <textarea className="hcu-rv-textarea" style={{ minHeight: 80 }} maxLength={DISEASE_BODY_MAX} value={opt.body} onChange={(e) => setSystemsOptionBody(key, bi, oi, e.target.value)} />
-                            <CharCountLine current={opt.body.length} max={DISEASE_BODY_MAX} />
-                          </label>
+                        (opt.name ?? '').trim() ? (
+                          <div key={oi} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                            <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 12, fontWeight: 600, color: '#27272a' }}>
+                              <input
+                                type="checkbox"
+                                checked={opt.enabled}
+                                onChange={(e) => setSystemsOptionEnabled(key, bi, oi, e.target.checked)}
+                                style={{ width: 15, height: 15, flexShrink: 0 }}
+                              />
+                              <span>{opt.name}{iranSuffix(opt.name)}?</span>
+                              <span style={{ fontSize: 11, fontWeight: 500, color: opt.enabled ? '#16a34a' : '#a1a1aa' }}>
+                                {opt.enabled ? '표시함' : '숨김'}
+                              </span>
+                            </label>
+                            {opt.enabled ? (
+                              <div>
+                                <textarea className="hcu-rv-textarea" style={{ minHeight: 80 }} maxLength={DISEASE_BODY_MAX} value={opt.body} onChange={(e) => setSystemsOptionBody(key, bi, oi, e.target.value)} />
+                                <CharCountLine current={opt.body.length} max={DISEASE_BODY_MAX} />
+                              </div>
+                            ) : null}
+                          </div>
                         ) : null,
                       )}
                     </div>
