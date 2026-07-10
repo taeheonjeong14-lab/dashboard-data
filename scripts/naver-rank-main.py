@@ -761,13 +761,25 @@ def create_browser_session(playwright, *, headless: bool = True, use_debug_chrom
     """
     if use_debug_chrome:
         endpoint = f"http://127.0.0.1:{debug_port}"
-        try:
-            browser = playwright.chromium.connect_over_cdp(endpoint)
-        except Exception as e:
+        # connect_over_cdp 의 첫 시도가 간헐적으로 실패하는 경우가 있다(크롬은 떠 있는데 웹소켓 연결 실패).
+        # 실측상 첫 워커(블로그)는 실패하고 바로 뒤 워커(플레이스)는 성공하는 패턴 → 짧게 재시도하면 붙는다.
+        browser = None
+        last_err: Exception | None = None
+        max_attempts = int(os.getenv("RANK_CDP_CONNECT_RETRIES", "4") or "4")
+        for attempt in range(1, max_attempts + 1):
+            try:
+                browser = playwright.chromium.connect_over_cdp(endpoint)
+                break
+            except Exception as e:
+                last_err = e
+                if attempt < max_attempts:
+                    print(f"⏳ CDP 연결 재시도 {attempt}/{max_attempts - 1} — {endpoint}", file=sys.stderr)
+                    time.sleep(1.5 * attempt)  # 점증 대기(1.5s → 3s → 4.5s …)
+        if browser is None:
             raise RuntimeError(
-                f"디버깅 Chrome(CDP) 연결 실패: {endpoint}. "
+                f"디버깅 Chrome(CDP) 연결 실패: {endpoint} ({max_attempts}회 재시도). "
                 f"Chrome을 --remote-debugging-port={debug_port}로 실행했는지 확인하세요."
-            ) from e
+            ) from last_err
 
         context = browser.contexts[0] if browser.contexts else browser.new_context()
         context.route("**/*.{png,jpg,jpeg,gif,webp,svg,ico,woff,woff2,ttf,otf,eot}", lambda route: route.abort())
