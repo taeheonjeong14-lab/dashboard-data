@@ -3,6 +3,7 @@
 import { useState, useRef, useCallback, useEffect, type DragEvent, type ChangeEvent } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { compressPdfIfNeeded, PdfCompressError } from '@/lib/pdf-compress';
+import { checkPdfPageLimit } from '@/lib/pdf-pages';
 import { useHospital } from '@/components/shell/hospital-context';
 import { CenteredSpinner } from '@/components/ui/loading-spinner';
 import { SectionTitle, FieldLabel } from '@/components/ui/typography';
@@ -405,6 +406,15 @@ export function CaseTab() {
     setProgressMessage('업로드 URL 생성 중…');
     setErrorMessage('');
 
+    // 업로드 전 페이지 수 검사. 추가 자료(extraDocs)는 chart-api 가 합치지 않으므로 제외한다.
+    setProgressMessage('PDF 페이지 수 확인 중…');
+    const pageCheck = await checkPdfPageLimit(pdfFiles);
+    if (!pageCheck.ok) {
+      setErrorMessage(pageCheck.message);
+      setStage('error');
+      return;
+    }
+
     try {
       // 제출ID — 추출 전(runId 없음)에도 이미지를 이 ID 경로로 올려 연결한다.
       const submissionId = crypto.randomUUID();
@@ -563,8 +573,16 @@ export function CaseTab() {
                         분석 중…
                       </span>
                     ) : item.status === 'error' ? (
-                      <span title={item.errorText} style={{ fontSize: 11, fontWeight: 700, color: 'var(--danger)', background: 'var(--danger-subtle)', padding: '2px 7px', borderRadius: 999, cursor: 'help' }}>
-                        실패
+                      // 사유를 title= 툴팁에만 넣으면 마우스를 올려야 보인다(모바일에선 못 봄). 본문으로 노출한다.
+                      <span style={{ display: 'inline-flex', flexDirection: 'column', gap: 4, alignItems: 'flex-start' }}>
+                        <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--danger)', background: 'var(--danger-subtle)', padding: '2px 7px', borderRadius: 999 }}>
+                          실패
+                        </span>
+                        {item.errorText ? (
+                          <span style={{ color: 'var(--danger)', fontSize: 11, lineHeight: 1.5, maxWidth: 260, whiteSpace: 'normal' }}>
+                            {item.errorText}
+                          </span>
+                        ) : null}
                       </span>
                     ) : (
                       item.patientName || '—'

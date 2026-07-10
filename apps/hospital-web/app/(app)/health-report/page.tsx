@@ -3,6 +3,7 @@
 import { useState, useRef, useCallback, useEffect, useMemo, type DragEvent, type ChangeEvent } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { compressPdfIfNeeded, PdfCompressError } from '@/lib/pdf-compress';
+import { checkPdfPageLimit } from '@/lib/pdf-pages';
 import { useHospital } from '@/components/shell/hospital-context';
 import { CenteredSpinner } from '@/components/ui/loading-spinner';
 import { StickyHeader } from '@/components/ui/sticky-header';
@@ -313,6 +314,16 @@ export default function HealthReportPage() {
     setErrorMessage('');
     setImageWarning('');
 
+    // 업로드 전에 페이지 수부터 본다. 넘치면 chart-api 가 어차피 413 으로 거부하는데,
+    // 그때는 이미 Storage 업로드와 접수를 다 마친 뒤라 사용자가 한참 기다린다.
+    setProgressMessage('PDF 페이지 수 확인 중…');
+    const pageCheck = await checkPdfPageLimit(pdfFiles);
+    if (!pageCheck.ok) {
+      setErrorMessage(pageCheck.message);
+      setStage('error');
+      return;
+    }
+
     try {
       // 제출ID — 추출 전(runId 없음)에도 이미지를 이 ID 경로로 올려 연결한다.
       const submissionId = crypto.randomUUID();
@@ -488,8 +499,16 @@ export default function HealthReportPage() {
                           분석 중…
                         </span>
                       ) : item.status === 'error' ? (
-                        <span title={item.errorText} style={{ display: 'inline-block', padding: '3px 10px', background: 'var(--danger-subtle)', color: 'var(--danger)', borderRadius: '999px', fontSize: '11px', fontWeight: 700, whiteSpace: 'nowrap', cursor: 'help' }}>
-                          실패
+                        // 예전엔 title= 툴팁에만 사유를 넣어, 마우스를 올려야만 보였다(모바일에선 아예 못 봄).
+                        <span style={{ display: 'inline-flex', flexDirection: 'column', gap: '4px', alignItems: 'flex-start' }}>
+                          <span style={{ display: 'inline-block', padding: '3px 10px', background: 'var(--danger-subtle)', color: 'var(--danger)', borderRadius: '999px', fontSize: '11px', fontWeight: 700, whiteSpace: 'nowrap' }}>
+                            실패
+                          </span>
+                          {item.errorText ? (
+                            <span style={{ color: 'var(--danger)', fontSize: '11px', lineHeight: 1.5, maxWidth: '280px', whiteSpace: 'normal' }}>
+                              {item.errorText}
+                            </span>
+                          ) : null}
                         </span>
                       ) : item.shareUrl ? (
                         <a href={item.shareUrl} target="_blank" rel="noopener noreferrer"

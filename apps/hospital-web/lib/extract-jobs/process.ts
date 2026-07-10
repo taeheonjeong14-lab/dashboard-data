@@ -10,6 +10,23 @@ const CHART_API_URL = process.env.CHART_API_URL ?? 'https://chart-api-five.verce
 const CHART_API_KEY = process.env.CHART_API_KEY ?? '';
 const MAX_ATTEMPTS = 3;
 
+/**
+ * 재시도해도 결과가 같은 오류. 예: "PDF가 너무 깁니다 (43페이지)" — 몇 번을 올려도 43페이지다.
+ * 이걸 일시적 오류와 섞어 재시도하면, 그동안 사용자 화면엔 '분석 중…'만 떠서
+ * 정작 고칠 수 있는 원인(페이지 잘라 올리기)을 한참 뒤에야 알게 된다.
+ */
+class PermanentExtractError extends Error {
+  constructor(message: string, readonly status: number) {
+    super(message);
+    this.name = 'PermanentExtractError';
+  }
+}
+
+/** 4xx 는 요청 자체가 잘못된 것 → 재시도 무의미. 단 408(타임아웃)·429(한도)는 시간이 해결한다. */
+export function isPermanentStatus(status: number): boolean {
+  return status >= 400 && status < 500 && status !== 408 && status !== 429;
+}
+
 export type ExtractJob = {
   id: string;
   hospital_id: string;
@@ -63,11 +80,15 @@ async function callChartApiExtract(job: ExtractJob): Promise<string> {
       res.status === 504 ||
       res.status === 408 ||
       /FUNCTION_INVOCATION_TIMEOUT|timeout|timed out/i.test(raw);
-    throw new Error(
-      timedOut
-        ? '파일 용량 초과 - PDF파일이 너무 용량이 크거나 이미지 파일이 너무 많습니다.'
-        : data.error ?? `차트 분석 실패 (${res.status})`,
-    );
+    const message = timedOut
+      ? '파일 용량 초과 - PDF파일이 너무 용량이 크거나 이미지 파일이 너무 많습니다.'
+      : (data.error ?? `차트 분석 실패 (${res.status})`);
+
+    // 페이지 수 초과(413) 같은 4xx 는 재시도해도 같은 결과다. 즉시 확정 실패로 올린다.
+    if (!timedOut && !res.ok && isPermanentStatus(res.status)) {
+      throw new PermanentExtractError(message, res.status);
+    }
+    throw new Error(message);
   }
   return data.runId;
 }
@@ -232,7 +253,9 @@ export async function processExtractJob(jobId: string): Promise<void> {
     }
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    const finalStatus = job.attempts >= MAX_ATTEMPTS ? 'error' : 'queued';
+    // 영구 오류는 남은 재시도 횟수와 무관하게 바로 확정 실패 — 사용자가 곧장 원인을 본다.
+    const permanent = e instanceof PermanentExtractError;
+    const finalStatus = permanent || job.attempts >= MAX_ATTEMPTS ? 'error' : 'queued';
     await srvc
       .schema('health_report')
       .from('extract_jobs')
@@ -240,7 +263,8 @@ export async function processExtractJob(jobId: string): Promise<void> {
       .eq('id', job.id);
     console.error('[extract-job] failed', jobId, `(attempts=${job.attempts}, →${finalStatus})`, msg);
     // 재시도 소진(최종 error)일 때만 운영자에게 알림 — 재시도 가능(queued)은 도배 방지로 제외.
-    if (finalStatus === 'error') {
+    // 영구 오류(4xx)는 사용자 입력 문제(예: 43페이지 PDF)라 운영 장애가 아니다. 종을 울리지 않는다.
+    if (finalStatus === 'error' && !permanent) {
       const source = job.kind === 'blog_case' ? '진료케이스 추출' : '건강검진 추출';
       await notifyAdminError({ source, message: `${msg} · job ${job.id}`, link: '/admin/health-report', hospitalId: job.hospital_id });
     }
