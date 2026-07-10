@@ -18,6 +18,35 @@ interface TopBarProps {
 export function TopBar({ userName, hospitalName, tokenBalance, isMaster = false }: TopBarProps) {
   const router = useRouter();
   const [logoOk, setLogoOk] = useState(true);
+
+  // 서버(layout)가 내려준 값은 첫 페인트용. 레이아웃은 클라이언트 내비게이션에서 다시 렌더되지 않아
+  // 그대로 두면 로그인 시점 잔액이 탭을 닫을 때까지 남는다(토큰을 써도 숫자가 안 줄어든다).
+  // 마운트·탭 복귀·60초마다 다시 읽는다.
+  const [liveBalance, setLiveBalance] = useState<number | undefined>(tokenBalance);
+  useEffect(() => setLiveBalance(tokenBalance), [tokenBalance]);
+  useEffect(() => {
+    let alive = true;
+    const refresh = async () => {
+      try {
+        const res = await fetch('/api/me/token-balance', { cache: 'no-store' });
+        if (!res.ok) return;
+        const json = (await res.json()) as { tokenBalance?: number | null };
+        if (alive && typeof json.tokenBalance === 'number') setLiveBalance(json.tokenBalance);
+      } catch {
+        /* 잔액 갱신 실패는 조용히 무시 — 서버가 내려준 값을 계속 보여준다 */
+      }
+    };
+    void refresh();
+    const onFocus = () => void refresh();
+    window.addEventListener('focus', onFocus);
+    const timer = setInterval(refresh, 60_000);
+    return () => {
+      alive = false;
+      window.removeEventListener('focus', onFocus);
+      clearInterval(timer);
+    };
+  }, []);
+  const shownBalance = liveBalance ?? tokenBalance;
   const [settingsOpen, setSettingsOpen] = useState(false);
   // 설정 모달을 어느 탭으로 열지 — 토큰 박스 클릭 시 '토큰 사용량'으로 바로 진입.
   const [settingsTab, setSettingsTab] = useState<'basic' | 'usage'>('basic');
@@ -124,7 +153,7 @@ export function TopBar({ userName, hospitalName, tokenBalance, isMaster = false 
             }}
           >
             <Coins size={14} />
-            {Math.round(tokenBalance ?? 0).toLocaleString()} 토큰
+            {Math.round(shownBalance ?? 0).toLocaleString()} 토큰
           </button>
         ) : (
           <span
@@ -143,7 +172,7 @@ export function TopBar({ userName, hospitalName, tokenBalance, isMaster = false 
             }}
           >
             <Coins size={14} />
-            {Math.round(tokenBalance ?? 0).toLocaleString()} 토큰
+            {Math.round(shownBalance ?? 0).toLocaleString()} 토큰
           </span>
         )}
         <span
@@ -222,7 +251,7 @@ export function TopBar({ userName, hospitalName, tokenBalance, isMaster = false 
         </button>
       </div>
     </header>
-    <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} tokenBalance={tokenBalance} initialTab={settingsTab} />
+    <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} tokenBalance={shownBalance} initialTab={settingsTab} />
     </>
   );
 }
