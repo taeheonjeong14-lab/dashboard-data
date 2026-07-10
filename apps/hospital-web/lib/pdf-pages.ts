@@ -9,6 +9,20 @@
 
 import { PDFDocument } from 'pdf-lib';
 
+/** chart-api 의 TEXT_BUCKETING_MAX_PAGES 기본값과 같아야 한다. */
+const DEFAULT_MAX_PDF_PAGES = 50;
+
+/**
+ * env 오타로 검사가 뒤집히지 않게 막는다.
+ * `Number('-5') || 50` 은 -5 가 truthy 라 그대로 통과해, 1페이지 PDF 까지 전부 차단해 버린다.
+ * 정수 1 이상만 받고 나머지는 기본값으로 떨어진다.
+ */
+function parsePageLimit(raw: string | undefined): number {
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n < 1) return DEFAULT_MAX_PDF_PAGES;
+  return Math.floor(n);
+}
+
 /**
  * chart-api 의 TEXT_BUCKETING_MAX_PAGES 와 반드시 같은 값이어야 한다.
  *
@@ -18,19 +32,11 @@ import { PDFDocument } from 'pdf-lib';
  *
  * NEXT_PUBLIC_* 는 빌드 시점에 값이 박히므로, 값을 바꾸면 hospital-web 재배포가 필요하다.
  * chart-api 도 마찬가지로 재배포해야 새 env 가 적용된다. 둘을 같이 올릴 것.
+ *
+ * DEFAULT_MAX_PDF_PAGES 선언보다 반드시 뒤에 와야 한다 — const 는 호이스팅되지 않아
+ * 앞에 두면 env 미설정 시 모듈 로드가 ReferenceError 로 죽는다(env 가 있으면 안 터져서 더 위험).
  */
 export const MAX_PDF_PAGES = parsePageLimit(process.env.NEXT_PUBLIC_PDF_MAX_PAGES);
-
-/**
- * env 오타로 검사가 뒤집히지 않게 막는다.
- * `Number('-5') || 40` 은 -5 가 truthy 라 그대로 통과해, 1페이지 PDF 까지 전부 차단해 버린다.
- * 정수 1 이상만 받고 나머지는 기본값으로 떨어진다.
- */
-function parsePageLimit(raw: string | undefined): number {
-  const n = Number(raw);
-  if (!Number.isFinite(n) || n < 1) return 40;
-  return Math.floor(n);
-}
 
 /** 페이지 수를 셀 수 없으면 null. 막지 않고 서버 판정에 맡기기 위함. */
 async function countPages(file: File): Promise<number | null> {

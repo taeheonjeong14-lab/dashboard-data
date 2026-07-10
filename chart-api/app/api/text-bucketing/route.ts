@@ -3507,7 +3507,10 @@ export async function POST(request: NextRequest) {
     }
 
     // 페이지 수 가드 — 너무 많은 페이지는 파싱이 시간(타임아웃)을 초과하므로 파싱 전에 거부.
-    const MAX_PAGES = Number(process.env.TEXT_BUCKETING_MAX_PAGES) || 40;
+    // 기본 50. 실측(2026-07-10, 43페이지): ~180초 / 824MB — maxDuration 800s·메모리 2GB 대비 여유.
+    // Gemini 는 페이지당 1콜이라 시간·메모리·원가 모두 페이지 수에 선형이다.
+    // hospital-web 의 NEXT_PUBLIC_PDF_MAX_PAGES 와 반드시 같은 값이어야 한다.
+    const MAX_PAGES = Number(process.env.TEXT_BUCKETING_MAX_PAGES) || 50;
     try {
       const pageCount = await getPdfPageCount(binary);
       loggedPageCount = pageCount;
