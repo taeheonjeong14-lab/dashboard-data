@@ -11,7 +11,11 @@ const MAX_FILE_SIZE_BYTES = 30 * 1024 * 1024;
 const HOSPITAL_UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-export const maxDuration = 120;
+// 업스트림 chart-api /api/text-bucketing 의 maxDuration(800s)과 맞춘다.
+// 120s 였을 때는 43페이지 PDF(실측 ~180s)가 chart-api 에서 200 으로 성공하는데도
+// 이 프록시가 먼저 끊겨 admin 화면엔 FUNCTION_INVOCATION_TIMEOUT 이 떴다.
+// 운영자는 성공한 작업을 실패로 보고 같은 파일을 다시 올리게 된다.
+export const maxDuration = 800;
 
 type BucketingParsedInput = {
   chartType: ChartKind;
