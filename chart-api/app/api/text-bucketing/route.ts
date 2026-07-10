@@ -3357,6 +3357,11 @@ export async function POST(request: NextRequest) {
 
   console.log("[text-bucketing] POST 수신 content-type:", request.headers.get("content-type"));
 
+  // 페이지 수 한도(MAX_PAGES)를 몇으로 잡을지 정하려면 "N페이지가 몇 초 걸리나"를 알아야 하는데,
+  // 지금까지 그 값을 아무 데도 남기지 않아 매번 추측해 왔다. 아래에서 pages·ms 를 한 줄로 남긴다.
+  const startedAt = Date.now();
+  let loggedPageCount: number | null = null;
+
   let stage = "init"; // 디버그(임시): 크래시 단계 추적
   try {
     const labDebugEnabled = process.env.LAB_DEBUG === "true";
@@ -3505,6 +3510,7 @@ export async function POST(request: NextRequest) {
     const MAX_PAGES = Number(process.env.TEXT_BUCKETING_MAX_PAGES) || 40;
     try {
       const pageCount = await getPdfPageCount(binary);
+      loggedPageCount = pageCount;
       console.log("[text-bucketing] PDF 페이지 수: %d (제한 %d)", pageCount, MAX_PAGES);
       if (pageCount > MAX_PAGES) {
         return Response.json(
@@ -3997,12 +4003,23 @@ export async function POST(request: NextRequest) {
       writeFileSync("C:/Users/tj900/Downloads/bucket-debug.json", JSON.stringify(debugPayload, null, 2), "utf8");
     } catch (_) { /* non-fatal */ }
 
+    console.log(
+      "[text-bucketing] 완료: pages=%s, %dms (제한 %d페이지, maxDuration 800s)",
+      loggedPageCount ?? "?",
+      Date.now() - startedAt,
+      MAX_PAGES,
+    );
     return Response.json({
       runId: saved.runId,
       friendlyId: saved.friendlyId,
       _debug: debugPayload,
     });
   } catch (error) {
+    console.log(
+      "[text-bucketing] 실패: pages=%s, %dms",
+      loggedPageCount ?? "?",
+      Date.now() - startedAt,
+    );
     const openAiDetails = extractOpenAiErrorDetails(error);
     if (openAiDetails) {
       console.error("[text-bucketing] OpenAI API error:", JSON.stringify(openAiDetails));
