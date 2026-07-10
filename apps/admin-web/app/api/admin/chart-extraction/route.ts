@@ -237,6 +237,11 @@ export async function POST(request: NextRequest) {
     const proxyForm = new FormData();
     proxyForm.set('chartType', input.chartType);
     proxyForm.set('hospitalId', input.hospitalId);
+    // admin 추출은 이 차트가 진료케이스가 될지 건강검진이 될지 아직 모른다.
+    // product 를 안 넘기면 chart-api 가 null 로 차감하고, 바른플랜 환불 조건(product 기준)에서 빠져
+    // 바른플랜 병원인데도 토큰이 그대로 빠졌다(정든동물병원 잔액이 음수까지 내려간 원인).
+    // 'admin_extract' 는 바른플랜이면 차감 즉시 환불(net 0), 아니면 정상 과금된다.
+    proxyForm.set('product', 'admin_extract');
     if (input.chartPasteText) proxyForm.set('chartPasteText', input.chartPasteText);
     if (input.efriendsChartBlocks != null) {
       proxyForm.set('efriendsChartBlocksJson', JSON.stringify(input.efriendsChartBlocks));
