@@ -2115,6 +2115,16 @@ _PERSIST_INCREMENTAL = False
 _PERSIST_METRIC_DATE: "str | None" = None
 _PERSIST_BATCH = max(1, int(os.getenv("RANK_PERSIST_BATCH", "5")))
 
+# 워커가 수집 즉시 여기에 쌓는다. future.result(timeout=) 이 터져도 이 버퍼는 살아남는다.
+#
+# 왜 필요한가: ThreadPoolExecutor 는 스레드를 죽이지 못한다. 타임아웃이 나도 `with` 블록을
+# 빠져나갈 때 shutdown(wait=True) 로 워커가 끝날 때까지 어차피 기다린다. 즉 타임아웃은 시간을
+# 아껴주지 못하면서 future 의 반환값만 버렸다. 그 결과 "블로그 0건 → 잡 실패" 오판이 났다.
+# (실제로는 부분 적재로 DB 에 다 들어가 있었다.)
+_shared_results_lock = threading.Lock()
+_shared_blog_results: list = []
+_shared_place_results: list = []
+
 
 def _bump_rank_progress(label: str | None = None) -> None:
     with _progress_lock:
@@ -2211,6 +2221,8 @@ def _worker_blog_chunk(worker_id: int, pairs_chunk: list, use_debug_chrome: bool
                         )
                         print(f"   🏁 경쟁사 블로그(탭): {comp_txt}")
                 chunk_results.append(row)
+                with _shared_results_lock:
+                    _shared_blog_results.append(row)
                 _bump_rank_progress(kw)
                 if _PERSIST_INCREMENTAL:
                     pending.append(row)
@@ -2270,6 +2282,8 @@ def _worker_place_chunk(worker_id: int, place_chunk: list, use_debug_chrome: boo
                         comp_txt = ", ".join(f"{name}:{cr.get(name)}" for (_s, name, _b) in comps) if comps else ""
                         print(f"📌 [{kw} / {store}] 플레이스: {data.get('rank')}위" + (f" | 경쟁사 {comp_txt}" if comp_txt else ""))
                 chunk_results.append(data)
+                with _shared_results_lock:
+                    _shared_place_results.append(data)
                 _bump_rank_progress(f"{kw} / {store}")
                 if _PERSIST_INCREMENTAL:
                     pending.append(data)
@@ -2476,11 +2490,16 @@ def main():
             ]
             for i, future in enumerate(futures):
                 try:
-                    results.extend(future.result(timeout=worker_timeout_sec))
+                    future.result(timeout=worker_timeout_sec)
                 except FutureTimeoutError:
-                    print(f"❌ 워커 {i} 타임아웃 ({worker_timeout_sec}s 초과) — 해당 워커 결과 제외")
+                    # 스레드는 계속 돈다(파이썬은 스레드를 죽일 수 없다). 아래 shutdown(wait=True) 에서
+                    # 어차피 끝날 때까지 기다리므로, 수집분은 공유 버퍼에서 그대로 살아남는다.
+                    print(f"⚠️ 워커 {i} 타임아웃 ({worker_timeout_sec}s 초과) — 계속 진행, 수집분은 유지")
                 except Exception as e:
                     print(f"❌ 워커 {i} 실패: {e}")
+        # 워커가 실제로 모은 것을 쓴다. future 반환값이 아니라 공유 버퍼가 진실이다.
+        with _shared_results_lock:
+            results.extend(_shared_blog_results)
 
     # 플레이스 키워드: 병렬 처리 (블로그와 동일 패턴 — 워커별 독립 세션)
     if place_pairs:
@@ -2495,11 +2514,13 @@ def main():
             ]
             for i, future in enumerate(futures):
                 try:
-                    place_results.extend(future.result(timeout=worker_timeout_sec))
+                    future.result(timeout=worker_timeout_sec)
                 except FutureTimeoutError:
-                    print(f"❌ 플레이스 워커 {i} 타임아웃 ({worker_timeout_sec}s 초과) — 해당 워커 결과 제외")
+                    print(f"⚠️ 플레이스 워커 {i} 타임아웃 ({worker_timeout_sec}s 초과) — 계속 진행, 수집분은 유지")
                 except Exception as e:
                     print(f"❌ 플레이스 워커 {i} 실패: {e}")
+        with _shared_results_lock:
+            place_results.extend(_shared_place_results)
 
     if upload_db and results:
         try:
@@ -2529,9 +2550,10 @@ def main():
         print("🛑 네이버 차단/캡차 감지로 수집을 중단했습니다 — 일부만 수집됨. "
               "잠시 후(가능하면 IP/시간대 변경) 재시도하세요.")
 
-    # ★가짜 성공 방지: 수집할 타깃이 있었는데 한 건도 못 모았으면(워커 전멸 — 대개 디버그 Chrome
-    #  연결 실패) 성공(exit 0)으로 끝내지 않고 실패로 종료한다. 그래야 잡이 '완료'가 아니라 '실패'로
-    #  표시되고 수집 내역에 원인(크롬 연결 등)이 드러난다.
+    # ★가짜 성공 방지: 수집할 타깃이 있었는데 한 건도 못 모았으면 성공(exit 0)으로 끝내지 않는다.
+    #  판단 근거는 공유 버퍼(워커가 실제로 모은 것)다. 예전엔 future 반환값을 봤는데, 워커 타임아웃이
+    #  그 값을 버려서 '멀쩡히 수집된 잡'이 실패로 찍혔다. 0건은 이제 진짜 0건이다.
+    #  원인을 CDP 연결 실패로 단정하지 않는다 — 타임아웃·차단·크롬 부재 모두 여기로 온다.
     blog_expected = _blog_valid_count > 0
     place_expected = bool(place_pairs)
     if (blog_expected and not results) or (place_expected and not place_results):
@@ -2541,8 +2563,9 @@ def main():
         if place_expected and not place_results:
             failed.append("플레이스")
         print(
-            f"❌ {'/'.join(failed)} 순위를 한 건도 수집하지 못했습니다 — 워커 전멸(대개 디버그 "
-            f"Chrome(CDP) 연결 실패). 잡을 실패 처리합니다.",
+            f"❌ {'/'.join(failed)} 순위를 한 건도 수집하지 못했습니다. "
+            f"위 로그에서 워커 실패 사유(디버그 Chrome(CDP) 연결·타임아웃·네이버 차단)를 확인하세요. "
+            f"잡을 실패 처리합니다.",
             file=sys.stderr,
         )
         sys.exit(1)
