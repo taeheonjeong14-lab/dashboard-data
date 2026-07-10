@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { withErrorLog } from '@/lib/with-error-log';
 import { createClient } from '@/lib/supabase/server';
 import { createServiceRoleClient } from '@/lib/supabase/service-role';
 
-export async function PATCH(req: NextRequest): Promise<NextResponse> {
+export const PATCH = withErrorLog({ route: '/api/settings/profile', feature: '내 프로필 저장' }, handlePATCH);
+
+async function handlePATCH(req: NextRequest): Promise<NextResponse> {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: '로그인이 필요합니다.' }, { status: 401 });

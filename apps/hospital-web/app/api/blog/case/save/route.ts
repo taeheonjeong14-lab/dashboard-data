@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { withErrorLog } from '@/lib/with-error-log';
 import { createClient } from '@/lib/supabase/server';
 import { createServiceRoleClient } from '@/lib/supabase/service-role';
 
@@ -28,7 +29,9 @@ function str(v: unknown): string {
   return typeof v === 'string' ? v.trim() : '';
 }
 
-export async function POST(request: NextRequest) {
+export const POST = withErrorLog({ route: '/api/blog/case/save', feature: '진료케이스 저장' }, handlePOST);
+
+async function handlePOST(request: NextRequest) {
   const supabase = await createClient();
   const {
     data: { user },

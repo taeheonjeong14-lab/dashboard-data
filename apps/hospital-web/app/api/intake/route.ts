@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { withErrorLog } from '@/lib/with-error-log';
 import { createServiceRoleClient } from '@/lib/supabase/service-role';
 import { notifyHospitalUsers } from '@/lib/notify';
 import type { IntakeAnswers } from '@/lib/intake/form-spec';
@@ -9,7 +10,9 @@ export const runtime = 'nodejs';
 // 공개 폼이라 브라우저엔 권한이 없으므로 서버(서비스 롤)로만 저장한다.
 type Body = { hospitalId?: string; answers?: IntakeAnswers };
 
-export async function POST(request: NextRequest) {
+export const POST = withErrorLog({ route: '/api/intake', feature: '초진 접수증 제출' }, handlePOST);
+
+async function handlePOST(request: NextRequest) {
   let body: Body;
   try {
     body = (await request.json()) as Body;

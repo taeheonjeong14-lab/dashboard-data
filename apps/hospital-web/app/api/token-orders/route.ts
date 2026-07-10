@@ -1,10 +1,13 @@
 import { NextResponse } from 'next/server';
+import { withErrorLog } from '@/lib/with-error-log';
 import { createClient } from '@/lib/supabase/server';
 
 export const dynamic = 'force-dynamic';
 
 // GET /api/token-orders — 내 병원 토큰 구매 주문 목록
-export async function GET() {
+export const GET = withErrorLog({ route: '/api/token-orders', feature: '토큰 주문 조회' }, handleGET);
+
+async function handleGET() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: '로그인이 필요합니다.' }, { status: 401 });
@@ -14,7 +17,9 @@ export async function GET() {
 }
 
 // POST /api/token-orders — body { packageId } → 주문 생성(pending)
-export async function POST(request: Request) {
+export const POST = withErrorLog({ route: '/api/token-orders', feature: '토큰 충전 주문' }, handlePOST);
+
+async function handlePOST(request: Request) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: '로그인이 필요합니다.' }, { status: 401 });

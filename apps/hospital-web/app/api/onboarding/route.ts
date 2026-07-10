@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { withErrorLog } from '@/lib/with-error-log';
 import { createClient } from '@/lib/supabase/server';
 import { createServiceRoleClient } from '@/lib/supabase/service-role';
 
@@ -18,7 +19,9 @@ async function getMasterHospitalId(): Promise<string | null> {
 }
 
 // GET — 온보딩 프리필용 현재 병원 값
-export async function GET() {
+export const GET = withErrorLog({ route: '/api/onboarding', feature: '온보딩 조회' }, handleGET);
+
+async function handleGET() {
   const hospitalId = await getMasterHospitalId();
   if (!hospitalId) return NextResponse.json({ error: '권한이 없습니다.' }, { status: 403 });
   const srvc = createServiceRoleClient();
@@ -30,7 +33,9 @@ export async function GET() {
 }
 
 // POST — 온보딩 저장 + 완료 처리
-export async function POST(request: NextRequest) {
+export const POST = withErrorLog({ route: '/api/onboarding', feature: '온보딩 저장' }, handlePOST);
+
+async function handlePOST(request: NextRequest) {
   const hospitalId = await getMasterHospitalId();
   if (!hospitalId) return NextResponse.json({ error: '권한이 없습니다.' }, { status: 403 });
 

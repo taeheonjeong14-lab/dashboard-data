@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { withErrorLog } from '@/lib/with-error-log';
 import { createClient } from '@/lib/supabase/server';
 import { createServiceRoleClient } from '@/lib/supabase/service-role';
 import { STATS_UPLOAD_BUCKET, ensureStatsUploadBucket } from '@/lib/stats-upload-storage';
@@ -9,7 +10,9 @@ const ALLOWED_EXT = ['xlsx', 'xls', 'csv'];
  * 경영통계 파일을 Storage 에 직접 올리기 위한 서명 업로드 URL 발급.
  * 클라이언트는 이 URL(토큰)로 파일을 Storage 에 직접 업로드 → Vercel 함수 본문 한도를 우회한다.
  */
-export async function POST(req: NextRequest): Promise<NextResponse> {
+export const POST = withErrorLog({ route: '/api/stats-upload/sign', feature: '경영통계 업로드 서명' }, handlePOST);
+
+async function handlePOST(req: NextRequest): Promise<NextResponse> {
   try {
     const supabase = await createClient();
     const {

@@ -1,11 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { withErrorLog } from '@/lib/with-error-log';
 import { createClient } from '@/lib/supabase/server';
 import { createServiceRoleClient } from '@/lib/supabase/service-role';
 
 export const dynamic = 'force-dynamic';
 
 // POST /api/members/[id] { action: 'approve'|'reject'|'remove' } — Master 가 스태프를 처리
-export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export const POST = withErrorLog<{ params: Promise<{ id: string }> }>(
+  { route: '/api/members/[id]', feature: '구성원 승인·변경' },
+  handlePOST,
+);
+
+async function handlePOST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: '로그인이 필요합니다.' }, { status: 401 });

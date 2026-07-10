@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { withErrorLog } from '@/lib/with-error-log';
 import { createClient } from '@/lib/supabase/server';
 import { createServiceRoleClient } from '@/lib/supabase/service-role';
 
@@ -17,7 +18,9 @@ async function resolveHospitalId(userId: string): Promise<string | null> {
 }
 
 /** 병원 관리 정보 조회 — name/phone/address(읽기전용) + chart_type/vet_count(수정 가능). */
-export async function GET(): Promise<NextResponse> {
+export const GET = withErrorLog({ route: '/api/settings/hospital', feature: '병원 설정 조회' }, handleGET);
+
+async function handleGET(): Promise<NextResponse> {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: '로그인이 필요합니다.' }, { status: 401 });
@@ -64,7 +67,9 @@ export async function GET(): Promise<NextResponse> {
 }
 
 /** chart_type / vet_count 만 수정 (name/phone/address 는 admin 전용이라 여기서 안 받음). */
-export async function PATCH(req: NextRequest): Promise<NextResponse> {
+export const PATCH = withErrorLog({ route: '/api/settings/hospital', feature: '병원 설정 저장' }, handlePATCH);
+
+async function handlePATCH(req: NextRequest): Promise<NextResponse> {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: '로그인이 필요합니다.' }, { status: 401 });

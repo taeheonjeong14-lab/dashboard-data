@@ -1,11 +1,14 @@
 import { NextResponse } from 'next/server';
+import { withErrorLog } from '@/lib/with-error-log';
 import { createClient } from '@/lib/supabase/server';
 import { createServiceRoleClient } from '@/lib/supabase/service-role';
 
 export const dynamic = 'force-dynamic';
 
 // GET /api/notifications — 내 알림 목록(최근 30) + 안읽음 수
-export async function GET() {
+export const GET = withErrorLog({ route: '/api/notifications', feature: '알림 조회' }, handleGET);
+
+async function handleGET() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ notifications: [], unread: 0 });
@@ -19,7 +22,9 @@ export async function GET() {
 }
 
 // POST /api/notifications/read 대신 동일 라우트 POST 로 읽음 처리. body { id? } — id 있으면 그것만, 없으면 전체.
-export async function POST(request: Request) {
+export const POST = withErrorLog({ route: '/api/notifications', feature: '알림 읽음 처리' }, handlePOST);
+
+async function handlePOST(request: Request) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: '로그인이 필요합니다.' }, { status: 401 });

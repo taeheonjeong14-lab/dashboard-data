@@ -1,11 +1,14 @@
 import { NextResponse } from 'next/server';
+import { withErrorLog } from '@/lib/with-error-log';
 import { createClient } from '@/lib/supabase/server';
 import { createServiceRoleClient } from '@/lib/supabase/service-role';
 
 // GET /api/blog/case/list
 // 로그인한 병원이 제출한 진료케이스 목록.
 // content_type='blog_case' 인 generated_run_content 를 이 병원의 parse_run 으로 한정해 반환한다.
-export async function GET() {
+export const GET = withErrorLog({ route: '/api/blog/case/list', feature: '진료케이스 목록' }, handleGET);
+
+async function handleGET() {
   const supabase = await createClient();
   const {
     data: { user },

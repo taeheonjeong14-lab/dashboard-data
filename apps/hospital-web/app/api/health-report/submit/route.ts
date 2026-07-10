@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse, after } from 'next/server';
+import { withErrorLog } from '@/lib/with-error-log';
 import { createClient } from '@/lib/supabase/server';
 import { createServiceRoleClient } from '@/lib/supabase/service-role';
 import { processExtractJob } from '@/lib/extract-jobs/process';
@@ -35,7 +36,9 @@ type Body = {
 
 const str = (v: unknown): string => (typeof v === 'string' ? v.trim() : '');
 
-export async function POST(request: NextRequest) {
+export const POST = withErrorLog({ route: '/api/health-report/submit', feature: '건강검진 제출' }, handlePOST);
+
+async function handlePOST(request: NextRequest) {
   const supabase = await createClient();
   const {
     data: { user },

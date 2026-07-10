@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { withErrorLog } from '@/lib/with-error-log';
 import { createServiceRoleClient } from '@/lib/supabase/service-role';
 import { processExtractJob } from '@/lib/extract-jobs/process';
 
@@ -11,7 +12,9 @@ const MAX_ATTEMPTS = 3;
 const STALE_SECONDS = 900; // 15분 이상 멈춘 processing 은 죽은 것으로 간주
 const BATCH = 3;
 
-export async function GET(request: NextRequest) {
+export const GET = withErrorLog({ route: '/api/cron/process-extract-jobs', feature: '재추출 잡 처리(크론)' }, handleGET);
+
+async function handleGET(request: NextRequest) {
   const secret = process.env.CRON_SECRET;
   if (secret) {
     const auth = request.headers.get('authorization');

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { withErrorLog } from '@/lib/with-error-log';
 import { createClient } from '@/lib/supabase/server';
 import { createServiceRoleClient } from '@/lib/supabase/service-role';
 
@@ -8,7 +9,9 @@ export const maxDuration = 60;
 const BUCKET = process.env.SUPABASE_HOSPITAL_ASSETS_BUCKET?.trim() || 'hospital-assets';
 
 // POST (multipart: file) — 마스터가 온보딩에서 병원 로고 업로드 → hospital-assets(공개) → logoUrl 갱신
-export async function POST(request: NextRequest) {
+export const POST = withErrorLog({ route: '/api/onboarding/logo', feature: '온보딩 로고 업로드' }, handlePOST);
+
+async function handlePOST(request: NextRequest) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: '로그인이 필요합니다.' }, { status: 401 });

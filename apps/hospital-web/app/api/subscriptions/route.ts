@@ -1,10 +1,13 @@
 import { NextResponse } from 'next/server';
+import { withErrorLog } from '@/lib/with-error-log';
 import { createClient } from '@/lib/supabase/server';
 
 export const dynamic = 'force-dynamic';
 
 // GET /api/subscriptions — 내 병원 구독/메뉴 상태(바른플랜·잔액·구독상품)
-export async function GET() {
+export const GET = withErrorLog({ route: '/api/subscriptions', feature: '구독 조회' }, handleGET);
+
+async function handleGET() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: '로그인이 필요합니다.' }, { status: 401 });
@@ -14,7 +17,9 @@ export async function GET() {
 }
 
 // POST /api/subscriptions — body { productCode, action?: 'subscribe'|'cancel' }
-export async function POST(request: Request) {
+export const POST = withErrorLog({ route: '/api/subscriptions', feature: '구독 변경' }, handlePOST);
+
+async function handlePOST(request: Request) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: '로그인이 필요합니다.' }, { status: 401 });

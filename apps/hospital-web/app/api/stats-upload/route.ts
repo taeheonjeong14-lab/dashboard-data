@@ -11,6 +11,7 @@ import {
 } from '@dashboard/chart-ingest';
 import { STATS_UPLOAD_BUCKET } from '@/lib/stats-upload-storage';
 import { notifyAdminError } from '@/lib/notify';
+import { withErrorLog } from '@/lib/with-error-log';
 
 export const maxDuration = 300;
 
@@ -21,7 +22,7 @@ type ChartType = (typeof SUPPORTED_CHART_TYPES)[number];
  * 경영통계 처리. 클라이언트가 Storage 에 직접 올린 파일의 경로(storagePath)를 받아
  * 서버에서 다운로드 → 파싱 → DB 저장 → 스테이징 파일 삭제. (파일이 함수 본문을 거치지 않아 본문 한도 무관)
  */
-export async function POST(req: NextRequest): Promise<NextResponse> {
+async function handlePOST(req: NextRequest): Promise<NextResponse> {
   try {
     // Auth — get user session
     const supabase = await createClient();
@@ -168,3 +169,5 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: '서버 오류가 발생했습니다.' }, { status: 500 });
   }
 }
+
+export const POST = withErrorLog({ route: '/api/stats-upload', feature: '경영통계 업로드' }, handlePOST);

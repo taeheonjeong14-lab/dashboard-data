@@ -1,11 +1,14 @@
 import { NextResponse } from 'next/server';
+import { withErrorLog } from '@/lib/with-error-log';
 import { createClient } from '@/lib/supabase/server';
 import { createServiceRoleClient } from '@/lib/supabase/service-role';
 
 export const dynamic = 'force-dynamic';
 
 // GET /api/members — 내 병원의 멤버 목록 (Master 전용)
-export async function GET() {
+export const GET = withErrorLog({ route: '/api/members', feature: '구성원 목록' }, handleGET);
+
+async function handleGET() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: '로그인이 필요합니다.' }, { status: 401 });

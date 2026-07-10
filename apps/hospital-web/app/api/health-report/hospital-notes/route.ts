@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { withErrorLog } from '@/lib/with-error-log';
 import { createClient } from '@/lib/supabase/server';
 import { createServiceRoleClient } from '@/lib/supabase/service-role';
 
@@ -10,7 +11,12 @@ type Body = { runId?: string; emphasisText?: string; imagePaths?: string[] };
 //
 // 브라우저 authenticated 롤은 이 테이블에 INSERT/UPDATE 권한이 없어(SELECT 만 grant)
 // 클라이언트 직접 upsert 가 조용히 실패하던 문제를 서비스 롤 서버 라우트로 해결.
-export async function POST(request: NextRequest) {
+export const POST = withErrorLog(
+  { route: '/api/health-report/hospital-notes', feature: '건강검진 병원 강조사항' },
+  handlePOST,
+);
+
+async function handlePOST(request: NextRequest) {
   const supabase = await createClient();
   const {
     data: { user },

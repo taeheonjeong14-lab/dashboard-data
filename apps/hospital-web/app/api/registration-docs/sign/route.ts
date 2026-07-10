@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { withErrorLog } from '@/lib/with-error-log';
 import { createClient } from '@/lib/supabase/server';
 import { createServiceRoleClient } from '@/lib/supabase/service-role';
 
@@ -10,7 +11,9 @@ const ALLOWED_EXT = new Set(['pdf', 'jpg', 'jpeg', 'png', 'webp']);
 // POST /api/registration-docs/sign — 병원 등록 서류(사업자등록증·수의사신고필증) 서명 업로드 URL.
 // 가입 직후(미승인) 마스터 본인이 업로드. 병원이 아직 없으므로 경로는 userId 로 scope.
 // 클라이언트는 signUp 직후 로그인해 세션을 확보한 뒤 호출한다.
-export async function POST(request: NextRequest) {
+export const POST = withErrorLog({ route: '/api/registration-docs/sign', feature: '사업자 서류 업로드' }, handlePOST);
+
+async function handlePOST(request: NextRequest) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: '로그인이 필요합니다.' }, { status: 401 });

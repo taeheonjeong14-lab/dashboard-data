@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { withErrorLog } from '@/lib/with-error-log';
 import { createServiceRoleClient } from '@/lib/supabase/service-role';
 
 // GET /api/intake/survey-match?hospitalId=xxx&contact=010... (공개 — 초진 접수 폼이 호출)
@@ -25,7 +26,9 @@ type Match = {
   ageText: string;
 };
 
-export async function GET(request: NextRequest) {
+export const GET = withErrorLog({ route: '/api/intake/survey-match', feature: '초진 접수 설문 매칭' }, handleGET);
+
+async function handleGET(request: NextRequest) {
   const sp = request.nextUrl.searchParams;
   const hospitalId = sp.get('hospitalId')?.trim();
   const contact = sp.get('contact')?.trim();

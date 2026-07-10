@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { withErrorLog } from '@/lib/with-error-log';
 import { createClient } from '@/lib/supabase/server';
 import { createServiceRoleClient } from '@/lib/supabase/service-role';
 import { resolveHospitalKakao } from '@/lib/kakao-template';
@@ -46,7 +47,9 @@ function formatScheduledLabel(raw: string): string {
   return `${m[1]}.${String(Number(m[2])).padStart(2, '0')}.${String(Number(m[3])).padStart(2, '0')}`;
 }
 
-export async function POST(request: NextRequest) {
+export const POST = withErrorLog({ route: '/api/surveys/send-kakao', feature: '사전문진 알림톡 발송' }, handlePOST);
+
+async function handlePOST(request: NextRequest) {
   let body: Record<string, unknown>;
   try {
     body = (await request.json()) as Record<string, unknown>;

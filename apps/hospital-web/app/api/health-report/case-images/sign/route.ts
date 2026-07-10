@@ -1,4 +1,5 @@
 import { randomUUID } from 'crypto';
+import { withErrorLog } from '@/lib/with-error-log';
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { createServiceRoleClient } from '@/lib/supabase/service-role';
@@ -16,7 +17,12 @@ const UUIDISH = /^[0-9a-zA-Z][0-9a-zA-Z_-]{7,63}$/;
 // POST /api/health-report/case-images/sign
 // 병원 제출 이미지용 서명 업로드 URL 발급(서비스 롤). 브라우저는 받은 토큰으로 스토리지에 직접 업로드한다.
 // 직접 업로드라 Vercel 함수 본문(4.5MB) 제한을 우회하고, case-image 버킷의 클라이언트 RLS 에도 의존하지 않는다.
-export async function POST(request: NextRequest) {
+export const POST = withErrorLog(
+  { route: '/api/health-report/case-images/sign', feature: '진료케이스 이미지 업로드' },
+  handlePOST,
+);
+
+async function handlePOST(request: NextRequest) {
   const supabase = await createClient();
   const {
     data: { user },
