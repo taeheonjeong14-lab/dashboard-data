@@ -15,14 +15,19 @@ export type ExplainInput = {
 
 /** 메시지 본문에서 원인 유형을 추린다. 위에서부터 먼저 맞는 것을 쓴다. */
 const CAUSE_RULES: Array<[RegExp, string]> = [
+  [/너무 깁니다|페이지까지만/i, 'PDF 페이지 수가 한도를 넘었습니다'],
+  [/용량 초과|파일 크기|너무 큽니다/i, '파일 용량이 한도를 넘었습니다'],
   [/timeout|timed out|ETIMEDOUT|시간 초과/i, '처리 시간이 초과됐습니다'],
   [/fetch failed|ECONNREFUSED|ENOTFOUND|socket hang up|network/i, '외부 서비스에 연결하지 못했습니다'],
   [/unauthorized|not authenticated|401/i, '로그인이 풀렸거나 인증되지 않았습니다'],
   [/forbidden|permission|not allowed|403/i, '권한이 없습니다'],
   [/not found|does not exist|404/i, '대상을 찾지 못했습니다'],
   [/duplicate key|already exists|unique constraint/i, '이미 등록된 데이터와 충돌했습니다'],
+  // 저장소 규칙이 DB 규칙보다 먼저다. "Supabase storage download failed" 는 DB 가 아니라 파일 문제인데,
+  // 'supabase' 가 DB 규칙에 먼저 걸려 엉뚱한 설명이 나갔다.
+  // 'bucket' 은 쓰지 않는다 — chart-api 의 "Text bucket pipeline failed" 이 오검출된다(버켓팅 ≠ 저장소).
+  [/storage|저장소/i, '파일 저장소 처리에 실패했습니다'],
   [/violates|constraint|PGRST|supabase|database/i, '데이터베이스에 저장하지 못했습니다'],
-  [/storage|bucket|upload/i, '파일 저장소 처리에 실패했습니다'],
   [/unexpected token|JSON|parse|malformed|invalid format/i, '데이터 형식이 올바르지 않습니다'],
   [/토큰|token_balance|잔액|insufficient/i, '토큰 잔액이 부족하거나 차감에 실패했습니다'],
   [/quota|rate limit|429/i, '요청 한도를 초과했습니다'],
@@ -60,7 +65,13 @@ export function explainError(input: ExplainInput): string {
   }
 
   const subject = subjectOf(input);
-  return cause
-    ? `병원 사용자가 ${subject} 작업을 하다 실패했습니다 — ${cause}.`
-    : `병원 사용자가 ${subject} 작업을 하다 서버 오류로 실패했습니다.`;
+  if (cause) return `병원 사용자가 ${subject} 작업을 하다 실패했습니다 — ${cause}.`;
+
+  // 4xx 는 서버가 고장난 게 아니라 요청이 거부된 것이다. '서버 오류' 라고 쓰면 원인을 오도한다.
+  // (408 타임아웃·429 한도는 위 CAUSE_RULES 에서 이미 걸러진다.)
+  const s = input.status_code;
+  if (s && s >= 400 && s < 500) {
+    return `병원 사용자가 ${subject} 작업을 시도했으나 요청이 거부됐습니다 (HTTP ${s}).`;
+  }
+  return `병원 사용자가 ${subject} 작업을 하다 서버 오류로 실패했습니다.`;
 }

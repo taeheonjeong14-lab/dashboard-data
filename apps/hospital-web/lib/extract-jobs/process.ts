@@ -2,6 +2,7 @@
 import { setGlobalDispatcher, Agent } from 'undici';
 import { createServiceRoleClient } from '@/lib/supabase/service-role';
 import { notifyAdminError } from '@/lib/notify';
+import { logError } from '@/lib/error-log';
 
 // chart-api 추출은 오래 걸리므로 fetch 타임아웃을 800초로(undici 기본 300초 우회).
 setGlobalDispatcher(new Agent({ headersTimeout: 800_000, bodyTimeout: 800_000, connectTimeout: 20_000 }));
@@ -262,11 +263,29 @@ export async function processExtractJob(jobId: string): Promise<void> {
       .update({ status: finalStatus, error_text: msg, updated_at: new Date().toISOString() })
       .eq('id', job.id);
     console.error('[extract-job] failed', jobId, `(attempts=${job.attempts}, →${finalStatus})`, msg);
+
+    // admin 에러 로그(core.error_logs)에도 남긴다.
+    // 이 잡은 라우트가 아니라 백그라운드 워커라, 라우트 래퍼도 instrumentation 도 잡지 못한다.
+    // 그런데 병원에서 가장 자주 나는 실패가 바로 여기(예: 43페이지 PDF)라 로그가 비어 있었다.
+    // 재시도까지 전부 남긴다 — 몇 번 만에 포기했는지가 진단에 필요하다.
+    const feature = job.kind === 'blog_case' ? '진료케이스 추출' : '건강검진 추출';
+    await logError({
+      source: 'server',
+      route: `extract-job/${job.kind}`,
+      feature,
+      statusCode: permanent ? (e as PermanentExtractError).status : null,
+      message: msg,
+      stack: e instanceof Error ? (e.stack ?? null) : null,
+      hospitalId: job.hospital_id,
+      userId: job.user_id,
+      // payload 에는 개요·강조사항 등 진료 서술이 들어 있어 통째로 싣지 않는다.
+      context: { jobId: job.id, kind: job.kind, attempts: job.attempts, finalStatus, permanent, pdfCount: job.storage_paths?.length ?? 0 },
+    });
+
     // 재시도 소진(최종 error)일 때만 운영자에게 알림 — 재시도 가능(queued)은 도배 방지로 제외.
     // 영구 오류(4xx)는 사용자 입력 문제(예: 43페이지 PDF)라 운영 장애가 아니다. 종을 울리지 않는다.
     if (finalStatus === 'error' && !permanent) {
-      const source = job.kind === 'blog_case' ? '진료케이스 추출' : '건강검진 추출';
-      await notifyAdminError({ source, message: `${msg} · job ${job.id}`, link: '/admin/health-report', hospitalId: job.hospital_id });
+      await notifyAdminError({ source: feature, message: `${msg} · job ${job.id}`, link: '/admin/health-report', hospitalId: job.hospital_id });
     }
   }
 }
