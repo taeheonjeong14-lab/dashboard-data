@@ -4,6 +4,7 @@ import type { ComponentType, ReactElement } from 'react';
 import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
 import {
+  AlertTriangle,
   BarChart2,
   FileText,
   HeartPulse,
@@ -74,6 +75,7 @@ const NAV_GROUPS: NavGroup[] = [
       { href: '/admin/users/hospitals', label: '병원 관리', icon: Building2, matchPrefix: '/admin/users/hospitals' },
       { href: '/admin/feature-usage', label: '사용 현황', icon: Activity, matchPrefix: '/admin/feature-usage' },
       { href: '/admin/usage', label: '토큰 관리', icon: Gauge, matchPrefix: '/admin/usage' },
+      { href: '/admin/error-logs', label: '에러 로그', icon: AlertTriangle, matchPrefix: '/admin/error-logs' },
     ],
   },
 ];
