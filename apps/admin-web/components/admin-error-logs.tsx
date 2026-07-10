@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { explainError } from '@/lib/error-log-explain';
 
 type ErrorLog = {
   id: string;
@@ -201,7 +202,10 @@ export default function AdminErrorLogs() {
                     {log.method} {log.status_code}
                   </span>
                 ) : null}
-                <span style={{ fontSize: 13, fontWeight: 600, flex: '1 1 320px' }}>{log.message}</span>
+                <span style={{ display: 'flex', flexDirection: 'column', gap: 2, flex: '1 1 320px', minWidth: 0 }}>
+                  <span style={{ fontSize: 13, fontWeight: 600 }}>{log.message}</span>
+                  <span style={{ fontSize: 12, color: '#4b5563', fontWeight: 400 }}>{explainError(log)}</span>
+                </span>
                 <span style={{ fontSize: 12, color: '#6b7280' }}>{log.feature ?? log.route ?? '-'}</span>
                 <span style={{ fontSize: 12, color: '#9ca3af' }}>{log.hospital_name ?? '병원 미상'}</span>
                 <span style={{ fontSize: 12, color: '#9ca3af' }}>{formatTime(log.occurred_at)}</span>
