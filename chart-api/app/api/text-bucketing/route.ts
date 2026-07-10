@@ -3999,9 +3999,17 @@ export async function POST(request: NextRequest) {
         lab: buckets.lab.map((l) => `p${l.page}: ${l.text}`),
       },
     };
-    try {
-      writeFileSync("C:/Users/tj900/Downloads/bucket-debug.json", JSON.stringify(debugPayload, null, 2), "utf8");
-    } catch (_) { /* non-fatal */ }
+    // 로컬 디버그 덤프. 예전엔 특정 개발자의 Downloads 경로가 하드코딩돼 있었다.
+    // Vercel 은 파일시스템이 읽기 전용이라 조용히 실패해 왔을 뿐, 서버 코드에 남을 이유가 없다.
+    // 이제 BUCKET_DEBUG_FILE 로 경로를 준 경우에만 쓴다.
+    const debugFile = process.env.BUCKET_DEBUG_FILE?.trim();
+    if (debugFile) {
+      try {
+        writeFileSync(debugFile, JSON.stringify(debugPayload, null, 2), "utf8");
+      } catch (e) {
+        console.log("[text-bucketing] 디버그 덤프 실패(무시):", (e as Error)?.message);
+      }
+    }
 
     console.log(
       "[text-bucketing] 완료: pages=%s, %dms (제한 %d페이지, maxDuration 800s)",
