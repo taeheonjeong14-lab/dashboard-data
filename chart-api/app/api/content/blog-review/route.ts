@@ -3,8 +3,9 @@
  * 3모델 앙상블 + 집계(chart-app/blog-review) → 신호등·게이트 판정(@dashboard/blog-review-rubric).
  * 과금 feature='blog_review' → product 'case_blog' 자동 → 바른플랜 환불. 설계: docs/blog-review-spec.md
  */
-import { NextResponse } from 'next/server';
+import { NextResponse, type NextRequest } from 'next/server';
 import type pg from 'pg';
+import { chartAppAuthMiddleware } from '@/lib/chart-app/auth';
 import { getChartPgPool } from '@/lib/db';
 import { chargeOperationTokens, hospitalHasTokens } from '@/lib/billing/token-charge';
 import { upsertGeneratedRunContent } from '@/lib/chart-app/generated-content';
@@ -73,10 +74,13 @@ async function saveExternalReview(
   }
 }
 
-export async function POST(req: Request): Promise<Response> {
+export async function POST(request: NextRequest): Promise<Response> {
+  const authErr = chartAppAuthMiddleware(request);
+  if (authErr) return authErr;
+
   let body: Record<string, unknown>;
   try {
-    body = (await req.json()) as Record<string, unknown>;
+    body = (await request.json()) as Record<string, unknown>;
   } catch {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
   }
