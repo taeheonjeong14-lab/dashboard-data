@@ -370,9 +370,9 @@ function LabResultsPanel({ dates, open, onToggle }: { dates: LabDate[]; open: bo
 }
 
 /**
- * 진료케이스 작성 — 3단계 위저드.
- * 1) 인과 흐름(causalFlow) → 2) 섹션 아웃라인(outline) → 3) 블로그 글(blogPost).
- * 각 단계는 검수·수정 → 저장(DB) → 다음 단계 입력으로 전달.
+ * 진료케이스 작성 — 4단계 위저드 (StepNum = 1|2|3|4).
+ * 1) 인과 흐름(causalFlow) → 2) 섹션 아웃라인(outline) → 3) 블로그 글(blogPost) → 4) 이미지 배정.
+ * 1~3단계는 검수·수정 → 저장(DB) → 다음 단계 입력으로 전달. 4단계는 블로그 글 확정 후 이미지 분석.
  */
 export function CaseBlogButton({
   runId,
@@ -543,7 +543,7 @@ export function CaseBlogButton({
     }
   }
 
-  // 5단계 — 진단 기반 섹션별 이미지 배정(비전). 결과를 아웃라인 imageFileNames 에 반영·저장.
+  // 4단계 — 진단 기반 섹션별 이미지 배정(비전). 결과를 아웃라인 imageFileNames 에 반영·저장.
   async function genImages() {
     if (!outline) return;
     setGenLoading(4); setError(null); setSavedMsg('');
