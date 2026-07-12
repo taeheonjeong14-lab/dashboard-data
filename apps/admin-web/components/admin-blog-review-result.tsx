@@ -70,7 +70,7 @@ function FindingCard({ f }: { f: ReviewerFinding }) {
       {/* 헤더: 심각도 · 항목 */}
       <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap', marginBottom: 9 }}>
         <span style={badge(color)}>{SEV_LABEL[f.severity] ?? f.severity}</span>
-        <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)' }}>{item ? `${item.id} ${item.label}` : f.rubricId}</span>
+        <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)' }}>{item ? item.label : f.rubricId}</span>
       </div>
       {/* 라벨링된 본문 */}
       <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', columnGap: 12, rowGap: 7, alignItems: 'start' }}>
@@ -166,12 +166,12 @@ function CriteriaDrawer({ onClose }: { onClose: () => void }) {
 
         <h4 style={{ fontSize: 13, fontWeight: 800, margin: '14px 0 6px' }}>의학 항목</h4>
         <ul style={{ fontSize: 12.5, color: 'var(--text)', lineHeight: 1.6, paddingLeft: 18, margin: 0, listStyleType: 'disc' }}>
-          {MEDICAL_ITEMS.map((m) => <li key={m.id} style={{ marginBottom: 3 }}><b>{m.id} {m.label}</b> — {m.shortDesc}</li>)}
+          {MEDICAL_ITEMS.map((m) => <li key={m.id} style={{ marginBottom: 3 }}><b>{m.label}</b> — {m.shortDesc}</li>)}
         </ul>
 
         <h4 style={{ fontSize: 13, fontWeight: 800, margin: '14px 0 6px' }}>네이버 SEO 항목</h4>
         <ul style={{ fontSize: 12.5, color: 'var(--text)', lineHeight: 1.6, paddingLeft: 18, margin: 0, listStyleType: 'disc' }}>
-          {SEO_ITEMS.map((s) => <li key={s.id} style={{ marginBottom: 3 }}><b>{s.id} {s.label}</b> — {s.shortDesc}</li>)}
+          {SEO_ITEMS.map((s) => <li key={s.id} style={{ marginBottom: 3 }}><b>{s.label}</b> — {s.shortDesc}</li>)}
         </ul>
 
         <h4 style={{ fontSize: 13, fontWeight: 800, margin: '14px 0 6px' }}>결정적 목표값</h4>
