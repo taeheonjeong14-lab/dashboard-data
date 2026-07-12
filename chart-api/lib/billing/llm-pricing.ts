@@ -26,10 +26,15 @@ const PRICE_TABLE: Record<string, ModelPrice> = {
   'gpt-4o': { inputPer1M: 2.5, outputPer1M: 10.0, cachedInputPer1M: 1.25 },
   'gpt-4.1-mini': { inputPer1M: 0.4, outputPer1M: 1.6, cachedInputPer1M: 0.1 },
   'gpt-4.1': { inputPer1M: 2.0, outputPer1M: 8.0, cachedInputPer1M: 0.5 },
-  // — Anthropic (향후) —
+  // — Anthropic —
   'claude-3-5-haiku': { inputPer1M: 0.8, outputPer1M: 4.0 },
   'claude-3-5-sonnet': { inputPer1M: 3.0, outputPer1M: 15.0 },
   'claude-sonnet-4': { inputPer1M: 3.0, outputPer1M: 15.0 },
+  'claude-haiku-4': { inputPer1M: 1.0, outputPer1M: 5.0 },
+  'claude-opus-4': { inputPer1M: 15.0, outputPer1M: 75.0 },
+  // — xAI (Grok) — ★ 단가 변동 잦음, AI Gateway 슬러그(xai/grok-*)의 include 매칭용. 착수 시 확인.
+  'grok-4': { inputPer1M: 3.0, outputPer1M: 15.0 },
+  'grok': { inputPer1M: 3.0, outputPer1M: 15.0 },
 };
 
 // 토큰이 아닌 서비스(건당 과금). USD / 1건(이미지·페이지 등).

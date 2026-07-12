@@ -9,6 +9,7 @@
     "start": "next start -p 3003"
   },
   "dependencies": {
+    "@dashboard/blog-review-rubric": "*",
     "@dashboard/health-report": "*",
     "@dashboard/lab-normalize": "*",
     "@fontsource/noto-sans-kr": "^5.2.9",

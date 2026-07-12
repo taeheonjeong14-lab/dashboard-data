@@ -10,7 +10,7 @@ const nextConfig: NextConfig = {
   turbopack: {
     root: path.join(__dirname, '..'),
   },
-  transpilePackages: ['@dashboard/lab-normalize', '@dashboard/health-report'],
+  transpilePackages: ['@dashboard/lab-normalize', '@dashboard/health-report', '@dashboard/blog-review-rubric'],
   allowedDevOrigins: ['*.ngrok-free.app', '*.ngrok-free.dev', '*.ngrok.io', '*.ngrok.app'],
   // @napi-rs/canvas(네이티브 .node)·pdfjs-dist(대형 ESM)는 번들하지 말고 node_modules 에서 런타임 로드.
   // (인투벳 페이지 렌더 → lib/pdf-render-pages.ts)
