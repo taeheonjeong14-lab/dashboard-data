@@ -1130,6 +1130,10 @@ export async function POST(request: NextRequest) {
         const stageMaxTokens = 16384;
         const raw = await geminiGenerateText(userContent, {
           systemInstruction: SYS_CAUSAL,
+          // 이 단계에서 차트의 영어 의학용어·약어가 처음으로 한국어로 확정된다.
+          // 온도를 최저로 두면 확률 1위 토큰(=가장 흔한 표준 용어)에 붙어, 드문 동의어 대신
+          // 널리 쓰이는 용어를 고르고 없는 사실 창작도 억제한다. (기본 0.3 → 0.1)
+          temperature: 0.1,
           thinkingBudget: 4096,
           maxOutputTokens: stageMaxTokens,
           usageContext: usageCtx('blog_causal'),
@@ -1189,6 +1193,8 @@ export async function POST(request: NextRequest) {
         const stageMaxTokens = 8192;
         const raw = await geminiGenerateText(userContent, {
           systemInstruction: SYS_CAUSAL_PHASE,
+          // blog_causal 과 동일 이유(용어 확정 단계) — 한 phase 재작성도 최저 온도.
+          temperature: 0.1,
           thinkingBudget: 2048,
           maxOutputTokens: stageMaxTokens,
           usageContext: usageCtx('blog_causal'),
@@ -1257,6 +1263,8 @@ export async function POST(request: NextRequest) {
         const stageMaxTokens = 8192;
         const raw = await geminiGenerateText(userContent, {
           systemInstruction: SYS_OUTLINE,
+          // 사실 배치 단계(새 용어를 짓지 않고 causal 내용을 섹션에 재배치). 소폭 낮춤 0.3 → 0.2.
+          temperature: 0.2,
           thinkingBudget: 0,
           maxOutputTokens: stageMaxTokens,
           usageContext: usageCtx('blog_outline'),
