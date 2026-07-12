@@ -9,6 +9,7 @@ import {
   buildAggregatorUserContent,
   buildReviewerSystemPrompt,
   buildReviewerUserContent,
+  type Agreement,
   type AggregatorOutput,
   type Finding,
   type ReviewerFinding,
@@ -34,6 +35,9 @@ const REVIEWER_MODELS = (process.env.BLOG_REVIEW_MODELS?.trim() ||
 /** 집계 모델(중립 병합 — 검수보다 쉬워 저가 모델로 충분). */
 const AGGREGATOR_MODEL = process.env.BLOG_REVIEW_AGGREGATOR_MODEL?.trim() || 'google/gemini-2.5-flash';
 
+/** 응답 토큰 상한. 너무 낮으면 JSON 이 잘려 파싱 실패("Unterminated string")한다. */
+const MAX_TOKENS = Number(process.env.BLOG_REVIEW_MAX_TOKENS) || 8000;
+
 function gatewayClient(): OpenAI {
   const apiKey = process.env.AI_GATEWAY_API_KEY?.trim();
   if (!apiKey) throw new Error('AI_GATEWAY_API_KEY is not configured');
@@ -58,7 +62,7 @@ async function chatOnce(
   const resp = await client.chat.completions.create({
     model,
     temperature,
-    max_tokens: 4096,
+    max_tokens: MAX_TOKENS,
     messages: [
       { role: 'system', content: system },
       { role: 'user', content: user },
@@ -127,8 +131,49 @@ function wrapSingle(out: ReviewerOutput): AggregatorOutput {
 }
 
 /**
+ * 집계 LLM 실패 시 폴백 — 리뷰어 findings 를 규칙 기반으로 병합.
+ * rubricId + 인용/이슈 앞부분으로 묶어 중복 제거, 몇 개 리뷰어가 같은 지적을 냈나로 agreement 산정.
+ */
+function programmaticMerge(outputs: ReviewerOutput[]): AggregatorOutput {
+  const mergeAxis = (pick: (o: ReviewerOutput) => ReviewerFinding[]): Finding[] => {
+    const groups = new Map<string, { f: ReviewerFinding; count: number }>();
+    for (const o of outputs) {
+      // 한 리뷰어가 같은 키를 중복으로 내도 1회만 센다.
+      const seen = new Set<string>();
+      for (const f of pick(o)) {
+        const key = `${f.rubricId}|${(f.quote || f.issue).replace(/\s+/g, '').slice(0, 20)}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        const g = groups.get(key);
+        if (g) g.count += 1;
+        else groups.set(key, { f, count: 1 });
+      }
+    }
+    const agreementOf = (c: number): Agreement => (c >= 3 ? '3/3' : c >= 2 ? '2/3' : '1/3');
+    return [...groups.values()]
+      .map(({ f, count }) => ({ ...f, agreement: agreementOf(count) }))
+      .sort((a, b) => b.agreement.localeCompare(a.agreement));
+  };
+  return {
+    medical: mergeAxis((o) => o.medical),
+    seo: mergeAxis((o) => o.seo),
+    summary: '(집계 모델 응답을 파싱하지 못해 리뷰어 결과를 규칙 기반으로 병합했습니다.)',
+  };
+}
+
+/** 리뷰어 원문 → 정규화. 파싱 실패면 null(그 리뷰어는 건너뜀). */
+function parseReviewer(raw: string, model: string): ReviewerOutput | null {
+  try {
+    return normalizeReviewerOutput(tryParseJsonObject(raw));
+  } catch (e) {
+    console.warn('[blog-review] reviewer 파싱 실패:', model, e instanceof Error ? e.message : e);
+    return null;
+  }
+}
+
+/**
  * 앙상블 실행. 리뷰어 3개 병렬 → 성공분으로 집계.
- * 실패한 리뷰어는 건너뛴다(1개라도 성공하면 진행). 반환: 집계 결과 + 실제 사용 모델.
+ * 호출 실패·파싱 실패한 리뷰어는 건너뛰고(1개라도 남으면 진행), 집계 LLM 이 깨지면 규칙 병합으로 폴백.
  */
 export async function runBlogReviewEnsemble(
   input: ReviewInput,
@@ -143,32 +188,44 @@ export async function runBlogReviewEnsemble(
     REVIEWER_MODELS.map((m) => chatOnce(client, m, sysReviewer, userReviewer, reviewCtx, 0.15)),
   );
 
-  const outputs: Array<{ model: string; json: string }> = [];
+  const outputs: Array<{ model: string; norm: ReviewerOutput }> = [];
   settled.forEach((r, i) => {
-    if (r.status === 'fulfilled') {
-      const norm = normalizeReviewerOutput(tryParseJsonObject(r.value));
-      outputs.push({ model: REVIEWER_MODELS[i], json: JSON.stringify(norm) });
-    } else {
-      console.warn('[blog-review] reviewer 실패:', REVIEWER_MODELS[i], r.reason instanceof Error ? r.reason.message : r.reason);
+    const model = REVIEWER_MODELS[i];
+    if (r.status !== 'fulfilled') {
+      console.warn('[blog-review] reviewer 호출 실패:', model, r.reason instanceof Error ? r.reason.message : r.reason);
+      return;
     }
+    const norm = parseReviewer(r.value, model);
+    if (norm) outputs.push({ model, norm });
   });
 
-  if (outputs.length === 0) throw new Error('모든 리뷰어 호출이 실패했습니다');
+  if (outputs.length === 0) throw new Error('모든 리뷰어 호출/파싱이 실패했습니다');
 
   const modelsUsed = outputs.map((o) => o.model);
 
   // 리뷰어가 1개뿐이면 집계 불필요(전부 저신뢰).
   if (outputs.length === 1) {
-    return { aggregate: wrapSingle(normalizeReviewerOutput(tryParseJsonObject(outputs[0].json))), modelsUsed };
+    return { aggregate: wrapSingle(outputs[0].norm), modelsUsed };
   }
 
-  const aggText = await chatOnce(
-    client,
-    AGGREGATOR_MODEL,
-    buildAggregatorSystemPrompt(),
-    buildAggregatorUserContent(outputs.map((o) => o.json)),
-    reviewCtx,
-    0.1,
-  );
-  return { aggregate: normalizeAggregatorOutput(tryParseJsonObject(aggText)), modelsUsed };
+  // 집계 LLM — 실패(호출·파싱)하면 규칙 기반 병합으로 폴백해 500 을 피한다.
+  try {
+    const aggText = await chatOnce(
+      client,
+      AGGREGATOR_MODEL,
+      buildAggregatorSystemPrompt(),
+      buildAggregatorUserContent(outputs.map((o) => JSON.stringify(o.norm))),
+      reviewCtx,
+      0.1,
+    );
+    const aggregate = normalizeAggregatorOutput(tryParseJsonObject(aggText));
+    // 집계가 비었는데 리뷰어엔 findings 가 있으면(모델이 형식만 맞추고 내용 유실) 폴백.
+    const aggEmpty = aggregate.medical.length + aggregate.seo.length === 0;
+    const hadFindings = outputs.some((o) => o.norm.medical.length + o.norm.seo.length > 0);
+    if (aggEmpty && hadFindings) return { aggregate: programmaticMerge(outputs.map((o) => o.norm)), modelsUsed };
+    return { aggregate, modelsUsed };
+  } catch (e) {
+    console.warn('[blog-review] 집계 실패 → 규칙 병합 폴백:', e instanceof Error ? e.message : e);
+    return { aggregate: programmaticMerge(outputs.map((o) => o.norm)), modelsUsed };
+  }
 }
