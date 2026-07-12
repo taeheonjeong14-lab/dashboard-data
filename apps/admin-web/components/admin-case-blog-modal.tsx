@@ -2,9 +2,11 @@
 
 import { useState, useRef, useEffect, type CSSProperties } from 'react';
 import Link from 'next/link';
+import AdminBlogReviewResult from '@/components/admin-blog-review-result';
+import type { BlogReview } from '@dashboard/blog-review-rubric';
 
 // ── 타입 ──────────────────────────────────────────────────────────────────
-type StepNum = 1 | 2 | 3 | 4;
+type StepNum = 1 | 2 | 3 | 4 | 5;
 type OverviewItem = { label: string; value: string };
 // 수술 절차 한 단계 = 절차 이름 + 그 절차에 대한 부연 설명.
 type ProcStep = { step: string; note: string };
@@ -370,9 +372,11 @@ function LabResultsPanel({ dates, open, onToggle }: { dates: LabDate[]; open: bo
 }
 
 /**
- * 진료케이스 작성 — 4단계 위저드 (StepNum = 1|2|3|4).
- * 1) 인과 흐름(causalFlow) → 2) 섹션 아웃라인(outline) → 3) 블로그 글(blogPost) → 4) 이미지 배정.
- * 1~3단계는 검수·수정 → 저장(DB) → 다음 단계 입력으로 전달. 4단계는 블로그 글 확정 후 이미지 분석.
+ * 진료케이스 작성 — 5단계 위저드 (StepNum = 1|2|3|4|5).
+ * 1) 인과 흐름 → 2) 섹션 아웃라인 → 3) 블로그 글 → 4) 글 검수 → 5) 이미지 배정.
+ * 1~3단계는 검수·수정 → 저장(DB) → 다음 단계 입력으로 전달.
+ * 4단계(글 검수)는 참고용(비차단): 3모델 앙상블 검수 결과를 읽고 필요하면 3단계로 돌아가 수정.
+ * 여기서 블로그 글을 확정(잠금)하면 5단계로 넘어가 이미지 분석을 1회 실행한다.
  */
 export function CaseBlogButton({
   runId,
@@ -391,6 +395,9 @@ export function CaseBlogButton({
   const [causal, setCausal] = useState<CausalFlow | null>(null);
   const [outline, setOutline] = useState<Outline | null>(null);
   const [blog, setBlog] = useState<BlogPost | null>(null);
+  const [review, setReview] = useState<BlogReview | null>(null); // 4단계 검수 결과
+  const [reviewLoading, setReviewLoading] = useState(false);
+  const [reviewBasis, setReviewBasis] = useState(''); // 검수를 만든 blog 의 서명(안 바뀌면 재검수 안 함)
   const [caseImages, setCaseImages] = useState<CaseImg[]>([]); // 파일명→signedUrl (섹션 썸네일용)
   const [labDates, setLabDates] = useState<LabDate[]>([]); // PDF 추출 검사결과(날짜별) — 좌측 참고 패널
   const [overviewOpen, setOverviewOpen] = useState(false); // 좌측 케이스 개요 접기/펼치기 (기본 닫힘)
@@ -400,7 +407,7 @@ export function CaseBlogButton({
   const [outlineBasis, setOutlineBasis] = useState(''); // outline 을 만든 causal 의 서명
   const [blogBasis, setBlogBasis] = useState(''); // blog 를 만든 outline 의 서명
 
-  const [genLoading, setGenLoading] = useState<null | 1 | 2 | 3 | 4>(null);
+  const [genLoading, setGenLoading] = useState<null | 1 | 2 | 3 | 4 | 5>(null);
   const [phaseBusy, setPhaseBusy] = useState<number | null>(null); // 날짜별 다시 생성 중인 phase 인덱스
   const [confirmed, setConfirmed] = useState(false); // 블로그 글 확정됨(AI 재생성 불가)
   const [savedFlag, setSavedFlag] = useState(false);  // 네이버 저장완료 — 수기 수정 시 보존(상태 되돌림 방지)
@@ -408,7 +415,7 @@ export function CaseBlogButton({
   const [error, setError] = useState<string | null>(null);
   const [savedMsg, setSavedMsg] = useState('');
 
-  const busy = genLoading !== null || saving;
+  const busy = genLoading !== null || saving || reviewLoading;
 
   // 1단계 인과 흐름(날짜·카드 내용·해시태그 전부)을 생성/편집 시 자동 저장(디바운스).
   // callSave 로 causalFlow JSON 을 DB에 upsert → 새로고침해도 유지. 불러온 직후엔 ref 로 중복 저장 방지.
@@ -467,6 +474,7 @@ export function CaseBlogButton({
       const items = res.ok ? data.items ?? [] : [];
       const find = (t: string) => items.find((i) => i.contentType === t)?.payload as Record<string, unknown> | undefined;
       const cP = find('blog_causal'); const oP = find('blog_outline'); const bP = find('blog_post');
+      const rP = find('blog_review'); // 저장된 검수 결과(있으면 4단계에서 재검수 없이 표시)
       let ov: OverviewItem[] = [];
       if (cP && Array.isArray(cP.caseOverview)) ov = cP.caseOverview as OverviewItem[];
       else if (oP && Array.isArray(oP.caseOverview)) ov = oP.caseOverview as OverviewItem[];
@@ -479,6 +487,11 @@ export function CaseBlogButton({
       if (normCausal) { setCausal(normCausal); lastSavedCausalRef.current = JSON.stringify(normCausal); }
       if (normOutline) setOutline(normOutline);
       if (normBlog) setBlog(normBlog);
+      // 저장된 검수 결과 복원 — 같은 글이면 재검수 없이 그대로 보여주기 위해 서명도 맞춰둔다.
+      if (rP && (rP as { medical?: unknown }).medical && normBlog) {
+        setReview(rP as unknown as BlogReview);
+        setReviewBasis(JSON.stringify(normBlog));
+      }
       setConfirmed(Boolean(bP?.confirmed));
       setSavedFlag(Boolean(bP?.saved));
       // 저장된 단계는 서로 일관됐다고 보고 서명을 맞춰둔다(불필요한 재생성 확인 방지).
@@ -486,7 +499,8 @@ export function CaseBlogButton({
       if (normOutline && normBlog) setBlogBasis(JSON.stringify(normOutline));
       setLoadedRunId(runId);
 
-      if (bP && (bP.bodyMarkdown || bP.title)) setStep(3);
+      if (bP?.confirmed) setStep(5); // 확정된 케이스는 마지막(이미지) 단계로 복원
+      else if (bP && (bP.bodyMarkdown || bP.title)) setStep(3);
       else if (oP && oP.outline) setStep(2);
       else if (hasCausal) setStep(1);
       else { await genCausal(); return; } // 저장된 게 없으면 1단계 생성
@@ -543,10 +557,10 @@ export function CaseBlogButton({
     }
   }
 
-  // 4단계 — 진단 기반 섹션별 이미지 배정(비전). 결과를 아웃라인 imageFileNames 에 반영·저장.
+  // 5단계 — 진단 기반 섹션별 이미지 배정(비전). 결과를 아웃라인 imageFileNames 에 반영·저장.
   async function genImages() {
     if (!outline) return;
-    setGenLoading(4); setError(null); setSavedMsg('');
+    setGenLoading(5); setError(null); setSavedMsg('');
     try {
       const sections = outline.sections.map((s) => ({
         id: s.id,
@@ -574,7 +588,36 @@ export function CaseBlogButton({
     finally { setGenLoading(null); }
   }
 
-  // 블로그 글 확정 — 확인 후 잠금(AI 재생성 불가), 이미지 단계로 이동하며 이미지 분석 1회 실행.
+  // 4단계 — 글 검수(3모델 앙상블). 내부 글: runId + 3단계 검수본을 근거로 대조 검수.
+  // 참고용(비차단) — 결과를 읽고 필요하면 3단계로 돌아가 수정. 같은 글이면 재검수하지 않는다(토큰 절약).
+  async function genReview() {
+    if (!blog) return;
+    setReviewLoading(true); setError(null); setSavedMsg('');
+    try {
+      const res = await fetch('/api/admin/case-blog/review', {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sourceType: 'internal', runId,
+          title: blog.title, bodyText: blog.bodyMarkdown, tags: blog.tags,
+          outline, causalFlow: causal, caseOverview,
+        }),
+      });
+      const data = (await res.json()) as { review?: BlogReview; error?: string };
+      if (!res.ok) throw new Error(data.error ?? '검수 실패');
+      if (data.review) { setReview(data.review); setReviewBasis(JSON.stringify(blog)); }
+    } catch (e) { setError(e instanceof Error ? e.message : '검수 실패'); }
+    finally { setReviewLoading(false); }
+  }
+
+  // 3단계(블로그 글) → 4단계(글 검수). 확정 전 참고용. 글이 바뀌었으면 재검수, 아니면 기존 결과 표시.
+  function nextFromBlog() {
+    if (!blog) return;
+    setStep(4); setSavedMsg('');
+    if (!confirmed && (!review || reviewBasis !== JSON.stringify(blog))) void genReview();
+  }
+
+  // 블로그 글 확정 — 4단계에서 검수를 본 뒤 잠금(AI 재생성 불가), 5단계 이미지로 이동하며 이미지 분석 1회.
   async function confirmBlog() {
     if (!blog) return;
     if (!window.confirm('블로그글 확정 이후에는 수기 수정만 가능하며 AI 재생성은 불가합니다.\n\n확정할까요?')) return;
@@ -582,7 +625,7 @@ export function CaseBlogButton({
     try {
       await callSave('blog_post', { ...blog, confirmed: true, saved: savedFlag });
       setConfirmed(true);
-      setStep(4);
+      setStep(5);
     } catch (e) { setError(e instanceof Error ? e.message : '확정 실패'); setSaving(false); return; }
     setSaving(false);
     void genImages();
@@ -618,7 +661,7 @@ export function CaseBlogButton({
       if (step === 1 && causal) { await callSave('blog_causal', { causalFlow: causal, caseOverview }); lastSavedCausalRef.current = JSON.stringify(causal); }
       else if (step === 2 && outline) await callSave('blog_outline', { outline, caseOverview });
       else if (step === 3 && blog) await callSave('blog_post', { ...blog, confirmed, saved: savedFlag });
-      else if (step === 4 && outline) await callSave('blog_outline', { outline, caseOverview });
+      else if (step === 5 && outline) await callSave('blog_outline', { outline, caseOverview });
       setSavedMsg('저장됨');
     } catch (e) { setError(e instanceof Error ? e.message : '저장 실패'); }
     finally { setSaving(false); }
@@ -686,6 +729,7 @@ export function CaseBlogButton({
     void loadLabResults();
     if (loadedRunId !== runId) {
       setStep(1); setCausal(null); setOutline(null); setBlog(null); setCaseOverview([]); setConfirmed(false);
+      setReview(null); setReviewBasis('');
       void loadAll();
     }
   }
@@ -766,13 +810,13 @@ export function CaseBlogButton({
                 <div>
                   <h2 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: 'var(--text)' }}>진료케이스 작성</h2>
                   <p style={{ margin: '3px 0 0', fontSize: 12, color: 'var(--text-muted)' }}>
-                    인과 흐름 → 섹션 아웃라인 → 블로그 글. 각 단계를 검수·수정한 뒤 다음으로 넘어갑니다.
+                    인과 흐름 → 아웃라인 → 블로그 글 → 글 검수 → 이미지. 각 단계를 검수·수정한 뒤 다음으로 넘어갑니다.
                   </p>
                 </div>
                 <button type="button" className="adminLegacySmallBtn" onClick={closeModal}>닫기</button>
               </div>
               <div style={{ display: 'flex', gap: 6, marginTop: 12 }}>
-                {([[1, '인과 흐름'], [2, '아웃라인'], [3, '블로그 글'], [4, '이미지']] as [StepNum, string][]).map(([n, label]) => {
+                {([[1, '인과 흐름'], [2, '아웃라인'], [3, '블로그 글'], [4, '글 검수'], [5, '이미지']] as [StepNum, string][]).map(([n, label]) => {
                   const active = step === n; const done = step > n;
                   return (
                     <div key={n} style={{
@@ -835,9 +879,13 @@ export function CaseBlogButton({
               <div style={{ flex: '6.5 1 0', minWidth: 0, display: 'flex', flexDirection: 'column' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8, height: 28, marginBottom: 8, flexShrink: 0 }}>
                   {savedMsg ? <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--success)' }}>{savedMsg}</span> : null}
-                  {step === 4 ? (
+                  {step === 5 ? (
                     <button type="button" style={btnFlat} onClick={() => void genImages()} disabled={busy}>
-                      {genLoading === 4 ? '분석 중…' : '이미지 다시 분석'}
+                      {genLoading === 5 ? '분석 중…' : '이미지 다시 분석'}
+                    </button>
+                  ) : step === 4 ? (
+                    <button type="button" style={btnFlat} onClick={() => void genReview()} disabled={busy || !blog}>
+                      {reviewLoading ? '검수 중…' : '다시 검수'}
                     </button>
                   ) : confirmed ? (
                     <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)' }}>확정됨 · 수기 수정만 가능</span>
@@ -865,8 +913,16 @@ export function CaseBlogButton({
                     genLoading === 3 && !blog ? <Loading text="AI가 블로그 글을 작성하는 중…" /> : (
                       <BlogEditor blog={blog} setField={setBlogField} outline={outline} imageMeta={(fn) => imageMetaByName.get(fn) ?? null} generateSection={generateBlogSection} confirmed={confirmed} />
                     )
+                  ) : step === 4 ? (
+                    reviewLoading ? <Loading text="Claude·Grok·Gemini 3개 모델로 검수하고 취합하는 중…" /> : (
+                      review ? <AdminBlogReviewResult review={review} /> : (
+                        <div style={{ padding: '48px 8px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>
+                          아직 검수 결과가 없습니다. 상단 &apos;다시 검수&apos;를 눌러 검수하세요.
+                        </div>
+                      )
+                    )
                   ) : (
-                    genLoading === 4 ? <Loading text="AI가 진단 기반으로 이미지를 배정하는 중…" /> : (
+                    genLoading === 5 ? <Loading text="AI가 진단 기반으로 이미지를 배정하는 중…" /> : (
                       <Step4Editor outline={outline} caseImages={caseImages} imageMeta={(fn) => imageMetaByName.get(fn) ?? null} updateSection={updateSection} />
                     )
                   )}
@@ -882,7 +938,7 @@ export function CaseBlogButton({
                 ) : null}
               </div>
               <div style={{ display: 'flex', gap: 8 }}>
-                <button type="button" style={btnSecondary} onClick={() => void saveCurrent()} disabled={busy || (step === 1 ? !causal : step === 2 ? !outline : step === 3 ? !blog : !outline)}>
+                <button type="button" style={btnSecondary} onClick={() => void saveCurrent()} disabled={busy || (step === 1 ? !causal : step === 2 ? !outline : step === 3 ? !blog : step === 4 ? true : !outline)}>
                   {saving ? '저장 중…' : '저장'}
                 </button>
                 {step === 1 ? (
@@ -890,10 +946,12 @@ export function CaseBlogButton({
                 ) : step === 2 ? (
                   <button type="button" style={btnPrimary} onClick={() => nextFromOutline()} disabled={busy || !outline}>{genLoading === 3 ? '생성 중…' : '다음: 글 작성 →'}</button>
                 ) : step === 3 ? (
+                  <button type="button" style={btnPrimary} onClick={() => nextFromBlog()} disabled={busy || !blog}>{reviewLoading ? '검수 중…' : '다음: 글 검수 →'}</button>
+                ) : step === 4 ? (
                   confirmed ? (
-                    <button type="button" style={btnPrimary} onClick={() => { setStep(4); setSavedMsg(''); }} disabled={busy}>다음: 이미지 →</button>
+                    <button type="button" style={btnPrimary} onClick={() => { setStep(5); setSavedMsg(''); }} disabled={busy}>다음: 이미지 →</button>
                   ) : (
-                    <button type="button" style={btnPrimary} onClick={() => void confirmBlog()} disabled={busy || !blog}>블로그 글 확정하기</button>
+                    <button type="button" style={btnPrimary} onClick={() => void confirmBlog()} disabled={busy || !blog}>확정하고 이미지로 →</button>
                   )
                 ) : (
                   <Link href="/admin/case-blog" style={{ ...btnPrimary, textDecoration: 'none', display: 'inline-flex', alignItems: 'center' }}>진료케이스 보러가기</Link>
