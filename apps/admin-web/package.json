@@ -8,6 +8,7 @@
     "start": "next start -p 3011"
   },
   "dependencies": {
+    "@dashboard/blog-review-rubric": "*",
     "@dashboard/chart-ingest": "*",
     "@dashboard/health-report": "*",
     "@dashboard/lab-normalize": "*",

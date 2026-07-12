@@ -14,6 +14,7 @@ import {
   ClipboardList,
   ClipboardCheck,
   Newspaper,
+  ShieldCheck,
   Gauge,
   ListTodo,
   Activity,
@@ -58,6 +59,7 @@ const NAV_GROUPS: NavGroup[] = [
       { href: '/admin/chart-data', label: '차트 목록', icon: FileText, matchPrefix: '/admin/chart-data' },
       { href: '/admin/health-report', label: '건강검진 리포트', icon: HeartPulse, matchPrefix: '/admin/health-report' },
       { href: '/admin/case-blog', label: '진료케이스', icon: Newspaper, matchPrefix: '/admin/case-blog' },
+      { href: '/admin/blog-review', label: '글 검수', icon: ShieldCheck, matchPrefix: '/admin/blog-review' },
     ],
   },
   {
