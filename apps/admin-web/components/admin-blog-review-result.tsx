@@ -5,7 +5,7 @@
  * 신호등(스캔) + findings(행동) + SEO 지표 스트립 + "평가 기준 보기" 드로어.
  * 기준·라벨은 @dashboard/blog-review-rubric 단일 소스에서 렌더(코드=화면 일치).
  */
-import { useState, type CSSProperties } from 'react';
+import { useState, type CSSProperties, type ReactNode } from 'react';
 import {
   MEDICAL_ITEMS,
   METRIC_SPECS,
@@ -43,20 +43,40 @@ function badge(color: string): CSSProperties {
   return { fontSize: 10.5, fontWeight: 700, padding: '1px 7px', borderRadius: 999, border: `1px solid ${color}`, color, whiteSpace: 'nowrap' };
 }
 
+const fieldLabelStyle: CSSProperties = { fontSize: 11, fontWeight: 800, color: 'var(--text-muted)', whiteSpace: 'nowrap', paddingTop: 2, letterSpacing: '-0.01em' };
+
+/** 라벨(원문/문제점/…) + 값. grid(auto 1fr) 안에서 2칸을 차지하도록 Fragment 로 반환. */
+function Field({ label, children, valueStyle }: { label: string; children: ReactNode; valueStyle?: CSSProperties }) {
+  return (
+    <>
+      <span style={fieldLabelStyle}>{label}</span>
+      <div style={{ fontSize: 12.5, lineHeight: 1.55, color: 'var(--text)', ...valueStyle }}>{children}</div>
+    </>
+  );
+}
+
 function FindingCard({ f }: { f: Finding }) {
   const color = f.severity === 'high' ? '#e5484d' : f.severity === 'medium' ? '#f5a623' : 'var(--text-muted)';
   const item = rubricItem(f.rubricId);
   return (
-    <div style={{ ...card, borderLeft: `3px solid ${color}`, padding: '10px 12px' }}>
-      <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap', marginBottom: 5 }}>
+    <div style={{ ...card, borderLeft: `3px solid ${color}`, padding: '11px 13px' }}>
+      {/* 헤더: 심각도 · 합의도 · 항목 */}
+      <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap', marginBottom: 9 }}>
         <span style={badge(color)}>{SEV_LABEL[f.severity] ?? f.severity}</span>
-        <span style={badge('var(--border-strong)')}>{f.agreement}</span>
+        <span style={badge('var(--border-strong)')}>{f.agreement} 동의</span>
         <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)' }}>{item ? `${item.id} ${item.label}` : f.rubricId}</span>
       </div>
-      {f.quote ? <div style={{ fontSize: 12.5, color: 'var(--text)', background: 'var(--bg-subtle)', borderRadius: 6, padding: '5px 8px', margin: '2px 0 6px' }}>“{f.quote}”</div> : null}
-      <div style={{ fontSize: 13, color: 'var(--text)', lineHeight: 1.5 }}>{f.issue}</div>
-      {f.suggestion ? <div style={{ fontSize: 12.5, color: 'var(--accent)', marginTop: 4, lineHeight: 1.5 }}>→ {f.suggestion}</div> : null}
-      {f.evidence ? <div style={{ fontSize: 11.5, color: 'var(--text-muted)', marginTop: 3 }}>근거: {f.evidence}</div> : null}
+      {/* 라벨링된 본문 */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', columnGap: 12, rowGap: 7, alignItems: 'start' }}>
+        {f.quote ? (
+          <Field label="원문">
+            <span style={{ background: 'var(--bg-subtle)', borderRadius: 6, padding: '3px 8px', display: 'inline-block', color: 'var(--text-secondary)' }}>“{f.quote}”</span>
+          </Field>
+        ) : null}
+        <Field label="문제점">{f.issue}</Field>
+        {f.suggestion ? <Field label="개선 제안" valueStyle={{ color: 'var(--accent)', fontWeight: 600 }}>{f.suggestion}</Field> : null}
+        {f.evidence ? <Field label="근거" valueStyle={{ color: 'var(--text-muted)', fontSize: 11.5 }}>{f.evidence}</Field> : null}
+      </div>
     </div>
   );
 }
