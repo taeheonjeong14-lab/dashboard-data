@@ -9,6 +9,7 @@ export interface NaverPost {
   title: string;
   bodyText: string;
   imageCount: number;
+  tags: string[];
   sourceUrl: string;
 }
 
@@ -83,6 +84,47 @@ function extractTitle(html: string): string {
   return t?.[1]?.replace(/\s*:\s*네이버\s*블로그\s*$/i, '').trim() ?? '';
 }
 
+function decodeTag(s: string): string {
+  try {
+    return decodeURIComponent(s.replace(/\+/g, ' ')).trim();
+  } catch {
+    return s.trim();
+  }
+}
+
+/**
+ * 게시글 태그 추출(여러 레이아웃 대비 다중 전략).
+ *  1) 태그 링크의 tagName= 쿼리(가장 안정적)
+ *  2) 해시태그 표기 ">#텍스트<" (태그 영역 렌더)
+ *  3) <meta name="keywords">
+ */
+export function extractTags(html: string): string[] {
+  const tags = new Set<string>();
+  let m: RegExpExecArray | null;
+
+  const reTagName = /[?&]tagName=([^&"'\\ >]+)/gi;
+  while ((m = reTagName.exec(html))) {
+    const t = decodeTag(m[1]);
+    if (t) tags.add(t);
+  }
+
+  const reHash = />\s*#\s*([^<#\s][^<]{0,38})</g;
+  while ((m = reHash.exec(html))) {
+    const t = m[1].trim();
+    if (t) tags.add(t);
+  }
+
+  const meta = html.match(/<meta[^>]*name="keywords"[^>]*content="([^"]*)"/i);
+  if (meta?.[1]) {
+    for (const part of meta[1].split(',')) {
+      const t = part.trim();
+      if (t) tags.add(t);
+    }
+  }
+
+  return [...tags].filter((t) => t && t.length <= 40).slice(0, 30);
+}
+
 /** 본문 컨테이너 내 콘텐츠 이미지 수(se-image 모듈 또는 <img> 태그 기준). */
 function countImages(containerHtml: string): number {
   const seImg = (containerHtml.match(/class="[^"]*se-image[^"]*"/gi) ?? []).length;
@@ -116,6 +158,7 @@ export async function fetchNaverPost(rawUrl: string): Promise<NaverPost> {
     title: extractTitle(html),
     bodyText,
     imageCount: countImages(container),
+    tags: extractTags(html),
     sourceUrl: mobileUrl,
   };
 }

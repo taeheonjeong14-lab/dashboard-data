@@ -46,6 +46,8 @@ export async function POST(request: NextRequest) {
         payload.bodyText = post.bodyText;
         payload.imageCount = post.imageCount;
         payload.sourceUrl = post.sourceUrl;
+        // 사용자가 태그를 직접 넣지 않았으면 추출한 태그 사용.
+        if (!Array.isArray(body.tags) || body.tags.length === 0) payload.tags = post.tags;
       } catch (e) {
         return NextResponse.json(
           { error: e instanceof Error ? e.message : '네이버 본문을 가져오지 못했습니다. 본문을 직접 붙여넣어 주세요.', needsPaste: true },
