@@ -32,7 +32,9 @@ const PRICE_TABLE: Record<string, ModelPrice> = {
   'claude-sonnet-4': { inputPer1M: 3.0, outputPer1M: 15.0 },
   'claude-haiku-4': { inputPer1M: 1.0, outputPer1M: 5.0 },
   'claude-opus-4': { inputPer1M: 15.0, outputPer1M: 75.0 },
-  // — xAI (Grok) — ★ 단가 변동 잦음, AI Gateway 슬러그(xai/grok-*)의 include 매칭용. 착수 시 확인.
+  // — xAI (Grok) — ★ 단가 추정값(변동 잦음). AI Gateway Models 페이지에서 실단가 확인 후 정정할 것.
+  // 긴 prefix 우선 매칭: fast 계열은 저가 행으로, 그 외 grok 은 catch-all.
+  'grok-4.1-fast': { inputPer1M: 0.2, outputPer1M: 0.5 },
   'grok-4': { inputPer1M: 3.0, outputPer1M: 15.0 },
   'grok': { inputPer1M: 3.0, outputPer1M: 15.0 },
 };

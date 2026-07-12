@@ -21,15 +21,18 @@ import { tryParseJsonObject } from '@/lib/chart-app/gemini';
 
 const GATEWAY_BASE = process.env.AI_GATEWAY_BASE_URL?.trim() || 'https://ai-gateway.vercel.sh/v1';
 
-/** 리뷰어 모델(슬러그는 점 표기 provider/model). 최신 슬러그는 env 로 확정. */
+/**
+ * 리뷰어 모델(슬러그는 점 표기 provider/model). 비용 절감 조합(싸되 추론 가능한 티어).
+ * 게이트웨이 카탈로그 변동 시 env(BLOG_REVIEW_MODELS)로 오버라이드. 확정은 /api/debug/blog-review-models.
+ */
 const REVIEWER_MODELS = (process.env.BLOG_REVIEW_MODELS?.trim() ||
-  'anthropic/claude-sonnet-4.6,xai/grok-4,google/gemini-2.5-pro')
+  'anthropic/claude-haiku-4.5,xai/grok-4.1-fast-reasoning,google/gemini-2.5-flash')
   .split(',')
   .map((s) => s.trim())
   .filter(Boolean);
 
-/** 집계 모델(중립 병합). */
-const AGGREGATOR_MODEL = process.env.BLOG_REVIEW_AGGREGATOR_MODEL?.trim() || 'anthropic/claude-sonnet-4.6';
+/** 집계 모델(중립 병합 — 검수보다 쉬워 저가 모델로 충분). */
+const AGGREGATOR_MODEL = process.env.BLOG_REVIEW_AGGREGATOR_MODEL?.trim() || 'google/gemini-2.5-flash';
 
 function gatewayClient(): OpenAI {
   const apiKey = process.env.AI_GATEWAY_API_KEY?.trim();

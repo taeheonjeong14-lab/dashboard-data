@@ -21,9 +21,9 @@ export async function GET(request: NextRequest) {
   }
 
   const configured = (process.env.BLOG_REVIEW_MODELS?.trim() ||
-    'anthropic/claude-sonnet-4.6,xai/grok-4,google/gemini-2.5-pro')
+    'anthropic/claude-haiku-4.5,xai/grok-4.1-fast-reasoning,google/gemini-2.5-flash')
     .split(',').map((s) => s.trim()).filter(Boolean);
-  const aggregator = process.env.BLOG_REVIEW_AGGREGATOR_MODEL?.trim() || 'anthropic/claude-sonnet-4.6';
+  const aggregator = process.env.BLOG_REVIEW_AGGREGATOR_MODEL?.trim() || 'google/gemini-2.5-flash';
 
   try {
     const res = await fetch(`${base}/models`, {
