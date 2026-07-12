@@ -77,7 +77,8 @@ export default function AdminBlogReview() {
   }
 
   return (
-    <div style={{ maxWidth: 860, margin: '0 auto', padding: '4px 0' }}>
+    <div style={{ padding: '4px 0' }}>
+      <div style={{ maxWidth: 980 }}>
       <h1 style={{ fontSize: 20, fontWeight: 800, margin: '0 0 4px' }}>글 검수</h1>
       <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: '0 0 16px', lineHeight: 1.5 }}>
         네이버 블로그 링크를 넣으면 본문을 가져와 <b>의학적 정확성</b>과 <b>네이버 최적화</b>를 검수합니다. Claude·Grok·Gemini 3개 모델의 공통 지적을 취합합니다.
@@ -133,8 +134,9 @@ export default function AdminBlogReview() {
       {error ? <div style={{ marginTop: 12, fontSize: 13, color: '#e5484d', background: '#e5484d14', border: '1px solid #e5484d', borderRadius: 8, padding: '9px 12px' }}>{error}</div> : null}
 
       {loading ? <div style={{ marginTop: 16, fontSize: 13, color: 'var(--text-muted)' }}>3개 모델로 검수하고 취합하는 중… (수십 초 걸릴 수 있어요)</div> : null}
+      </div>
 
-      {review ? <div style={{ marginTop: 18 }}><AdminBlogReviewResult review={review} /></div> : null}
+      {review ? <div style={{ marginTop: 18 }}><AdminBlogReviewResult review={review} columns /></div> : null}
     </div>
   );
 }

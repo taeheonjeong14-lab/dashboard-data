@@ -155,9 +155,50 @@ function CriteriaDrawer({ onClose }: { onClose: () => void }) {
   );
 }
 
-export default function AdminBlogReviewResult({ review }: { review: BlogReview }) {
+function MedicalSection({ medical }: { medical: BlogReview['medical'] }) {
+  return (
+    <section>
+      <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 8, display: 'flex', gap: 8, alignItems: 'center' }}>
+        <Dot light={medical.light} /> 의학적 정확성
+      </div>
+      {medical.consensus.length === 0 ? (
+        <div style={{ fontSize: 12.5, color: 'var(--text-muted)' }}>합의된 지적 없음.</div>
+      ) : (
+        <div style={{ display: 'grid', gap: 8 }}>{medical.consensus.map((f, i) => <FindingCard key={i} f={f} />)}</div>
+      )}
+      <Collapsible items={medical.lowConfidence} />
+    </section>
+  );
+}
+
+function SeoSection({ seo }: { seo: BlogReview['seo'] }) {
+  return (
+    <section>
+      <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 8, display: 'flex', gap: 8, alignItems: 'center' }}>
+        <Dot light={seo.light} /> 네이버 블로그 최적화
+      </div>
+      <div style={{ marginBottom: 10 }}><MetricStrip metrics={seo.metrics} /></div>
+      {seo.consensus.length === 0 ? (
+        <div style={{ fontSize: 12.5, color: 'var(--text-muted)' }}>합의된 지적 없음.</div>
+      ) : (
+        <div style={{ display: 'grid', gap: 8 }}>{seo.consensus.map((f, i) => <FindingCard key={i} f={f} />)}</div>
+      )}
+      <Collapsible items={seo.lowConfidence} />
+    </section>
+  );
+}
+
+/**
+ * 검수 결과. columns=true 면 좌(의학)/우(SEO) 2컬럼(글 검수 메뉴 — 넓은 화면),
+ * false 면 세로 스택(위저드 모달 — 좁은 우측 패널).
+ */
+export default function AdminBlogReviewResult({ review, columns = false }: { review: BlogReview; columns?: boolean }) {
   const [drawer, setDrawer] = useState(false);
   const { medical, seo } = review;
+
+  const sectionsWrap: CSSProperties = columns
+    ? { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: 20, alignItems: 'start' }
+    : { display: 'grid', gap: 14 };
 
   return (
     <div style={{ display: 'grid', gap: 14 }}>
@@ -177,32 +218,10 @@ export default function AdminBlogReviewResult({ review }: { review: BlogReview }
         {review.modelsUsed?.length ? <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6 }}>사용 모델: {review.modelsUsed.join(' · ')}</div> : null}
       </div>
 
-      {/* 의학 */}
-      <section>
-        <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 8, display: 'flex', gap: 8, alignItems: 'center' }}>
-          <Dot light={medical.light} /> 의학적 정확성
-        </div>
-        {medical.consensus.length === 0 ? (
-          <div style={{ fontSize: 12.5, color: 'var(--text-muted)' }}>합의된 지적 없음.</div>
-        ) : (
-          <div style={{ display: 'grid', gap: 8 }}>{medical.consensus.map((f, i) => <FindingCard key={i} f={f} />)}</div>
-        )}
-        <Collapsible items={medical.lowConfidence} />
-      </section>
-
-      {/* SEO */}
-      <section>
-        <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 8, display: 'flex', gap: 8, alignItems: 'center' }}>
-          <Dot light={seo.light} /> 네이버 블로그 최적화
-        </div>
-        <div style={{ marginBottom: 10 }}><MetricStrip metrics={seo.metrics} /></div>
-        {seo.consensus.length === 0 ? (
-          <div style={{ fontSize: 12.5, color: 'var(--text-muted)' }}>합의된 지적 없음.</div>
-        ) : (
-          <div style={{ display: 'grid', gap: 8 }}>{seo.consensus.map((f, i) => <FindingCard key={i} f={f} />)}</div>
-        )}
-        <Collapsible items={seo.lowConfidence} />
-      </section>
+      <div style={sectionsWrap}>
+        <MedicalSection medical={medical} />
+        <SeoSection seo={seo} />
+      </div>
 
       {drawer ? <CriteriaDrawer onClose={() => setDrawer(false)} /> : null}
     </div>
