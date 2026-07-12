@@ -9,6 +9,7 @@ import type {
   BlogReview,
   Finding,
   Light,
+  ReviewerBreakdown,
   SeoMetric,
   SeoReport,
   SourceType,
@@ -69,8 +70,9 @@ export function assembleReview(params: {
   aggregate: AggregatorOutput;
   seoMetrics: SeoMetric[];
   modelsUsed: string[];
+  reviewers?: ReviewerBreakdown[];
 }): BlogReview {
-  const { sourceType, aggregate, seoMetrics, modelsUsed } = params;
+  const { sourceType, aggregate, seoMetrics, modelsUsed, reviewers } = params;
 
   const med = splitByAgreement(aggregate.medical ?? []);
   const seoSplit = splitByAgreement(aggregate.seo ?? []);
@@ -94,6 +96,7 @@ export function assembleReview(params: {
     gated: isGated(medical.light),
     summary: aggregate.summary ?? '',
     modelsUsed,
+    reviewers,
   };
 }
 

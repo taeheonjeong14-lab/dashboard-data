@@ -158,8 +158,8 @@ export async function POST(request: NextRequest): Promise<Response> {
 
   try {
     const seoMetrics = computeSeoMetrics(input);
-    const { aggregate, modelsUsed } = await runBlogReviewEnsemble(input, usageCtx);
-    const review = assembleReview({ sourceType, aggregate, seoMetrics, modelsUsed });
+    const { aggregate, modelsUsed, reviewers } = await runBlogReviewEnsemble(input, usageCtx);
+    const review = assembleReview({ sourceType, aggregate, seoMetrics, modelsUsed, reviewers });
 
     // 과금: 합산 원가 1회 차감. feature 'blog_review' → product 'case_blog' → 바른플랜 자동 환불.
     await chargeOperationTokens(hospitalId, operationId, 'blog_review');

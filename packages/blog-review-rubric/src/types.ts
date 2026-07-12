@@ -89,6 +89,13 @@ export interface SeoReport extends AxisReport {
   metrics: SeoMetric[];
 }
 
+/** 한 모델이 낸 원본 findings(모델별 상세 표시용). */
+export interface ReviewerBreakdown {
+  model: string;
+  medical: ReviewerFinding[];
+  seo: ReviewerFinding[];
+}
+
 /** 검수 최종 결과(저장·화면 공통). */
 export interface BlogReview {
   sourceType: SourceType;
@@ -100,6 +107,8 @@ export interface BlogReview {
   summary: string;
   /** 사용한 리뷰어 모델 id 목록. */
   modelsUsed: string[];
+  /** 모델별 원본 findings(펼쳐 보는 상세). 구버전 저장분엔 없을 수 있음. */
+  reviewers?: ReviewerBreakdown[];
 }
 
 /** 검수 엔진 입력(표준화). groundTruth 있으면 내부 대조 모드, 없으면 외부 지식 모드. */

@@ -12,6 +12,7 @@ import {
   type Agreement,
   type AggregatorOutput,
   type Finding,
+  type ReviewerBreakdown,
   type ReviewerFinding,
   type ReviewerOutput,
   type ReviewInput,
@@ -178,7 +179,7 @@ function parseReviewer(raw: string, model: string): ReviewerOutput | null {
 export async function runBlogReviewEnsemble(
   input: ReviewInput,
   ctx: (feature: string) => UsageContext,
-): Promise<{ aggregate: AggregatorOutput; modelsUsed: string[] }> {
+): Promise<{ aggregate: AggregatorOutput; modelsUsed: string[]; reviewers: ReviewerBreakdown[] }> {
   const client = gatewayClient();
   const sysReviewer = buildReviewerSystemPrompt();
   const userReviewer = buildReviewerUserContent(input);
@@ -202,10 +203,12 @@ export async function runBlogReviewEnsemble(
   if (outputs.length === 0) throw new Error('모든 리뷰어 호출/파싱이 실패했습니다');
 
   const modelsUsed = outputs.map((o) => o.model);
+  // 모델별 원본 findings(펼쳐 보는 상세용).
+  const reviewers: ReviewerBreakdown[] = outputs.map((o) => ({ model: o.model, medical: o.norm.medical, seo: o.norm.seo }));
 
   // 리뷰어가 1개뿐이면 집계 불필요(전부 저신뢰).
   if (outputs.length === 1) {
-    return { aggregate: wrapSingle(outputs[0].norm), modelsUsed };
+    return { aggregate: wrapSingle(outputs[0].norm), modelsUsed, reviewers };
   }
 
   // 집계 LLM — 실패(호출·파싱)하면 규칙 기반 병합으로 폴백해 500 을 피한다.
@@ -222,10 +225,10 @@ export async function runBlogReviewEnsemble(
     // 집계가 비었는데 리뷰어엔 findings 가 있으면(모델이 형식만 맞추고 내용 유실) 폴백.
     const aggEmpty = aggregate.medical.length + aggregate.seo.length === 0;
     const hadFindings = outputs.some((o) => o.norm.medical.length + o.norm.seo.length > 0);
-    if (aggEmpty && hadFindings) return { aggregate: programmaticMerge(outputs.map((o) => o.norm)), modelsUsed };
-    return { aggregate, modelsUsed };
+    if (aggEmpty && hadFindings) return { aggregate: programmaticMerge(outputs.map((o) => o.norm)), modelsUsed, reviewers };
+    return { aggregate, modelsUsed, reviewers };
   } catch (e) {
     console.warn('[blog-review] 집계 실패 → 규칙 병합 폴백:', e instanceof Error ? e.message : e);
-    return { aggregate: programmaticMerge(outputs.map((o) => o.norm)), modelsUsed };
+    return { aggregate: programmaticMerge(outputs.map((o) => o.norm)), modelsUsed, reviewers };
   }
 }

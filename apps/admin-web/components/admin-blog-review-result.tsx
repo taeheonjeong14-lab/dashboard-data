@@ -14,11 +14,18 @@ import {
   lightLabel,
   rubricItem,
   type BlogReview,
-  type Finding,
   type Light,
   type MetricStatus,
+  type ReviewerBreakdown,
+  type ReviewerFinding,
   type SeoMetric,
 } from '@dashboard/blog-review-rubric';
+
+/** provider/model 슬러그에서 표시용 짧은 이름(뒤 절반). */
+function shortModel(model: string): string {
+  const i = model.indexOf('/');
+  return i >= 0 ? model.slice(i + 1) : model;
+}
 
 const LIGHT_COLOR: Record<Light, string> = { red: '#e5484d', yellow: '#f5a623', green: '#30a46c' };
 const STATUS_COLOR: Record<MetricStatus, string> = { poor: '#e5484d', warn: '#f5a623', good: '#30a46c' };
@@ -55,15 +62,14 @@ function Field({ label, children, valueStyle }: { label: string; children: React
   );
 }
 
-function FindingCard({ f }: { f: Finding }) {
+function FindingCard({ f }: { f: ReviewerFinding }) {
   const color = f.severity === 'high' ? '#e5484d' : f.severity === 'medium' ? '#f5a623' : 'var(--text-muted)';
   const item = rubricItem(f.rubricId);
   return (
     <div style={{ ...card, borderLeft: `3px solid ${color}`, padding: '11px 13px' }}>
-      {/* 헤더: 심각도 · 합의도 · 항목 */}
+      {/* 헤더: 심각도 · 항목 */}
       <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap', marginBottom: 9 }}>
         <span style={badge(color)}>{SEV_LABEL[f.severity] ?? f.severity}</span>
-        <span style={badge('var(--border-strong)')}>{f.agreement} 동의</span>
         <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)' }}>{item ? `${item.id} ${item.label}` : f.rubricId}</span>
       </div>
       {/* 라벨링된 본문 */}
@@ -96,15 +102,37 @@ function MetricStrip({ metrics }: { metrics: SeoMetric[] }) {
   );
 }
 
-function Collapsible({ items }: { items: Finding[] }) {
+/** 모델별 상세 — 각 모델이 낸 원본 findings 를 축(medical/seo)별로 펼쳐 본다. */
+function ModelBreakdown({ reviewers, axis }: { reviewers: ReviewerBreakdown[]; axis: 'medical' | 'seo' }) {
   const [open, setOpen] = useState(false);
-  if (items.length === 0) return null;
+  if (!reviewers.length) return null;
+  const pick = (r: ReviewerBreakdown) => (axis === 'medical' ? r.medical : r.seo);
+  const total = reviewers.reduce((n, r) => n + pick(r).length, 0);
+  if (total === 0) return null;
   return (
-    <div style={{ marginTop: 8 }}>
-      <button type="button" onClick={() => setOpen((v) => !v)} style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer', padding: '4px 0' }}>
-        참고 {items.length}건 (단일 모델만 지적) {open ? '▾' : '▸'}
+    <div style={{ marginTop: 10 }}>
+      <button type="button" onClick={() => setOpen((v) => !v)} style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer', padding: '4px 0' }}>
+        모델별 상세 {open ? '▾' : '▸'}
       </button>
-      {open ? <div style={{ display: 'grid', gap: 8, marginTop: 4 }}>{items.map((f, i) => <FindingCard key={i} f={f} />)}</div> : null}
+      {open ? (
+        <div style={{ display: 'grid', gap: 12, marginTop: 6 }}>
+          {reviewers.map((r) => {
+            const items = pick(r);
+            return (
+              <div key={r.model}>
+                <div style={{ fontSize: 11.5, fontWeight: 800, color: 'var(--text-secondary)', marginBottom: 5, borderBottom: '1px solid var(--border)', paddingBottom: 3 }}>
+                  {shortModel(r.model)}
+                </div>
+                {items.length ? (
+                  <div style={{ display: 'grid', gap: 8 }}>{items.map((f, i) => <FindingCard key={i} f={f} />)}</div>
+                ) : (
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>지적 없음</div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -155,35 +183,36 @@ function CriteriaDrawer({ onClose }: { onClose: () => void }) {
   );
 }
 
-function MedicalSection({ medical }: { medical: BlogReview['medical'] }) {
+function SectionHeader({ light, title }: { light: Light; title: string }) {
+  return (
+    <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 8, display: 'flex', gap: 8, alignItems: 'center' }}>
+      <Dot light={light} /> {title}
+    </div>
+  );
+}
+
+function ConsensusList({ items }: { items: ReviewerFinding[] }) {
+  if (items.length === 0) return <div style={{ fontSize: 12.5, color: 'var(--text-muted)' }}>공통된 지적 없음.</div>;
+  return <div style={{ display: 'grid', gap: 8 }}>{items.map((f, i) => <FindingCard key={i} f={f} />)}</div>;
+}
+
+function MedicalSection({ medical, reviewers }: { medical: BlogReview['medical']; reviewers: ReviewerBreakdown[] }) {
   return (
     <section>
-      <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 8, display: 'flex', gap: 8, alignItems: 'center' }}>
-        <Dot light={medical.light} /> 의학적 정확성
-      </div>
-      {medical.consensus.length === 0 ? (
-        <div style={{ fontSize: 12.5, color: 'var(--text-muted)' }}>합의된 지적 없음.</div>
-      ) : (
-        <div style={{ display: 'grid', gap: 8 }}>{medical.consensus.map((f, i) => <FindingCard key={i} f={f} />)}</div>
-      )}
-      <Collapsible items={medical.lowConfidence} />
+      <SectionHeader light={medical.light} title="의학적 정확성" />
+      <ConsensusList items={medical.consensus} />
+      <ModelBreakdown reviewers={reviewers} axis="medical" />
     </section>
   );
 }
 
-function SeoSection({ seo }: { seo: BlogReview['seo'] }) {
+function SeoSection({ seo, reviewers }: { seo: BlogReview['seo']; reviewers: ReviewerBreakdown[] }) {
   return (
     <section>
-      <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 8, display: 'flex', gap: 8, alignItems: 'center' }}>
-        <Dot light={seo.light} /> 네이버 블로그 최적화
-      </div>
+      <SectionHeader light={seo.light} title="네이버 블로그 최적화" />
       <div style={{ marginBottom: 10 }}><MetricStrip metrics={seo.metrics} /></div>
-      {seo.consensus.length === 0 ? (
-        <div style={{ fontSize: 12.5, color: 'var(--text-muted)' }}>합의된 지적 없음.</div>
-      ) : (
-        <div style={{ display: 'grid', gap: 8 }}>{seo.consensus.map((f, i) => <FindingCard key={i} f={f} />)}</div>
-      )}
-      <Collapsible items={seo.lowConfidence} />
+      <ConsensusList items={seo.consensus} />
+      <ModelBreakdown reviewers={reviewers} axis="seo" />
     </section>
   );
 }
@@ -219,8 +248,8 @@ export default function AdminBlogReviewResult({ review, columns = false }: { rev
       </div>
 
       <div style={sectionsWrap}>
-        <MedicalSection medical={medical} />
-        <SeoSection seo={seo} />
+        <MedicalSection medical={medical} reviewers={review.reviewers ?? []} />
+        <SeoSection seo={seo} reviewers={review.reviewers ?? []} />
       </div>
 
       {drawer ? <CriteriaDrawer onClose={() => setDrawer(false)} /> : null}
