@@ -487,15 +487,28 @@ function parseWoorienPmsBasicInfoFromText(block: string): ParsedBasicInfo {
     }
     return null;
   };
-  // 값 뒤에 붙은 옆 칸(병원 전화/주소) 제거
+  // 값 뒤에 붙은 옆 칸(병원 전화/주소) 제거.
+  //  Medical Record 는 좌: 환자정보 / 우: 병원 주소 2단이라, 전사가 좌우를 한 줄로 이어붙이면
+  //  값 뒤에 주소 조각이 따라온다(예: "품종: 푸들 (송내동, 국일빌딩) 1층").
   const stripTrail = (v: string | null): string | null => {
     if (!v) return v;
-    let out = v.replace(/\s+0?\d{1,3}-\d{3,4}-\d{4}.*$/, "");
+    let out = v.replace(/\s+0?\d{1,3}-\d{3,4}-\d{4}.*$/, ""); // 전화번호부터 잘라냄
+    // 시/도로 시작하는 주소
     out = out.replace(/\s+(?:서울|부산|대구|인천|광주|대전|울산|세종|경기|강원|충북|충남|전북|전남|경북|경남|제주)[\s\S]*$/, "");
+    // 괄호 안에 동/로/길/빌딩 등 주소 낱말이 든 조각부터 끝까지 (예: "(송내동, 국일빌딩) 1층")
+    out = out.replace(/\s*\([^)]*(?:동|읍|면|리|로|길|가|빌딩|타워|센터|프라자|플라자|아파트|상가)[^)]*\)[\s\S]*$/, "");
+    // 남은 층수 표기 (예: "1층", "2F")
+    out = out.replace(/\s+\d+\s*(?:층|F)\b[\s\S]*$/i, "");
     return out.trim() || null;
   };
 
-  const hospitalName = lines.find((l) => /동물(메디컬|병원|의료|클리닉)|메디컬\s*센터/.test(l)) ?? null;
+  // 병원명도 2단 레이아웃 탓에 "보호자번호: … 전화번호: … 정담 동물메디컬센터" 처럼 한 줄에 섞여 온다.
+  //  줄 전체를 병원명으로 쓰지 말고 병원명 부분만 뽑는다.
+  //  이름 앞부분은 한글/영문 단어만(숫자로 시작하면 전화번호 꼬리가 딸려온다).
+  const HOSPITAL_NAME_RE =
+    /((?:[가-힣A-Za-z]+\s*){0,3}동물(?:메디컬(?:\s*센터)?|의료(?:원|센터)?|병원|클리닉))/;
+  const hospitalName =
+    lines.map((l) => l.match(HOSPITAL_NAME_RE)?.[1]?.trim()).find((v): v is string => Boolean(v)) ?? null;
   const birthRaw = pick(["생일", "생년월일"]);
   const birth = birthRaw ? (birthRaw.match(/\d{4}[-.]\d{1,2}[-.]\d{1,2}/)?.[0] ?? null) : null;
 
