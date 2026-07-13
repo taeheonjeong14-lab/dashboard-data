@@ -68,21 +68,23 @@
 /* ── 요약 2페이지 분할(내용이 길 때) ─────────────────────────────
    시트(종이)는 위 .hrss-sheet 규칙대로 항상 A4(297mm) 고정.
    1페이지(overall): 종합 소견이 페이지를 채운다.
-   2페이지(rest): 사후 관리는 내용만큼(자연 높이), 재검진 타임라인이 남는 공간을 채운다.
-     ※ 재검진 카드·라벨은 position:absolute 라 timeline 섹션은 반드시 flex:1(공간 확보)로 둬야
-        카드가 겹치지 않고 서명이 바닥에 정상 배치된다 → timeline flex 는 원래대로 두고 건드리지 않는다. */
+   2페이지(rest): 사후 관리도 **고정 높이**(133mm = 단일 페이지의 85mm + 이전 48mm 여백).
+     ※ 재검진 카드·라벨·서명은 position:absolute + 섹션 내부 배치라, 사후 관리를 자연 높이로 두면
+        내용이 길어질 때 타임라인 섹션이 눌려 카드가 서명란까지 덮는다.
+        → 세 섹션 모두 고정으로 두고, 넘치는 사후 관리 본문은 잘라낸다(레이아웃 붕괴 방지). */
 .hrss-sheet--overall .hrss-section--opinion {
   flex: 1 1 auto;
 }
 .hrss-sheet--rest .hrss-section--followup {
-  flex: 0 0 auto;
+  flex: 0 0 133mm;
 }
 .hrss-sheet--rest .hrss-section--followup .hrss-section-body {
-  flex: 0 0 auto;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
 }
-/* 사후 관리와 재검진 사이 여백 — 재검진 일정을 아래로 내린다. */
 .hrss-sheet--rest .hrss-section--timeline {
-  margin-top: 48mm;
+  margin-top: 0;
 }
 
 /* 분할 시 두 페이지(overall·rest)에 동일한 하단 그라데이션 배경을 시트에 넣는다.
