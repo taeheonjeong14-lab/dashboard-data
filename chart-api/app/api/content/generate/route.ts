@@ -931,8 +931,14 @@ export async function POST(request: NextRequest) {
           //  · followUp 재생성: 종합소견에만 맞춘다(옛 사후관리를 그대로 재생산하지 않도록 컨텍스트에서 제외).
           //  · overall 재생성: 백본 자체라 컨텍스트 없음.
           //  · 그 외(recheck·systems·lab): 종합소견 + 사후관리 둘 다 참고.
-          const priorOverall = typeof priorPayload.overallSummary === 'string' ? priorPayload.overallSummary.trim() : '';
-          const priorFollowUp = typeof priorPayload.followUpCare === 'string' ? priorPayload.followUpCare.trim() : '';
+          // 편집 중(미저장) 화면 값이 오면 그쪽이 우선 — 저장된 DB 값만 보면 방금 고친 종합소견이
+          // 반영되지 않아 섹션이 옛 스토리로 생성된다.
+          const draftOverall = typeof body.overallSummary === 'string' ? body.overallSummary.trim() : '';
+          const draftFollowUp = typeof body.followUpCare === 'string' ? body.followUpCare.trim() : '';
+          const priorOverall =
+            draftOverall || (typeof priorPayload.overallSummary === 'string' ? priorPayload.overallSummary.trim() : '');
+          const priorFollowUp =
+            draftFollowUp || (typeof priorPayload.followUpCare === 'string' ? priorPayload.followUpCare.trim() : '');
           let regenContext: string | undefined;
           if (sectionRaw === 'overall') {
             regenContext = undefined;
@@ -969,7 +975,7 @@ export async function POST(request: NextRequest) {
                 sectionRaw,
                 partialRecord[blocksKey],
                 usageCtx('image_placement'),
-                typeof priorPayload.overallSummary === 'string' ? priorPayload.overallSummary : '',
+                priorOverall,
               );
             } catch (placementErr) {
               console.error('[content/generate] section image placement failed (non-blocking):', placementErr);

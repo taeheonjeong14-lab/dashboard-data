@@ -387,6 +387,9 @@ export function AdminHealthCheckupWorkspace({
         credentials: 'include',
         body: JSON.stringify({
           revisionNote: (revision ?? '').trim().slice(0, HEALTH_CHECKUP_REVISION_NOTE_MAX_CHARS),
+          // 편집 중(미저장) 종합소견·사후관리를 함께 보내 장기 블록이 화면과 같은 스토리로 생성되게 한다.
+          overallSummary: draft.overallSummary,
+          followUpCare: draft.followUpCare,
           runId,
           expectedPatientName: patientName,
           contentType: 'health_checkup',
@@ -436,6 +439,9 @@ export function AdminHealthCheckupWorkspace({
         credentials: 'include',
         body: JSON.stringify({
           revisionNote: (revision ?? '').trim().slice(0, HEALTH_CHECKUP_REVISION_NOTE_MAX_CHARS),
+          // 편집 중(미저장) 종합소견·사후관리를 함께 보내 섹션이 화면과 같은 스토리로 생성되게 한다.
+          overallSummary: draft.overallSummary,
+          followUpCare: draft.followUpCare,
           runId,
           expectedPatientName: patientName,
           contentType: 'health_checkup',
