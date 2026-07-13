@@ -163,6 +163,12 @@ const DIRECT_ALIASES: Record<string, string> = {
   //  raw "pH"→"U-pH" 같은 위험 매핑은 전역이 아니라 urinalysisSectionItemName(섹션 한정)에서만 한다.
   UPH: 'U-pH', UGLU: 'U-GLU', UPRO: 'U-PRO', UBIL: 'U-BIL', UKET: 'U-KET', UBLD: 'U-BLD', URBC: 'U-RBC', UWBC: 'U-WBC',
   COLOR: 'Color', COLOUR: 'Color', CLARITY: 'Clarity',
+  // 소변 화학(분석기가 혈액과 같은 표에 찍는다 — IDEXX Catalyst UPC 클립 등). 소변 샘플이 있어야 값이 나온다.
+  UPC: 'UPC', UPCR: 'UPC', UPCRATIO: 'UPC',
+  UCRE: 'U-CRE', UCREA: 'U-CRE', UCREAT: 'U-CRE',
+  // 혈중 요소(Urea). BUN 과 같은 물질이지만 단위·수치 체계가 달라(BUN mg/dL vs UREA mmol/L)
+  //  한 항목으로 합치지 않는다 — 합치면 추이 그래프에 두 체계 값이 섞인다.
+  UREA: 'UREA', BUNUREA: 'UREA',
   // 심장 트로포닌 I (Cardiac Troponin I) — chemistry. cTnI/cTnl(OCR)·troponin 표기 흡수.
   CTNI: 'cTnI', CTNL: 'cTnI', TNI: 'cTnI', CTROPONIN: 'cTnI', CTROPONINI: 'cTnI', TROPONIN: 'cTnI', TROPONINI: 'cTnI',
   INS: 'INSULIN',
@@ -372,13 +378,14 @@ const RECOGNIZED_LAB_ITEMS: ReadonlySet<string> = new Set(
     // Chemistry
     'ALT', 'AST', 'ALP', 'GGT', 'ALB', 'TP', 'GLOB', 'ALB/GLOB', 'BUN', 'CREA', 'BUN/CREA', 'SDMA', 'GLU',
     'TBIL', 'DBIL', 'TBA', 'TCHO', 'CHOL', 'TRIG', 'AMYL', 'LIPA', 'CK', 'TLI', 'NH3', 'FRUC', 'OSM', 'OSM CA',
-    'CKMB', 'proBNP', 'NT-proBNP', 'cTnI', 'SDH', 'GLDH', 'URIC',
+    'CKMB', 'proBNP', 'NT-proBNP', 'cTnI', 'SDH', 'GLDH', 'URIC', 'UREA',
     // Electrolyte
     'NA', 'K', 'CL', 'CA', 'iCA', 'iCA(7.4)', 'PHOS', 'MG', 'NA/K', 'AG',
     // Urinalysis (요검사) — 소변 고유 항목만
     'SG', 'UBG', 'Nitrite', 'LEU',
     // UA 섹션 전용(섹션 헤더로 소변 확정 시 사용하는 소변 전용 이름)
     'U-pH', 'U-GLU', 'U-PRO', 'U-BIL', 'U-KET', 'U-BLD', 'U-RBC', 'U-WBC', 'U-URIC', 'Color', 'Clarity',
+    'UPC', 'U-CRE',
     // Coagulation
     'PT', 'aPTT', 'TT', 'D-dimer', 'FDP', 'AT III', 'BMBT', 'Platelet func',
     // Hormone
@@ -620,9 +627,15 @@ const ITEM_TO_CATEGORY: Record<string, string> = {
   'U-KET': 'urinalysis', 'U-BLD': 'urinalysis', 'U-RBC': 'urinalysis', 'U-WBC': 'urinalysis',
   'U-URIC': 'urinalysis',
   Color: 'urinalysis', Clarity: 'urinalysis',
+  // 소변 화학 — 소변 샘플 필요(혈액과 같은 표에 찍혀 나와도 소변 항목).
+  UPC: 'urinalysis',
+  'U-CRE': 'urinalysis',
+  UCRE: 'urinalysis',
   // 혈액 요산(Uric acid)
   URIC: 'chemistry',
   URICACID: 'chemistry',
+  // 혈중 요소(Urea) — BUN 과 별개 항목으로 둔다.
+  UREA: 'chemistry',
   OSM: 'chemistry',
   'OSM CA': 'chemistry',
   OSMCA: 'chemistry',
