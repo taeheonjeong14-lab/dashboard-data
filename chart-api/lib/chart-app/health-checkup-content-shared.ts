@@ -40,6 +40,8 @@ export const HEALTH_CHECKUP_MAX_COVER_FIELD_CHARS = 500;
 export const HEALTH_CHECKUP_MAX_COVER_SHORT_FIELD_CHARS = 7;
 // 품종은 "래브라도리트리버"(8자)처럼 7자를 넘는 경우가 흔해 별도로 넉넉히 둔다.
 export const HEALTH_CHECKUP_MAX_COVER_BREED_CHARS = 20;
+// 종은 표지 셀렉트 값이 'Canine (개)'·'Feline (고양이)'(13자)라 7자로 자르면 옵션과 안 맞아 미선택이 된다.
+export const HEALTH_CHECKUP_MAX_COVER_SPECIES_CHARS = 20;
 export const HEALTH_CHECKUP_MAX_COVER_CHECKUP_DATE_CHARS = 32;
 export const HEALTH_CHECKUP_MAX_COVER_SEX_CHARS = 12;
 
@@ -67,11 +69,12 @@ function maxCharsForCoverField(key: (typeof COVER_FIELD_KEYS)[number]): number {
     case 'coverVeterinarian':
       return HEALTH_CHECKUP_MAX_COVER_FIELD_CHARS;
     case 'coverPatientName':
-    case 'coverPatientSpecies':
     case 'coverPatientAge':
     case 'coverPatientWeight':
     case 'coverOwnerName':
       return HEALTH_CHECKUP_MAX_COVER_SHORT_FIELD_CHARS;
+    case 'coverPatientSpecies':
+      return HEALTH_CHECKUP_MAX_COVER_SPECIES_CHARS;
     case 'coverPatientBreed':
       return HEALTH_CHECKUP_MAX_COVER_BREED_CHARS;
     case 'coverPatientSex':

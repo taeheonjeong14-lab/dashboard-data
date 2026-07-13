@@ -1,12 +1,17 @@
 import {
+  HEALTH_CHECKUP_MAX_COVER_BREED_CHARS,
   HEALTH_CHECKUP_MAX_COVER_SHORT_FIELD_CHARS,
+  HEALTH_CHECKUP_MAX_COVER_SPECIES_CHARS,
   type HealthCheckupGeneratedContent,
 } from '@/lib/chart-app/health-checkup-content-llm';
 import { ageYearsCeilFromBirthIso, utcDateFromKstCalendar } from '@/lib/chart-app/patient-birth-age';
 import type { ReportSourceData } from '@/lib/chart-app/report-types';
 
 const SHORT = HEALTH_CHECKUP_MAX_COVER_SHORT_FIELD_CHARS;
+/** 품종은 "래브라도리트리버"처럼 7자를 넘는 경우가 흔해 표지 셀렉트/입력 상한이 따로 있다. */
+const BREED_MAX = HEALTH_CHECKUP_MAX_COVER_BREED_CHARS;
 const SEX_MAX = 12;
+const SPECIES_MAX = HEALTH_CHECKUP_MAX_COVER_SPECIES_CHARS;
 
 function clamp(s: string, max: number): string {
   const t = s.trim();
@@ -57,6 +62,24 @@ export function mapDbSexToCoverSex(raw: string | null | undefined): string | und
   return clamp(u, SEX_MAX);
 }
 
+/**
+ * 차트 발췌 종 문자열(개·강아지·犬·Canine·Dog·고양이·묘·Feline…)을 표지 셀렉트 값으로 맞춘다.
+ * admin 표지 셀렉트 옵션은 'Canine (개)' / 'Feline (고양이)' 두 개뿐이라, 정확히 일치하지 않으면
+ * 미선택으로 남는다(성별의 mapDbSexToCoverSex 와 같은 이유로 필요).
+ * 매칭 실패 시 잘린 원문 반환 — admin 이 직접 고르게 둔다.
+ */
+export function mapDbSpeciesToCoverSpecies(raw: string | null | undefined): string | undefined {
+  if (!raw?.trim()) return undefined;
+  const u = raw.trim();
+  if (u === 'Canine (개)' || u === 'Feline (고양이)') return u;
+
+  const s = u.toLowerCase();
+  if (/고양이|고양|feline|cat|괭이|묘|냥/.test(s)) return 'Feline (고양이)';
+  if (/강아지|개|dog|canine|k9|견|犬/.test(s)) return 'Canine (개)';
+
+  return clamp(u, SPECIES_MAX);
+}
+
 function coverFieldNeedsSourceDefault(v: unknown): boolean {
   return v === undefined || v === null;
 }
@@ -80,8 +103,8 @@ export function applyHealthCheckupCoverFromSource(
 
   if (b) {
     setIfUnset('coverPatientName', b.patientName ? clamp(b.patientName, SHORT) : undefined);
-    setIfUnset('coverPatientSpecies', b.species ? clamp(b.species, SHORT) : undefined);
-    setIfUnset('coverPatientBreed', b.breed ? clamp(b.breed, SHORT) : undefined);
+    setIfUnset('coverPatientSpecies', mapDbSpeciesToCoverSpecies(b.species));
+    setIfUnset('coverPatientBreed', b.breed ? clamp(b.breed, BREED_MAX) : undefined);
     setIfUnset('coverPatientSex', mapDbSexToCoverSex(b.sex));
     const ageFromDb =
       typeof b.age === 'number' && Number.isFinite(b.age) ? Math.trunc(b.age) : null;
