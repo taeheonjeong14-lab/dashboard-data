@@ -173,7 +173,13 @@ export async function runImagePlacementForRun(
   // (라벨 배치 위에 덮어쓴다. 이미지가 없는 모달리티는 기존 배치 유지.)
   try {
     const overallSummary = (payload as { overallSummary?: string }).overallSummary ?? '';
-    const cd = await generateCdFindings(images, overallSummary, usageContext);
+    // 덮어쓰기 전에 차트 텍스트로 쓴 소견(hp5_*_interp)을 떠서 비전 프롬프트에 넘긴다 —
+    // 안 그러면 "초음파로 확인한 심장병"처럼 이미지엔 안 보이고 차트에만 있는 소견이 통째로 사라진다.
+    const chartFindings = {
+      radiology: rowsTextOf(page5[0]),
+      ultrasound: rowsTextOf(page5[2]),
+    };
+    const cd = await generateCdFindings(images, overallSummary, usageContext, chartFindings);
     applyCdFindingsToPage5(page5, cd, imageById, storagePathById);
   } catch (e) {
     console.error('[image-placement] c/d findings failed (non-blocking):', e);
@@ -247,7 +253,9 @@ export async function applyImagePlacementForSection(
     placePage5ByLabel(blocks, images, imageById, storagePathById);
     // c/d(방사선·초음파): 전체 생성과 동일하게 종합소견 맥락 비전으로 검사소견·이미지 재선택.
     try {
-      const cd = await generateCdFindings(images, overallSummary, usageContext);
+      // 갓 생성된 차트 기반 소견을 덮어쓰기 전에 떠서 비전에 넘긴다(전체 생성과 동일).
+      const chartFindings = { radiology: rowsTextOf(blocks[0]), ultrasound: rowsTextOf(blocks[2]) };
+      const cd = await generateCdFindings(images, overallSummary, usageContext, chartFindings);
       applyCdFindingsToPage5(blocks, cd, imageById, storagePathById);
     } catch (e) {
       console.error('[image-placement] c/d findings (section) failed (non-blocking):', e);
