@@ -124,6 +124,9 @@ async function handlePOST(request: NextRequest) {
       message: resolved ? resolved.message : buildMessage(scheduledLabel, hospitalName),
       buttons: resolved ? resolved.buttons : buttons,
       pdf_url: null,
+      // 상품 라벨 — 워커가 과금 시 그대로 넘긴다. 없으면 바른플랜 환불 조건(product 기준)에서 빠져
+      // 바른플랜 병원인데도 알림톡 토큰이 차감된다. 건강검진 발송은 'health_report' 를 넣는다.
+      product_code: 'survey',
       sender_key: resolved ? resolved.senderKey : null,
       sender_phone: resolved ? resolved.senderPhone : null,
     };
