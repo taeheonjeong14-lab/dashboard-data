@@ -1307,15 +1307,10 @@ export function sanitizeLabItems<
       }) as T,
   );
 
+  // 측정값이 없는 항목은 차트 종류와 무관하게 드롭(efriends 예외 제거 — route.ts 사본과 동일하게 유지할 것).
   const filtered = normalized.filter((item) => {
     if (isLikelyNoiseLabItemName(item.itemName)) return false;
-    if (!item.valueText?.trim()) {
-      if (chartKind === 'efriends') {
-        return Boolean(item.itemName?.trim());
-      }
-      return false;
-    }
-    return true;
+    return Boolean(item.valueText?.trim());
   });
   const unique = new Map<string, T>();
   for (const item of filtered) {

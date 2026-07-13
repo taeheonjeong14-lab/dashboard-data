@@ -2182,17 +2182,13 @@ function sanitizeLabItems<
       }) as T,
   );
 
-  // 완전히 빈 값만 드롭. 대시(-)는 요검사 딥스틱에서 "음성" 결과이므로 여기서 버리지 않고
-  //  매핑 단계에서 "음성"으로 표시한다(빈칸 ≠ 음성).
+  // 측정값이 없는 항목은 차트 종류와 무관하게 드롭한다(항목명만 있는 빈 줄을 남기지 않는다).
+  //  ※ 예전엔 efriends 만 "이름만 있으면 유지" 예외였는데, sanitize 이후 값을 채우는 단계가 없어
+  //    빈 값 그대로 저장·표시됐다 → 예외 제거.
+  // 대시(-)는 요검사 딥스틱의 "음성" 결과이므로 여기서 버리지 않고 매핑 단계에서 "음성"으로 표시한다(빈칸 ≠ 음성).
   const filtered = normalized.filter((item) => {
     if (isLikelyNoiseLabItemName(item.itemName)) return false;
-    if (!item.valueText?.trim()) {
-      if (chartKind === "efriends") {
-        return Boolean(item.itemName?.trim());
-      }
-      return false;
-    }
-    return true;
+    return Boolean(item.valueText?.trim());
   });
   const unique = new Map<string, T>();
   for (const item of filtered) {
