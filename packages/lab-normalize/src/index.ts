@@ -126,6 +126,9 @@ const DIRECT_ALIASES: Record<string, string> = {
   FPL: 'fPL',
   QPL: 'PL', // species 미상일 때의 폴백(아는 경우 pancreaticLipaseImmunoCanonical 가 cPL/fPL 로)
   ANIONGAP: 'AG',
+  // 요산(Uric acid) — 혈액 화학 항목. 사람 검사식 약어 'UA' 는 우리 시스템에서 요검사(Urinalysis)
+  // 섹션을 뜻해 충돌하므로 canonical 은 'URIC'. 소변 요산은 UA 섹션 매핑에서 'U-URIC' 으로 간다.
+  URIC: 'URIC', URICACID: 'URIC', URICA: 'URIC', 요산: 'URIC',
   TT4: 'T4',
   BILTOTAL: 'TBIL',
   PDWCV: 'PDW',
@@ -369,13 +372,13 @@ const RECOGNIZED_LAB_ITEMS: ReadonlySet<string> = new Set(
     // Chemistry
     'ALT', 'AST', 'ALP', 'GGT', 'ALB', 'TP', 'GLOB', 'ALB/GLOB', 'BUN', 'CREA', 'BUN/CREA', 'SDMA', 'GLU',
     'TBIL', 'DBIL', 'TBA', 'TCHO', 'CHOL', 'TRIG', 'AMYL', 'LIPA', 'CK', 'TLI', 'NH3', 'FRUC', 'OSM', 'OSM CA',
-    'CKMB', 'proBNP', 'NT-proBNP', 'cTnI', 'SDH', 'GLDH',
+    'CKMB', 'proBNP', 'NT-proBNP', 'cTnI', 'SDH', 'GLDH', 'URIC',
     // Electrolyte
     'NA', 'K', 'CL', 'CA', 'iCA', 'iCA(7.4)', 'PHOS', 'MG', 'NA/K', 'AG',
     // Urinalysis (요검사) — 소변 고유 항목만
     'SG', 'UBG', 'Nitrite', 'LEU',
     // UA 섹션 전용(섹션 헤더로 소변 확정 시 사용하는 소변 전용 이름)
-    'U-pH', 'U-GLU', 'U-PRO', 'U-BIL', 'U-KET', 'U-BLD', 'U-RBC', 'U-WBC', 'Color', 'Clarity',
+    'U-pH', 'U-GLU', 'U-PRO', 'U-BIL', 'U-KET', 'U-BLD', 'U-RBC', 'U-WBC', 'U-URIC', 'Color', 'Clarity',
     // Coagulation
     'PT', 'aPTT', 'TT', 'D-dimer', 'FDP', 'AT III', 'BMBT', 'Platelet func',
     // Hormone
@@ -615,7 +618,11 @@ const ITEM_TO_CATEGORY: Record<string, string> = {
   // UA 섹션 전용(섹션으로 소변 확정된 항목)
   'U-pH': 'urinalysis', 'U-GLU': 'urinalysis', 'U-PRO': 'urinalysis', 'U-BIL': 'urinalysis',
   'U-KET': 'urinalysis', 'U-BLD': 'urinalysis', 'U-RBC': 'urinalysis', 'U-WBC': 'urinalysis',
+  'U-URIC': 'urinalysis',
   Color: 'urinalysis', Clarity: 'urinalysis',
+  // 혈액 요산(Uric acid)
+  URIC: 'chemistry',
+  URICACID: 'chemistry',
   OSM: 'chemistry',
   'OSM CA': 'chemistry',
   OSMCA: 'chemistry',
@@ -837,6 +844,8 @@ const URINALYSIS_SECTION_MAP: Record<string, string> = {
   SG: 'SG', USG: 'SG', SPGR: 'SG', SPECIFICGRAVITY: 'SG',
   UBG: 'UBG', URO: 'UBG', UROBILINOGEN: 'UBG',
   NIT: 'Nitrite', NITRITE: 'Nitrite',
+  // 소변 요산 — 섹션으로 소변이 확정됐을 때만. 혈액 요산(URIC, chemistry)과 섞이지 않게 U-URIC 으로.
+  URIC: 'U-URIC', URICACID: 'U-URIC',
   COLOR: 'Color', COLOUR: 'Color',
   CLAR: 'Clarity', CLARITY: 'Clarity', TURBIDITY: 'Clarity', APPEARANCE: 'Clarity',
 };
