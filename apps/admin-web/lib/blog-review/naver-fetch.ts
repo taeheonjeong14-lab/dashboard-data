@@ -151,7 +151,10 @@ export async function fetchNaverPost(rawUrl: string): Promise<NaverPost> {
   const container = extractContainer(html);
   if (!container) throw new Error('본문을 추출하지 못했습니다(비공개·형식 변경 가능). 본문을 직접 붙여넣어 주세요.');
 
-  const bodyText = stripTags(container);
+  // 네이버 SmartEditor 는 마크다운 헤딩이 없다. 구분선(se-horizontalLine)을 '섹션 구분'으로
+  // 인식하도록, 태그 제거 전에 각 구분선 앞에 마크다운 헤딩 마커를 텍스트로 삽입한다.
+  const withSections = container.replace(/<[^>]*class="[^"]*se-section-horizontalLine[^"]*"/gi, '\n## ▪\n$&');
+  const bodyText = stripTags(withSections);
   if (bodyText.length < 30) throw new Error('본문이 너무 짧거나 추출에 실패했습니다. 본문을 직접 붙여넣어 주세요.');
 
   return {
