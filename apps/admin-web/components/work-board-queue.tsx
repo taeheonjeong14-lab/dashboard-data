@@ -129,6 +129,20 @@ export function WorkBoardQueue({ blogItems }: { blogItems: QueueItem[] }) {
     return blogItems.filter((i) => b.poolStages.includes(i.stage) && !assignedByBoard[assignBoard].has(i.runId));
   }, [assignBoard, blogItems, assignedByBoard]);
 
+  // 대기 목록을 병원별로 그루핑(건수 많은 병원 먼저, 동수면 이름순).
+  const poolByHospital = useMemo(() => {
+    const groups = new Map<string, QueueItem[]>();
+    for (const it of assignPool) {
+      const h = it.hospitalName?.trim() || '병원 미상';
+      const arr = groups.get(h);
+      if (arr) arr.push(it);
+      else groups.set(h, [it]);
+    }
+    return [...groups.entries()]
+      .map(([hospital, items]) => ({ hospital, items }))
+      .sort((a, b) => b.items.length - a.items.length || a.hospital.localeCompare(b.hospital));
+  }, [assignPool]);
+
   // 병원별 (선택수 / 가능수) — 팀장이 고르게 배정하도록 실시간 카운트.
   const hospitalCounts = useMemo(() => {
     const avail = new Map<string, number>();
@@ -285,15 +299,29 @@ export function WorkBoardQueue({ blogItems }: { blogItems: QueueItem[] }) {
               {assignPool.length === 0 ? (
                 <p style={{ fontSize: 13, color: 'var(--text-muted)', padding: '24px 0', textAlign: 'center' }}>배정할 대기 항목이 없습니다.</p>
               ) : (
-                <div style={{ display: 'grid', gap: 6 }}>
+                <div style={{ display: 'grid', gap: 14 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 }}>
-                    <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)' }}>대기 {assignPool.length}건</span>
+                    <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)' }}>대기 {assignPool.length}건 · {poolByHospital.length}개 병원</span>
                     <button type="button" onClick={() => setSelected((s) => s.size === assignPool.length ? new Set() : new Set(assignPool.map((i) => i.runId)))}
                       style={{ border: 0, background: 'transparent', fontSize: 12, fontWeight: 600, color: 'var(--accent)', cursor: 'pointer' }}>
                       {selected.size === assignPool.length ? '전체 해제' : '전체 선택'}
                     </button>
                   </div>
-                  {assignPool.map((it) => {
+                  {poolByHospital.map(({ hospital, items }) => {
+                    const runIds = items.map((i) => i.runId);
+                    const allOn = runIds.every((id) => selected.has(id));
+                    return (
+                    <div key={hospital} style={{ display: 'grid', gap: 6 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: 2, borderTop: '1px solid var(--border)', marginTop: 2 }}>
+                        <span style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text)' }}>
+                          {hospital} <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}>{items.length}건</span>
+                        </span>
+                        <button type="button" onClick={() => setSelected((s) => { const n = new Set(s); if (allOn) runIds.forEach((id) => n.delete(id)); else runIds.forEach((id) => n.add(id)); return n; })}
+                          style={{ border: 0, background: 'transparent', fontSize: 11.5, fontWeight: 600, color: 'var(--accent)', cursor: 'pointer' }}>
+                          {allOn ? '해제' : '전체 선택'}
+                        </button>
+                      </div>
+                      {items.map((it) => {
                     const on = selected.has(it.runId);
                     const isSave = assignBoard === 'blog_save';
                     return (
@@ -305,9 +333,11 @@ export function WorkBoardQueue({ blogItems }: { blogItems: QueueItem[] }) {
                             <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                               {it.patientName || '—'}{it.ownerName ? <span style={{ fontWeight: 400, color: 'var(--text-secondary)' }}> · {it.ownerName}</span> : null}
                             </div>
-                            <div style={{ fontSize: 11.5, color: 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                              {it.hospitalName || '병원 미상'}{it.friendlyId ? ` · #${it.friendlyId}` : ''}
-                            </div>
+                            {it.friendlyId ? (
+                              <div style={{ fontSize: 11.5, color: 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                #{it.friendlyId}
+                              </div>
+                            ) : null}
                           </div>
                         </label>
                         {isSave ? (() => {
@@ -330,6 +360,9 @@ export function WorkBoardQueue({ blogItems }: { blogItems: QueueItem[] }) {
                           );
                         })() : null}
                       </div>
+                    );
+                  })}
+                    </div>
                     );
                   })}
                 </div>
