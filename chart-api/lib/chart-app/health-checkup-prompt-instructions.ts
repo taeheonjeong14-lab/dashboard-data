@@ -210,6 +210,7 @@ export function healthCheckupOrganBlockLines(key: string): string[] {
     healthCheckupRequiredCheckItemsLine(key),
     '- **주요 진단에 검사 수치를 쓰면 숫자만 적지 말고, 그 값이 정상인지·이상인지와 무슨 의미인지를 반드시 짧게 한마디 덧붙인다.**',
     '- 관련 근거가 없으면 위 고정 문구를 사용한다.',
+    '- ★고정 문구(미포함 영역)를 쓸 때는 **주요 진단·시사점 두 칸 모두** 같은 문구를 쓴다. 한쪽만 미포함이라 해놓고 다른 칸에 소견을 적으면 앞뒤가 안 맞는다.',
     `- 주요 진단 최대 ${dxMax}자, 시사점 최대 ${impMax}자`,
   ];
 }

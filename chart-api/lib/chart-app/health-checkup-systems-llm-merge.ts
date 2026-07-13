@@ -29,6 +29,23 @@ function setRowContent(
 
 const DISEASE_NAME_MAX = 60;
 
+/** "○○ 프로그램 미포함 영역" 고정 문구인지. */
+function isExcludedAreaPhrase(s: string): boolean {
+  return /프로그램\s*미포함\s*영역/.test(s);
+}
+
+/**
+ * 한 칸(주요 진단/시사점)만 "미포함 영역"이고 다른 칸엔 소견이 적히는 경우가 있어,
+ * 블록의 두 칸을 같은 고정 문구로 맞춘다 — 검사를 안 한 영역인데 시사점만 있으면 앞뒤가 안 맞는다.
+ */
+function alignExcludedRows(blocks: HealthSystemsReportBlock[], blockIndex: number): void {
+  const b = blocks[blockIndex];
+  if (b?.variant !== 'rows') return;
+  const phrase = b.rows.find((r) => isExcludedAreaPhrase(r.content ?? ''))?.content;
+  if (!phrase) return;
+  for (const row of b.rows) row.content = phrase;
+}
+
 /** LLM이 출력한 질환명 배열 → 정리된 고유 이름 목록. */
 function toDiseaseNames(v: unknown): string[] {
   if (!Array.isArray(v)) return [];
@@ -135,6 +152,13 @@ export function mergeHealthSystemsDemosWithLlmFields(o: Record<string, unknown>)
   // 5p 질환 소개 후보 — 치과 및 안과(block 0), 피부와 외이도(block 2)
   setDiseaseOptions(p4, 0, toDiseaseNames(o.hp4_dental_diseases));
   setDiseaseOptions(p4, 2, toDiseaseNames(o.hp4_skin_diseases));
+
+  // 미포함 영역은 주요 진단·시사점 두 칸을 같은 문구로(한쪽만 채워지는 일 방지).
+  for (const i of [0, 1, 2]) {
+    alignExcludedRows(p3a, i);
+    alignExcludedRows(p3b, i);
+  }
+  for (const i of [0, 2]) alignExcludedRows(p4, i);
 
   const p5 = cloneBlocks(DEMO_RADIOLOGY_ULTRASOUND_BLOCKS);
   const radInterp = str(o.hp5_rad_interp) || joinLegacyDxImp(o.hp5_rad_dx, o.hp5_rad_imp);
