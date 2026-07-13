@@ -226,6 +226,10 @@ export function AdminHealthCheckupWorkspace({
   const [chartHistoryOpen, setChartHistoryOpen] = useState(false);
   const chartHistoryDialogRef = useRef<HTMLDialogElement>(null);
 
+  // 초안-최종본 비교 분석(프롬프트 개선) 선택 상태. status: null(미선택) | selected | running | done | error
+  const [diffStatus, setDiffStatus] = useState<string | null>(null);
+  const [diffBusy, setDiffBusy] = useState(false);
+
   const healthItem = useMemo(() => items.find((i) => i.contentType === 'health_checkup') ?? null, [items]);
   const hasContent = healthItem != null;
 
@@ -738,6 +742,44 @@ export function AdminHealthCheckupWorkspace({
     }
   }, [runId]);
 
+  // 비교 분석 선택 상태 로드(프롬프트 개선 메뉴로 흘러가는 대상인지).
+  useEffect(() => {
+    let alive = true;
+    void (async () => {
+      try {
+        const res = await fetch(`/api/admin/health-report/draft-diff?runId=${encodeURIComponent(runId)}`, {
+          credentials: 'include',
+        });
+        const data = (await res.json()) as { status?: string | null };
+        if (alive && res.ok) setDiffStatus(data.status ?? null);
+      } catch {
+        /* 선택 상태는 부가 정보 — 실패해도 화면은 정상 동작 */
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [runId]);
+
+  const toggleDiff = useCallback(async () => {
+    const next = diffStatus == null;
+    setDiffBusy(true);
+    try {
+      const res = await fetch('/api/admin/health-report/draft-diff', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ runId, selected: next }),
+      });
+      const data = (await res.json()) as { status?: string; error?: string };
+      if (!res.ok) throw new Error(data.error ?? '처리에 실패했습니다.');
+      setDiffStatus(next ? (data.status ?? 'selected') : null);
+    } catch (e) {
+      window.alert(e instanceof Error ? e.message : '처리에 실패했습니다.');
+    } finally {
+      setDiffBusy(false);
+    }
+  }, [runId, diffStatus]);
 
   if (loading && items.length === 0 && !loadError) {
     return <p style={{ fontSize: 14, color: 'var(--text-muted)' }}>불러오는 중…</p>;
@@ -783,6 +825,22 @@ export function AdminHealthCheckupWorkspace({
               onClick={() => void downloadPdf()}
             >
               {pdfBusy ? 'PDF 생성 중…' : 'PDF 다운로드'}
+            </button>
+            <button
+              type="button"
+              className="adminLegacySmallBtn"
+              disabled={diffBusy || diffStatus === 'done' || diffStatus === 'running'}
+              onClick={() => void toggleDiff()}
+              title="지금 내용을 초안으로 스냅샷해 두고, 병원이 카카오 발송/PDF 다운로드하면 최종본과 비교 분석합니다. 결과는 '프롬프트 개선' 메뉴에서 봅니다."
+              style={diffStatus ? { borderColor: 'var(--accent)', color: 'var(--accent)', fontWeight: 700 } : undefined}
+            >
+              {diffStatus === 'done'
+                ? '비교 분석 완료'
+                : diffStatus === 'running'
+                  ? '비교 분석 중…'
+                  : diffStatus
+                    ? '✓ 비교 분석 대상'
+                    : '비교 분석 대상'}
             </button>
           </>
         ) : null}

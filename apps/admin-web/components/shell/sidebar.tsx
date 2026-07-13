@@ -19,6 +19,7 @@ import {
   ListTodo,
   Activity,
   Search,
+  Sparkles,
   type LucideProps,
 } from 'lucide-react';
 
@@ -60,6 +61,7 @@ const NAV_GROUPS: NavGroup[] = [
       { href: '/admin/health-report', label: '건강검진 리포트', icon: HeartPulse, matchPrefix: '/admin/health-report' },
       { href: '/admin/case-blog', label: '진료케이스', icon: Newspaper, matchPrefix: '/admin/case-blog' },
       { href: '/admin/blog-review', label: '글 검수', icon: ShieldCheck, matchPrefix: '/admin/blog-review' },
+      { href: '/admin/prompt-improve', label: '프롬프트 개선', icon: Sparkles, matchPrefix: '/admin/prompt-improve' },
     ],
   },
   {

@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { after, NextRequest, NextResponse } from 'next/server';
 import { hashShareToken } from '@/lib/chart-app/share-token';
+import { runDiffAnalysisIfSelected } from '@/lib/chart-app/report-draft-diff';
 import { hospitalRowFromDb } from '@/lib/chart-app/hospital-db';
 import type { HospitalRow } from '@/lib/chart-app/hospitals-types';
 import { getHealthCheckupGeneratedContentForRun } from '@/lib/generated-run-content';
@@ -130,6 +131,9 @@ export async function POST(request: NextRequest) {
     console.info(`[pdf-export-by-share] rid=${requestId} runId=${runId} stage=before_pdf printUrl=${printUrl}`);
 
     const pdf = await renderPdfFromPageUrl(printUrl, { requestId });
+
+    // 공유 페이지에서의 다운로드 = 병원 작업 종료 → 초안-최종본 비교 분석(선택된 run 만, 1회).
+    after(() => runDiffAnalysisIfSelected(runId, 'download'));
 
     const pdfRes = new NextResponse(new Uint8Array(pdf), {
       status: 200,

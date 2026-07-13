@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { after, NextRequest, NextResponse } from 'next/server';
 import { hashShareToken } from '@/lib/chart-app/share-token';
+import { runDiffAnalysisIfSelected } from '@/lib/chart-app/report-draft-diff';
 import { hospitalRowFromDb } from '@/lib/chart-app/hospital-db';
 import { getHealthCheckupGeneratedContentForRun } from '@/lib/generated-run-content';
 import { loadRunBasicsForPdfBasename } from '@/lib/report-source-pdf-basename';
@@ -139,6 +140,9 @@ export async function POST(request: NextRequest) {
       ],
     );
     const outboxId = ins.rows[0]?.id;
+
+    // 발송 = 병원 작업 종료 → 초안-최종본 비교 분석(선택된 run 만, 1회). 응답을 막지 않도록 after() 로.
+    after(() => runDiffAnalysisIfSelected(runId, 'kakao'));
 
     // 큐에 적재 즉시 응답(버튼 즉시 반응). 발송 결과(성공/실패)는 워커가 alimtalk_result 알림으로 전달한다.
     return NextResponse.json({ ok: true, queued: true, outboxId, message: '발송이 요청되었습니다. 곧 전송됩니다.' });
