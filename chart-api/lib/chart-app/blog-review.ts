@@ -33,8 +33,8 @@ const REVIEWER_MODELS = (process.env.BLOG_REVIEW_MODELS?.trim() ||
   .map((s) => s.trim())
   .filter(Boolean);
 
-/** 집계 모델(중립 병합 — 검수보다 쉬워 저가 모델로 충분). */
-const AGGREGATOR_MODEL = process.env.BLOG_REVIEW_AGGREGATOR_MODEL?.trim() || 'google/gemini-2.5-flash';
+/** 집계 모델. haiku 는 지시(개조식·길이) 준수가 나아 gemini-flash 대비 문체가 짧게 나온다. */
+const AGGREGATOR_MODEL = process.env.BLOG_REVIEW_AGGREGATOR_MODEL?.trim() || 'anthropic/claude-haiku-4.5';
 
 /** 응답 토큰 상한. 너무 낮으면 JSON 이 잘려 파싱 실패("Unterminated string")한다. */
 const MAX_TOKENS = Number(process.env.BLOG_REVIEW_MAX_TOKENS) || 8000;

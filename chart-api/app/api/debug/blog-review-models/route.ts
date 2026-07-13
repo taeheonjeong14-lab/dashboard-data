@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
   const configured = (process.env.BLOG_REVIEW_MODELS?.trim() ||
     'anthropic/claude-haiku-4.5,xai/grok-4.1-fast-reasoning,google/gemini-2.5-flash')
     .split(',').map((s) => s.trim()).filter(Boolean);
-  const aggregator = process.env.BLOG_REVIEW_AGGREGATOR_MODEL?.trim() || 'google/gemini-2.5-flash';
+  const aggregator = process.env.BLOG_REVIEW_AGGREGATOR_MODEL?.trim() || 'anthropic/claude-haiku-4.5';
 
   try {
     const res = await fetch(`${base}/models`, {
