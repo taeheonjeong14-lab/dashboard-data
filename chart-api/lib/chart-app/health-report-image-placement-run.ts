@@ -9,7 +9,12 @@ import {
 } from '@/lib/chart-app/health-systems-demo-blocks';
 import { type PlacementImageInput } from '@/lib/chart-app/health-report-image-placement-llm';
 import { parseHealthSystemsBlocksFromUnknown } from '@/lib/chart-app/health-report-systems-blocks-parse';
-import { generateCdFindings, selectSectionImages, type CdFindingsResult } from '@/lib/chart-app/health-report-cd-findings';
+import {
+  generateCdFindings,
+  selectSectionImages,
+  type CdFindingsResult,
+  type CdModalityResult,
+} from '@/lib/chart-app/health-report-cd-findings';
 import { simpleHealthReportImageCaption } from '@/lib/chart-app/health-report-image-caption';
 import type { UsageContext } from '@/lib/billing/usage-log';
 
@@ -115,10 +120,18 @@ function sectionABofImage(img: PlacementImageInput): 'a' | 'b' | null {
 
 const CD_NOT_INCLUDED = '이번 검진 프로그램에는 포함되지 않은 영역입니다.';
 
+/** 텍스트가 "미포함 영역" 고정 문구인지(= 차트에도 근거가 없다는 뜻). */
+function isNotIncludedText(s: string): boolean {
+  return !s.trim() || /미포함 영역|포함되지 않은 영역/.test(s);
+}
+
 /**
- * 방사선·초음파(c/d)는 "이미지를 보고 소견을 쓰는" 영역이라, 차트 텍스트로 소견을 쓰지 않는다.
- * - 해당 모달리티 이미지가 있으면: 비전 검사소견 + 선택 이미지.
- * - 이미지가 없으면: "포함되지 않은 영역" 문구 + 슬롯 비움.
+ * 방사선·초음파(c/d) 검사소견 반영.
+ * - 이미지가 있으면: 비전 검사소견 + 선택 이미지(차트 소견은 비전 프롬프트에 이미 반영됨).
+ * - 이미지가 없어도 차트 기반 소견이 있으면: 그 텍스트를 살린다(슬롯만 비움).
+ *   ※ 사진 없이 판독 결과만 차트에 적힌 경우가 있다(예: 정형 방사선 소견이 종합소견엔 있는데 사진 미첨부).
+ *     예전에는 이미지 0장이면 무조건 "포함되지 않은 영역"으로 덮어써서, 재생성해도 그 문구가 안 없어졌다.
+ * - 이미지도 없고 차트 근거도 없을 때만: "포함되지 않은 영역" 문구.
  * (rows=page5[0]/page5[2], images=page5[1]/page5[3])
  */
 function applyCdFindingsToPage5(
@@ -126,26 +139,31 @@ function applyCdFindingsToPage5(
   cd: CdFindingsResult,
   imageById: Map<string, PlacementImageInput>,
   storagePathById: Map<string, string>,
+  chartFindings?: { radiology?: string; ultrasound?: string },
 ): void {
   const all = [...imageById.values()];
   const radCount = all.filter((i) => i.examType === 'radiology' && i.radiologySub !== 'dental').length;
   const usCount = all.filter((i) => i.examType === 'ultrasound').length;
 
-  if (radCount === 0) {
-    setRowsText(page5[0], CD_NOT_INCLUDED);
-    fillImageBlock(page5[1], [], imageById, storagePathById);
-  } else {
-    setRowsText(page5[0], cd.radiology.findings);
-    fillImageBlock(page5[1], cd.radiology.imageIds, imageById, storagePathById);
-  }
+  const applyModality = (
+    rowsBlock: HealthSystemsReportBlock | undefined,
+    imagesBlock: HealthSystemsReportBlock | undefined,
+    count: number,
+    vision: CdModalityResult,
+    chartText: string,
+  ) => {
+    if (count > 0) {
+      setRowsText(rowsBlock, vision.findings);
+      fillImageBlock(imagesBlock, vision.imageIds, imageById, storagePathById);
+      return;
+    }
+    // 이미지 없음 — 차트 기반 소견이 있으면 살리고, 없으면 미포함 문구.
+    setRowsText(rowsBlock, isNotIncludedText(chartText) ? CD_NOT_INCLUDED : chartText);
+    fillImageBlock(imagesBlock, [], imageById, storagePathById);
+  };
 
-  if (usCount === 0) {
-    setRowsText(page5[2], CD_NOT_INCLUDED);
-    fillImageBlock(page5[3], [], imageById, storagePathById);
-  } else {
-    setRowsText(page5[2], cd.ultrasound.findings);
-    fillImageBlock(page5[3], cd.ultrasound.imageIds, imageById, storagePathById);
-  }
+  applyModality(page5[0], page5[1], radCount, cd.radiology, chartFindings?.radiology ?? '');
+  applyModality(page5[2], page5[3], usCount, cd.ultrasound, chartFindings?.ultrasound ?? '');
 }
 
 export async function runImagePlacementForRun(
@@ -180,7 +198,7 @@ export async function runImagePlacementForRun(
       ultrasound: rowsTextOf(page5[2]),
     };
     const cd = await generateCdFindings(images, overallSummary, usageContext, chartFindings);
-    applyCdFindingsToPage5(page5, cd, imageById, storagePathById);
+    applyCdFindingsToPage5(page5, cd, imageById, storagePathById, chartFindings);
   } catch (e) {
     console.error('[image-placement] c/d findings failed (non-blocking):', e);
   }
@@ -256,7 +274,7 @@ export async function applyImagePlacementForSection(
       // 갓 생성된 차트 기반 소견을 덮어쓰기 전에 떠서 비전에 넘긴다(전체 생성과 동일).
       const chartFindings = { radiology: rowsTextOf(blocks[0]), ultrasound: rowsTextOf(blocks[2]) };
       const cd = await generateCdFindings(images, overallSummary, usageContext, chartFindings);
-      applyCdFindingsToPage5(blocks, cd, imageById, storagePathById);
+      applyCdFindingsToPage5(blocks, cd, imageById, storagePathById, chartFindings);
     } catch (e) {
       console.error('[image-placement] c/d findings (section) failed (non-blocking):', e);
     }
