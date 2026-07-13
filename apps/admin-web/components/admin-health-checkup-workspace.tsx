@@ -231,8 +231,12 @@ export function AdminHealthCheckupWorkspace({
   const [diffStatus, setDiffStatus] = useState<string | null>(null);
   const [diffBusy, setDiffBusy] = useState(false);
 
-  // '다시 생성' 수정 요청 입력 모달.
-  const [revisionOpen, setRevisionOpen] = useState(false);
+  // '다시 생성' 수정 요청 입력 모달 — 전체/섹션/장기 어느 버튼에서 열렸는지 대상을 들고 있는다.
+  type RevisionTarget =
+    | { kind: 'full' }
+    | { kind: 'section'; apiSection: string; uiKey: string; label: string }
+    | { kind: 'organ'; k: SystemKey; blockIndex: number; label: string };
+  const [revisionTarget, setRevisionTarget] = useState<RevisionTarget | null>(null);
   const [revisionNote, setRevisionNote] = useState('');
 
   const healthItem = useMemo(() => items.find((i) => i.contentType === 'health_checkup') ?? null, [items]);
@@ -372,7 +376,7 @@ export function AdminHealthCheckupWorkspace({
 
   // 장기 1개만 재생성: 같은 페이지 그룹을 생성해 받되, **누른 장기 블록 1개만** draft에 반영한다.
   // 옆 장기·다른 페이지는 그대로 두고, 그 장기의 질환 후보는 이름이 같으면 토글(enabled)·본문(body)을 보존한다.
-  async function regenerateOrgan(k: SystemKey, blockIndex: number) {
+  async function regenerateOrgan(k: SystemKey, blockIndex: number, revision?: string) {
     const uiKey = `${k}-${blockIndex}`;
     setGeneratingSection(uiKey);
     setGenError(null);
@@ -382,6 +386,7 @@ export function AdminHealthCheckupWorkspace({
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({
+          revisionNote: (revision ?? '').trim().slice(0, HEALTH_CHECKUP_REVISION_NOTE_MAX_CHARS),
           runId,
           expectedPatientName: patientName,
           contentType: 'health_checkup',
@@ -421,7 +426,7 @@ export function AdminHealthCheckupWorkspace({
     }
   }
 
-  async function generateSection(apiSection: string, uiSectionKey: string) {
+  async function generateSection(apiSection: string, uiSectionKey: string, revision?: string) {
     setGeneratingSection(uiSectionKey);
     setGenError(null);
     try {
@@ -430,6 +435,7 @@ export function AdminHealthCheckupWorkspace({
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({
+          revisionNote: (revision ?? '').trim().slice(0, HEALTH_CHECKUP_REVISION_NOTE_MAX_CHARS),
           runId,
           expectedPatientName: patientName,
           contentType: 'health_checkup',
@@ -652,6 +658,20 @@ export function AdminHealthCheckupWorkspace({
     }
   }
 
+  /** '다시 생성' 계열 버튼 → 수정 요청 입력 모달을 연다(대상 기억). */
+  function openRevision(target: RevisionTarget) {
+    setRevisionNote('');
+    setRevisionTarget(target);
+  }
+
+  /** 모달 확인 → 대상에 맞는 재생성을 수정 요청과 함께 실행. */
+  function runRevision(target: RevisionTarget, note: string) {
+    setRevisionTarget(null);
+    if (target.kind === 'full') void generateContent(note);
+    else if (target.kind === 'section') void generateSection(target.apiSection, target.uiKey, note);
+    else void regenerateOrgan(target.k, target.blockIndex, note);
+  }
+
   /** revision: '다시 생성' 시 admin 이 적은 수정 요청(직전 초안 대비). 비우면 평소대로 생성. */
   async function generateContent(revision?: string) {
     setGenerating(true);
@@ -817,7 +837,7 @@ export function AdminHealthCheckupWorkspace({
               type="button"
               className="adminLegacySmallBtn"
               disabled={generating}
-              onClick={() => setRevisionOpen(true)}
+              onClick={() => openRevision({ kind: 'full' })}
               title="어떤 점을 고치고 싶은지 적어 두면, 그 지시를 프롬프트에 넣어 다시 생성합니다."
             >
               {generating ? '재생성 중…' : '다시 생성'}
@@ -1125,7 +1145,7 @@ export function AdminHealthCheckupWorkspace({
             <summary style={{ padding: '10px 12px', fontWeight: 700, cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span>종합 소견</span>
               <div style={{ display: 'flex', gap: 6 }}>
-                <button type="button" className="adminLegacySmallBtn" disabled={generatingSection !== null || condensingSection !== null || savingSection !== null} onClick={(e) => { e.preventDefault(); void generateSection('overall', 'overall'); }}>
+                <button type="button" className="adminLegacySmallBtn" disabled={generatingSection !== null || condensingSection !== null || savingSection !== null} onClick={(e) => { e.preventDefault(); openRevision({ kind: 'section', apiSection: 'overall', uiKey: 'overall', label: '종합 소견' }); }}>
                   {generatingSection === 'overall' ? '재생성 중…' : '다시 생성'}
                 </button>
                 <button type="button" className="adminLegacySmallBtn" disabled={generatingSection !== null || condensingSection !== null || savingSection !== null} onClick={(e) => { e.preventDefault(); void condenseSection('overall'); }}>
@@ -1154,7 +1174,7 @@ export function AdminHealthCheckupWorkspace({
             <summary style={{ padding: '10px 12px', fontWeight: 700, cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span>사후 관리</span>
               <div style={{ display: 'flex', gap: 6 }}>
-                <button type="button" className="adminLegacySmallBtn" disabled={generatingSection !== null || condensingSection !== null || savingSection !== null} onClick={(e) => { e.preventDefault(); void generateSection('followUp', 'followUp'); }}>
+                <button type="button" className="adminLegacySmallBtn" disabled={generatingSection !== null || condensingSection !== null || savingSection !== null} onClick={(e) => { e.preventDefault(); openRevision({ kind: 'section', apiSection: 'followUp', uiKey: 'followUp', label: '사후 관리' }); }}>
                   {generatingSection === 'followUp' ? '재생성 중…' : '다시 생성'}
                 </button>
                 <button type="button" className="adminLegacySmallBtn" disabled={generatingSection !== null || condensingSection !== null || savingSection !== null} onClick={(e) => { e.preventDefault(); void condenseSection('followUp'); }}>
@@ -1183,7 +1203,7 @@ export function AdminHealthCheckupWorkspace({
             <summary style={{ padding: '10px 12px', fontWeight: 700, cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span>권장 재검진</span>
               <div style={{ display: 'flex', gap: 6 }}>
-                <button type="button" className="adminLegacySmallBtn" disabled={generatingSection !== null || condensingSection !== null || savingSection !== null} onClick={(e) => { e.preventDefault(); void generateSection('recheck', 'recheck'); }}>
+                <button type="button" className="adminLegacySmallBtn" disabled={generatingSection !== null || condensingSection !== null || savingSection !== null} onClick={(e) => { e.preventDefault(); openRevision({ kind: 'section', apiSection: 'recheck', uiKey: 'recheck', label: '권장 재검진' }); }}>
                   {generatingSection === 'recheck' ? '재생성 중…' : '다시 생성'}
                 </button>
                 <button type="button" className="adminLegacySmallBtn" disabled={generatingSection !== null || condensingSection !== null || savingSection !== null} onClick={(e) => { e.preventDefault(); void condenseSection('recheck'); }}>
@@ -1247,7 +1267,7 @@ export function AdminHealthCheckupWorkspace({
                   <summary style={{ padding: '10px 12px', fontWeight: 700, cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <span>{blockTitle}</span>
                     <div style={{ display: 'flex', gap: 6 }}>
-                      <button type="button" className="adminLegacySmallBtn" disabled={generatingSection !== null || condensingSection !== null || savingSection !== null} onClick={(e) => { e.preventDefault(); void regenerateOrgan(k, bi); }}>
+                      <button type="button" className="adminLegacySmallBtn" disabled={generatingSection !== null || condensingSection !== null || savingSection !== null} onClick={(e) => { e.preventDefault(); openRevision({ kind: 'organ', k, blockIndex: bi, label: blockTitle }); }}>
                         {generatingSection === `${k}-${bi}` ? '재생성 중…' : '다시 생성'}
                       </button>
                       <button type="button" className="adminLegacySmallBtn" disabled={generatingSection !== null || condensingSection !== null || savingSection !== null} onClick={(e) => { e.preventDefault(); void condenseSection(`${k}-${bi}`); }}>
@@ -1463,7 +1483,7 @@ export function AdminHealthCheckupWorkspace({
             <summary style={{ padding: '10px 12px', fontWeight: 700, cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span>혈액검사 해석</span>
               <div style={{ display: 'flex', gap: 6 }}>
-                <button type="button" className="adminLegacySmallBtn" disabled={generatingSection !== null || condensingSection !== null || savingSection !== null} onClick={(e) => { e.preventDefault(); void generateSection('lab', 'lab'); }}>
+                <button type="button" className="adminLegacySmallBtn" disabled={generatingSection !== null || condensingSection !== null || savingSection !== null} onClick={(e) => { e.preventDefault(); openRevision({ kind: 'section', apiSection: 'lab', uiKey: 'lab', label: '혈액검사 해석' }); }}>
                   {generatingSection === 'lab' ? '재생성 중…' : '다시 생성'}
                 </button>
                 <button type="button" className="adminLegacySmallBtn" disabled={generatingSection !== null || condensingSection !== null || savingSection !== null} onClick={(e) => { e.preventDefault(); void condenseSection('lab'); }}>
@@ -1769,10 +1789,10 @@ export function AdminHealthCheckupWorkspace({
         generatedPayload={draft}
       />
 
-      {revisionOpen ? (
+      {revisionTarget ? (
         <div
           role="presentation"
-          onClick={() => setRevisionOpen(false)}
+          onClick={() => setRevisionTarget(null)}
           style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.35)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
         >
           <div
@@ -1781,36 +1801,37 @@ export function AdminHealthCheckupWorkspace({
             onClick={(e) => e.stopPropagation()}
             style={{ width: 'min(96vw, 560px)', background: '#fff', border: '1px solid var(--border)', borderRadius: 10, padding: 18, display: 'grid', gap: 10, boxShadow: '0 20px 60px rgba(0,0,0,0.25)' }}
           >
-            <div style={{ fontSize: 15, fontWeight: 700 }}>어떤 부분을 수정할까요?</div>
+            <div style={{ fontSize: 15, fontWeight: 700 }}>
+              {revisionTarget.kind === 'full' ? '리포트 전체를 다시 생성합니다' : `‘${revisionTarget.label}’만 다시 생성합니다`}
+            </div>
             <p style={{ margin: 0, fontSize: 12.5, color: 'var(--text-muted)', lineHeight: 1.6 }}>
-              지금 초안에서 마음에 들지 않는 점을 적어 주세요. 이 지시가 프롬프트 최우선 항목으로 들어가 다시 생성합니다.
-              (예: &ldquo;종합소견이 너무 길다 — 절반으로&rdquo;, &ldquo;신장 수치 해석을 더 구체적으로&rdquo;)
-              <br />
-              비워 두고 생성하면 지금까지와 똑같이 생성됩니다.
+              {revisionTarget.kind === 'full'
+                ? '전체 재생성이라 손으로 고쳐 둔 내용도 모두 새로 덮어씁니다. 한 부분만 고치려면 해당 섹션의 ‘다시 생성’을 쓰세요.'
+                : '이 섹션만 새로 만들고 나머지는 그대로 둡니다.'}
+            </p>
+            <p style={{ margin: 0, fontSize: 12.5, color: 'var(--text-muted)', lineHeight: 1.6 }}>
+              고치고 싶은 점을 적어 주세요. 이 지시가 프롬프트 최우선 항목으로 들어갑니다. 비워 두면 지시 없이 그냥 다시 생성합니다.
             </p>
             <textarea
               autoFocus
               value={revisionNote}
               onChange={(e) => setRevisionNote(e.target.value.slice(0, HEALTH_CHECKUP_REVISION_NOTE_MAX_CHARS))}
               rows={5}
-              placeholder="예) 사후관리에 체중 감량 얘기를 빼고, 관절 관리 중심으로 써 줘."
+              placeholder="예) 체중 감량 얘기를 빼고, 관절 관리 중심으로 써 줘."
               style={{ width: '100%', boxSizing: 'border-box', fontSize: 13, padding: '9px 11px', border: '1px solid var(--border)', borderRadius: 8, resize: 'vertical' }}
             />
             <div style={{ fontSize: 11, color: 'var(--text-muted)', textAlign: 'right' }}>
               {revisionNote.length} / {HEALTH_CHECKUP_REVISION_NOTE_MAX_CHARS}
             </div>
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-              <button type="button" className="adminLegacySmallBtn" onClick={() => setRevisionOpen(false)}>
+              <button type="button" className="adminLegacySmallBtn" onClick={() => setRevisionTarget(null)}>
                 취소
               </button>
               <button
                 type="button"
                 className="adminLegacySmallBtn"
-                disabled={generating}
-                onClick={() => {
-                  setRevisionOpen(false);
-                  void generateContent(revisionNote);
-                }}
+                disabled={generating || generatingSection !== null}
+                onClick={() => runRevision(revisionTarget, revisionNote)}
               >
                 {revisionNote.trim() ? '이 지시로 다시 생성' : '지시 없이 다시 생성'}
               </button>
