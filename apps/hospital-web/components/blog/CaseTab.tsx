@@ -626,8 +626,8 @@ export function CaseTab() {
             </select>
           </FormField>
 
-          {/* 차트 PDF */}
-          <FormField label="차트 PDF" required hint="여러 개 가능">
+          {/* 차트 PDF 및 혈액검사 결과 */}
+          <FormField label="차트 PDF 및 혈액검사 결과" required hint="여러 개 가능">
             <div
               onDrop={onPdfDrop}
               onDragOver={(e) => {
