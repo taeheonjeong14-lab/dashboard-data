@@ -188,25 +188,47 @@ function mergeChunkedOrderedLines(
   return merged;
 }
 
+/**
+ * 페이지-범위 전사 결과 병합.
+ *
+ * ★텍스트가 같다는 이유로 줄을 지우지 않는다. 차트에는 "- P/E", "- 혈액검사", "Tx)",
+ *   ": famo 0,5 iv bid" 처럼 **날짜마다 정상적으로 반복되는 줄**이 많다. 예전에는
+ *   `key = 페이지+텍스트` 로 dedupe 해서, 한 페이지에 두 진료가 걸치면 뒤 진료의 반복 줄이
+ *   통째로 사라졌다(진료 본문이 조금씩 비던 원인).
+ *
+ * 같은 페이지가 여러 range 에서 전사되는 경우(겹침 overlap>0, 또는 재시도)에만 중복이 생기므로,
+ * 그때는 가장 많이 뽑아낸 range 하나만 채택한다(줄 단위로 섞지 않는다 — 순서가 꼬인다).
+ */
 function mergeFallbackTaggedLines(tagged: TaggedOrderedLine[]): OrderedLine[] {
-  const sorted = [...tagged].sort((a, b) => {
-    if (a.page !== b.page) return a.page - b.page;
-    if (a.rangeStart !== b.rangeStart) return a.rangeStart - b.rangeStart;
-    return a.seqInRange - b.seqInRange;
-  });
-  const seen = new Set<string>();
-  const out: OrderedLine[] = [];
-  for (const row of sorted) {
+  const byPage = new Map<number, Map<number, TaggedOrderedLine[]>>();
+  for (const row of tagged) {
     const t = row.text?.trim();
     if (!t) continue;
-    const key = `${row.page} ${t}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    out.push({ page: row.page, text: t });
+    const byRange = byPage.get(row.page) ?? new Map<number, TaggedOrderedLine[]>();
+    const list = byRange.get(row.rangeStart) ?? [];
+    list.push({ ...row, text: t });
+    byRange.set(row.rangeStart, list);
+    byPage.set(row.page, byRange);
+  }
+
+  const out: OrderedLine[] = [];
+  for (const page of [...byPage.keys()].sort((a, b) => a - b)) {
+    const byRange = byPage.get(page)!;
+    let best: TaggedOrderedLine[] = [];
+    let bestStart = Number.POSITIVE_INFINITY;
+    for (const [rangeStart, lines] of byRange) {
+      // 더 많이 읽어낸 range 우선(같으면 앞선 range).
+      if (lines.length > best.length || (lines.length === best.length && rangeStart < bestStart)) {
+        best = lines;
+        bestStart = rangeStart;
+      }
+    }
+    for (const row of [...best].sort((a, b) => a.seqInRange - b.seqInRange)) {
+      out.push({ page: row.page, text: row.text });
+    }
   }
   return out;
 }
-
 async function detectPdfPageCountWithGemini(params: {
   client: GoogleGenAI;
   model: string;

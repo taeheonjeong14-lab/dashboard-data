@@ -636,6 +636,13 @@ function findEfriendsChartBodyContentStart(lines: BucketedLine[]): number {
   return 0;
 }
 
+/** "2026-05-08"·"2026-05-08 오후 3:46" 처럼 날짜(시각)만 있는 줄 — 진료 내용이 아니다. */
+function isDateOnlyLine(text: string): boolean {
+  const t = (text ?? "").trim();
+  if (!t) return true;
+  return /^20\d{2}[-./]\d{1,2}[-./]\d{1,2}(?:\s*(?:오전|오후)?\s*\d{1,2}:\d{2}(?::\d{2})?)?$/.test(t);
+}
+
 function groupChartBodyByDate(lines: BucketedLine[], chartKind: ChartKind): ChartBodyByDateGroup[] {
   const linesToGroup =
     chartKind === "efriends" && lines.length > 0
@@ -766,6 +773,9 @@ function groupChartBodyByDate(lines: BucketedLine[], chartKind: ChartKind): Char
 
   return [...groups.entries()]
     .filter(([dateTime, groupLines]) => dateTime !== "unknown" || groupLines.length > 0)
+    // 날짜만 있고 진료 내용이 없는 그룹은 진료가 아니다(검사·처방 표에만 등장한 날짜 등).
+    //  예: 검사 결과에만 나오는 2026-05-08 이 빈 진료 한 건으로 잡히던 문제.
+    .filter(([, groupLines]) => groupLines.some((line) => !isDateOnlyLine(line.text)))
     .map(([dateTime, groupLines]) => {
     const texts = groupLines.map((line) => line.text);
 
