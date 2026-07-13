@@ -39,15 +39,19 @@ function stripTags(html: string): string {
   return html
     .replace(/<script[\s\S]*?<\/script>/gi, '')
     .replace(/<style[\s\S]*?<\/style>/gi, '')
-    .replace(/<[^>]+>/g, ' ')
+    // 블록 경계(문단·줄바꿈·리스트)는 개행으로 보존한 뒤 나머지 태그 제거.
+    .replace(/<(br|\/p|\/div|\/h[1-6]|\/li|\/blockquote)\b[^>]*>/gi, '\n')
+    .replace(/<[^>]+>/g, '')
     .replace(/&nbsp;/g, ' ')
     .replace(/&amp;/g, '&')
     .replace(/&lt;/g, '<')
     .replace(/&gt;/g, '>')
     .replace(/&quot;/g, '"')
     .replace(/&#39;/g, "'")
-    .replace(/[ \t]+/g, ' ')
-    .replace(/\n{3,}/g, '\n\n')
+    .replace(/[​‌‍﻿]/g, '') // zero-width space·BOM(네이버 빈 문단에 자주 들어감)
+    .replace(/[^\S\n]+/g, ' ') // 가로 공백(스페이스·탭·nbsp) → 1칸, 개행은 보존
+    .replace(/ *\n */g, '\n') // 개행 주변 공백 제거
+    .replace(/\n{2,}/g, '\n\n') // 빈 줄 여러 개 → 한 줄만
     .trim();
 }
 

@@ -320,9 +320,18 @@ export function AnnotatedBlogReview({ review, title, bodyText }: { review: BlogR
   const [drawer, setDrawer] = useState(false);
   const [hover, setHover] = useState<{ findings: Finding[]; top: number; left: number } | null>(null);
 
+  // 합의(2/3+) + 단일 모델(1/3) 모두 하이라이트한다(의학 '주의'는 대개 단일 모델 지적).
+  const medicalAll = useMemo(
+    () => [...(review.medical.consensus ?? []), ...(review.medical.lowConfidence ?? [])],
+    [review.medical],
+  );
+  const seoAll = useMemo(
+    () => [...(review.seo.consensus ?? []), ...(review.seo.lowConfidence ?? [])],
+    [review.seo],
+  );
   const { annos, unmatched } = useMemo(
-    () => buildAnnotations(bodyText ?? '', review.medical.consensus ?? []),
-    [bodyText, review.medical.consensus],
+    () => buildAnnotations(bodyText ?? '', medicalAll),
+    [bodyText, medicalAll],
   );
 
   const nodes: ReactNode[] = [];
@@ -389,16 +398,16 @@ export function AnnotatedBlogReview({ review, title, bodyText }: { review: BlogR
               </div>
             ))}
           </div>
-          {review.seo.consensus.length ? (
+          {seoAll.length ? (
             <ul style={{ margin: 0, paddingLeft: 16, listStyleType: 'disc', display: 'grid', gap: 7 }}>
-              {review.seo.consensus.map((f, i) => (
+              {seoAll.map((f, i) => (
                 <li key={i} style={{ fontSize: 12.5, lineHeight: 1.5 }}>
                   <span style={{ color: sevColor(f.severity), fontWeight: 700 }}>{f.issue}</span>
                   {f.suggestion ? <span style={{ color: 'var(--text-muted)' }}> → {f.suggestion}</span> : null}
                 </li>
               ))}
             </ul>
-          ) : <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>공통 지적 없음.</div>}
+          ) : <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>지적 없음.</div>}
         </aside>
       </div>
 
