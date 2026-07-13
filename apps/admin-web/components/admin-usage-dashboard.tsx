@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 const KRW_PER_USD = 1380;
 
@@ -127,8 +127,22 @@ export default function AdminUsageDashboard() {
     void load(days, selected);
   }, [days, selected, load]);
 
+  // 입금 대기 주문이 있는 병원에 수동 지급하려 할 때 경고하기 위한 스냅샷(아래 pendingByHospital 과 동기화).
+  const pendingOrdersRef = useRef<Map<string, number>>(new Map());
+
   const grant = useCallback(
     async (hospitalId: string, name: string, current: number) => {
+      // 수동 지급 후 그 주문의 '입금 확인'을 누르면 토큰이 한 번 더 지급된다(confirm 은 중복을 막지 않음).
+      const pending = pendingOrdersRef.current.get(hospitalId) ?? 0;
+      if (pending > 0) {
+        const ok = window.confirm(
+          `"${name}" 에는 입금 대기 중인 토큰 주문이 ${pending}건 있습니다.\n\n` +
+            `주문 건이라면 아래 '입금 확인' 버튼으로 처리하세요 — 그래야 주문이 완료 처리됩니다.\n` +
+            `여기서 수동 지급하면 주문은 대기로 남고, 나중에 '입금 확인'을 누르면 토큰이 이중 지급됩니다.\n\n` +
+            `그래도 수동 지급할까요?`,
+        );
+        if (!ok) return;
+      }
       const input = window.prompt(`"${name}" 에 지급할 토큰 수 (음수면 차감). 현재 잔액 ${current.toLocaleString()}`, '1000');
       if (input == null) return;
       const tokens = Math.trunc(Number(input));
@@ -186,6 +200,10 @@ export default function AdminUsageDashboard() {
     for (const o of orders) if (o.status === 'pending') m.set(o.hospital_id, (m.get(o.hospital_id) ?? 0) + 1);
     return m;
   }, [orders]);
+  // grant()는 이 useMemo 보다 위에서 선언되므로 ref 로 최신 값을 넘긴다.
+  useEffect(() => {
+    pendingOrdersRef.current = pendingByHospital;
+  }, [pendingByHospital]);
 
   const selectedHospital = (data?.hospitals ?? []).find((h) => h.hospitalId === selected) ?? null;
   const pendingOrders = orders.filter((o) => o.status === 'pending' && o.hospital_id === selected);
