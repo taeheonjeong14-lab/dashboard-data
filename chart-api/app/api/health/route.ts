@@ -1,6 +1,6 @@
 import { chartAppAuthMiddleware } from "@/lib/chart-app/auth";
 import type { NextRequest } from "next/server";
-import { hasLlmApiKey } from "@/lib/llm-provider";
+import { getLlmProvider, hasLlmApiKey } from "@/lib/llm-provider";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { dbChartPdf, dbCore, getSupabaseChartPdfSchema, getSupabaseCoreSchema } from "@/lib/supabase-db-schema";
 import { PDF_UPLOAD_BUCKET } from "@/lib/supabase-storage-buckets";
@@ -44,6 +44,16 @@ export async function GET(request: NextRequest) {
       chartPdfSchema: getSupabaseChartPdfSchema(),
       coreSchema: getSupabaseCoreSchema(),
       llmApiKeyPresent: hasLlmApiKey(),
+      // 추출 동작을 좌우하는 설정(비밀값 아님) — 어떤 경로/청크 크기로 도는지 여기서 바로 확인한다.
+      // LLM_PROVIDER 가 gemini 면 15p 초과 PDF 를 페이지 단위로 쪼개 전사하고, openai 면 청크 모드(기본 꺼짐)를 탄다.
+      extraction: {
+        llmProvider: getLlmProvider(),
+        geminiReportModel: process.env.GEMINI_REPORT_MODEL?.trim() || "gemini-2.5-flash (기본)",
+        pageRangeSize: Number(process.env.EXTRACT_PAGE_RANGE_SIZE) || 1,
+        pageRangeOverlap: Number(process.env.EXTRACT_PAGE_RANGE_OVERLAP) || 0,
+        maxPages: Number(process.env.TEXT_BUCKETING_MAX_PAGES) || 50,
+        openAiChunkMode: process.env.ORDERED_LINES_CHUNK_MODE === "true",
+      },
     },
   };
 
