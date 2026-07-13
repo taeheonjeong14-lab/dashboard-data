@@ -153,6 +153,7 @@ export async function POST(request: NextRequest): Promise<Response> {
     hospitalName: hospitalName || undefined,
     hospitalRegion: hospitalRegion || undefined,
     keyword,
+    headingCount: typeof body.headingCount === 'number' ? body.headingCount : undefined,
     groundTruth,
   };
 
@@ -176,7 +177,8 @@ export async function POST(request: NextRequest): Promise<Response> {
       });
     }
 
-    return NextResponse.json({ sourceType, review, modelsUsed });
+    // 프론트 인라인 하이라이트용으로 검수한 본문·제목도 함께 반환.
+    return NextResponse.json({ sourceType, review, modelsUsed, title, bodyText });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     if (msg.includes('AI_GATEWAY_API_KEY')) {

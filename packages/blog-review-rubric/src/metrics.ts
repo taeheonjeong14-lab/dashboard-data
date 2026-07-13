@@ -98,12 +98,13 @@ function statusMetric(key: string, value: number): SeoMetric {
  * keyword 가 있으면(내부) 밀도·제목 대표키워드 포함까지, 없으면(외부) 밀도 계열은 생략(LLM 판단).
  */
 export function computeSeoMetrics(input: ReviewInput): SeoMetric[] {
-  const { title, bodyText, tags, imageCount, keyword, hospitalRegion } = input;
+  const { title, bodyText, tags, imageCount, keyword, hospitalRegion, headingCount } = input;
+  const sections = typeof headingCount === 'number' ? headingCount : countHeadings(bodyText);
   const metrics: SeoMetric[] = [
     statusMetric('charCount', visibleCharCount(bodyText)),
     statusMetric('imageCount', Math.max(0, imageCount ?? 0)),
     statusMetric('titleLength', String(title ?? '').trim().length),
-    statusMetric('headingCount', countHeadings(bodyText)),
+    statusMetric('headingCount', sections),
     statusMetric('tagCount', (tags ?? []).filter((t) => String(t).trim()).length),
   ];
 

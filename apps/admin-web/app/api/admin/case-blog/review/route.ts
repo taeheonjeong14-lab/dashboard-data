@@ -45,6 +45,7 @@ export async function POST(request: NextRequest) {
         payload.title = body.title || post.title;
         payload.bodyText = post.bodyText;
         payload.imageCount = post.imageCount;
+        payload.headingCount = post.headingCount;
         payload.sourceUrl = post.sourceUrl;
         // 사용자가 태그를 직접 넣지 않았으면 추출한 태그 사용.
         if (!Array.isArray(body.tags) || body.tags.length === 0) payload.tags = post.tags;

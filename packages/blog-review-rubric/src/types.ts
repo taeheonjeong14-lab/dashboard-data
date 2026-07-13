@@ -122,6 +122,8 @@ export interface ReviewInput {
   hospitalRegion?: string;
   /** 대표키워드(내부는 자동 도출, 외부는 미상 → 밀도 LLM 판단). */
   keyword?: Keyword | null;
+  /** 섹션 구분 수 오버라이드(외부 네이버는 구분선 수를 코드로 세서 전달; 없으면 본문 마크다운 헤딩 카운트). */
+  headingCount?: number;
   /** 내부 대조용 원본(외부는 undefined). */
   groundTruth?: string;
 }

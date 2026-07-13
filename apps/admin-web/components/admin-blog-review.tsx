@@ -7,7 +7,7 @@
  */
 import { useEffect, useState, type CSSProperties } from 'react';
 import type { BlogReview } from '@dashboard/blog-review-rubric';
-import AdminBlogReviewResult from '@/components/admin-blog-review-result';
+import { AnnotatedBlogReview } from '@/components/admin-blog-review-result';
 
 type Hospital = { id: string; name: string };
 
@@ -27,6 +27,7 @@ export default function AdminBlogReview() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [review, setReview] = useState<BlogReview | null>(null);
+  const [post, setPost] = useState<{ title: string; bodyText: string }>({ title: '', bodyText: '' });
 
   useEffect(() => {
     void (async () => {
@@ -62,13 +63,14 @@ export default function AdminBlogReview() {
         credentials: 'include',
         body: JSON.stringify(payload),
       });
-      const data = (await res.json()) as { review?: BlogReview; error?: string; needsPaste?: boolean };
+      const data = (await res.json()) as { review?: BlogReview; title?: string; bodyText?: string; error?: string; needsPaste?: boolean };
       if (!res.ok) {
         if (data.needsPaste) setPaste(true);
         throw new Error(data.error ?? '검수에 실패했습니다.');
       }
       if (!data.review) throw new Error('검수 결과가 비었습니다.');
       setReview(data.review);
+      setPost({ title: data.title ?? title, bodyText: data.bodyText ?? bodyText });
     } catch (e) {
       setError(e instanceof Error ? e.message : '검수에 실패했습니다.');
     } finally {
@@ -136,7 +138,7 @@ export default function AdminBlogReview() {
       {loading ? <div style={{ marginTop: 16, fontSize: 13, color: 'var(--text-muted)' }}>3개 모델로 검수하고 취합하는 중… (수십 초 걸릴 수 있어요)</div> : null}
       </div>
 
-      {review ? <div style={{ marginTop: 18 }}><AdminBlogReviewResult review={review} columns /></div> : null}
+      {review ? <div style={{ marginTop: 18 }}><AnnotatedBlogReview review={review} title={post.title} bodyText={post.bodyText} /></div> : null}
     </div>
   );
 }

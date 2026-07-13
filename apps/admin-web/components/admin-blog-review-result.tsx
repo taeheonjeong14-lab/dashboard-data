@@ -5,7 +5,7 @@
  * 신호등(스캔) + findings(행동) + SEO 지표 스트립 + "평가 기준 보기" 드로어.
  * 기준·라벨은 @dashboard/blog-review-rubric 단일 소스에서 렌더(코드=화면 일치).
  */
-import { useState, type CSSProperties, type ReactNode } from 'react';
+import { useMemo, useState, type CSSProperties, type ReactNode } from 'react';
 import {
   MEDICAL_ITEMS,
   METRIC_SPECS,
@@ -14,6 +14,7 @@ import {
   lightLabel,
   rubricItem,
   type BlogReview,
+  type Finding,
   type Light,
   type MetricStatus,
   type ReviewerBreakdown,
@@ -217,6 +218,26 @@ function SeoSection({ seo, reviewers }: { seo: BlogReview['seo']; reviewers: Rev
   );
 }
 
+/** 상단 요약 바 — 두 신호등 + 게시 부적합 + 총평 + 평가 기준 버튼. */
+function SummaryBar({ review, onCriteria }: { review: BlogReview; onCriteria: () => void }) {
+  return (
+    <div style={{ ...card, background: 'var(--bg-subtle)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', justifyContent: 'space-between' }}>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+          <LightChip axis="의학" light={review.medical.light} />
+          <LightChip axis="네이버" light={review.seo.light} />
+          {review.gated ? <span style={{ ...badge('#e5484d'), fontSize: 12, padding: '4px 10px' }}>⚠ 게시 전 수정 필요</span> : null}
+        </div>
+        <button type="button" onClick={onCriteria} style={{ fontSize: 12.5, fontWeight: 600, padding: '5px 11px', borderRadius: 8, border: '1px solid var(--border-strong)', background: '#fff', color: 'var(--text-secondary)', cursor: 'pointer' }}>
+          평가 기준 ⓘ
+        </button>
+      </div>
+      {review.summary ? <div style={{ fontSize: 13, color: 'var(--text)', marginTop: 10, lineHeight: 1.5 }}>{review.summary}</div> : null}
+      {review.modelsUsed?.length ? <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6 }}>사용 모델: {review.modelsUsed.join(' · ')}</div> : null}
+    </div>
+  );
+}
+
 /**
  * 검수 결과. columns=true 면 좌(의학)/우(SEO) 2컬럼(글 검수 메뉴 — 넓은 화면),
  * false 면 세로 스택(위저드 모달 — 좁은 우측 패널).
@@ -231,26 +252,161 @@ export default function AdminBlogReviewResult({ review, columns = false }: { rev
 
   return (
     <div style={{ display: 'grid', gap: 14 }}>
-      {/* 한눈에 */}
-      <div style={{ ...card, background: 'var(--bg-subtle)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', justifyContent: 'space-between' }}>
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-            <LightChip axis="의학" light={medical.light} />
-            <LightChip axis="네이버" light={seo.light} />
-            {review.gated ? <span style={{ ...badge('#e5484d'), fontSize: 12, padding: '4px 10px' }}>⚠ 게시 전 수정 필요</span> : null}
-          </div>
-          <button type="button" onClick={() => setDrawer(true)} style={{ fontSize: 12.5, fontWeight: 600, padding: '5px 11px', borderRadius: 8, border: '1px solid var(--border-strong)', background: '#fff', color: 'var(--text-secondary)', cursor: 'pointer' }}>
-            평가 기준 ⓘ
-          </button>
-        </div>
-        {review.summary ? <div style={{ fontSize: 13, color: 'var(--text)', marginTop: 10, lineHeight: 1.5 }}>{review.summary}</div> : null}
-        {review.modelsUsed?.length ? <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6 }}>사용 모델: {review.modelsUsed.join(' · ')}</div> : null}
-      </div>
+      <SummaryBar review={review} onCriteria={() => setDrawer(true)} />
 
       <div style={sectionsWrap}>
         <MedicalSection medical={medical} reviewers={review.reviewers ?? []} />
         <SeoSection seo={seo} reviewers={review.reviewers ?? []} />
       </div>
+
+      {drawer ? <CriteriaDrawer onClose={() => setDrawer(false)} /> : null}
+    </div>
+  );
+}
+
+// ── 하이라이트(인라인 주석) 뷰 — 글 검수 메뉴용 ──────────────────────────────
+function sevColor(sev: string): string {
+  return sev === 'high' ? '#e5484d' : sev === 'medium' ? '#f5a623' : '#8a8f98';
+}
+const SEV_RANK: Record<string, number> = { high: 3, medium: 2, low: 1 };
+function topSeverity(fs: Finding[]): string {
+  return fs.reduce((s, f) => (SEV_RANK[f.severity] > (SEV_RANK[s] ?? 0) ? f.severity : s), 'low');
+}
+type Anno = { start: number; end: number; findings: Finding[] };
+
+/** 공백 무시 정규화로 quote 의 본문 내 위치를 찾는다(정확 매칭 실패 시). */
+function findQuote(text: string, quote: string): { start: number; end: number } | null {
+  const q = (quote ?? '').trim();
+  if (!q) return null;
+  const direct = text.indexOf(q);
+  if (direct !== -1) return { start: direct, end: direct + q.length };
+  const strip = q.replace(/\s+/g, '');
+  if (strip.length < 4) return null;
+  let norm = '';
+  const map: number[] = [];
+  for (let i = 0; i < text.length; i++) {
+    if (!/\s/.test(text[i])) { norm += text[i]; map.push(i); }
+  }
+  const ni = norm.indexOf(strip);
+  if (ni === -1) return null;
+  return { start: map[ni], end: map[ni + strip.length - 1] + 1 };
+}
+
+/** 의학 findings 를 본문 span 으로 매핑. 못 찾은 건 unmatched. */
+function buildAnnotations(text: string, findings: Finding[]): { annos: Anno[]; unmatched: Finding[] } {
+  const annos: Anno[] = [];
+  const unmatched: Finding[] = [];
+  for (const f of findings) {
+    const pos = f.quote ? findQuote(text, f.quote) : null;
+    if (!pos) { unmatched.push(f); continue; }
+    const overlap = annos.find((a) => pos.start < a.end && pos.end > a.start);
+    if (overlap) {
+      overlap.findings.push(f);
+      overlap.start = Math.min(overlap.start, pos.start);
+      overlap.end = Math.max(overlap.end, pos.end);
+    } else {
+      annos.push({ start: pos.start, end: pos.end, findings: [f] });
+    }
+  }
+  annos.sort((a, b) => a.start - b.start);
+  return { annos, unmatched };
+}
+
+/**
+ * 하이라이트 뷰: 본문 전체를 보여주고 의학 지적 문장을 심각도 색으로 하이라이트,
+ * 커서를 올리면 상세 카드. 우측엔 네이버 SEO(지표 + 불렛). 글 검수 메뉴 전용.
+ */
+export function AnnotatedBlogReview({ review, title, bodyText }: { review: BlogReview; title: string; bodyText: string }) {
+  const [drawer, setDrawer] = useState(false);
+  const [hover, setHover] = useState<{ findings: Finding[]; top: number; left: number } | null>(null);
+
+  const { annos, unmatched } = useMemo(
+    () => buildAnnotations(bodyText ?? '', review.medical.consensus ?? []),
+    [bodyText, review.medical.consensus],
+  );
+
+  const nodes: ReactNode[] = [];
+  let cur = 0;
+  annos.forEach((a, i) => {
+    if (a.start > cur) nodes.push(<span key={`t${i}`}>{bodyText.slice(cur, a.start)}</span>);
+    const color = sevColor(topSeverity(a.findings));
+    nodes.push(
+      <mark
+        key={`m${i}`}
+        style={{ background: `${color}2e`, borderBottom: `2px solid ${color}`, borderRadius: 2, padding: '1px 0', cursor: 'help', color: 'inherit' }}
+        onMouseEnter={(e) => {
+          const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+          setHover({ findings: a.findings, top: r.bottom + 6, left: Math.max(8, Math.min(r.left, window.innerWidth - 380)) });
+        }}
+        onMouseLeave={() => setHover(null)}
+      >
+        {bodyText.slice(a.start, a.end)}
+      </mark>,
+    );
+    cur = a.end;
+  });
+  if (cur < (bodyText?.length ?? 0)) nodes.push(<span key="tail">{bodyText.slice(cur)}</span>);
+
+  const legendDot = (c: string, label: string) => (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+      <span style={{ width: 9, height: 9, borderRadius: 2, background: `${c}2e`, borderBottom: `2px solid ${c}` }} /> {label}
+    </span>
+  );
+
+  return (
+    <div style={{ display: 'grid', gap: 14 }}>
+      <SummaryBar review={review} onCriteria={() => setDrawer(true)} />
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) 320px', gap: 18, alignItems: 'start' }}>
+        {/* 본문 + 의학 하이라이트 */}
+        <div>
+          <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8, display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
+            {legendDot('#e5484d', '높음')}{legendDot('#f5a623', '중간')}{legendDot('#8a8f98', '낮음')}
+            <span>· 하이라이트에 커서를 올리면 상세</span>
+          </div>
+          {title ? <div style={{ fontSize: 16, fontWeight: 800, marginBottom: 10 }}>{title}</div> : null}
+          <div style={{ ...card, whiteSpace: 'pre-wrap', wordBreak: 'break-word', lineHeight: 1.95, fontSize: 14, color: 'var(--text)' }}>
+            {nodes.length ? nodes : <span style={{ color: 'var(--text-muted)' }}>본문이 비어 있습니다.</span>}
+          </div>
+          {unmatched.length ? (
+            <div style={{ marginTop: 12 }}>
+              <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--text-muted)', marginBottom: 6 }}>본문에서 위치를 특정하지 못한 지적</div>
+              <div style={{ display: 'grid', gap: 8 }}>{unmatched.map((f, i) => <FindingCard key={i} f={f} />)}</div>
+            </div>
+          ) : null}
+        </div>
+
+        {/* 우측 네이버 SEO 패널 */}
+        <aside style={{ display: 'grid', gap: 12, position: 'sticky', top: 8 }}>
+          <div style={{ fontSize: 13, fontWeight: 800, display: 'flex', gap: 8, alignItems: 'center' }}>
+            <Dot light={review.seo.light} /> 네이버 최적화
+          </div>
+          <div style={{ ...card, display: 'grid', gap: 7 }}>
+            {review.seo.metrics.map((m) => (
+              <div key={m.key} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, fontSize: 12.5 }}>
+                <span style={{ color: 'var(--text-secondary)' }}>{m.label}</span>
+                <span><b style={{ color: STATUS_COLOR[m.status] }}>{m.value}</b> <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>/ {m.target}</span></span>
+              </div>
+            ))}
+          </div>
+          {review.seo.consensus.length ? (
+            <ul style={{ margin: 0, paddingLeft: 16, listStyleType: 'disc', display: 'grid', gap: 7 }}>
+              {review.seo.consensus.map((f, i) => (
+                <li key={i} style={{ fontSize: 12.5, lineHeight: 1.5 }}>
+                  <span style={{ color: sevColor(f.severity), fontWeight: 700 }}>{f.issue}</span>
+                  {f.suggestion ? <span style={{ color: 'var(--text-muted)' }}> → {f.suggestion}</span> : null}
+                </li>
+              ))}
+            </ul>
+          ) : <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>공통 지적 없음.</div>}
+        </aside>
+      </div>
+
+      {hover ? (
+        <div style={{ position: 'fixed', top: hover.top, left: hover.left, zIndex: 300, width: 360, pointerEvents: 'none', display: 'grid', gap: 8 }}>
+          {hover.findings.map((f, i) => <FindingCard key={i} f={f} />)}
+        </div>
+      ) : null}
 
       {drawer ? <CriteriaDrawer onClose={() => setDrawer(false)} /> : null}
     </div>
