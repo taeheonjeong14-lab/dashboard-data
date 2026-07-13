@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import { Sidebar } from './sidebar';
 import { TopBar } from './top-bar';
 import { HospitalProvider } from './hospital-context';
+import { SessionWatcher } from './session-watcher';
 
 interface HospitalShellProps {
   children: ReactNode;
@@ -24,6 +25,7 @@ export function HospitalShell({ children, userName, hospitalName, tokenBalance, 
 
   return (
     <HospitalProvider userId={userId} hospitalId={hospitalId} isStaff={isStaff}>
+      <SessionWatcher />
       <div style={{ display: 'flex', minHeight: '100vh' }}>
         <TopBar userName={userName} hospitalName={hospitalName} tokenBalance={tokenBalance} isMaster={isMaster} />
         {!isHome && <Sidebar />}

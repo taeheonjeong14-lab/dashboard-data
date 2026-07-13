@@ -1,11 +1,22 @@
 // 동일 출처 프록시를 경유한다 — ddx-api 가 CORS 를 허용하지 않으므로 브라우저 직접 호출은 차단됨.
 // 로그인 사용자: /api/ddx (미들웨어 인증). 비로그인 공개(보호자 사전문진): /api/ddx-public.
+import { goToLogin } from '@/components/shell/session-watcher';
+
 const DDX_API = '/api/ddx';
 const DDX_API_PUBLIC = '/api/ddx-public';
+
+/**
+ * 세션이 만료되면 미들웨어가 401 을 준다(예전엔 /login 307 리다이렉트 → POST 가 유지돼 405).
+ * 화면에 에러 문구만 띄우지 말고 로그인 화면으로 보낸다 — 사용자는 로그아웃된 줄 모르고 있다.
+ */
+function redirectIfSessionExpired(res: Response): void {
+  if (res.status === 401) goToLogin();
+}
 
 export async function ddxGet<T>(path: string, userId: string): Promise<T> {
   const sep = path.includes('?') ? '&' : '?';
   const res = await fetch(`${DDX_API}${path}${sep}userId=${encodeURIComponent(userId)}`);
+  redirectIfSessionExpired(res);
   if (res.status === 403) {
     throw new DdxApiForbiddenError();
   }
@@ -21,6 +32,7 @@ export async function ddxPost<T>(path: string, userId: string, body: object): Pr
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
+  redirectIfSessionExpired(res);
   if (res.status === 403) {
     throw new DdxApiForbiddenError();
   }
@@ -40,6 +52,7 @@ export async function ddxPostStream(
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
+  redirectIfSessionExpired(res);
   if (res.status === 403) {
     throw new DdxApiForbiddenError();
   }

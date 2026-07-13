@@ -52,6 +52,12 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith('/api/cron');
 
   if (!user && !isPublic) {
+    // API 요청은 리다이렉트하면 안 된다. 307 은 메서드를 유지해서 POST /api/... → POST /login 이 되고,
+    // 로그인 페이지는 POST 를 안 받으므로 405 가 돌아온다(화면엔 엉뚱한 "405" 에러로 보였다).
+    // 401 을 그대로 돌려주면 클라이언트가 세션 만료를 알아채고 로그인 화면으로 보낼 수 있다.
+    if (pathname.startsWith('/api/')) {
+      return NextResponse.json({ error: 'unauthorized', code: 'session_expired' }, { status: 401 });
+    }
     return NextResponse.redirect(new URL('/login', request.url));
   }
   if (user && isAuthPage) {

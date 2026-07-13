@@ -1,4 +1,5 @@
 import type { NextRequest } from 'next/server';
+import { logError } from '@/lib/error-log';
 
 // 브라우저 → (동일 출처) hospital-web → ddx-api 로 전달하는 프록시 핸들러.
 // ddx-api 는 CORS 헤더를 보내지 않으므로 브라우저가 직접 호출하면 cross-origin 차단됨.
@@ -31,13 +32,42 @@ export async function ddxProxy(
     if (buf.byteLength > 0) init.body = buf;
   }
 
+  const userId = req.nextUrl.searchParams.get('userId');
+
   let upstream: Response;
   try {
     upstream = await fetch(target, init);
-  } catch {
+  } catch (e) {
+    // 연결 자체가 실패(다운·DNS·타임아웃). 화면은 문구만 보여주고 삼키므로 여기서 남겨야 한다.
+    await logError({
+      source: 'server',
+      route: `/api/ddx/${subPath}`,
+      method: req.method,
+      statusCode: 502,
+      feature: 'ddx_proxy',
+      message: `ddx-api 연결 실패: ${e instanceof Error ? e.message : String(e)}`,
+      userId,
+      context: { target },
+    });
     return new Response(JSON.stringify({ success: false, error: 'ddx-api 연결에 실패했습니다.' }), {
       status: 502,
       headers: { 'content-type': 'application/json' },
+    });
+  }
+
+  // upstream 이 4xx/5xx 면 admin 에러 로그에 남긴다.
+  // 브라우저는 이 실패를 catch 해 문구만 띄우고 끝내서(ddx-api.ts), 지금까지 아무 데도 기록되지 않았다.
+  // 403(계정 미동기화)은 사용자 안내로 처리되는 정상 흐름이라 제외.
+  if (!upstream.ok && upstream.status !== 403) {
+    await logError({
+      source: 'server',
+      route: `/api/ddx/${subPath}`,
+      method: req.method,
+      statusCode: upstream.status,
+      feature: 'ddx_proxy',
+      message: `ddx-api ${upstream.status} (${req.method} /${subPath})`,
+      userId,
+      context: { target },
     });
   }
 
