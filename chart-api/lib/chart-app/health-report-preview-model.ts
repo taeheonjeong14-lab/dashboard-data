@@ -175,7 +175,7 @@ function coverPetImageFromSpecies(speciesLabel: 'DOG' | 'CAT'): string {
 // 카테고리 헤더/해석 섹션 높이를 무시해 아래쪽 카테고리가 잘린다. 행 단위(≈행 높이)로 환산해 분할.
 const LAB_ROWS_PER_PAGE = 44; // 가용 높이의 보수적 행 환산
 const LAB_CATEGORY_HEADER_ROWS = 2; // 카테고리 라벨 + 표 헤더
-const LAB_INTERPRETATION_ROWS = 7; // 첫 페이지 해석 섹션(≈32mm)
+const LAB_INTERPRETATION_ROWS = 8; // 첫 페이지 해석 섹션(본문칸 105px ≈ 36mm)
 
 function buildLabPages(
   source: ReportSourceData,
