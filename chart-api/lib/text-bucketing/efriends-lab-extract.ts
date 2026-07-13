@@ -60,9 +60,14 @@ function isEfriendsLabByItemResultSectionLine(t: string): boolean {
 function isEfriendsLabPanelTitleLine(t: string): boolean {
   const s = t.replace(/\s+/g, " ").trim();
   if (!s) return false;
+  // 한글 제목으로 시작하면 패널/의뢰검사 제목이다 — 뒤에 (V200) 이 붙어 있어도 마찬가지.
+  //  예: "혈액검사 - 강아지 염증수치 CCRP (V200)", "항생제감수성 검사-Aerobic culture(의뢰검사)"
+  //  (이 검사를 (idexx)/(v200) 제외 규칙보다 먼저 해야 한다 — 그 규칙에 걸려 제목이 항목으로 새어 들어갔다)
+  if (/^(?:혈액검사|화학검사|혈구검사|전혈구검사|일반화학검사|전해질검사|항생제감수성|배양검사|요검사)\b/.test(s)) {
+    return true;
+  }
   if (/\(\s*idexx\s*\)|\(\s*v200\s*\)/i.test(s)) return false; // 분석항목 라인은 제외
   if (/\b(?:procyte|catalyst)\b/i.test(s)) return true;
-  if (/^(?:혈액검사|화학검사|혈구검사|전혈구검사|일반화학검사|전해질검사)\b/.test(s)) return true;
   return false;
 }
 
@@ -189,9 +194,18 @@ function normalizeEfriendsLabValueTextForDb(raw: string): string {
 
 function normalizeEfriendsAnalyteName(raw: string): string {
   return raw
+    // 이상표시(*)가 이름 뒤에 따라붙는 행이 있다("%NEU(idexx) * 81.6 %").
+    // 먼저 떼지 않으면 괄호가 끝이 아니라서 벤더 표기(idexx)가 안 씻긴다.
+    .replace(/[\s*]+$/g, "")
     .replace(/\s*\([^)]*\)\s*$/g, "")
+    .replace(/[\s*]+$/g, "")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+/** 검사 항목명이 아닌 한글 제목 줄(패널/의뢰검사 제목)인지. 항목명은 전부 영문 약어다. */
+function isKoreanNonAnalyteName(name: string): boolean {
+  return /[가-힣]/.test(name);
 }
 
 /**
@@ -600,6 +614,10 @@ export function parseEfriendsFourColumnRow(line: string, page: number, rowY: num
   if (!compact) return null;
   if (isEfriendsLabTableHeaderLine(compact) || isEfriendsLabHeaderCombined(compact)) return null;
   if (isLikelyHeaderFragmentLine(compact) && compact.split(/\s+/).length <= 2) return null;
+  // 한글로 시작하는 줄은 검사행이 아니라 제목이다(항목명은 전부 영문 약어).
+  //  패널 제목 필터를 빠져나온 변형 제목이 "혈액검사 | 강아지염증수치 | CCRP (V200)" 같은
+  //  유령 항목으로 들어오던 것을 막는 마지막 안전망.
+  if (isKoreanNonAnalyteName(compact.split(/\s+/)[0] ?? "")) return null;
 
   // Keep original spacing for column split (`\\s{2,}`), because compacting first
   // collapses real table gaps and can turn 4-column rows into a single "name" cell.
