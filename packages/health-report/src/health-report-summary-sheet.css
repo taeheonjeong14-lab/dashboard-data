@@ -75,8 +75,9 @@
 .hrss-sheet--overall .hrss-section--opinion {
   flex: 1 1 auto;
 }
+/* 148mm = 133mm(85mm + 옛 여백 48mm) + 15mm(재검진을 그만큼 아래로). */
 .hrss-sheet--rest .hrss-section--followup {
-  flex: 0 0 133mm;
+  flex: 0 0 148mm;
 }
 .hrss-sheet--rest .hrss-section--followup .hrss-section-body {
   flex: 1 1 auto;
