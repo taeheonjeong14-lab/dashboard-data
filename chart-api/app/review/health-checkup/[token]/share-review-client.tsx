@@ -23,8 +23,8 @@ import {
 import {
   buildHealthReportPreviewPages,
   HealthReportPreviewPages,
-} from '@/app/components/report/health-report-preview-pages';
-import type { HealthPreviewEditableSection } from '@/app/components/report/health-report-preview-pages';
+  type HealthPreviewEditableSection,
+} from '@dashboard/health-report';
 import { joinTimelineCardText, splitTimelineCardText } from '@/lib/chart-app/health-report-timeline-card';
 import { parseHealthSystemsBlocksFromUnknown } from '@/lib/chart-app/health-report-systems-blocks-parse';
 import { coverCheckupDateToIsoInputValue, iranSuffix } from '@dashboard/health-report';

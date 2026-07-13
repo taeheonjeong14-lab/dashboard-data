@@ -8,6 +8,8 @@ export * from "./health-report-summary-sheet";
 export * from "./health-systems-report-sheet";
 export * from "./health-lab-report-sheet";
 export * from "./health-report-inner-sheet-header";
+// 페이지 조립(몇 장·어떤 순서) — admin 미리보기와 외부 검토 링크가 공유한다.
+export * from "./health-report-preview-pages";
 
 export * from "./report-director-line";
 export * from "./korean-josa";
