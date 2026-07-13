@@ -96,7 +96,8 @@ export default function AdminChartData() {
     setHistoryLoading(true);
     setListError(null);
     try {
-      const response = await fetch('/api/admin/data/parse-runs?limit=80', { credentials: 'include' });
+      // 200 = API 상한(MAX_LIMIT). 건강검진 리포트 목록과 같은 개수를 본다.
+      const response = await fetch('/api/admin/data/parse-runs?limit=200', { credentials: 'include' });
       const payload = (await response.json()) as {
         items?: unknown[];
         error?: string;
