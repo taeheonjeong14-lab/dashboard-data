@@ -918,6 +918,8 @@ export async function POST(request: NextRequest) {
         try {
           const checkupDate = typeof body.checkupDate === 'string' ? body.checkupDate.trim() : '';
           const must = typeof body.mustInclude === 'string' ? body.mustInclude.trim().slice(0, 1000) : '';
+          // 다시 생성 시 admin 이 적은 수정 요청(직전 초안 대비) — 프롬프트 최우선 블록으로 들어간다.
+          const revision = typeof body.revisionNote === 'string' ? body.revisionNote.trim().slice(0, 1000) : '';
           const prior = await getHealthCheckupGeneratedContentForRun(pool, runId);
           const priorPayload = parseHealthCheckupPayloadFromStorage(prior?.payload ?? {});
           const coverProgramFromBody = typeof body.coverProgram === 'string' ? body.coverProgram.trim() : '';
@@ -949,6 +951,7 @@ export async function POST(request: NextRequest) {
               reportProgramName: reportProgramForPrompt || undefined,
               checkupDate: checkupDate || undefined,
               mustInclude: must || undefined,
+              revisionNote: revision || undefined,
               usageContext: usageCtx('health_checkup'),
             },
             regenContext,
@@ -996,11 +999,14 @@ export async function POST(request: NextRequest) {
         const veterinarian = typeof body.veterinarian === 'string' ? body.veterinarian.trim() : '';
         const must =
           typeof body.mustInclude === 'string' ? body.mustInclude.trim().slice(0, 1000) : '';
+        // 다시 생성 시 admin 이 적은 수정 요청(직전 초안 대비) — 프롬프트 최우선 블록으로 들어간다.
+        const revision = typeof body.revisionNote === 'string' ? body.revisionNote.trim().slice(0, 1000) : '';
         const generated = await generateHealthCheckupContent(source, {
           reportProgramName: reportProgramForPrompt || undefined,
           checkupDate: checkupDate || undefined,
           veterinarian: veterinarian || undefined,
           mustInclude: must || undefined,
+          revisionNote: revision || undefined,
           usageContext: usageCtx('health_checkup'),
         });
 

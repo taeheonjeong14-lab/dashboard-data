@@ -17,6 +17,7 @@ import {
 } from '@/lib/chart-app/health-checkup-limits';
 import {
   buildHealthCheckupInstructionBody,
+  healthCheckupRevisionLines,
   HEALTH_CHECKUP_GROUNDING_LINES,
   HEALTH_CHECKUP_OWNER_TONE_LINES,
   HEALTH_CHECKUP_VALUE_INTERPRETATION_LINES,
@@ -77,7 +78,7 @@ function matchesCheckupDate(dateTimeStr: string, checkupDate: string): boolean {
 
 function buildHealthCheckupPrompt(
   source: ReportSourceData,
-  options?: { reportProgramName?: string; checkupDate?: string; veterinarian?: string; mustInclude?: string },
+  options?: { reportProgramName?: string; checkupDate?: string; veterinarian?: string; mustInclude?: string; revisionNote?: string },
   internal?: { outputStage?: 1 },
 ): string {
   const programName = (options?.reportProgramName ?? '').trim();
@@ -85,6 +86,7 @@ function buildHealthCheckupPrompt(
   const excludedAreaExactPhrase = `${programPrefixForPhrase} 프로그램 미포함 영역`;
   const checkupDate = options?.checkupDate?.trim() ?? '';
   const mustInclude = options?.mustInclude?.trim() ?? '';
+  const revisionNote = options?.revisionNote?.trim() ?? '';
 
   const chartSource = checkupDate ? source.chartBodyByDate.filter((c) => matchesCheckupDate(c.dateTime, checkupDate)) : source.chartBodyByDate;
   const labSource = checkupDate ? source.labItemsByDate.filter((d) => matchesCheckupDate(d.dateTime, checkupDate)) : source.labItemsByDate;
@@ -121,6 +123,7 @@ function buildHealthCheckupPrompt(
     excludedAreaExactPhrase,
     checkupDate: checkupDate || undefined,
     mustInclude: mustInclude || undefined,
+    revisionNote: revisionNote || undefined,
     outputStage: internal?.outputStage,
   });
 
@@ -287,10 +290,11 @@ function buildSectionInstruction(
     excludedAreaExactPhrase: string;
     checkupDate?: string;
     mustInclude?: string;
+    revisionNote?: string;
     overallContext?: string;
   },
 ): string {
-  const { programPrefixForPhrase, excludedAreaExactPhrase, checkupDate, mustInclude, overallContext } = opts;
+  const { programPrefixForPhrase, excludedAreaExactPhrase, checkupDate, mustInclude, revisionNote, overallContext } = opts;
   void programPrefixForPhrase;
   const lines: string[] = [
     '너는 세계에서 가장 뛰어난 수의사야.',
@@ -321,6 +325,7 @@ function buildSectionInstruction(
   if (mustInclude) {
     lines.push('반드시 포함:', mustInclude, '');
   }
+  lines.push(...healthCheckupRevisionLines(revisionNote ?? ''));
   const fixedPhrase = `근거가 전혀 없는 칸: ${excludedAreaExactPhrase}`;
   switch (section) {
     case 'overall':
@@ -429,7 +434,7 @@ function buildSectionInstruction(
 function buildSectionPrompt(
   section: RegenerateSection,
   source: ReportSourceData,
-  options?: { reportProgramName?: string; checkupDate?: string; mustInclude?: string },
+  options?: { reportProgramName?: string; checkupDate?: string; mustInclude?: string; revisionNote?: string },
   overallContext?: string,
 ): string {
   const programName = (options?.reportProgramName ?? '').trim();
@@ -437,6 +442,7 @@ function buildSectionPrompt(
   const excludedAreaExactPhrase = `${programPrefixForPhrase} 프로그램 미포함 영역`;
   const checkupDate = options?.checkupDate?.trim() ?? '';
   const mustInclude = options?.mustInclude?.trim() ?? '';
+  const revisionNote = options?.revisionNote?.trim() ?? '';
 
   const chartSource = checkupDate ? source.chartBodyByDate.filter((c) => matchesCheckupDate(c.dateTime, checkupDate)) : source.chartBodyByDate;
   const labSource = checkupDate ? source.labItemsByDate.filter((d) => matchesCheckupDate(d.dateTime, checkupDate)) : source.labItemsByDate;
@@ -473,6 +479,7 @@ function buildSectionPrompt(
     excludedAreaExactPhrase,
     checkupDate: checkupDate || undefined,
     mustInclude: mustInclude || undefined,
+    revisionNote: revisionNote || undefined,
     overallContext,
   });
 
@@ -543,7 +550,7 @@ function normalizeSectionResponse(section: RegenerateSection, raw: unknown): Par
 export async function generateHealthCheckupSection(
   section: RegenerateSection,
   source: ReportSourceData,
-  options?: { reportProgramName?: string; checkupDate?: string; mustInclude?: string; usageContext?: UsageContext },
+  options?: { reportProgramName?: string; checkupDate?: string; mustInclude?: string; revisionNote?: string; usageContext?: UsageContext },
   overallContext?: string,
 ): Promise<Partial<HealthCheckupGeneratedContent>> {
   const apiKey = process.env.GEMINI_API_KEY;
@@ -584,7 +591,7 @@ export async function generateHealthCheckupSection(
 
 export async function generateHealthCheckupContent(
   source: ReportSourceData,
-  options?: { reportProgramName?: string; checkupDate?: string; veterinarian?: string; mustInclude?: string; usageContext?: UsageContext },
+  options?: { reportProgramName?: string; checkupDate?: string; veterinarian?: string; mustInclude?: string; revisionNote?: string; usageContext?: UsageContext },
 ): Promise<HealthCheckupGeneratedContent> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) throw new Error('GEMINI_API_KEY is not configured.');

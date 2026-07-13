@@ -15,6 +15,7 @@ import {
   HEALTH_CHECKUP_MAX_RECHECK_BODY_CHARS,
   HEALTH_CHECKUP_MAX_RECHECK_TITLE_CHARS,
   HEALTH_CHECKUP_MUST_INCLUDE_MAX_CHARS,
+  HEALTH_CHECKUP_REVISION_NOTE_MAX_CHARS,
   HEALTH_CHECKUP_SYSTEMS_ROW_MAX_CHARS,
 } from '@/lib/health-report-admin/limits';
 import { mergeHealthPayloadFromStorage, emptyHealthCheckupPayload } from '@/lib/health-report-admin/payload-defaults';
@@ -229,6 +230,10 @@ export function AdminHealthCheckupWorkspace({
   // 초안-최종본 비교 분석(프롬프트 개선) 선택 상태. status: null(미선택) | selected | running | done | error
   const [diffStatus, setDiffStatus] = useState<string | null>(null);
   const [diffBusy, setDiffBusy] = useState(false);
+
+  // '다시 생성' 수정 요청 입력 모달.
+  const [revisionOpen, setRevisionOpen] = useState(false);
+  const [revisionNote, setRevisionNote] = useState('');
 
   const healthItem = useMemo(() => items.find((i) => i.contentType === 'health_checkup') ?? null, [items]);
   const hasContent = healthItem != null;
@@ -647,7 +652,8 @@ export function AdminHealthCheckupWorkspace({
     }
   }
 
-  async function generateContent() {
+  /** revision: '다시 생성' 시 admin 이 적은 수정 요청(직전 초안 대비). 비우면 평소대로 생성. */
+  async function generateContent(revision?: string) {
     setGenerating(true);
     setGenError(null);
     try {
@@ -663,6 +669,7 @@ export function AdminHealthCheckupWorkspace({
           veterinarian: veterinarian.trim(),
           mustInclude: mustInclude.trim().slice(0, HEALTH_CHECKUP_MUST_INCLUDE_MAX_CHARS),
           coverProgram: coverProgram.trim(),
+          revisionNote: (revision ?? '').trim().slice(0, HEALTH_CHECKUP_REVISION_NOTE_MAX_CHARS),
         }),
       });
       const data = (await res.json()) as { error?: string; generated?: unknown; saved?: unknown };
@@ -806,7 +813,13 @@ export function AdminHealthCheckupWorkspace({
         </button>
         {hasContent ? (
           <>
-            <button type="button" className="adminLegacySmallBtn" disabled={generating} onClick={() => void generateContent()}>
+            <button
+              type="button"
+              className="adminLegacySmallBtn"
+              disabled={generating}
+              onClick={() => setRevisionOpen(true)}
+              title="어떤 점을 고치고 싶은지 적어 두면, 그 지시를 프롬프트에 넣어 다시 생성합니다."
+            >
               {generating ? '재생성 중…' : '다시 생성'}
             </button>
             <button
@@ -1755,6 +1768,56 @@ export function AdminHealthCheckupWorkspace({
         runId={runId}
         generatedPayload={draft}
       />
+
+      {revisionOpen ? (
+        <div
+          role="presentation"
+          onClick={() => setRevisionOpen(false)}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.35)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            onClick={(e) => e.stopPropagation()}
+            style={{ width: 'min(96vw, 560px)', background: '#fff', border: '1px solid var(--border)', borderRadius: 10, padding: 18, display: 'grid', gap: 10, boxShadow: '0 20px 60px rgba(0,0,0,0.25)' }}
+          >
+            <div style={{ fontSize: 15, fontWeight: 700 }}>어떤 부분을 수정할까요?</div>
+            <p style={{ margin: 0, fontSize: 12.5, color: 'var(--text-muted)', lineHeight: 1.6 }}>
+              지금 초안에서 마음에 들지 않는 점을 적어 주세요. 이 지시가 프롬프트 최우선 항목으로 들어가 다시 생성합니다.
+              (예: &ldquo;종합소견이 너무 길다 — 절반으로&rdquo;, &ldquo;신장 수치 해석을 더 구체적으로&rdquo;)
+              <br />
+              비워 두고 생성하면 지금까지와 똑같이 생성됩니다.
+            </p>
+            <textarea
+              autoFocus
+              value={revisionNote}
+              onChange={(e) => setRevisionNote(e.target.value.slice(0, HEALTH_CHECKUP_REVISION_NOTE_MAX_CHARS))}
+              rows={5}
+              placeholder="예) 사후관리에 체중 감량 얘기를 빼고, 관절 관리 중심으로 써 줘."
+              style={{ width: '100%', boxSizing: 'border-box', fontSize: 13, padding: '9px 11px', border: '1px solid var(--border)', borderRadius: 8, resize: 'vertical' }}
+            />
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', textAlign: 'right' }}>
+              {revisionNote.length} / {HEALTH_CHECKUP_REVISION_NOTE_MAX_CHARS}
+            </div>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <button type="button" className="adminLegacySmallBtn" onClick={() => setRevisionOpen(false)}>
+                취소
+              </button>
+              <button
+                type="button"
+                className="adminLegacySmallBtn"
+                disabled={generating}
+                onClick={() => {
+                  setRevisionOpen(false);
+                  void generateContent(revisionNote);
+                }}
+              >
+                {revisionNote.trim() ? '이 지시로 다시 생성' : '지시 없이 다시 생성'}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </>
   );
 }

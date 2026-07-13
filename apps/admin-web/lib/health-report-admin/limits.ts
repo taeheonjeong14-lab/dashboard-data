@@ -19,3 +19,5 @@ export const HEALTH_CHECKUP_DENTAL_SKIN_ROW_MAX_CHARS = 250;
 export const HEALTH_CHECKUP_LAB_INTERP_MAX_CHARS = 250;
 
 export const HEALTH_CHECKUP_MUST_INCLUDE_MAX_CHARS = 1000;
+/** '다시 생성' 시 입력하는 수정 요청. chart-api 도 1000자에서 자른다. */
+export const HEALTH_CHECKUP_REVISION_NOTE_MAX_CHARS = 1000;

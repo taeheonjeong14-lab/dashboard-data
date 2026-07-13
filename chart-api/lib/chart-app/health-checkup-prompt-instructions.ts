@@ -263,11 +263,31 @@ export function healthCheckupRecheckRuleLines(): string[] {
   ];
 }
 
+/**
+ * 재생성 지시(admin 이 '다시 생성' 시 입력) 프롬프트 블록.
+ * 직전 초안의 어떤 점이 마음에 들지 않았는지를 알려주는 것이라 mustInclude 보다 우선한다.
+ */
+export function healthCheckupRevisionLines(revisionNote: string): string[] {
+  const note = revisionNote.trim();
+  if (!note) return [];
+  return [
+    '========== 이번 재생성에서 반드시 반영할 수정 요청 (최우선) ==========',
+    '아래는 담당자가 **직전 초안을 보고** 고쳐 달라고 요청한 사항이야.',
+    '이번 결과물에서는 이 요청을 **최우선으로 반영**해야 해. 다른 규칙과 충돌하지 않는 한 요청을 따른다.',
+    '(단, 근거 없는 내용을 지어내라는 뜻은 아니야 — 차트·검사 데이터에 근거가 없으면 억지로 쓰지 말 것)',
+    '',
+    note,
+    '',
+  ];
+}
+
 export function buildHealthCheckupInstructionBody(opts: {
   programPrefixForPhrase: string;
   excludedAreaExactPhrase: string;
   checkupDate?: string;
   mustInclude?: string;
+  /** admin 이 '다시 생성' 시 입력한 수정 요청(직전 초안 대비). */
+  revisionNote?: string;
   /** 1 = 종합소견·사후관리·재검진만 (2단계 생성 1단계용). 미지정 시 전체 섹션. */
   outputStage?: 1;
 }): string {
@@ -283,11 +303,12 @@ export function buildHealthCheckupInstructionBody(opts: {
   const pLab = HEALTH_CHECKUP_PROMPT_LAB_INTERP_MAX_CHARS;
   const { programPrefixForPhrase, excludedAreaExactPhrase, outputStage } = opts;
   const systemsKeyLines = HEALTH_CHECKUP_SYSTEMS_LLM_FIELD_KEYS.map((k) => `- ${k}`).join('\n');
-  const { checkupDate, mustInclude } = opts;
+  const { checkupDate, mustInclude, revisionNote } = opts;
 
   return [
     ...HEALTH_CHECKUP_GROUNDING_LINES,
     '',
+    ...healthCheckupRevisionLines(revisionNote ?? ''),
     ...(checkupDate
       ? [
           '========== 검진일자 데이터 필터링 (매우 중요) ==========',
