@@ -1442,37 +1442,126 @@ function parseCatalystSingleLineRow(cleaned: string, page: number): LabItem | nu
   //    단위/숫자범위/인식항목명을 앵커로 삼아 영상·메타 쓰레기(IMA 1, W:256 등) 오탐을 막는다. ──
 
   // B: 항목 + 단위 + 숫자min + 숫자max + 정성result. 예: "GLU mg/dL 0 50 -", "PRO mg/dL 0 100 -"
+  //    단위 판정은 isKnownLabUnitToken — 슬래시 없는 단위(fL, pg)도 단위로 인정해야 열이 안 밀린다.
   if (body.length >= 5) {
     const r = body[end - 1] ?? "", mx = body[end - 2] ?? "", mn = body[end - 3] ?? "", u = body[end - 4] ?? "";
-    if (isCatalystValueToken(mn) && isCatalystValueToken(mx) && looksLikeLabUnitToken(u) && !isCatalystValueToken(r)) {
+    if (isCatalystValueToken(mn) && isCatalystValueToken(mx) && isKnownLabUnitToken(u) && !isCatalystValueToken(r)) {
       const itemName = body.slice(0, end - 4).join(" ").trim();
       if (itemName) return mk(itemName, r, u, `${mn}-${mx}`);
     }
   }
 
-  // A': 단위가 끝에서 두 번째 + 값이 마지막. 예: "Osmolality mOsm/kg 311", "WBC-BASO% % 0.6", "RETIC % % 0.3", "BIL mg/dL -", "LEU Leu/µL +++500"
+  // A': 단위가 끝에서 두 번째 + 값이 마지막. 예: "Osmolality mOsm/kg 311", "nRBC# fL 0.00", "RET-He pg 24.9"
   if (body.length >= 3) {
     const v = body[end - 1] ?? "", u = body[end - 2] ?? "";
-    if (looksLikeLabUnitToken(u) && looksLikeLabItemToken(body[0] ?? "")) {
+    if (isKnownLabUnitToken(u) && looksLikeLabItemToken(body[0] ?? "")) {
       const itemName = body.slice(0, end - 2).join(" ").trim();
       if (itemName && v) return mk(itemName, v, u, null);
     }
   }
 
   // A: 항목 + 단위(2번째) + 나머지=값(여러 토큰/정성). 예: "UBG mg/dL nom nom nom"
-  if (body.length >= 3 && looksLikeLabItemToken(body[0] ?? "") && looksLikeLabUnitToken(body[1] ?? "")) {
+  if (body.length >= 3 && looksLikeLabItemToken(body[0] ?? "") && isKnownLabUnitToken(body[1] ?? "")) {
     const value = body.slice(2).join(" ").trim();
     if (value) return mk(body[0] ?? "", value, body[1] ?? null, null);
   }
 
   // D: 단위·숫자범위 없는 "이름 + 값(들)". 구조만으론 쓰레기와 못 구분 → 정규화 시 인식되는 검사명일 때만.
   //    예: "SG 1.051", "NIT 1 1". ("IMA 1"·"Liver"는 미인식 → 드롭)
+  //    ※ 값이 단위뿐인 행("PDW fL")은 측정값이 없는 것 → 값으로 받지 않는다(단위가 값 자리로 새는 걸 막음).
   if (body.length >= 2 && looksLikeLabItemToken(body[0] ?? "") && isRecognizedLabItem(canonicalizeLabItemName(body[0] ?? ""))) {
-    const value = body.slice(1).join(" ").trim();
-    if (value) return mk(body[0] ?? "", value, null, null);
+    const rest = body.slice(1);
+    const value = rest.join(" ").trim();
+    const isUnitOnly = rest.every((t) => isKnownLabUnitToken(t));
+    if (value && !isUnitOnly) return mk(body[0] ?? "", value, null, null);
   }
 
   return null;
+}
+
+/** 세로 표 조립: 값 줄에 붙는 플래그(NORMAL/HIGH/LOW/UNDER) 단독 토큰. */
+const LAB_VERTICAL_FLAG_ONLY = /^(NORMAL|LOW|HIGH|UNDER)$/i;
+/** 세로 표 조립: "값 [플래그]" 줄. 예: "45 NORMAL", "34.8", "< 0.1 UNDER" */
+const LAB_VERTICAL_VALUE_LINE = /^([-+<]?\s*\d+(?:[.,]\d+)?)(?:\s+(NORMAL|LOW|HIGH|UNDER))?$/i;
+/** 세로 표 조립: 검사행이 아닌 메타 줄(날짜·입력자·헤더). */
+function isLabVerticalMetaLine(s: string): boolean {
+  const t = s.trim();
+  if (!t) return true;
+  if (/^date\s*\/\s*time/i.test(t)) return true;
+  if (/^input by\b/i.test(t)) return true;
+  if (/^performed by\b/i.test(t)) return true;
+  if (/^(test\s+)?name\s+unit\s+min\s+max\s+result$/i.test(t)) return true;
+  if (/^(name|unit|min|max|result)$/i.test(t)) return true;
+  return isLabVerticalNoiseLine(t);
+}
+
+/**
+ * 헤더 없이 세로로 흩어진 검사행을 조립한다(인투벳 등에서 전사 LLM 이 표를 세로로 펼친 경우).
+ *
+ * 패턴: 검사명 → (단위) → (숫자 min) → (숫자 max) → "값 [FLAG]"
+ *  - 단위·min·max 는 전사에서 통째로 빠지기도 한다(예: "AST / 44 / 32 NORMAL") → 있으면 쓰고 없으면 건너뛴다.
+ *  - 숫자가 2개면 min-max, 1개뿐이면 어느 쪽 경계인지 알 수 없으므로 참고범위를 비운다(값은 살린다).
+ *  - **플래그로 끝나는 행만** 조립한다 — 구조가 약한 조각을 억지로 붙여 엉뚱한 값을 만들지 않기 위한 보수적 앵커.
+ *    (기존 헤더 기반 조립기는 그대로 두고, 여기서는 그 조립기가 놓친 줄만 다룬다)
+ */
+function assembleVerticalFlaggedRows(body: string[], page: number): LabItem[] {
+  const out: LabItem[] = [];
+  let i = 0;
+  while (i < body.length) {
+    const itemName = (body[i] ?? "").trim();
+    if (!itemName || isLabVerticalMetaLine(itemName) || !looksLikeLabItemToken(itemName) || isCatalystValueToken(itemName)) {
+      i += 1;
+      continue;
+    }
+
+    let j = i + 1;
+    let unit: string | null = null;
+    const bounds: string[] = [];
+    let valueLine: RegExpMatchArray | null = null;
+
+    // 단위(있으면 1줄) → 숫자 경계(최대 2줄) → 값 줄
+    const next = (body[j] ?? "").trim();
+    if (next && !isCatalystValueToken(next) && !LAB_VERTICAL_FLAG_ONLY.test(next) && isKnownLabUnitToken(next)) {
+      unit = next;
+      j += 1;
+    }
+    while (j < body.length && bounds.length < 2) {
+      const t = (body[j] ?? "").trim();
+      if (/^[-+]?\d+(?:[.,]\d+)?$/.test(t) && !LAB_VERTICAL_VALUE_LINE.test(`${t} X`)) {
+        // 순수 숫자 줄 = 경계 후보. 단, 다음 줄이 없으면 값일 수도 있어 아래에서 재검사.
+        bounds.push(t);
+        j += 1;
+        continue;
+      }
+      break;
+    }
+    const vLine = (body[j] ?? "").trim();
+    const m = vLine.match(LAB_VERTICAL_VALUE_LINE);
+    if (m && m[2]) valueLine = m; // 플래그가 붙은 값 줄만 인정
+
+    if (!valueLine) {
+      i += 1; // 조립 실패 — 다음 줄부터 다시(줄을 소비하지 않는다)
+      continue;
+    }
+
+    const valueText = (valueLine[1] ?? "").replace(/\s+/g, "");
+    const flagTok = valueLine[2] ?? "";
+    const valueNum = Number.parseFloat(valueText.replace("<", "").replace(",", "."));
+    out.push({
+      page,
+      rowY: 0,
+      itemName,
+      value: Number.isFinite(valueNum) ? valueNum : null,
+      valueText,
+      unit,
+      // 숫자 경계가 정확히 2개일 때만 참고범위로 인정(1개면 min/max 판별 불가 → 비움).
+      referenceRange: bounds.length === 2 ? `${bounds[0]}-${bounds[1]}` : null,
+      flag: inferFlagFromText(flagTok),
+      rawRow: [itemName, unit, ...bounds, vLine].filter(Boolean).join(" "),
+    });
+    i = j + 1;
+  }
+  return out;
 }
 
 /** 세로 Lab 표: 단위 줄 (µg/dL, 10x3/μL 등). 숫자만 있는 줄은 단위가 아님. */
@@ -1784,10 +1873,13 @@ function parseLabItemsFromGroupLines(lines: BucketedLine[], chartKind: ChartKind
   const qualitativeTokenRegex = /^(Normal|Negative|Positive|Abnormal|Reactive|Nonreactive|Trace)$/i;
 
   const preferNumericFirst = chartKind !== "intovet";
+  // 1차 파싱이 검사행으로 소화하지 못한 줄 — 세로로 펼쳐진 표는 여기 남는다(아래에서 조립).
+  const leftover: BucketedLine[] = [];
 
   for (const line of lines2) {
     const text = line.text.trim().replace(/\s+/g, " ");
     if (!text) continue;
+    const itemsBefore = items.length;
 
     // Some lines come as: "Name Unit Min Max Result / CRP mg/L 0.1 1 0.9 NORMAL".
     // IMPORTANT: split only on spaced slash (" / "), not raw "/" because
@@ -1855,6 +1947,15 @@ function parseLabItemsFromGroupLines(lines: BucketedLine[], chartKind: ChartKind
         continue;
       }
     }
+
+    if (items.length === itemsBefore) leftover.push(line);
+  }
+
+  // 세로로 펼쳐진 표(헤더가 한 줄로 붙었거나 아예 다른 그룹에 있어 헤더 기반 조립기가 못 잡는 경우) 보강.
+  //  1차에서 소화 못 한 줄만 대상으로 하므로 이미 파싱된 행을 건드리지 않는다.
+  if (chartKind === "intovet" && leftover.length >= 3) {
+    const page = leftover[0]?.page ?? 1;
+    items.push(...assembleVerticalFlaggedRows(leftover.map((l) => l.text.trim()), page));
   }
 
   const normalized = lines2.map((line) => line.text.trim()).filter(Boolean);
