@@ -75,9 +75,10 @@
 .hrss-sheet--overall .hrss-section--opinion {
   flex: 1 1 auto;
 }
-/* 148mm = 133mm(85mm + 옛 여백 48mm) + 15mm(재검진을 그만큼 아래로). */
+/* 168mm = 133mm(85mm + 옛 여백 48mm) + 35mm(재검진을 그만큼 아래로).
+   재검진 섹션에 남는 공간은 약 100mm — 카드(상단 18mm + 높이 25mm)와 서명란(약 20mm)에 여유가 있다. */
 .hrss-sheet--rest .hrss-section--followup {
-  flex: 0 0 148mm;
+  flex: 0 0 168mm;
 }
 .hrss-sheet--rest .hrss-section--followup .hrss-section-body {
   flex: 1 1 auto;
