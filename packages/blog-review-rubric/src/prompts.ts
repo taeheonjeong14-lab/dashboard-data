@@ -89,6 +89,7 @@ export function buildAggregatorSystemPrompt(): string {
 # 목표
 - 같은 문제를 지적한 findings 를 의미 기준으로 묶는다(문장이 달라도 같은 문제면 하나로).
 - 각 통합 finding 에 agreement("3/3"|"2/3"|"1/3")를 매긴다(몇 명이 지적했나).
+- 각 통합 finding 에 sources — 그 문제를 지적한 검수자 라벨 배열(["A","B","C"] 중 해당하는 것만) — 을 붙인다.
 - 중복을 제거하고 가장 명확한 표현으로 통합한다.
 
 # 규칙
@@ -97,12 +98,13 @@ export function buildAggregatorSystemPrompt(): string {
 - quote 는 원문 인용을 유지(가장 정확히 인용한 것). issue·suggestion 은 셋을 종합하되 위 ★★문체 규칙대로 40자 이내 개조식으로 압축(리뷰어 문장을 그대로 옮기지 말 것).
 - evidence 는 구체적 근거가 있는 것을 우선 채택.
 - 한 명(1/3)만 지적한 것도 버리지 말고 agreement="1/3"로 포함(나중에 '참고'로 분리됨).
+- ★sources 는 REVIEW_A→"A", REVIEW_B→"B", REVIEW_C→"C". 실제로 그 문제를 낸 검수자만 넣고, 개수는 agreement 의 분자와 일치시킬 것(추측 금지).
 - 정렬: agreement 높은 순 → severity 높은 순.
 - summary: 전체를 한국어 한 문장으로(의학 이슈 유무 + SEO 상태).
 
 # 출력 — JSON only
-{ "medical":[{"rubricId":"M1","severity":"high","agreement":"3/3","quote":"...","issue":"...","suggestion":"...","evidence":"..."}],
-  "seo":[{"rubricId":"S1","severity":"medium","agreement":"2/3","quote":"...","issue":"...","suggestion":"...","evidence":""}],
+{ "medical":[{"rubricId":"M1","severity":"high","agreement":"3/3","sources":["A","B","C"],"quote":"...","issue":"...","suggestion":"...","evidence":"..."}],
+  "seo":[{"rubricId":"S1","severity":"medium","agreement":"2/3","sources":["A","C"],"quote":"...","issue":"...","suggestion":"...","evidence":""}],
   "summary":"..." }`;
 }
 

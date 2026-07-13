@@ -28,6 +28,11 @@ function shortModel(model: string): string {
   return i >= 0 ? model.slice(i + 1) : model;
 }
 
+/** 칩용 더 짧은 이름 — 버전 꼬리를 떼어 계열만("claude-haiku-4.5" → "claude-haiku"). */
+function modelChipLabel(model: string): string {
+  return shortModel(model).replace(/[-_]?\d.*$/, '') || shortModel(model);
+}
+
 const LIGHT_COLOR: Record<Light, string> = { red: '#e5484d', yellow: '#f5a623', green: '#30a46c' };
 const STATUS_COLOR: Record<MetricStatus, string> = { poor: '#e5484d', warn: '#f5a623', good: '#30a46c' };
 const SEV_LABEL: Record<string, string> = { high: '높음', medium: '중간', low: '낮음' };
@@ -63,15 +68,36 @@ function Field({ label, children, valueStyle }: { label: string; children: React
   );
 }
 
-function FindingCard({ f }: { f: ReviewerFinding }) {
+/** 이 지적을 낸 모델들(집계가 알려준 것). 모델별 상세에서 쓰는 원본 finding 엔 없다. */
+function ModelChips({ models }: { models?: string[] }) {
+  if (!models?.length) return null;
+  return (
+    <>
+      {models.map((m) => (
+        <span
+          key={m}
+          title={m}
+          style={{ fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 999, background: 'var(--bg-subtle)', color: 'var(--text-muted)', border: '1px solid var(--border)', whiteSpace: 'nowrap' }}
+        >
+          {modelChipLabel(m)}
+        </span>
+      ))}
+    </>
+  );
+}
+
+function FindingCard({ f }: { f: ReviewerFinding & Partial<Pick<Finding, 'models'>> }) {
   const color = f.severity === 'high' ? '#e5484d' : f.severity === 'medium' ? '#f5a623' : 'var(--text-muted)';
   const item = rubricItem(f.rubricId);
   return (
     <div style={{ ...card, borderLeft: `3px solid ${color}`, padding: '11px 13px' }}>
-      {/* 헤더: 심각도 · 항목 */}
+      {/* 헤더: 심각도 · 항목 · 지적한 모델 */}
       <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap', marginBottom: 9 }}>
         <span style={badge(color)}>{SEV_LABEL[f.severity] ?? f.severity}</span>
         <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)' }}>{item ? item.label : f.rubricId}</span>
+        <span style={{ display: 'inline-flex', gap: 4, marginLeft: 'auto', flexWrap: 'wrap' }}>
+          <ModelChips models={f.models} />
+        </span>
       </div>
       {/* 라벨링된 본문 */}
       <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', columnGap: 12, rowGap: 7, alignItems: 'start' }}>
@@ -404,6 +430,9 @@ export function AnnotatedBlogReview({ review, title, bodyText }: { review: BlogR
                 <li key={i} style={{ fontSize: 12.5, lineHeight: 1.5 }}>
                   <span style={{ color: sevColor(f.severity), fontWeight: 700 }}>{f.issue}</span>
                   {f.suggestion ? <span style={{ color: 'var(--text-muted)' }}> → {f.suggestion}</span> : null}
+                  <span style={{ display: 'inline-flex', gap: 4, marginLeft: 6, verticalAlign: 'middle' }}>
+                    <ModelChips models={f.models} />
+                  </span>
                 </li>
               ))}
             </ul>

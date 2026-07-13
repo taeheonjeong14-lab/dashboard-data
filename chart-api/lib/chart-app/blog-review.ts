@@ -110,49 +110,72 @@ function normalizeReviewerOutput(parsed: unknown): ReviewerOutput {
 }
 
 const AGREEMENTS = ['3/3', '2/3', '1/3'] as const;
-function asAggFinding(x: unknown): Finding | null {
-  const base = asFindingBase(x);
-  if (!base) return null;
-  const ag = (x as Record<string, unknown>).agreement;
-  const agreement = (AGREEMENTS as readonly string[]).includes(String(ag)) ? (String(ag) as Finding['agreement']) : '1/3';
-  return { ...base, agreement };
+const agreementOf = (count: number): Agreement => (count >= 3 ? '3/3' : count >= 2 ? '2/3' : '1/3');
+
+/**
+ * 집계가 준 sources(["A","B"] = REVIEW_A·REVIEW_B) 를 실제 모델 슬러그로 되돌린다.
+ * 라벨 순서는 buildAggregatorUserContent 에 넘긴 리뷰어 순서(modelsUsed)와 같다.
+ */
+function mapSources(x: unknown, modelsUsed: string[]): string[] {
+  const raw = (x as Record<string, unknown> | null)?.sources;
+  if (!Array.isArray(raw)) return [];
+  const models = raw
+    .map((s) => String(s).trim().toUpperCase().replace(/^REVIEW_/, ''))
+    .map((label) => modelsUsed[label.charCodeAt(0) - 65])
+    .filter((m): m is string => Boolean(m));
+  return [...new Set(models)];
 }
 
-function normalizeAggregatorOutput(parsed: unknown): AggregatorOutput {
+function asAggFinding(x: unknown, modelsUsed: string[]): Finding | null {
+  const base = asFindingBase(x);
+  if (!base) return null;
+  const models = mapSources(x, modelsUsed);
+  const ag = (x as Record<string, unknown>).agreement;
+  // sources 가 있으면 그쪽이 우선(합의도 = 실제 지적한 모델 수). 없으면 집계가 준 agreement 문자열.
+  const agreement = models.length
+    ? agreementOf(models.length)
+    : (AGREEMENTS as readonly string[]).includes(String(ag))
+      ? (String(ag) as Agreement)
+      : '1/3';
+  return { ...base, agreement, ...(models.length ? { models } : {}) };
+}
+
+function normalizeAggregatorOutput(parsed: unknown, modelsUsed: string[]): AggregatorOutput {
   const o = (parsed ?? {}) as Record<string, unknown>;
   const arr = (v: unknown): Finding[] =>
-    (Array.isArray(v) ? v : []).map(asAggFinding).filter((f): f is Finding => f != null);
+    (Array.isArray(v) ? v : [])
+      .map((x) => asAggFinding(x, modelsUsed))
+      .filter((f): f is Finding => f != null);
   return { medical: arr(o.medical), seo: arr(o.seo), summary: String(o.summary ?? '').trim() };
 }
 
 /** 단일 리뷰어만 성공했을 때: 집계 없이 모든 finding 을 1/3(저신뢰)로 감싼다. */
-function wrapSingle(out: ReviewerOutput): AggregatorOutput {
-  const wrap = (f: ReviewerFinding): Finding => ({ ...f, agreement: '1/3' });
+function wrapSingle(out: ReviewerOutput, model: string): AggregatorOutput {
+  const wrap = (f: ReviewerFinding): Finding => ({ ...f, agreement: '1/3', models: [model] });
   return { medical: out.medical.map(wrap), seo: out.seo.map(wrap), summary: '' };
 }
 
 /**
  * 집계 LLM 실패 시 폴백 — 리뷰어 findings 를 규칙 기반으로 병합.
- * rubricId + 인용/이슈 앞부분으로 묶어 중복 제거, 몇 개 리뷰어가 같은 지적을 냈나로 agreement 산정.
+ * rubricId + 인용/이슈 앞부분으로 묶어 중복 제거, 같은 지적을 낸 리뷰어들로 agreement·models 산정.
  */
-function programmaticMerge(outputs: ReviewerOutput[]): AggregatorOutput {
+function programmaticMerge(outputs: Array<{ model: string; norm: ReviewerOutput }>): AggregatorOutput {
   const mergeAxis = (pick: (o: ReviewerOutput) => ReviewerFinding[]): Finding[] => {
-    const groups = new Map<string, { f: ReviewerFinding; count: number }>();
-    for (const o of outputs) {
+    const groups = new Map<string, { f: ReviewerFinding; models: string[] }>();
+    for (const { model, norm } of outputs) {
       // 한 리뷰어가 같은 키를 중복으로 내도 1회만 센다.
       const seen = new Set<string>();
-      for (const f of pick(o)) {
+      for (const f of pick(norm)) {
         const key = `${f.rubricId}|${(f.quote || f.issue).replace(/\s+/g, '').slice(0, 20)}`;
         if (seen.has(key)) continue;
         seen.add(key);
         const g = groups.get(key);
-        if (g) g.count += 1;
-        else groups.set(key, { f, count: 1 });
+        if (g) g.models.push(model);
+        else groups.set(key, { f, models: [model] });
       }
     }
-    const agreementOf = (c: number): Agreement => (c >= 3 ? '3/3' : c >= 2 ? '2/3' : '1/3');
     return [...groups.values()]
-      .map(({ f, count }) => ({ ...f, agreement: agreementOf(count) }))
+      .map(({ f, models }) => ({ ...f, agreement: agreementOf(models.length), models }))
       .sort((a, b) => b.agreement.localeCompare(a.agreement));
   };
   return {
@@ -208,7 +231,7 @@ export async function runBlogReviewEnsemble(
 
   // 리뷰어가 1개뿐이면 집계 불필요(전부 저신뢰).
   if (outputs.length === 1) {
-    return { aggregate: wrapSingle(outputs[0].norm), modelsUsed, reviewers };
+    return { aggregate: wrapSingle(outputs[0].norm, outputs[0].model), modelsUsed, reviewers };
   }
 
   // 집계 LLM — 실패(호출·파싱)하면 규칙 기반 병합으로 폴백해 500 을 피한다.
@@ -221,14 +244,14 @@ export async function runBlogReviewEnsemble(
       reviewCtx,
       0.1,
     );
-    const aggregate = normalizeAggregatorOutput(tryParseJsonObject(aggText));
+    const aggregate = normalizeAggregatorOutput(tryParseJsonObject(aggText), modelsUsed);
     // 집계가 비었는데 리뷰어엔 findings 가 있으면(모델이 형식만 맞추고 내용 유실) 폴백.
     const aggEmpty = aggregate.medical.length + aggregate.seo.length === 0;
     const hadFindings = outputs.some((o) => o.norm.medical.length + o.norm.seo.length > 0);
-    if (aggEmpty && hadFindings) return { aggregate: programmaticMerge(outputs.map((o) => o.norm)), modelsUsed, reviewers };
+    if (aggEmpty && hadFindings) return { aggregate: programmaticMerge(outputs), modelsUsed, reviewers };
     return { aggregate, modelsUsed, reviewers };
   } catch (e) {
     console.warn('[blog-review] 집계 실패 → 규칙 병합 폴백:', e instanceof Error ? e.message : e);
-    return { aggregate: programmaticMerge(outputs.map((o) => o.norm)), modelsUsed, reviewers };
+    return { aggregate: programmaticMerge(outputs), modelsUsed, reviewers };
   }
 }
