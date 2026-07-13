@@ -51,6 +51,8 @@ export interface ReviewerOutput {
 /** 집계 후 통합 finding(합의도 부여). */
 export interface Finding extends ReviewerFinding {
   agreement: Agreement;
+  /** 이 지적을 낸 리뷰어 모델 슬러그들(집계가 REVIEW_A/B/C 라벨로 알려준 것을 코드가 매핑). 구버전 저장분엔 없음. */
+  models?: string[];
 }
 
 /** 집계 LLM의 출력(JSON). */
@@ -63,7 +65,7 @@ export interface AggregatorOutput {
 
 /** 결정적 SEO 지표 1개(지표 스트립 표시용). */
 export interface SeoMetric {
-  /** 'charCount' | 'imageCount' | 'titleLength' | 'headingCount' | 'tagCount' | 'keywordDensity' | 'titleHasKeyword' | 'titleHasRegion' */
+  /** 'charCount' | 'imageCount' | 'titleLength' | 'tagCount' | 'keywordDensity' | 'titleHasKeyword' | 'titleHasRegion' */
   key: string;
   label: string;
   /** 현재값(숫자 지표) 또는 표시 문자열(포함/없음 등). */
@@ -122,8 +124,6 @@ export interface ReviewInput {
   hospitalRegion?: string;
   /** 대표키워드(내부는 자동 도출, 외부는 미상 → 밀도 LLM 판단). */
   keyword?: Keyword | null;
-  /** 섹션 구분 수 오버라이드(외부 네이버는 구분선 수를 코드로 세서 전달; 없으면 본문 마크다운 헤딩 카운트). */
-  headingCount?: number;
   /** 내부 대조용 원본(외부는 undefined). */
   groundTruth?: string;
 }

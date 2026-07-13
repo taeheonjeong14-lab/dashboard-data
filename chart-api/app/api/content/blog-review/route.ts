@@ -153,7 +153,6 @@ export async function POST(request: NextRequest): Promise<Response> {
     hospitalName: hospitalName || undefined,
     hospitalRegion: hospitalRegion || undefined,
     keyword,
-    headingCount: typeof body.headingCount === 'number' ? body.headingCount : undefined,
     groundTruth,
   };
 

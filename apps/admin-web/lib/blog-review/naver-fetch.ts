@@ -10,8 +10,6 @@ export interface NaverPost {
   bodyText: string;
   imageCount: number;
   tags: string[];
-  /** 섹션 구분 수 — 네이버는 마크다운 헤딩이 없어 구분선(se-horizontalLine) 수로 센다. */
-  headingCount: number;
   sourceUrl: string;
 }
 
@@ -157,9 +155,8 @@ export async function fetchNaverPost(rawUrl: string): Promise<NaverPost> {
   const container = extractContainer(html);
   if (!container) throw new Error('본문을 추출하지 못했습니다(비공개·형식 변경 가능). 본문을 직접 붙여넣어 주세요.');
 
-  // 본문은 화면에 그대로 표시하므로 깨끗하게 둔다. 섹션 구분은 구분선(se-horizontalLine) 수로 별도 카운트.
+  // 본문은 화면에 그대로 표시하므로 깨끗하게 둔다.
   const bodyText = stripTags(container);
-  const headingCount = (container.match(/se-section-horizontalLine/gi) ?? []).length;
   if (bodyText.length < 30) throw new Error('본문이 너무 짧거나 추출에 실패했습니다. 본문을 직접 붙여넣어 주세요.');
 
   return {
@@ -167,7 +164,6 @@ export async function fetchNaverPost(rawUrl: string): Promise<NaverPost> {
     bodyText,
     imageCount: countImages(container),
     tags: extractTags(html),
-    headingCount,
     sourceUrl: mobileUrl,
   };
 }
