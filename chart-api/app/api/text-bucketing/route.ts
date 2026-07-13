@@ -636,11 +636,25 @@ function findEfriendsChartBodyContentStart(lines: BucketedLine[]): number {
   return 0;
 }
 
-/** "2026-05-08"·"2026-05-08 오후 3:46" 처럼 날짜(시각)만 있는 줄 — 진료 내용이 아니다. */
-function isDateOnlyLine(text: string): boolean {
-  const t = (text ?? "").trim();
-  if (!t) return true;
-  return /^20\d{2}[-./]\d{1,2}[-./]\d{1,2}(?:\s*(?:오전|오후)?\s*\d{1,2}:\d{2}(?::\d{2})?)?$/.test(t);
+/**
+ * 진료 내용이라 할 만한 줄인지. 날짜(시각)만 있는 줄·숫자/기호만 있는 줄은 내용이 아니다.
+ *
+ * 처방·수납 표의 행 날짜(예: "2026-05-09 혈액검사 … 35,000원")에서 날짜 토큰만 따로 떨어져 나오면
+ * 그 날짜로 빈 진료 그룹이 열린다. 그런 그룹을 걸러내는 판정.
+ * ※ 폭 없는 공백(zero-width)·nbsp 가 섞여 들어오는 전사가 있어 먼저 씻어낸다(같은 날짜인데
+ *    어떤 건 걸리고 어떤 건 안 걸리던 원인).
+ */
+function isMeaningfulChartBodyLine(text: string): boolean {
+  const t = (text ?? "")
+    .replace(/[​‌‍﻿ ]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!t) return false;
+  if (/^20\d{2}[-./]\d{1,2}[-./]\d{1,2}(?:\s*(?:오전|오후)?\s*\d{1,2}:\d{2}(?::\d{2})?)?[.,]?$/.test(t)) {
+    return false;
+  }
+  // 한글/영문 글자가 2자 이상 있어야 내용으로 본다(날짜·숫자·기호만 있는 줄 제외).
+  return t.replace(/[^A-Za-z가-힣]/g, "").length >= 2;
 }
 
 function groupChartBodyByDate(lines: BucketedLine[], chartKind: ChartKind): ChartBodyByDateGroup[] {
@@ -773,9 +787,9 @@ function groupChartBodyByDate(lines: BucketedLine[], chartKind: ChartKind): Char
 
   return [...groups.entries()]
     .filter(([dateTime, groupLines]) => dateTime !== "unknown" || groupLines.length > 0)
-    // 날짜만 있고 진료 내용이 없는 그룹은 진료가 아니다(검사·처방 표에만 등장한 날짜 등).
-    //  예: 검사 결과에만 나오는 2026-05-08 이 빈 진료 한 건으로 잡히던 문제.
-    .filter(([, groupLines]) => groupLines.some((line) => !isDateOnlyLine(line.text)))
+    // 날짜만 있고 진료 내용이 없는 그룹은 진료가 아니다(검사·처방/수납 표에만 등장한 날짜 등).
+    //  예: 처방 표의 행 날짜 2026-05-08/09 가 빈 진료 한 건으로 잡히던 문제.
+    .filter(([, groupLines]) => groupLines.some((line) => isMeaningfulChartBodyLine(line.text)))
     .map(([dateTime, groupLines]) => {
     const texts = groupLines.map((line) => line.text);
 
