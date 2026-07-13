@@ -109,7 +109,7 @@ export const SEO_ITEMS: RubricItem[] = [
     id: 'S4',
     axis: 'seo',
     label: '구성·가독성',
-    shortDesc: '도입부 검색의도·소제목·문단 길이·마무리 CTA',
+    shortDesc: '도입부 검색의도·섹션 구분·문단 길이·마무리 CTA',
     promptLine:
       '도입부가 검색의도(무엇을 다루는 글인지)를 충족하는지, 문단이 지나치게 길어 모바일에서 읽기 힘든지, 마무리에 병원 안내(CTA)가 있는지.',
     llmReviewed: true,
@@ -209,7 +209,7 @@ export const METRIC_SPECS: MetricSpec[] = [
   },
   {
     key: 'headingCount',
-    label: '소제목',
+    label: '섹션 구분',
     target: '3+',
     classify: (v) => (v <= 0 ? 'poor' : v <= 2 ? 'warn' : 'good'),
   },
