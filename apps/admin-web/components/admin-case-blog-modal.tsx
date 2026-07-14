@@ -19,7 +19,9 @@ type Action = { what: string; why: string; result: string; types: string[]; deta
 type Phase = { id: string; name: string; period: string; actions: Action[]; nextStep: string[] };
 // caseType: 케이스 종류. AI가 1단계에서 주질환명·동반질환명 기준으로 판정, 직원이 흐름 요약에서 수정 가능.
 // '' = 미판정(구버전 데이터). 태그 허용 범위를 제한한다(internal/surgical/both).
-type CausalFlow = { axis: string; caseType: string; anesthesia: boolean; phases: Phase[] };
+// chronicManagement: 장기 관리 케이스(심장병·만성 신장질환 등) — true 면 진단 확정 이후의 검사는 exam_dx 가 아니라 medical.
+// 1단계에서 판정돼 저장되고, 2단계·phase 재생성이 이 값을 다시 chart-api 로 보낸다(여기서 떨어뜨리면 규칙이 무효가 된다).
+type CausalFlow = { axis: string; caseType: string; chronicManagement: boolean; anesthesia: boolean; phases: Phase[] };
 // tag: 해시태그 섹션이면 ACTION_TYPE 키(exam_dx 등), 고정 서술 섹션(인트로/질환소개/…)이면 ''.
 type Section = { id: string; tag: string; label: string; period: string; points: string[]; facts: string[]; imageFileNames: string[] };
 type CaseImg = { fileName: string; signedUrl: string | null; caption: string };
@@ -180,6 +182,7 @@ function asCausal(raw: unknown): CausalFlow {
   return {
     axis: str(o.axis),
     caseType: validCaseType(o.caseType),
+    chronicManagement: o.chronicManagement === true,
     anesthesia: o.anesthesia === true,
     phases: phases.map(asPhase),
   };
@@ -223,6 +226,43 @@ const CLINICAL_TAG_ORDER = ['exam_dx', 'preop', 'surgical', 'medical', 'recovery
 const CASE_TYPE_LABEL: Record<string, string> = { internal: '내과', surgical: '수술', both: '내과+수술' };
 const CASE_TYPE_ORDER = ['internal', 'surgical', 'both'];
 function validCaseType(v: unknown): string { const s = String(v ?? '').trim().toLowerCase(); return s in CASE_TYPE_LABEL ? s : ''; }
+
+/**
+ * 화면에 보여주는 '케이스 종류' 4가지. 저장 형태(caseType + chronicManagement)를 사람이 읽는 한 축으로 합친 것.
+ * '장기 만성질환 관리' = 내과이면서 진단 확정 후 투약·재검이 반복되는 케이스(심장병·만성 신장질환·당뇨 등).
+ * 이 경우 진단 확정 이후의 검사는 #검사 및 진단이 아니라 #내과 치료다(안 그러면 '진단 → 진단 → 진단'으로 꼬인다).
+ */
+const CASE_KIND_LABEL: Record<string, string> = {
+  internal: '단기 내과',
+  chronic: '장기 만성질환 관리',
+  surgical: '수술',
+  both: '내과+수술',
+};
+const CASE_KIND_ORDER = ['internal', 'chronic', 'surgical', 'both'];
+function caseKindOf(caseType: string, chronic: boolean): string {
+  if (!caseType) return '';
+  return caseType === 'internal' && chronic ? 'chronic' : caseType;
+}
+
+/** 장기 관리 규칙: 최초 #검사 및 진단이 나온 날짜 이후의 exam_dx 는 #내과 치료로 바꾼다(chart-api 와 같은 규칙). */
+function applyChronicTagRule(phases: Phase[]): Phase[] {
+  const dxIdx = phases.findIndex((p) => (p.actions ?? []).some((a) => (a.types ?? []).includes('exam_dx')));
+  if (dxIdx < 0) return phases;
+  return phases.map((p, i) => {
+    if (i <= dxIdx) return p;
+    return {
+      ...p,
+      actions: (p.actions ?? []).map((a) => {
+        const types = a.types ?? [];
+        if (!types.includes('exam_dx')) return a;
+        const rest = types.filter((t) => t !== 'exam_dx');
+        const keepsOther = rest.some((t) => t === 'surgical' || t === 'preop' || t === 'recovery' || t === 'aftercare');
+        const next = keepsOther || rest.includes('medical') ? rest : [...rest, 'medical'];
+        return { ...a, types: next.length ? [...new Set(next)] : ['other'] };
+      }),
+    };
+  });
+}
 const ALLOWED_TAGS_BY_CASETYPE: Record<string, Set<string>> = {
   internal: new Set(['exam_dx', 'medical', 'aftercare', 'other']),
   surgical: new Set(['exam_dx', 'preop', 'surgical', 'recovery', 'aftercare', 'other']),
@@ -761,6 +801,23 @@ export function CaseBlogButton({
   function setCausalField<K extends keyof CausalFlow>(k: K, v: CausalFlow[K]) {
     setCausal((c) => (c ? { ...c, [k]: v } : c)); dirty();
   }
+
+  /**
+   * 흐름 요약의 '케이스 종류' 변경 — 화면의 4가지(단기 내과 / 장기 만성질환 관리 / 수술 / 내과+수술)를
+   * 저장 형태(caseType + chronicManagement)로 되돌린다.
+   * 장기 관리로 바꾸면 이미 붙어 있는 태그도 그 자리에서 정리한다(진단 확정 이후의 검사 = 내과 치료).
+   * 그러지 않으면 종류만 바뀌고 태그는 '진단 → 진단 → 진단'으로 남아 스토리가 계속 꼬인다.
+   */
+  function setCaseKind(kind: string) {
+    setCausal((c) => {
+      if (!c) return c;
+      const caseType = kind === 'chronic' ? 'internal' : kind;
+      const chronic = kind === 'chronic';
+      const phases = chronic ? applyChronicTagRule(c.phases) : c.phases;
+      return { ...c, caseType, chronicManagement: chronic, phases };
+    });
+    dirty();
+  }
   function updatePhase(i: number, patch: Partial<Phase>) {
     setCausal((c) => (c ? { ...c, phases: c.phases.map((p, j) => (j === i ? { ...p, ...patch } : p)) } : c)); dirty();
   }
@@ -924,7 +981,7 @@ export function CaseBlogButton({
                   ) : step === 1 ? (
                     <CausalEditor
                       causal={causal} busy={busy}
-                      setField={setCausalField} updatePhase={updatePhase} movePhase={movePhase} addPhase={addPhase} removePhase={removePhase}
+                      setField={setCausalField} setCaseKind={setCaseKind} updatePhase={updatePhase} movePhase={movePhase} addPhase={addPhase} removePhase={removePhase}
                       regenPhase={regenPhase} phaseBusy={phaseBusy}
                     />
                   ) : step === 2 ? (
@@ -1270,12 +1327,14 @@ function PhaseCard({ p, caseType, isLast, busy, regenBusy, onUp, onDown, onRemov
 
 // ── 1단계 에디터 ──
 // 흐름 요약 카드(케이스 종류 + 흐름의 축 + 전신마취): 기본은 읽기 전용, '수기 수정'으로 편집.
-function AxisCard({ axis, caseType, anesthesia, busy, setField }: {
-  axis: string; caseType: string; anesthesia: boolean; busy: boolean;
+function AxisCard({ axis, caseType, chronic, anesthesia, busy, setField, setCaseKind }: {
+  axis: string; caseType: string; chronic: boolean; anesthesia: boolean; busy: boolean;
   setField: <K extends keyof CausalFlow>(k: K, v: CausalFlow[K]) => void;
+  setCaseKind: (kind: string) => void;
 }) {
   const [edit, setEdit] = useState(false);
-  const caseLabel = CASE_TYPE_LABEL[caseType] ?? '미판정';
+  const kind = caseKindOf(caseType, chronic);
+  const caseLabel = CASE_KIND_LABEL[kind] ?? '미판정';
   return (
     <div style={cardBox}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: edit ? 10 : 8 }}>
@@ -1289,11 +1348,16 @@ function AxisCard({ axis, caseType, anesthesia, busy, setField }: {
         <div style={{ display: 'grid', gap: 10 }}>
           <label style={{ display: 'grid', gap: 4, fontSize: 14, color: 'var(--text-secondary)' }}>
             케이스 종류 (주질환·동반질환 기준 — 태그 허용 범위를 정함)
-            <select value={caseType} onChange={(e) => setField('caseType', e.target.value)}
+            <select value={kind} onChange={(e) => setCaseKind(e.target.value)}
               style={{ padding: '6px 8px', borderRadius: 8, border: '1px solid var(--border-strong)', background: '#fff', fontSize: 14 }}>
               <option value="">미판정</option>
-              {CASE_TYPE_ORDER.map((t) => <option key={t} value={t}>{CASE_TYPE_LABEL[t]}</option>)}
+              {CASE_KIND_ORDER.map((t) => <option key={t} value={t}>{CASE_KIND_LABEL[t]}</option>)}
             </select>
+            {kind === 'chronic' ? (
+              <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                진단 확정 이후의 재검·수치 추적은 #검사 및 진단이 아니라 #내과 치료로 정리됩니다.
+              </span>
+            ) : null}
           </label>
           <LabeledTextarea label="한 줄 요약" value={axis} onChange={(v) => setField('axis', v)} rows={2} />
           <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, color: 'var(--text-secondary)', cursor: 'pointer' }}>
@@ -1318,9 +1382,10 @@ function AxisCard({ axis, caseType, anesthesia, busy, setField }: {
   );
 }
 
-function CausalEditor({ causal, busy, setField, updatePhase, movePhase, addPhase, removePhase, regenPhase, phaseBusy }: {
+function CausalEditor({ causal, busy, setField, setCaseKind, updatePhase, movePhase, addPhase, removePhase, regenPhase, phaseBusy }: {
   causal: CausalFlow | null; busy: boolean;
   setField: <K extends keyof CausalFlow>(k: K, v: CausalFlow[K]) => void;
+  setCaseKind: (kind: string) => void;
   updatePhase: (i: number, patch: Partial<Phase>) => void;
   movePhase: (i: number, dir: -1 | 1) => void; addPhase: () => void; removePhase: (i: number) => void;
   regenPhase: (i: number, feedback: string) => void; phaseBusy: number | null;
@@ -1328,7 +1393,10 @@ function CausalEditor({ causal, busy, setField, updatePhase, movePhase, addPhase
   if (!causal) return <div style={{ fontSize: 14, color: 'var(--text-muted)', padding: 12 }}>인과 흐름이 없습니다. “다시 생성”을 눌러 주세요.</div>;
   return (
     <div style={{ display: 'grid', gap: 12 }}>
-      <AxisCard axis={causal.axis} caseType={causal.caseType} anesthesia={causal.anesthesia} busy={busy} setField={setField} />
+      <AxisCard
+        axis={causal.axis} caseType={causal.caseType} chronic={causal.chronicManagement} anesthesia={causal.anesthesia}
+        busy={busy} setField={setField} setCaseKind={setCaseKind}
+      />
       {causal.phases.map((p, i) => (
         <PhaseCard key={p.id} p={p} caseType={causal.caseType} isLast={i === causal.phases.length - 1} busy={busy || phaseBusy !== null} regenBusy={phaseBusy === i}
           onUp={() => movePhase(i, -1)} onDown={() => movePhase(i, 1)} onRemove={() => removePhase(i)}
