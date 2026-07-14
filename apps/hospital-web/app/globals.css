@@ -84,9 +84,10 @@ body {
   line-height: 1.5 !important;
   display: inline-flex;
   align-items: center;
-  justify-content: center;
   gap: 6px;
   white-space: nowrap;
+  /* justify-content 는 건드리지 않는다 — center 로 강제하면 width:100% 인 접기 헤더·목록 행의
+     라벨이 전부 가운데로 몰린다. */
 }
 
 /* 아이콘 전용(정사각) 버튼은 좌우 패딩을 줄인다 — 라벨이 없어 12px 는 과하다. */

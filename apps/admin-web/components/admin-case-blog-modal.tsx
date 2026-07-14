@@ -340,6 +340,7 @@ function LabResultsPanel({ dates, open, onToggle }: { dates: LabDate[]; open: bo
     <div style={refCardBox}>
       <button
         type="button"
+        className="adminBtnFree"
         onClick={onToggle}
         style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: open ? 8 : 0, background: 'none', border: 'none', padding: 0, width: '100%', textAlign: 'left', cursor: 'pointer' }}
       >
@@ -864,6 +865,7 @@ export function CaseBlogButton({
                   <div style={refCardBox}>
                     <button
                       type="button"
+                      className="adminBtnFree"
                       onClick={() => setOverviewOpen((v) => !v)}
                       style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginBottom: overviewOpen ? 8 : 0, background: 'none', border: 'none', padding: 0, width: '100%', textAlign: 'left', cursor: 'pointer' }}
                     >
