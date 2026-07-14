@@ -23,6 +23,17 @@ export type PlusVetParsedPlanRow = {
 /** 투여 경로(담당의·항목명과 구분하기 위한 화이트리스트). 단독 토큰일 때만 경로로 본다. */
 const ROUTE_TOKEN = /^(PO|IV|IM|SC|SQ|IH|IO|ID|IN|IP|PR|SL|TOP|OU|OD|OS|AU|AD|AS|CRI|NEB)$/i;
 
+/** 단위(회/EA/ml…). 용량(qty) 칸이 비어 있는 표에서 레코드 경계를 잡는 유일한 단서다. */
+const UNIT_TOKEN = /^(회|EA|ea|개|매|포|정|캡슐|팩|앰플|amp|vial|바이알|T|ml|mL|cc|L|mg|g|kg|ug|mcg|IU|unit|units|일|병|set|SET)$/;
+
+/** 담당의 — 짧은 한글 사람 이름. */
+function isSignIdToken(t: string): boolean {
+  return /^[가-힣]{2,4}$/.test(t);
+}
+function isUnitToken(t: string): boolean {
+  return UNIT_TOKEN.test(t);
+}
+
 function normalizeLine(s: string) {
   return s.replace(/\t/g, ' ').replace(/\s+/g, ' ').trim();
 }
@@ -83,8 +94,12 @@ export function parsePlusVetPlanRows(planText: string): PlusVetParsedPlanRow[] {
 
   while (i < n) {
     // 1) 항목명: 숫자·경로 토큰이 나오기 전까지 (여러 토큰을 다시 이어붙임)
+    //    ★용량(qty) 칸이 비어 있는 표(숫자가 아예 없는 차트)도 있다. 그때는 숫자가 영영 안 나오므로
+    //    "단위 + 담당의"(예: "회 김성준")를 레코드 꼬리로 보고 거기서 항목명을 끊는다.
+    //    이게 없으면 표 전체가 항목명 하나로 뭉쳐 플랜이 한 줄로 나온다.
     const nameParts: string[] = [];
     while (i < n && !isPureNumberToken(tokens[i]) && !isRouteToken(tokens[i])) {
+      if (nameParts.length > 0 && isUnitToken(tokens[i]) && i + 1 < n && isSignIdToken(tokens[i + 1])) break;
       nameParts.push(tokens[i]);
       i += 1;
     }
@@ -111,9 +126,13 @@ export function parsePlusVetPlanRows(planText: string): PlusVetParsedPlanRow[] {
       i += 1;
     }
 
-    // 4) 단위: qty 직후의 비숫자 토큰 1개 (회/mg/kg/ml…). qty가 없으면 단위도 없음.
+    // 4) 단위: qty 직후의 비숫자 토큰 1개 (회/mg/kg/ml…).
+    //    qty 가 없어도 "단위 + 담당의" 꼬리(위 1번에서 끊은 자리)면 단위로 받는다.
     let unit = '';
     if (qty && i < n && !isPureNumberToken(tokens[i]) && !isRouteToken(tokens[i])) {
+      unit = tokens[i];
+      i += 1;
+    } else if (!qty && i < n && isUnitToken(tokens[i]) && i + 1 < n && isSignIdToken(tokens[i + 1])) {
       unit = tokens[i];
       i += 1;
     }
@@ -129,7 +148,7 @@ export function parsePlusVetPlanRows(planText: string): PlusVetParsedPlanRow[] {
     //    담당의가 누락된 표(세로 분리/Gemini 변동)에서 다음 약 이름(영어/숫자/괄호로 시작)을
     //    담당의로 먹어 항목이 잘리는 것을 막는다. (담당의 = 짧은 한글 사람 이름)
     let signId = '';
-    if (qty && i < n && /^[가-힣]{2,4}$/.test(tokens[i])) {
+    if ((qty || unit) && i < n && isSignIdToken(tokens[i])) {
       signId = tokens[i];
       i += 1;
     }
@@ -152,5 +171,33 @@ export function parsePlusVetPlanRows(planText: string): PlusVetParsedPlanRow[] {
     });
   }
 
+  return mergeWrappedNames(rows);
+}
+
+/**
+ * 항목명이 길어 다음 줄로 접힌 경우를 되돌린다.
+ * PDF 표에서 "검사-키트-개-췌장염(cPL-Canine Pancreas-" 처럼 괄호가 열린 채 끊기면
+ * 이어지는 "specific Lipase)" 가 **다음 레코드의 항목명 앞**에 붙어버린다(표에선 아래 줄에 찍히므로).
+ * 괄호가 안 닫힌 행이 있으면, 다음 행 앞부분에서 닫는 괄호까지를 떼어 원래 자리로 돌려준다.
+ */
+function mergeWrappedNames(rows: PlusVetParsedPlanRow[]): PlusVetParsedPlanRow[] {
+  const open = (s: string) => (s.match(/\(/g) ?? []).length > (s.match(/\)/g) ?? []).length;
+
+  for (let i = 0; i < rows.length - 1; i += 1) {
+    const cur = rows[i];
+    if (!open(cur.treatmentPrescription)) continue;
+    const next = rows[i + 1];
+    const parts = next.treatmentPrescription.split(/\s+/).filter(Boolean);
+    const closeAt = parts.findIndex((p) => p.includes(')'));
+    if (closeAt < 0) continue;
+    const tail = parts.slice(0, closeAt + 1).join(' ');
+    const rest = parts.slice(closeAt + 1).join(' ');
+    // 다음 행이 통째로 이어짐(남는 항목명이 없음)이면 병합하지 않는다(진짜 그 행의 이름일 수 있다).
+    if (!rest) continue;
+    cur.treatmentPrescription = `${cur.treatmentPrescription} ${tail}`.replace(/-\s+/g, '-');
+    cur.raw = [cur.treatmentPrescription, cur.route, cur.qty, cur.unit, cur.day, cur.total, cur.signId].filter(Boolean).join(' ');
+    next.treatmentPrescription = rest;
+    next.raw = [rest, next.route, next.qty, next.unit, next.day, next.total, next.signId].filter(Boolean).join(' ');
+  }
   return rows;
 }
