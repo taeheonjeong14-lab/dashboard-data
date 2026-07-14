@@ -56,7 +56,10 @@ export type PlanByDate = {
 
 export type ReportCaseImage = {
   id: string;
+  /** ⚠ 실제 촬영일이 아니라 **DB 저장일(업로드한 날)** 이다. 건강검진 리포트의 검진일 필터가 이 값에 의존한다. */
   examDate: string;
+  /** 실제 촬영일(모르면 ''). 진료케이스의 날짜 앵커는 이것만 쓴다 — 업로드일을 촬영일로 착각해 '오늘'이 최초 진단일이 되지 않도록. */
+  examDateExact?: string;
   fileName: string;
   examType: 'radiology' | 'ultrasound' | 'other';
   radiologySub: 'thorax' | 'abdomen' | 'joint' | 'dental' | null;

@@ -49,7 +49,12 @@ export async function loadReportSourceData(runId: string): Promise<ReportSourceD
       [runId],
     ).catch(() => ({ rows: [] as Array<Record<string, unknown>> })),
     pool.query(
-      `select id, (created_at::date)::text as exam_date, file_name, exam_type, radiology_sub,
+      // examDate 는 지금까지 created_at(= DB 저장 시각 = 업로드한 날)이었다. 건강검진 리포트의 '검진일 필터'가
+      // 이 값에 의존하므로 그대로 둔다(바꾸면 촬영일이 비어 있는 이미지가 리포트에서 통째로 빠진다).
+      // 대신 **실제 촬영일(exam_date)** 을 examDateExact 로 따로 내려준다 — 진료케이스의 날짜 앵커는
+      // 이것만 쓴다. 저장일(오늘)을 촬영일로 착각해 '오늘'이 최초 진단일이 되는 사고를 막기 위함.
+      `select id, (created_at::date)::text as exam_date, (exam_date::date)::text as exam_date_exact,
+              file_name, exam_type, radiology_sub,
               brief_comment, has_notable_finding, related_assessment_condition, storage_path, created_at
        from chart_pdf.parse_run_case_images where parse_run_id = $1::uuid order by idx`,
       [runId],
@@ -153,6 +158,8 @@ export async function loadReportSourceData(runId: string): Promise<ReportSourceD
     caseImages: (images.rows as Array<Record<string, unknown>>).map((img) => ({
       id: String(img.id || ''),
       examDate: String(img.exam_date || ''),
+      // 실제 촬영일(없을 수 있음). 진료케이스 날짜 앵커 전용 — 업로드일(examDate)과 섞지 말 것.
+      examDateExact: String(img.exam_date_exact || ''),
       fileName: String(img.file_name || ''),
       examType: (img.exam_type as 'radiology' | 'ultrasound' | 'other') || 'other',
       radiologySub: (img.radiology_sub as 'thorax' | 'abdomen' | 'joint' | 'dental' | null) ?? null,

@@ -997,7 +997,8 @@ function collectDateAnchors(source: ReportSourceData): string[] {
   for (const c of source.chartBodyByDate ?? []) { const d = norm(c.dateTime); if (d) set.add(d); }
   for (const l of source.labItemsByDate ?? []) { const d = norm(l.dateTime); if (d) set.add(d); }
   for (const pe of source.physicalExamItemsByDate ?? []) { const d = norm(pe.dateTime); if (d) set.add(d); }
-  for (const img of source.caseImages ?? []) { const d = norm(img.examDate); if (d) set.add(d); }
+  // ★이미지의 examDate 는 '업로드한 날'이다(오늘). 실제 촬영일(examDateExact)만 앵커로 쓴다.
+  for (const img of source.caseImages ?? []) { const d = norm(img.examDateExact); if (d) set.add(d); }
   for (const pl of source.planByDate ?? []) { const d = norm((pl as { dateTime?: unknown }).dateTime); if (d) set.add(d); }
   return [...set].sort();
 }
