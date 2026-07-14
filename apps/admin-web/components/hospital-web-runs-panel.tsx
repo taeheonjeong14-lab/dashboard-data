@@ -307,7 +307,7 @@ export function HospitalWebRunsPanel() {
                 cursor: 'pointer',
               }}
             >
-              차트 목록에서 보기 →
+              차트 데이터에서 보기 →
             </a>
             <span style={{ color: 'var(--border-strong)' }}>|</span>
             <span style={{ color: 'var(--text-muted)', fontSize: 11, fontFamily: 'monospace' }}>

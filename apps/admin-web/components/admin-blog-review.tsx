@@ -15,7 +15,7 @@ const input: CSSProperties = { width: '100%', padding: '8px 11px', fontSize: 14,
 const label: CSSProperties = { fontSize: 14, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 4, display: 'block' };
 const btnPrimary: CSSProperties = { padding: '9px 16px', fontSize: 14, fontWeight: 700, borderRadius: 8, background: 'var(--accent)', color: '#fff', border: '1px solid var(--accent)', cursor: 'pointer' };
 
-export default function AdminBlogReview() {
+export default function AdminBlogReview({ embedded = false }: { embedded?: boolean } = {}) {
   const [hospitals, setHospitals] = useState<Hospital[]>([]);
   const [hospitalId, setHospitalId] = useState('');
   const [url, setUrl] = useState('');
@@ -81,7 +81,7 @@ export default function AdminBlogReview() {
   return (
     <div style={{ padding: '4px 0' }}>
       <div style={{ maxWidth: 980 }}>
-      <h1 style={{ fontSize: 20, fontWeight: 800, margin: '0 0 4px' }}>글 검수</h1>
+      {embedded ? null : <h1 style={{ fontSize: 20, fontWeight: 800, margin: '0 0 4px' }}>글 검수</h1>}
       <p style={{ fontSize: 14, color: 'var(--text-secondary)', margin: '0 0 16px', lineHeight: 1.5 }}>
         네이버 블로그 링크를 넣으면 본문을 가져와 <b>의학적 정확성</b>과 <b>네이버 최적화</b>를 검수합니다. Claude·Grok·Gemini 3개 모델의 공통 지적을 취합합니다.
       </p>

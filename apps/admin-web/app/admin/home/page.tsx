@@ -4,7 +4,7 @@ import { createClient } from '@/lib/supabase/server';
 import { getAdminPendingCounts } from '@/lib/admin-pending-counts';
 import {
   BarChart2, RefreshCw, FileText, HeartPulse, Newspaper,
-  ClipboardList, ClipboardCheck, Users, Building2, Gauge, ChevronRight,
+  ClipboardList, Users, Building2, Gauge, ChevronRight,
   ListTodo, CheckCircle2,
   type LucideIcon,
 } from 'lucide-react';
@@ -21,28 +21,28 @@ const cardDesc: React.CSSProperties = {
   display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden',
 };
 
+// 좌측 메뉴바(components/shell/sidebar.tsx)와 같은 그룹 구조를 쓴다 — 한쪽만 바꾸면 홈과 메뉴가 어긋난다.
 const GROUPS: Group[] = [
   {
-    title: '경영분석',
+    title: '데이터',
     items: [
-      { href: '/admin/performance', label: '대시보드', desc: '병원별 매출·신규·광고 지표를 분석합니다.', icon: BarChart2 },
-      { href: '/admin/data-upload', label: '데이터 수집', desc: '경영통계 업로드·자동 수집·스케줄·수집 내역을 한 곳에서.', icon: RefreshCw },
+      { href: '/admin/performance', label: '병원 데이터', desc: '병원별 매출·신규·광고 지표를 분석합니다.', icon: BarChart2 },
+      { href: '/admin/chart-data', label: '차트 데이터', desc: '업로드된 차트 데이터를 조회합니다.', icon: FileText },
     ],
   },
   {
-    title: '차트 데이터',
+    title: '병원 운영',
     items: [
-      { href: '/admin/work-board', label: '작업 현황', desc: '검진리포트·진료케이스 잔여/완료 작업을 한눈에.', icon: ListTodo },
-      { href: '/admin/chart-data', label: '차트 목록', desc: '업로드된 차트 데이터를 조회합니다.', icon: FileText },
       { href: '/admin/health-report', label: '건강검진 리포트', desc: '검진 리포트를 생성·검토합니다.', icon: HeartPulse },
       { href: '/admin/case-blog', label: '진료케이스', desc: '진료케이스 블로그 콘텐츠를 만듭니다.', icon: Newspaper },
+      { href: '/admin/forms', label: '문진·접수', desc: '사전문진 세션과 초진 접수증을 확인합니다.', icon: ClipboardList },
     ],
   },
   {
-    title: '문진·접수',
+    title: '도구',
     items: [
-      { href: '/admin/pre-consultation', label: '사전문진', desc: '사전문진 세션과 분석을 관리합니다.', icon: ClipboardList },
-      { href: '/admin/intake', label: '초진 접수', desc: '초진 접수증 제출 내역을 확인합니다.', icon: ClipboardCheck },
+      { href: '/admin/work-board', label: '작업 현황', desc: '검진리포트·진료케이스 잔여/완료 작업을 한눈에.', icon: ListTodo },
+      { href: '/admin/data-upload', label: '데이터 수집', desc: '경영통계 업로드·자동 수집·스케줄·수집 내역을 한 곳에서.', icon: RefreshCw },
     ],
   },
   {

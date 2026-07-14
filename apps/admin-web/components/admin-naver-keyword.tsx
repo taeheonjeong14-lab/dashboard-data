@@ -36,7 +36,7 @@ const compColor: Record<string, { bg: string; fg: string }> = {
   낮음: { bg: '#dcfce7', fg: '#15803d' },
 };
 
-export default function AdminNaverKeyword() {
+export default function AdminNaverKeyword({ embedded = false }: { embedded?: boolean } = {}) {
   const [input, setInput] = useState('');
   const [data, setData] = useState<Response | null>(null);
   const [loading, setLoading] = useState(false);
@@ -77,13 +77,15 @@ export default function AdminNaverKeyword() {
   const hasRows = !!data && (data.rows?.length ?? 0) > 0;
 
   return (
-    <div style={{ maxWidth: 1200, margin: '0 auto' }}>
-      <div style={{ marginBottom: 16 }}>
-        <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--text)' }}>네이버 검색량</div>
-        <div style={{ fontSize: 14, color: 'var(--text-muted)', marginTop: 3 }}>
-          키워드의 월간 PC·모바일 검색수를 네이버 검색광고 키워드도구로 조회합니다. 연관 키워드도 함께 나옵니다.
+    <div style={{ maxWidth: 1200 }}>
+      {embedded ? null : (
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--text)' }}>네이버 검색량</div>
+          <div style={{ fontSize: 14, color: 'var(--text-muted)', marginTop: 3 }}>
+            키워드의 월간 PC·모바일 검색수를 네이버 검색광고 키워드도구로 조회합니다. 연관 키워드도 함께 나옵니다.
+          </div>
         </div>
-      </div>
+      )}
 
       <div style={{ display: 'flex', gap: 20, alignItems: 'flex-start', flexWrap: 'wrap' }}>
         {/* 좌측: 입력 패널 */}

@@ -79,9 +79,12 @@ function referralText(r: Referral): string {
   return base;
 }
 
-export default function AdminIntake() {
+export default function AdminIntake({ hospitalId: hospitalIdProp, embedded = false }: { hospitalId?: string | null; embedded?: boolean } = {}) {
   const [hospitals, setHospitals] = useState<ChartHospitalOption[]>([]);
-  const [hospitalId, setHospitalId] = useState<string | null>(null);
+  // embedded(문진·접수 콘솔 안) 일 때는 병원 선택을 부모가 쥔다 — 여기선 병원 목록도 받지 않는다.
+  const [ownHospitalId, setOwnHospitalId] = useState<string | null>(null);
+  const hospitalId = embedded ? (hospitalIdProp ?? null) : ownHospitalId;
+  const setHospitalId = setOwnHospitalId;
   const [items, setItems] = useState<Submission[]>([]);
   const [listLoading, setListLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -89,6 +92,7 @@ export default function AdminIntake() {
   const [query, setQuery] = useState('');
 
   useEffect(() => {
+    if (embedded) return;
     fetch('/api/admin/data/hospitals', { credentials: 'include' })
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
@@ -98,7 +102,7 @@ export default function AdminIntake() {
         setHospitalId((prev) => prev ?? list[0]?.id ?? null);
       })
       .catch(() => setError('병원 목록을 불러오지 못했습니다.'));
-  }, []);
+  }, [embedded]);
 
   const load = useCallback((hid: string) => {
     setListLoading(true);
@@ -159,11 +163,13 @@ export default function AdminIntake() {
 
   return (
     <div>
-      <PageHeader
-        title="초진 접수"
-        description="병원별로 보호자가 작성한 초진 접수증을 확인합니다."
-        actions={hospitalSelect}
-      />
+      {embedded ? null : (
+        <PageHeader
+          title="초진 접수"
+          description="병원별로 보호자가 작성한 초진 접수증을 확인합니다."
+          actions={hospitalSelect}
+        />
+      )}
 
       {error ? <Notice danger>{error}</Notice> : null}
 

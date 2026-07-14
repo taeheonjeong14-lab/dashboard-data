@@ -90,9 +90,12 @@ function statusTone(status: string): 'success' | 'accent' | 'muted' {
   return 'accent';
 }
 
-export default function AdminPreConsultation() {
+export default function AdminPreConsultation({ hospitalId: hospitalIdProp, embedded = false }: { hospitalId?: string | null; embedded?: boolean } = {}) {
   const [hospitals, setHospitals] = useState<ChartHospitalOption[]>([]);
-  const [hospitalId, setHospitalId] = useState<string | null>(null);
+  // embedded(문진·접수 콘솔 안) 일 때는 병원 선택을 부모가 쥔다 — 여기선 병원 목록도 받지 않는다.
+  const [ownHospitalId, setOwnHospitalId] = useState<string | null>(null);
+  const hospitalId = embedded ? (hospitalIdProp ?? null) : ownHospitalId;
+  const setHospitalId = setOwnHospitalId;
   const [sessions, setSessions] = useState<SessionListItem[]>([]);
   const [listLoading, setListLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -102,6 +105,7 @@ export default function AdminPreConsultation() {
   const [detailLoading, setDetailLoading] = useState(false);
 
   useEffect(() => {
+    if (embedded) return;
     fetch('/api/admin/data/hospitals', { credentials: 'include' })
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
@@ -111,7 +115,7 @@ export default function AdminPreConsultation() {
         setHospitalId((prev) => prev ?? list[0]?.id ?? null);
       })
       .catch(() => setError('병원 목록을 불러오지 못했습니다.'));
-  }, []);
+  }, [embedded]);
 
   const loadSessions = useCallback((hid: string) => {
     setListLoading(true);
@@ -179,11 +183,13 @@ export default function AdminPreConsultation() {
 
   return (
     <div>
-      <PageHeader
-        title="사전문진"
-        description="병원별로 보호자가 제출한 사전문진과 AI 사전 분석 결과를 확인합니다."
-        actions={hospitalSelect}
-      />
+      {embedded ? null : (
+        <PageHeader
+          title="사전문진"
+          description="병원별로 보호자가 제출한 사전문진과 AI 사전 분석 결과를 확인합니다."
+          actions={hospitalSelect}
+        />
+      )}
 
       {error ? <Notice danger>{error}</Notice> : null}
 

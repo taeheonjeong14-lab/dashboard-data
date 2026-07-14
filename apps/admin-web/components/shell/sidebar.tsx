@@ -12,13 +12,11 @@ import {
   Building2,
   RefreshCw,
   ClipboardList,
-  ClipboardCheck,
   Newspaper,
   ShieldCheck,
   Gauge,
   ListTodo,
   Activity,
-  Search,
   Sparkles,
   type LucideProps,
 } from 'lucide-react';
@@ -41,44 +39,39 @@ type NavGroup = {
 
 const NAV_GROUPS: NavGroup[] = [
   {
-    title: '경영분석',
+    title: '데이터',
     items: [
-      { href: '/admin/performance', label: '대시보드', icon: BarChart2, matchPrefix: '/admin/performance' },
-      {
-        href: '/admin/data-upload',
-        label: '데이터 수집',
-        icon: RefreshCw,
-        matchPrefix: '/admin/data-upload',
-      },
-      { href: '/admin/naver-keyword', label: '네이버 검색량', icon: Search, matchPrefix: '/admin/naver-keyword' },
+      { href: '/admin/performance', label: '병원 데이터', icon: BarChart2, matchPrefix: '/admin/performance' },
+      { href: '/admin/chart-data', label: '차트 데이터', icon: FileText, matchPrefix: '/admin/chart-data' },
     ],
   },
   {
-    title: '차트 데이터',
+    title: '병원 운영',
     items: [
-      { href: '/admin/work-board', label: '작업 현황', icon: ListTodo, matchPrefix: '/admin/work-board' },
-      { href: '/admin/chart-data', label: '차트 목록', icon: FileText, matchPrefix: '/admin/chart-data' },
       { href: '/admin/health-report', label: '건강검진 리포트', icon: HeartPulse, matchPrefix: '/admin/health-report' },
       { href: '/admin/case-blog', label: '진료케이스', icon: Newspaper, matchPrefix: '/admin/case-blog' },
-      { href: '/admin/blog-review', label: '글 검수', icon: ShieldCheck, matchPrefix: '/admin/blog-review' },
-      { href: '/admin/prompt-improve', label: '프롬프트 개선', icon: Sparkles, matchPrefix: '/admin/prompt-improve' },
+      // 사전문진·초진 접수를 병원 선택 하나 아래 탭으로 합친 콘솔(/admin/forms).
+      { href: '/admin/forms', label: '문진·접수', icon: ClipboardList, matchPrefix: '/admin/forms' },
     ],
   },
   {
-    title: '문진·접수',
+    title: '도구',
     items: [
-      { href: '/admin/pre-consultation', label: '사전문진', icon: ClipboardList, matchPrefix: '/admin/pre-consultation' },
-      { href: '/admin/intake', label: '초진 접수', icon: ClipboardCheck, matchPrefix: '/admin/intake' },
+      { href: '/admin/work-board', label: '작업 현황', icon: ListTodo, matchPrefix: '/admin/work-board' },
+      { href: '/admin/data-upload', label: '데이터 수집', icon: RefreshCw, matchPrefix: '/admin/data-upload' },
+      // 네이버 검색량·글 검수를 탭으로 합친 콘솔(/admin/blog-tools).
+      { href: '/admin/blog-tools', label: '블로그 도구', icon: ShieldCheck, matchPrefix: '/admin/blog-tools' },
+      { href: '/admin/prompt-improve', label: '프롬프트 개선', icon: Sparkles, matchPrefix: '/admin/prompt-improve' },
+      { href: '/admin/error-logs', label: '에러 로그', icon: AlertTriangle, matchPrefix: '/admin/error-logs' },
     ],
   },
   {
     title: '관리',
     items: [
+      { href: '/admin/feature-usage', label: '사용 현황', icon: Activity, matchPrefix: '/admin/feature-usage' },
       // 병원 심사·병원 정보·토큰을 하나로 합친 콘솔(/admin/hospitals).
       { href: '/admin/hospitals', label: '병원 관리', icon: Building2, matchPrefix: '/admin/hospitals' },
       { href: '/admin/users/users', label: '사용자 관리', icon: Users, matchPrefix: '/admin/users/users' },
-      { href: '/admin/feature-usage', label: '사용 현황', icon: Activity, matchPrefix: '/admin/feature-usage' },
-      { href: '/admin/error-logs', label: '에러 로그', icon: AlertTriangle, matchPrefix: '/admin/error-logs' },
     ],
   },
 ];

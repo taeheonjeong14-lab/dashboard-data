@@ -57,7 +57,7 @@ function ItemRow({ it, mode, compactLink, showBadge = true }: { it: WorkItem; mo
           href={`/admin/chart-data?q=${encodeURIComponent(it.friendlyId || it.patientName || '')}&type=${it.type === 'health' ? '검진리포트' : '블로그'}`}
           style={{ flexShrink: 0, padding: '6px 10px', fontSize: 14, fontWeight: 600, color: 'var(--accent)', background: 'var(--accent-subtle)', border: '1px solid var(--accent)', borderRadius: 6, textDecoration: 'none', whiteSpace: 'nowrap' }}
         >
-          {compactLink ? '열기 →' : '차트 목록에서 열기 →'}
+          {compactLink ? '열기 →' : '차트 데이터에서 열기 →'}
         </Link>
       )}
     </div>
