@@ -268,9 +268,19 @@ function SummaryBar({ review, onCriteria }: { review: BlogReview; onCriteria: ()
  * 검수 결과. columns=true 면 좌(의학)/우(SEO) 2컬럼(글 검수 메뉴 — 넓은 화면),
  * false 면 세로 스택(위저드 모달 — 좁은 우측 패널).
  */
-export default function AdminBlogReviewResult({ review, columns = false }: { review: BlogReview; columns?: boolean }) {
+export default function AdminBlogReviewResult({ review, columns = false, summaryOnly = false }: { review: BlogReview; columns?: boolean; summaryOnly?: boolean }) {
   const [drawer, setDrawer] = useState(false);
   const { medical, seo } = review;
+
+  // summaryOnly — 위저드 4단계: 신호등·총평만. 지적은 아래 글 본문에 하이라이트되어 거기서 고친다.
+  if (summaryOnly) {
+    return (
+      <>
+        <SummaryBar review={review} onCriteria={() => setDrawer(true)} />
+        {drawer ? <CriteriaDrawer onClose={() => setDrawer(false)} /> : null}
+      </>
+    );
+  }
 
   const sectionsWrap: CSSProperties = columns
     ? { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: 20, alignItems: 'start' }
@@ -290,18 +300,18 @@ export default function AdminBlogReviewResult({ review, columns = false }: { rev
   );
 }
 
-// ── 하이라이트(인라인 주석) 뷰 — 글 검수 메뉴용 ──────────────────────────────
-function sevColor(sev: string): string {
+// ── 하이라이트(인라인 주석) 뷰 — 글 검수 메뉴 · 위저드 4단계 공용 ─────────────
+export function sevColor(sev: string): string {
   return sev === 'high' ? '#e5484d' : sev === 'medium' ? '#f5a623' : '#8a8f98';
 }
 const SEV_RANK: Record<string, number> = { high: 3, medium: 2, low: 1 };
-function topSeverity(fs: Finding[]): string {
+export function topSeverity(fs: Finding[]): string {
   return fs.reduce((s, f) => (SEV_RANK[f.severity] > (SEV_RANK[s] ?? 0) ? f.severity : s), 'low');
 }
-type Anno = { start: number; end: number; findings: Finding[] };
+export type Anno = { start: number; end: number; findings: Finding[] };
 
 /** 공백 무시 정규화로 quote 의 본문 내 위치를 찾는다(정확 매칭 실패 시). */
-function findQuote(text: string, quote: string): { start: number; end: number } | null {
+export function findQuote(text: string, quote: string): { start: number; end: number } | null {
   const q = (quote ?? '').trim();
   if (!q) return null;
   const direct = text.indexOf(q);
@@ -318,8 +328,8 @@ function findQuote(text: string, quote: string): { start: number; end: number } 
   return { start: map[ni], end: map[ni + strip.length - 1] + 1 };
 }
 
-/** 의학 findings 를 본문 span 으로 매핑. 못 찾은 건 unmatched. */
-function buildAnnotations(text: string, findings: Finding[]): { annos: Anno[]; unmatched: Finding[] } {
+/** findings 를 본문 span 으로 매핑. 못 찾은 건 unmatched. */
+export function buildAnnotations(text: string, findings: Finding[]): { annos: Anno[]; unmatched: Finding[] } {
   const annos: Anno[] = [];
   const unmatched: Finding[] = [];
   for (const f of findings) {

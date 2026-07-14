@@ -30,6 +30,7 @@ import { loadReportSourceData } from '@/lib/chart-app/report-source';
 const HEALTH_CHECKUP = 'health_checkup';
 const BLOG_POST = 'blog_post';
 const BLOG_SECTION = 'blog_section'; // 3단계 블로그 글 중 특정 섹션만 다시 생성/간결화
+const BLOG_META = 'blog_meta'; // 4단계 글 검수에서 제목·태그 지적을 '수정 수락' 했을 때(본문은 그대로)
 const BLOG_CAUSAL = 'blog_causal';
 const BLOG_CAUSAL_PHASE = 'blog_causal_phase'; // 1단계 중 특정 날짜(phase)만 다시 생성
 const BLOG_OUTLINE = 'blog_outline';
@@ -744,6 +745,24 @@ const SYS_BLOG_SECTION = `당신은 동물병원을 운영하는 수의사이자
   "body": "이 섹션 본문 (## 제목 줄은 넣지 말 것. 문단은 빈 줄로 구분)"
 }`;
 
+// 4단계(글 검수)에서 제목·태그 지적을 '수정 수락'했을 때 — 제목/태그만 고쳐 쓴다(본문은 건드리지 않음).
+const SYS_BLOG_META = `당신은 동물병원을 운영하는 수의사이자 병원 원장입니다.
+완성된 블로그 글의 "제목과 태그만" 검수 지적(FEEDBACK)에 맞춰 고쳐 씁니다. 본문은 다루지 않습니다.
+
+# 반드시 지킬 것
+- FEEDBACK 이 지적한 문제만 고친다. 지적과 무관한 부분은 원래 값을 그대로 둔다.
+- 제목: 25~40자 내외. 대표키워드(질환명 + 종)를 자연스럽게 포함. 지역 키워드는 FEEDBACK 이 요구할 때만 넣는다.
+- 본문에 없는 사실·수치·진단을 제목이나 태그에 새로 만들어 넣지 말 것.
+- 과장(완치 보장·100%·최고 등)·낚시성 표현 금지. 병원명 대신 '본원' 화자 유지.
+- 태그: 5~10개, 각 태그는 # 없이 텍스트만. 중복·공백 태그 금지.
+- 한국어. (JSON 키는 영어)
+
+# 출력 — JSON only
+{
+  "title": "고친 제목",
+  "tags": ["태그1", "태그2"]
+}`;
+
 // 기본 좋은 예시 — 톤앤매너(문체·어조·서술 방식) 벤치마킹 전용. 요청에 goodExample 이 오면 그걸 우선.
 const GOOD_EXAMPLE_DEFAULT = `실제 내원 당시 등쪽 피부에는 피부종괴가 터진 모습이 확인되었는데요.
 벌어진 종괴 표면에서 진물이 계속 흘러 나오고 있었습니다.
@@ -1434,6 +1453,58 @@ export async function POST(request: NextRequest) {
           runId,
           contentType,
           generated: { section },
+          saved: false,
+          ...(debug ? { debug } : {}),
+        });
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        if (msg.includes('GEMINI_API_KEY')) {
+          return NextResponse.json({ error: 'LLM not configured (GEMINI_API_KEY)' }, { status: 503 });
+        }
+        throw e;
+      }
+    }
+
+    // 4단계(글 검수) — 제목·태그 지적을 '수정 수락'. 입력=현재 제목·태그 + feedback(지적+개선 제안).
+    if (contentType === BLOG_META) {
+      try {
+        const curTitle = String(body.title ?? '').trim();
+        const curTags = Array.isArray(body.tags) ? body.tags.map((t) => String(t ?? '').trim()).filter(Boolean) : [];
+        const feedback = String(body.feedback ?? '').trim();
+        if (!curTitle && curTags.length === 0) {
+          return NextResponse.json({ error: 'title or tags is required for blog_meta' }, { status: 400 });
+        }
+        const userContent = [
+          'CURRENT_TITLE:',
+          curTitle || '(없음)',
+          '',
+          'CURRENT_TAGS:',
+          curTags.length ? curTags.join(', ') : '(없음)',
+          '',
+          `FEEDBACK (검수 지적 — 이것만 고친다):\n${feedback || '(요청 없음 — 원래 값 유지)'}`,
+          '',
+          '---',
+          '위 제목·태그를 FEEDBACK 에 맞게 고쳐, 지정된 JSON 으로만 출력하세요.',
+        ].join('\n');
+        const stageMaxTokens = 1024;
+        const raw = await geminiGenerateText(userContent, {
+          systemInstruction: SYS_BLOG_META,
+          thinkingBudget: 0,
+          maxOutputTokens: stageMaxTokens,
+          usageContext: usageCtx('blog_post'),
+        });
+        const { parsed: meta, debug: parserDebug } = await parseJsonWithRepair(
+          raw,
+          'object with keys: title (string), tags (string[])',
+        );
+        const debug: GenerateDebugInfo | undefined = debugEnabled
+          ? { enabled: true, parser: parserDebug, model: { maxOutputTokens: stageMaxTokens } }
+          : undefined;
+        await chargeOperationTokens(hospitalId, operationId, 'blog_post');
+        return NextResponse.json({
+          runId,
+          contentType,
+          generated: { meta },
           saved: false,
           ...(debug ? { debug } : {}),
         });

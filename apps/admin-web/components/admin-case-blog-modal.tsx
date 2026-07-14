@@ -3,6 +3,8 @@
 import { useState, useRef, useEffect, type CSSProperties } from 'react';
 import Link from 'next/link';
 import AdminBlogReviewResult from '@/components/admin-blog-review-result';
+import { parseBlogSections, rebuildBlogMarkdown } from '@/lib/blog-sections';
+import CaseBlogReviewEditor from '@/components/admin-case-blog-review-editor';
 import type { BlogReview } from '@dashboard/blog-review-rubric';
 
 // ── 타입 ──────────────────────────────────────────────────────────────────
@@ -557,6 +559,23 @@ export function CaseBlogButton({
     }
   }
 
+  // 4단계 — 제목·태그 지적을 '수정 수락' 했을 때(본문은 그대로). 실패 시 null.
+  async function generateBlogMeta(feedback: string): Promise<{ title: string; tags: string[] } | null> {
+    if (!blog) return null;
+    setError(null);
+    try {
+      const g = await callGenerate({ contentType: 'blog_meta', title: blog.title, tags: blog.tags, feedback });
+      const m = (g.meta ?? {}) as { title?: unknown; tags?: unknown };
+      const title = typeof m.title === 'string' ? m.title.trim() : '';
+      const tags = Array.isArray(m.tags) ? m.tags.map((t) => String(t ?? '').trim()).filter(Boolean) : [];
+      if (!title && tags.length === 0) return null;
+      return { title: title || blog.title, tags: tags.length ? tags : blog.tags };
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '제목·태그 수정 실패');
+      return null;
+    }
+  }
+
   // 5단계 — 진단 기반 섹션별 이미지 배정(비전). 결과를 아웃라인 imageFileNames 에 반영·저장.
   async function genImages() {
     if (!outline) return;
@@ -660,7 +679,8 @@ export function CaseBlogButton({
     try {
       if (step === 1 && causal) { await callSave('blog_causal', { causalFlow: causal, caseOverview }); lastSavedCausalRef.current = JSON.stringify(causal); }
       else if (step === 2 && outline) await callSave('blog_outline', { outline, caseOverview });
-      else if (step === 3 && blog) await callSave('blog_post', { ...blog, confirmed, saved: savedFlag });
+      // 3·4단계 모두 블로그 글을 편집한다(4단계 = 검수 지적을 글 안에서 바로 수정).
+      else if ((step === 3 || step === 4) && blog) await callSave('blog_post', { ...blog, confirmed, saved: savedFlag });
       else if (step === 5 && outline) await callSave('blog_outline', { outline, caseOverview });
       setSavedMsg('저장됨');
     } catch (e) { setError(e instanceof Error ? e.message : '저장 실패'); }
@@ -915,7 +935,20 @@ export function CaseBlogButton({
                     )
                   ) : step === 4 ? (
                     reviewLoading ? <Loading text="Claude·Grok·Gemini 3개 모델로 검수하고 취합하는 중…" /> : (
-                      review ? <AdminBlogReviewResult review={review} /> : (
+                      review && blog ? (
+                        <div style={{ display: 'grid', gap: 14 }}>
+                          {/* 신호등·총평은 그대로 보여주고(요약), 지적은 아래 글 안에서 직접 고친다. */}
+                          <AdminBlogReviewResult review={review} summaryOnly />
+                          <CaseBlogReviewEditor
+                            review={review}
+                            blog={blog}
+                            setField={setBlogField}
+                            regenerateSection={(args) => generateBlogSection({ mode: 'regenerate', ...args })}
+                            regenerateMeta={generateBlogMeta}
+                            confirmed={confirmed}
+                          />
+                        </div>
+                      ) : (
                         <div style={{ padding: '48px 8px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 14 }}>
                           아직 검수 결과가 없습니다. 상단 &apos;다시 검수&apos;를 눌러 검수하세요.
                         </div>
@@ -938,7 +971,7 @@ export function CaseBlogButton({
                 ) : null}
               </div>
               <div style={{ display: 'flex', gap: 8 }}>
-                <button type="button" style={btnSecondary} onClick={() => void saveCurrent()} disabled={busy || (step === 1 ? !causal : step === 2 ? !outline : step === 3 ? !blog : step === 4 ? true : !outline)}>
+                <button type="button" style={btnSecondary} onClick={() => void saveCurrent()} disabled={busy || (step === 1 ? !causal : step === 2 ? !outline : step === 3 || step === 4 ? !blog : !outline)}>
                   {saving ? '저장 중…' : '저장'}
                 </button>
                 {step === 1 ? (
@@ -1575,23 +1608,6 @@ function OutlineEditor({ outline, causal, updateSection, moveSection, addSection
 
 // ── 3단계 에디터 ──
 // 블로그 본문(마크다운)을 "## 헤딩" 기준으로 섹션 분할. 첫 헤딩 앞 내용은 heading="" 로.
-function parseBlogSections(md: string): { heading: string; body: string }[] {
-  const out: { heading: string; body: string }[] = [];
-  let cur: { heading: string; body: string } | null = null;
-  for (const line of md.split('\n')) {
-    const m = /^#{1,4}\s+(.*)$/.exec(line.trim());
-    if (m) {
-      if (cur) out.push(cur);
-      cur = { heading: m[1].trim(), body: '' };
-    } else {
-      if (!cur) cur = { heading: '', body: '' };
-      cur.body += (cur.body ? '\n' : '') + line;
-    }
-  }
-  if (cur) out.push(cur);
-  return out.filter((s) => s.heading || s.body.trim());
-}
-
 // 블로그 섹션 본문 렌더 — 빈 줄로 문단 분리, "[사진: 설명]" 은 칩으로 표시.
 // grid(justify-items 기본값이 브라우저/preflight에 따라 블록 <p>를 콘텐츠 폭으로 줄여 가운데로
 // 보이는 현상 방지 위해 flex 세로열 + 명시적 좌측정렬/전폭으로 고정.
@@ -1615,13 +1631,6 @@ function BlogBody({ body }: { body: string }) {
 }
 
 // 섹션 배열 → 마크다운 재구성. "## 제목\n\n본문" 블록을 빈 줄로 잇는다.
-function rebuildBlogMarkdown(sections: { heading: string; body: string }[]): string {
-  return sections
-    .map((s) => [s.heading.trim() ? `## ${s.heading.trim()}` : '', s.body.trim()].filter(Boolean).join('\n\n'))
-    .filter(Boolean)
-    .join('\n\n');
-}
-
 function BlogEditor({ blog, setField, outline, imageMeta, generateSection, confirmed }: {
   blog: BlogPost | null;
   setField: <K extends keyof BlogPost>(k: K, v: BlogPost[K]) => void;
