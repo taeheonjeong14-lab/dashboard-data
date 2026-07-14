@@ -244,24 +244,28 @@ function caseKindOf(caseType: string, chronic: boolean): string {
   return caseType === 'internal' && chronic ? 'chronic' : caseType;
 }
 
-/** 장기 관리 규칙: 최초 #검사 및 진단이 나온 날짜 이후의 exam_dx 는 #내과 치료로 바꾼다(chart-api 와 같은 규칙). */
+/**
+ * 장기 관리 규칙(chart-api 와 같은 규칙):
+ *  · 최초 #검사 및 진단이 나온 날짜 이후의 exam_dx 는 #내과 치료로 바꾼다.
+ *  · 내과에서 쓸 수 없는 #회복 및 경과 확인도 #내과 치료로 옮긴다(그냥 지우면 #기타로 떨어진다).
+ */
 function applyChronicTagRule(phases: Phase[]): Phase[] {
   const dxIdx = phases.findIndex((p) => (p.actions ?? []).some((a) => (a.types ?? []).includes('exam_dx')));
-  if (dxIdx < 0) return phases;
-  return phases.map((p, i) => {
-    if (i <= dxIdx) return p;
-    return {
-      ...p,
-      actions: (p.actions ?? []).map((a) => {
-        const types = a.types ?? [];
-        if (!types.includes('exam_dx')) return a;
-        const rest = types.filter((t) => t !== 'exam_dx');
-        const keepsOther = rest.some((t) => t === 'surgical' || t === 'preop' || t === 'recovery' || t === 'aftercare');
-        const next = keepsOther || rest.includes('medical') ? rest : [...rest, 'medical'];
-        return { ...a, types: next.length ? [...new Set(next)] : ['other'] };
-      }),
-    };
-  });
+  return phases.map((p, i) => ({
+    ...p,
+    actions: (p.actions ?? []).map((a) => {
+      const types = a.types ?? [];
+      const afterDx = dxIdx >= 0 && i > dxIdx;
+      let next = types.map((t) => (t === 'recovery' ? 'medical' : t));
+      if (afterDx && next.includes('exam_dx')) {
+        const rest = next.filter((t) => t !== 'exam_dx');
+        const keepsOther = rest.some((t) => t === 'surgical' || t === 'preop' || t === 'aftercare');
+        next = keepsOther || rest.includes('medical') ? rest : [...rest, 'medical'];
+      }
+      next = [...new Set(next)];
+      return { ...a, types: next.length ? next : ['other'] };
+    }),
+  }));
 }
 const ALLOWED_TAGS_BY_CASETYPE: Record<string, Set<string>> = {
   internal: new Set(['exam_dx', 'medical', 'aftercare', 'other']),
