@@ -7,6 +7,7 @@ import type { ExamType, FindingSpot, RadiologySub } from '@/lib/chart-case-image
 import { EXAM_TYPE_LABEL_KO, RADIOLOGY_SUB_LABEL_KO } from '@/lib/chart-case-images/types';
 import type { PlanRow, RunDetailResponse } from '@/lib/admin-run-detail-types';
 import { StatusBadge } from '@/components/status-badge';
+import AdminHealthPoints, { type HealthPoint } from '@/components/admin-health-points';
 import { HEALTH_CHECKUP_MAX_COVER_FIELD_CHARS, HEALTH_CHECKUP_MUST_INCLUDE_MAX_CHARS } from '@/lib/health-report-admin/limits';
 import { canonicalizeLabItemName, isRecognizedLabItem, type LabCanonicalizeSpecies } from '@/lib/chart-extraction/lab-item-normalize';
 import { labItemCategory, computeLabFlag } from '@dashboard/lab-normalize';
@@ -957,6 +958,10 @@ export function AdminRunExtractionDetail({
   const [genError, setGenError] = useState<string | null>(null);
   const [genSuccess, setGenSuccess] = useState(false);
   const [genExistingReport, setGenExistingReport] = useState<boolean | null>(null);
+  // 1단계(검진 포인트) — 본문 생성 전에 '무엇을 어떤 근거로 쓸지'를 먼저 확정한다.
+  const [genPoints, setGenPoints] = useState<HealthPoint[]>([]);
+  const [genPointsConfirmed, setGenPointsConfirmed] = useState(false);
+  const [genPointsBusy, setGenPointsBusy] = useState(false);
   const genModalRef = useRef<HTMLDialogElement>(null);
 
   const [imgModalOpen, setImgModalOpen] = useState(false);
@@ -1054,7 +1059,7 @@ export function AdminRunExtractionDetail({
       setGenExistingReport(null);
       fetch(`/api/admin/health-report/content?runId=${encodeURIComponent(runId)}`, { credentials: 'include' })
         .then((r) => r.json())
-        .then((data: { items?: { contentType: string; payload?: { emphasis_text?: string } }[] }) => {
+        .then((data: { items?: { contentType: string; payload?: { emphasis_text?: string; points?: HealthPoint[]; confirmed?: boolean } }[] }) => {
           const items = Array.isArray(data.items) ? data.items : [];
           setGenExistingReport(items.some((i) => i.contentType === 'health_checkup'));
           // 병원(hospital-ui) 제출 강조사항을 '반드시 포함' 칸에 pre-fill (admin 입력값은 보존).
@@ -1062,6 +1067,10 @@ export function AdminRunExtractionDetail({
           if (typeof emphasis === 'string' && emphasis.trim()) {
             setGenMustInclude((prev) => (prev.trim() ? prev : emphasis));
           }
+          // 이미 정리해 둔 검진 포인트가 있으면 이어서 검토(다시 뽑지 않는다).
+          const hp = items.find((i) => i.contentType === 'health_points')?.payload;
+          setGenPoints(Array.isArray(hp?.points) ? hp.points : []);
+          setGenPointsConfirmed(hp?.confirmed === true);
         })
         .catch(() => setGenExistingReport(false));
     } else {
@@ -1270,6 +1279,54 @@ export function AdminRunExtractionDetail({
       setSaveError(e instanceof Error ? e.message : '저장 실패');
     } finally {
       setSavingSection(null);
+    }
+  }
+
+  /** 1단계 — 검진 포인트를 AI 로 (다시) 뽑는다. 새로 뽑으면 확정은 풀린다. */
+  async function generatePoints() {
+    setGenPointsBusy(true);
+    setGenError(null);
+    try {
+      const res = await fetch('/api/admin/health-report/generate', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          runId,
+          contentType: 'health_points',
+          checkupDate: genCheckupDate.trim(),
+          mustInclude: genMustInclude.trim().slice(0, HEALTH_CHECKUP_MUST_INCLUDE_MAX_CHARS),
+        }),
+      });
+      const data = (await res.json()) as { error?: string; generated?: { points?: HealthPoint[] } };
+      if (!res.ok) throw new Error(data.error ?? '포인트 생성 실패');
+      setGenPoints(Array.isArray(data.generated?.points) ? data.generated.points : []);
+      setGenPointsConfirmed(false);
+    } catch (e) {
+      setGenError(e instanceof Error ? e.message : '포인트 생성 실패');
+    } finally {
+      setGenPointsBusy(false);
+    }
+  }
+
+  /** 포인트 저장(확정 여부 포함). 확정해야 본문 생성이 열린다. */
+  async function savePoints(nextConfirmed: boolean) {
+    setGenPointsBusy(true);
+    setGenError(null);
+    try {
+      const res = await fetch('/api/admin/health-report/content', {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ runId, contentType: 'health_points', payload: { points: genPoints, confirmed: nextConfirmed } }),
+      });
+      const data = (await res.json()) as { ok?: boolean; error?: string };
+      if (!res.ok || !data.ok) throw new Error(data.error ?? '저장 실패');
+      setGenPointsConfirmed(nextConfirmed);
+    } catch (e) {
+      setGenError(e instanceof Error ? e.message : '저장 실패');
+    } finally {
+      setGenPointsBusy(false);
     }
   }
 
@@ -2557,7 +2614,10 @@ export function AdminRunExtractionDetail({
           position: 'fixed',
           inset: 0,
           margin: 'auto',
-          width: 'min(96vw, 480px)',
+          // 포인트 카드(근거·배치 칩)를 펼치면 좁은 폭으로는 읽을 수 없어 넓힌다.
+          width: genPoints.length > 0 && !genSuccess ? 'min(96vw, 960px)' : 'min(96vw, 480px)',
+          maxHeight: '90vh',
+          overflowY: 'auto',
           border: '1px solid rgba(15,23,42,0.15)',
           borderRadius: 8,
           padding: 0,
@@ -2632,15 +2692,46 @@ export function AdminRunExtractionDetail({
                 </div>
               </label>
               {genError && <p style={{ margin: 0, fontSize: 14, color: 'var(--danger)' }}>{genError}</p>}
-              <button
-                type="button"
-                className="adminLegacyPrimaryBtn"
-                onClick={() => void generateReport()}
-                disabled={genLoading}
-                style={{ width: '100%', fontSize: 14 }}
-              >
-                {genLoading ? '생성 중…' : '생성하기'}
-              </button>
+
+              {/* 1단계 — 검진 포인트. 확정해야 본문 생성이 열린다(포인트 없이 바로 본문을 쓰지 않는다). */}
+              {genPoints.length === 0 ? (
+                <button
+                  type="button"
+                  className="adminLegacyPrimaryBtn"
+                  onClick={() => void generatePoints()}
+                  disabled={genPointsBusy}
+                  style={{ width: '100%', fontSize: 14 }}
+                >
+                  {genPointsBusy ? '포인트 정리 중…' : '1단계 · 검진 포인트 정리'}
+                </button>
+              ) : (
+                <>
+                  <AdminHealthPoints
+                    points={genPoints}
+                    confirmed={genPointsConfirmed}
+                    busy={genPointsBusy || genLoading}
+                    onChange={setGenPoints}
+                    onRegenerate={() => void generatePoints()}
+                    onSave={() => void savePoints(false)}
+                    onConfirm={() => void savePoints(true)}
+                    onUnconfirm={() => void savePoints(false)}
+                  />
+                  <button
+                    type="button"
+                    className="adminLegacyPrimaryBtn"
+                    onClick={() => void generateReport()}
+                    disabled={genLoading || genPointsBusy || !genPointsConfirmed}
+                    style={{ width: '100%', fontSize: 14 }}
+                  >
+                    {genLoading ? '생성 중…' : '2단계 · 본문 컨텐츠 생성'}
+                  </button>
+                  {!genPointsConfirmed ? (
+                    <p style={{ margin: 0, fontSize: 11, color: 'var(--text-muted)', textAlign: 'center' }}>
+                      포인트를 확정하면 본문 생성이 열립니다. 확정된 포인트만으로 리포트가 작성됩니다.
+                    </p>
+                  ) : null}
+                </>
+              )}
             </div>
           )}
         </div>
