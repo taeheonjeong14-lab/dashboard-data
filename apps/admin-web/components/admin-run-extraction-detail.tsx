@@ -169,17 +169,17 @@ function SectionEditControls({
 }) {
   if (!editing) {
     return (
-      <button type="button" onClick={onEdit} disabled={editDisabled} title="수정" aria-label="수정" style={{ ...iconBtnStyle, opacity: editDisabled ? 0.45 : 1 }}>
+      <button type="button" className="adminIconBtnFixed" onClick={onEdit} disabled={editDisabled} title="수정" aria-label="수정" style={{ ...iconBtnStyle, opacity: editDisabled ? 0.45 : 1 }}>
         <Pencil size={14} />
       </button>
     );
   }
   return (
     <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
-      <button type="button" onClick={onSave} disabled={saving || !canSave} title="저장" aria-label="저장" style={{ ...iconBtnStyle, color: 'var(--accent)', borderColor: 'var(--accent)', opacity: saving || !canSave ? 0.5 : 1 }}>
+      <button type="button" className="adminIconBtnFixed" onClick={onSave} disabled={saving || !canSave} title="저장" aria-label="저장" style={{ ...iconBtnStyle, color: 'var(--accent)', borderColor: 'var(--accent)', opacity: saving || !canSave ? 0.5 : 1 }}>
         {saving ? '…' : <Check size={14} />}
       </button>
-      <button type="button" onClick={onCancel} disabled={saving} title="취소" aria-label="취소" style={{ ...iconBtnStyle, color: 'var(--danger)' }}>
+      <button type="button" className="adminIconBtnFixed" onClick={onCancel} disabled={saving} title="취소" aria-label="취소" style={{ ...iconBtnStyle, color: 'var(--danger)' }}>
         <X size={14} />
       </button>
     </span>
@@ -205,6 +205,7 @@ function CopyTextButton({ text, disabled, label = '복사' }: { text: string; di
   return (
     <button
       type="button"
+      className="adminIconBtnFixed"
       onClick={(ev) => void onCopy(ev)}
       disabled={off}
       title={label}
@@ -603,6 +604,7 @@ export function CaseImagesSection({ runId, onAddAnalysis }: { runId: string; onA
           {onAddAnalysis && (
             <button
               type="button"
+              className="adminIconBtnFixed"
               onClick={(e) => { e.preventDefault(); onAddAnalysis(); }}
               title="이미지 추가 분석"
               aria-label="이미지 추가 분석"
@@ -613,6 +615,7 @@ export function CaseImagesSection({ runId, onAddAnalysis }: { runId: string; onA
           )}
           <button
             type="button"
+            className="adminIconBtnFixed"
             onClick={(e) => { e.preventDefault(); setEditMode((v) => !v); }}
             title={editMode ? '완료' : '수정(삭제)'}
             aria-label={editMode ? '완료' : '수정'}

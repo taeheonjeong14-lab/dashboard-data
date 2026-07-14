@@ -486,6 +486,12 @@ details[open] > .chartDateRow .chartDateChev { transform: rotate(90deg); }
   padding: 6px !important;
 }
 
+/* width/height 가 고정된 아이콘 버튼(예: 26x26)은 패딩을 아예 주지 않는다.
+   좌우 12px 를 강제하면 내용 폭이 0 이 되어 아이콘이 사라진다. */
+.adminApp button.adminIconBtnFixed {
+  padding: 0 !important;
+}
+
 /* ── 버튼 공통 크기 ────────────────────────────
    높이는 --btn-height(30px) 하나로 통일한다(상단바 로그아웃 버튼 기준).
    개별 화면에서 인라인 padding 으로 높이를 다르게 주지 말 것. */
