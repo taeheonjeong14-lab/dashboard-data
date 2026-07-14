@@ -26,11 +26,17 @@ import { getChartPgPool } from '@/lib/db';
 import { hospitalHasTokens, chargeOperationTokens } from '@/lib/billing/token-charge';
 import { applyHealthCheckupCoverFromSource } from '@/lib/chart-app/health-checkup-cover-from-source';
 import { loadReportSourceData } from '@/lib/chart-app/report-source';
+import {
+  generateHealthPoints,
+  healthPointsPromptBlock,
+  parseHealthPointsPayload,
+} from '@/lib/chart-app/health-points';
 
 const HEALTH_CHECKUP = 'health_checkup';
 const BLOG_POST = 'blog_post';
 const BLOG_SECTION = 'blog_section'; // 3단계 블로그 글 중 특정 섹션만 다시 생성/간결화
 const BLOG_META = 'blog_meta'; // 4단계 글 검수에서 제목·태그 지적을 '수정 수락' 했을 때(본문은 그대로)
+const HEALTH_POINTS = 'health_points'; // 건강검진 1단계 — 리포트에 다룰 소견(근거·배치 포함)을 먼저 정리
 const BLOG_CAUSAL = 'blog_causal';
 const BLOG_CAUSAL_PHASE = 'blog_causal_phase'; // 1단계 중 특정 날짜(phase)만 다시 생성
 const BLOG_OUTLINE = 'blog_outline';
@@ -928,7 +934,34 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // 건강검진 1단계 — 검진 포인트 정리(리포트 본문 생성 전). 결과는 health_points 로 저장한다.
+    if (contentType === HEALTH_POINTS) {
+      try {
+        const checkupDate = typeof body.checkupDate === 'string' ? body.checkupDate.trim() : '';
+        const must = typeof body.mustInclude === 'string' ? body.mustInclude.trim().slice(0, 1000) : '';
+        const points = await generateHealthPoints(source, {
+          checkupDate: checkupDate || undefined,
+          mustInclude: must || undefined,
+          usageContext: usageCtx('health_checkup'),
+        });
+        // 새로 뽑았으니 확정은 해제 — admin 이 다시 검토해야 본문 생성이 열린다.
+        const payload = { points, confirmed: false };
+        const saved = await upsertGeneratedRunContent(pool, runId, HEALTH_POINTS, payload);
+        await chargeOperationTokens(hospitalId, operationId, 'health_checkup');
+        return NextResponse.json({ runId, contentType, generated: payload, payload, saved });
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        if (msg.includes('GEMINI_API_KEY')) {
+          return NextResponse.json({ error: 'LLM not configured (GEMINI_API_KEY)' }, { status: 503 });
+        }
+        throw e;
+      }
+    }
+
     if (contentType === HEALTH_CHECKUP) {
+      // 1단계에서 확정된 검진 포인트 — 있으면 프롬프트 최상위 입력으로 들어간다(없으면 예전대로 동작).
+      const pointsRow = await getGeneratedByType(pool, runId, HEALTH_POINTS);
+      const savedPoints = parseHealthPointsPayload(pointsRow?.payload ?? {}).points;
       const sectionRaw = typeof body.section === 'string' ? body.section.trim() : '';
       if (sectionRaw) {
         if (!isRegenerateSection(sectionRaw)) {
@@ -978,6 +1011,8 @@ export async function POST(request: NextRequest) {
               mustInclude: must || undefined,
               revisionNote: revision || undefined,
               usageContext: usageCtx('health_checkup'),
+              // 이 섹션에 배정된 포인트만 넣는다 — 섹션 재생성이 다른 섹션 소견까지 끌어오지 않도록.
+              pointsBlock: healthPointsPromptBlock(savedPoints, sectionRaw) || undefined,
             },
             regenContext,
           );
@@ -1033,6 +1068,8 @@ export async function POST(request: NextRequest) {
           mustInclude: must || undefined,
           revisionNote: revision || undefined,
           usageContext: usageCtx('health_checkup'),
+          // 1단계에서 확정한 포인트 전체 — 각 섹션이 자기에게 배정된 포인트를 빠짐없이 다루게 한다.
+          pointsBlock: healthPointsPromptBlock(savedPoints) || undefined,
         });
 
         /** 표지 merge 순서(vet-report POST /api/content/generate 와 동일 개념): generated → 이전 저장(키별 undefined 아닌 값만) → 요청 checkupDate/veterinarian 덮어쓰기 → 요청 coverProgram 비어 있지 않으면 표지 프로그램 덮어쓰기 → applyHealthCheckupCoverFromSource 로 DB 기본값은 null/undefined 만 채움. */

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import AdminHealthPoints, { type HealthPoint } from '@/components/admin-health-points';
 import {
   HEALTH_CHECKUP_DENTAL_SKIN_ROW_MAX_CHARS,
   HEALTH_CHECKUP_LAB_INTERP_MAX_CHARS,
@@ -242,6 +243,11 @@ export function AdminHealthCheckupWorkspace({
   const healthItem = useMemo(() => items.find((i) => i.contentType === 'health_checkup') ?? null, [items]);
   const hasContent = healthItem != null;
 
+  // 1단계(검진 포인트) — 리포트 본문을 쓰기 전에 '무엇을 어떤 근거로 쓸지'를 먼저 확정한다.
+  const [points, setPoints] = useState<HealthPoint[]>([]);
+  const [pointsConfirmed, setPointsConfirmed] = useState(false);
+  const [pointsBusy, setPointsBusy] = useState(false);
+
   const allPlacedPaths = useMemo(() => {
     const paths = new Set<string>();
     for (const k of SYSTEM_KEYS) {
@@ -275,6 +281,12 @@ export function AdminHealthCheckupWorkspace({
       if (typeof emphasis === 'string' && emphasis.trim()) {
         setMustInclude((prev) => (prev.trim() ? prev : emphasis));
       }
+      // 1단계 검진 포인트 — 저장돼 있으면 그대로 복원(확정 여부 포함).
+      const hp = list.find((i) => i.contentType === 'health_points');
+      const hpPayload = (hp?.payload ?? null) as { points?: HealthPoint[]; confirmed?: boolean } | null;
+      setPoints(Array.isArray(hpPayload?.points) ? hpPayload.points : []);
+      setPointsConfirmed(hpPayload?.confirmed === true);
+
       // 병원 제출 이미지 분류·import + 표시는 아래 CaseImagesSection 이 담당(폴링 포함). 여기서 중복 트리거하지 않는다.
       const hc = list.find((i) => i.contentType === 'health_checkup');
       if (hc) {
@@ -678,6 +690,62 @@ export function AdminHealthCheckupWorkspace({
     else void regenerateOrgan(target.k, target.blockIndex, note);
   }
 
+  // ── 1단계 검진 포인트 ────────────────────────────────────────────────
+  /** AI 로 포인트를 (다시) 뽑는다. 새로 뽑으면 확정은 풀린다(서버가 confirmed:false 로 저장). */
+  async function generatePoints() {
+    setPointsBusy(true);
+    setGenError(null);
+    try {
+      const res = await fetch('/api/admin/health-report/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          runId,
+          expectedPatientName: patientName,
+          contentType: 'health_points',
+          checkupDate: checkupDate.trim(),
+          mustInclude: mustInclude.trim().slice(0, HEALTH_CHECKUP_MUST_INCLUDE_MAX_CHARS),
+        }),
+      });
+      const data = (await res.json()) as { error?: string };
+      if (!res.ok) throw new Error(data.error ?? `포인트 생성 실패 (${res.status})`);
+      await loadContent();
+      onRunsChanged?.();
+    } catch (e) {
+      setGenError(e instanceof Error ? e.message : '포인트 생성 실패');
+    } finally {
+      setPointsBusy(false);
+    }
+  }
+
+  /** 포인트 저장(확정 여부 포함). confirm=true 면 확정, false 면 확정 해제. */
+  async function savePoints(nextConfirmed: boolean) {
+    setPointsBusy(true);
+    setSaveError(null);
+    try {
+      const res = await fetch('/api/admin/health-report/content', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          runId,
+          expectedPatientName: patientName,
+          contentType: 'health_points',
+          payload: { points, confirmed: nextConfirmed },
+        }),
+      });
+      const data = (await res.json()) as { ok?: boolean; error?: string };
+      if (!res.ok || !data.ok) throw new Error(data.error ?? '저장 실패');
+      setPointsConfirmed(nextConfirmed);
+      await loadContent();
+    } catch (e) {
+      setSaveError(e instanceof Error ? e.message : '저장 실패');
+    } finally {
+      setPointsBusy(false);
+    }
+  }
+
   /** revision: '다시 생성' 시 admin 이 적은 수정 요청(직전 초안 대비). 비우면 평소대로 생성. */
   async function generateContent(revision?: string) {
     setGenerating(true);
@@ -991,19 +1059,49 @@ export function AdminHealthCheckupWorkspace({
               />
             </label>
           </div>
-          <p style={{ margin: '12px 0 0', fontSize: 14, color: 'var(--text-muted)' }}>
-            LLM 생성은 서버에서 chart-api로 프록시됩니다. <code>CHART_API_BASE_URL</code>, <code>CHART_APP_API_KEY</code>, chart-api
-            측 <code>GEMINI_API_KEY</code>가 필요합니다.
-          </p>
-          <button
-            type="button"
-            className="adminLegacyPrimaryBtn"
-            style={{ marginTop: 12 }}
-            disabled={generating}
-            onClick={() => void generateContent()}
-          >
-            {generating ? '생성 중… (수 분 걸릴 수 있음)' : '건강검진 컨텐츠 생성'}
-          </button>
+          {points.length === 0 ? (
+            <button
+              type="button"
+              className="adminLegacyPrimaryBtn"
+              style={{ marginTop: 12 }}
+              disabled={pointsBusy}
+              onClick={() => void generatePoints()}
+            >
+              {pointsBusy ? '포인트 정리 중…' : '1단계 · 검진 포인트 정리'}
+            </button>
+          ) : null}
+        </section>
+      ) : null}
+
+      {/* 1단계 — 검진 포인트 검토. 확정해야 본문 생성이 열린다. */}
+      {!hasContent && points.length > 0 ? (
+        <section style={{ marginBottom: 20 }}>
+          <AdminHealthPoints
+            points={points}
+            confirmed={pointsConfirmed}
+            busy={pointsBusy || generating}
+            onChange={setPoints}
+            onRegenerate={() => void generatePoints()}
+            onSave={() => void savePoints(false)}
+            onConfirm={() => void savePoints(true)}
+            onUnconfirm={() => void savePoints(false)}
+          />
+
+          <div style={{ marginTop: 16, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            <button
+              type="button"
+              className="adminLegacyPrimaryBtn"
+              disabled={generating || pointsBusy || !pointsConfirmed}
+              onClick={() => void generateContent()}
+            >
+              {generating ? '생성 중… (수 분 걸릴 수 있음)' : '2단계 · 본문 컨텐츠 생성'}
+            </button>
+            {!pointsConfirmed ? (
+              <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                포인트를 확정하면 본문 생성이 열립니다. 확정된 포인트만으로 리포트가 작성됩니다.
+              </span>
+            ) : null}
+          </div>
         </section>
       ) : null}
 

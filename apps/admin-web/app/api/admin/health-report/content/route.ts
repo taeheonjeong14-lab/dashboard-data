@@ -74,7 +74,7 @@ export async function PATCH(request: NextRequest) {
 
   const runId = String(body.runId ?? '').trim();
   const contentType = String(body.contentType ?? '').trim();
-  const ALLOWED_CONTENT_TYPES = new Set(['health_checkup', 'blog_causal', 'blog_detail', 'blog_outline', 'blog_post']);
+  const ALLOWED_CONTENT_TYPES = new Set(['health_checkup', 'health_points', 'blog_causal', 'blog_detail', 'blog_outline', 'blog_post']);
   if (!isParseRunUuid(runId)) return NextResponse.json({ error: 'runId invalid' }, { status: 400 });
   if (!ALLOWED_CONTENT_TYPES.has(contentType)) {
     return NextResponse.json({ error: `unsupported contentType: ${contentType}` }, { status: 400 });

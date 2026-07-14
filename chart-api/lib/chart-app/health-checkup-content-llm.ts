@@ -77,18 +77,12 @@ function matchesCheckupDate(dateTimeStr: string, checkupDate: string): boolean {
   return extractDatePart(dateTimeStr) === extractDatePart(checkupDate);
 }
 
-function buildHealthCheckupPrompt(
-  source: ReportSourceData,
-  options?: { reportProgramName?: string; checkupDate?: string; veterinarian?: string; mustInclude?: string; revisionNote?: string },
-  internal?: { outputStage?: 1 },
-): string {
-  const programName = (options?.reportProgramName ?? '').trim();
-  const programPrefixForPhrase = programName.length > 0 ? programName : '해당';
-  const excludedAreaExactPhrase = `${programPrefixForPhrase} 프로그램 미포함 영역`;
-  const checkupDate = options?.checkupDate?.trim() ?? '';
-  const mustInclude = options?.mustInclude?.trim() ?? '';
-  const revisionNote = options?.revisionNote?.trim() ?? '';
-
+/**
+ * 프롬프트에 넣는 '참고 데이터' 블록(차트 본문·검사 수치·접종·신체검사·이미지 요약).
+ * 리포트 생성과 검진 포인트 생성이 **같은 근거**를 보도록 한 곳에서 만든다.
+ */
+export function buildHealthCheckupSourceBlock(source: ReportSourceData, checkupDateRaw?: string): string {
+  const checkupDate = checkupDateRaw?.trim() ?? '';
   const chartSource = checkupDate ? source.chartBodyByDate.filter((c) => matchesCheckupDate(c.dateTime, checkupDate)) : source.chartBodyByDate;
   const labSource = checkupDate ? source.labItemsByDate.filter((d) => matchesCheckupDate(d.dateTime, checkupDate)) : source.labItemsByDate;
   const imageSource = checkupDate ? source.caseImages.filter((img) => matchesCheckupDate(img.examDate, checkupDate)) : source.caseImages;
@@ -119,18 +113,7 @@ function buildHealthCheckupPrompt(
     .slice(0, 30)
     .map((item, i) => `${i + 1}. ${item.dateTime} | ${item.itemName} | ref=${item.referenceRange ?? '-'} | value=${item.valueText}${item.unit ? ` ${item.unit}` : ''}`);
 
-  const instruction = buildHealthCheckupInstructionBody({
-    programPrefixForPhrase,
-    excludedAreaExactPhrase,
-    checkupDate: checkupDate || undefined,
-    mustInclude: mustInclude || undefined,
-    revisionNote: revisionNote || undefined,
-    outputStage: internal?.outputStage,
-  });
-
   return [
-    instruction,
-    '',
     '========== 참고 데이터 (이하 실제 케이스 발췌) ==========',
     '환자 기본 정보:',
     `- 병원: ${source.basicInfo?.hospitalName ?? '-'}`,
@@ -153,6 +136,36 @@ function buildHealthCheckupPrompt(
     '',
     '이미지 분석 요약:',
     ...(imageLines.length ? imageLines : ['(이미지 없음)']),
+  ].join('\n');
+}
+
+function buildHealthCheckupPrompt(
+  source: ReportSourceData,
+  options?: { reportProgramName?: string; checkupDate?: string; veterinarian?: string; mustInclude?: string; revisionNote?: string; pointsBlock?: string },
+  internal?: { outputStage?: 1 },
+): string {
+  const programName = (options?.reportProgramName ?? '').trim();
+  const programPrefixForPhrase = programName.length > 0 ? programName : '해당';
+  const excludedAreaExactPhrase = `${programPrefixForPhrase} 프로그램 미포함 영역`;
+  const checkupDate = options?.checkupDate?.trim() ?? '';
+  const mustInclude = options?.mustInclude?.trim() ?? '';
+  const revisionNote = options?.revisionNote?.trim() ?? '';
+  const pointsBlock = options?.pointsBlock?.trim() ?? '';
+
+  const instruction = buildHealthCheckupInstructionBody({
+    programPrefixForPhrase,
+    excludedAreaExactPhrase,
+    checkupDate: checkupDate || undefined,
+    mustInclude: mustInclude || undefined,
+    revisionNote: revisionNote || undefined,
+    outputStage: internal?.outputStage,
+  });
+
+  return [
+    instruction,
+    '',
+    ...(pointsBlock ? [pointsBlock, ''] : []),
+    buildHealthCheckupSourceBlock(source, checkupDate),
     '',
     '========== 출력 ==========',
     '- 응답은 **유효한 JSON 객체 하나만**. 마크다운 코드 펜스나 설명 문장·키 밖의 텍스트를 넣지 않는다.',
@@ -439,7 +452,7 @@ function buildSectionInstruction(
 function buildSectionPrompt(
   section: RegenerateSection,
   source: ReportSourceData,
-  options?: { reportProgramName?: string; checkupDate?: string; mustInclude?: string; revisionNote?: string },
+  options?: { reportProgramName?: string; checkupDate?: string; mustInclude?: string; revisionNote?: string; pointsBlock?: string },
   overallContext?: string,
 ): string {
   const programName = (options?.reportProgramName ?? '').trim();
@@ -448,36 +461,7 @@ function buildSectionPrompt(
   const checkupDate = options?.checkupDate?.trim() ?? '';
   const mustInclude = options?.mustInclude?.trim() ?? '';
   const revisionNote = options?.revisionNote?.trim() ?? '';
-
-  const chartSource = checkupDate ? source.chartBodyByDate.filter((c) => matchesCheckupDate(c.dateTime, checkupDate)) : source.chartBodyByDate;
-  const labSource = checkupDate ? source.labItemsByDate.filter((d) => matchesCheckupDate(d.dateTime, checkupDate)) : source.labItemsByDate;
-  const imageSource = checkupDate ? source.caseImages.filter((img) => matchesCheckupDate(img.examDate, checkupDate)) : source.caseImages;
-  const vacSource = checkupDate
-    ? source.vaccinationRecords.filter((v) => v.administeredDate != null && matchesCheckupDate(v.administeredDate, checkupDate))
-    : source.vaccinationRecords;
-  const physicalExamSource = checkupDate
-    ? source.physicalExamItemsByDate.filter((d) => matchesCheckupDate(d.dateTime, checkupDate))
-    : source.physicalExamItemsByDate;
-
-  const chartLines = chartSource.slice(0, 20).map((c, i) => {
-    const body = c.bodyText.slice(0, 10000);
-    const plan = c.planText?.trim() ? ` [처방/플랜] ${c.planText.slice(0, 5000)}` : '';
-    return `${i + 1}. ${c.dateTime} | ${body}${plan}`;
-  });
-  const labLines = labSource.slice(0, 20).map((d, i) => {
-    const joined = d.items.slice(0, 15).map((x) => `${x.itemName}=${x.valueText}${x.unit ?? ''}(${x.flag}${x.referenceRange ? `, ref ${x.referenceRange}` : ''})`).join(', ');
-    return `${i + 1}. ${d.dateTime} | ${joined}`;
-  });
-  const vacLines = vacSource.slice(0, 30).map((v, i) => `${i + 1}. ${v.productName} | ${v.administeredDate ?? '-'} | ${v.recordType} ${v.doseOrder}`);
-  const imageLines = imageSource.slice(0, 40).map((img, i) => {
-    const label = examTypeLabel((img.examType as keyof typeof EXAM_TYPE_LABEL_KO) || 'other', img.radiologySub);
-    return `${i + 1}. ${img.examDate} | ${label} | 주목=${img.hasNotableFinding ? '있음' : '없음'} | ${img.briefComment}`;
-  });
-  const physicalExamLines = physicalExamSource
-    .flatMap((d) => d.items.map((item) => ({ dateTime: d.dateTime, ...item })))
-    .filter((item) => !['nrf', 'normal', 'good', '양호', '정상'].includes(item.valueText.trim().toLowerCase()))
-    .slice(0, 30)
-    .map((item, i) => `${i + 1}. ${item.dateTime} | ${item.itemName} | ref=${item.referenceRange ?? '-'} | value=${item.valueText}${item.unit ? ` ${item.unit}` : ''}`);
+  const pointsBlock = options?.pointsBlock?.trim() ?? '';
 
   const instruction = buildSectionInstruction(section, {
     programPrefixForPhrase,
@@ -491,28 +475,8 @@ function buildSectionPrompt(
   return [
     instruction,
     '',
-    '========== 참고 데이터 ==========',
-    '환자 기본 정보:',
-    `- 병원: ${source.basicInfo?.hospitalName ?? '-'}`,
-    `- 보호자: ${source.basicInfo?.ownerName ?? '-'}`,
-    `- 환자명: ${source.basicInfo?.patientName ?? '-'}`,
-    `- 종/품종: ${source.basicInfo?.species ?? '-'} / ${source.basicInfo?.breed ?? '-'}`,
-    `- 생년월일/연령(참고): ${source.basicInfo?.birth ?? '-'} / ${source.basicInfo?.age != null ? `${source.basicInfo.age}` : '-'}`,
-    '',
-    '차트 본문(발췌):',
-    ...(chartLines.length ? chartLines : ['(없음)']),
-    '',
-    '검사 수치(발췌):',
-    ...(labLines.length ? labLines : ['(없음)']),
-    '',
-    '접종 기록(발췌):',
-    ...(vacLines.length ? vacLines : ['(없음)']),
-    '',
-    '신체검사 특이사항(참고):',
-    ...(physicalExamLines.length ? physicalExamLines : ['(특이사항 없음/데이터 없음)']),
-    '',
-    '이미지 분석 요약:',
-    ...(imageLines.length ? imageLines : ['(이미지 없음)']),
+    ...(pointsBlock ? [pointsBlock, ''] : []),
+    buildHealthCheckupSourceBlock(source, checkupDate),
   ].join('\n');
 }
 
@@ -555,7 +519,7 @@ function normalizeSectionResponse(section: RegenerateSection, raw: unknown): Par
 export async function generateHealthCheckupSection(
   section: RegenerateSection,
   source: ReportSourceData,
-  options?: { reportProgramName?: string; checkupDate?: string; mustInclude?: string; revisionNote?: string; usageContext?: UsageContext },
+  options?: { reportProgramName?: string; checkupDate?: string; mustInclude?: string; revisionNote?: string; usageContext?: UsageContext; pointsBlock?: string },
   overallContext?: string,
 ): Promise<Partial<HealthCheckupGeneratedContent>> {
   const apiKey = process.env.GEMINI_API_KEY;
@@ -596,7 +560,7 @@ export async function generateHealthCheckupSection(
 
 export async function generateHealthCheckupContent(
   source: ReportSourceData,
-  options?: { reportProgramName?: string; checkupDate?: string; veterinarian?: string; mustInclude?: string; revisionNote?: string; usageContext?: UsageContext },
+  options?: { reportProgramName?: string; checkupDate?: string; veterinarian?: string; mustInclude?: string; revisionNote?: string; usageContext?: UsageContext; pointsBlock?: string },
 ): Promise<HealthCheckupGeneratedContent> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) throw new Error('GEMINI_API_KEY is not configured.');
