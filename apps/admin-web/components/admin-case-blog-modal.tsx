@@ -15,7 +15,8 @@ type ProcStep = { step: string; note: string };
 // 액션 1개 = 한 행위(무엇을 했나) + 그 이유(왜) + 도출 결과 + 성격 해시태그(types) + 상세. UI에서 카드 하나.
 // types: 그 "행위" 하나의 성격(검사/진단·술 전 검사·수술·술 후 회복·내과·입원·퇴원·기타). 여러 개 가능, 애매하면 '기타'.
 // procedure: #수술 카드의 시술 절차(단계별 {절차, 설명}). detail: #내과 치료 카드의 처방 약 종류(문자열). 그 외 태그면 둘 다 비움.
-type Action = { what: string; why: string; result: string; types: string[]; detail: string; procedure: ProcStep[] };
+// scope: 이 행위가 어느 질환의 것인지(주질환/동반질환/기타질환). 2단계가 이 값으로 글의 비중을 8:1.5:0.5 로 잡는다.
+type Action = { what: string; why: string; result: string; types: string[]; scope: string; detail: string; procedure: ProcStep[] };
 type Phase = { id: string; name: string; period: string; actions: Action[]; nextStep: string[] };
 // caseType: 케이스 종류. AI가 1단계에서 주질환명·동반질환명 기준으로 판정, 직원이 흐름 요약에서 수정 가능.
 // '' = 미판정(구버전 데이터). 태그 허용 범위를 제한한다(internal/surgical/both).
@@ -148,6 +149,7 @@ function asActionsAndNext(x: Record<string, unknown>): { actions: Action[]; next
       // 상세는 태그에 맞을 때만 보존: detail 은 #내과 치료(medical), procedure 는 #수술(surgical) 카드만.
       return {
         what: str(y.what), why: str(y.why), result: str(y.result), types,
+        scope: validScope(y.scope),
         detail: types.includes('medical') ? str(y.detail) : '',
         procedure: types.includes('surgical') ? asProcedure(y.procedure) : [],
       };
@@ -157,10 +159,10 @@ function asActionsAndNext(x: Record<string, unknown>): { actions: Action[]; next
   // 옛 구조 변환
   const whats = toLines(x.what);
   const whys = toLines(x.why);
-  const actions: Action[] = whats.map((w, i) => ({ what: w, why: whys[i] ?? '', result: '', types: [], detail: '', procedure: [] }));
+  const actions: Action[] = whats.map((w, i) => ({ what: w, why: whys[i] ?? '', result: '', types: [], scope: 'main', detail: '', procedure: [] }));
   // what 이 없는데 why 만 있으면(드묾) 이유들만이라도 액션으로 보존
   if (actions.length === 0 && whys.length > 0) {
-    for (const w of whys) actions.push({ what: '', why: w, result: '', types: [], detail: '', procedure: [] });
+    for (const w of whys) actions.push({ what: '', why: w, result: '', types: [], scope: 'main', detail: '', procedure: [] });
   }
   return { actions, nextStep: toLines(x.toNext) };
 }
@@ -222,6 +224,16 @@ const ACTION_TYPE_LABEL: Record<string, string> = {
 const ACTION_TYPE_ORDER = ['intro', 'disease_intro', 'visit_background', 'exam_dx', 'preop', 'surgical', 'medical', 'recovery', 'aftercare', 'other', 'director_note', 'outro', 'faq'];
 // 1단계 행위 카드에 붙일 수 있는 진료 태그(7종). 서술 태그(intro~outro)는 실제 진료 행위가 아니라 여기서 제외.
 const CLINICAL_TAG_ORDER = ['exam_dx', 'preop', 'surgical', 'medical', 'recovery', 'aftercare', 'other'];
+// scope — 이 행위가 어느 질환의 것인지. 2단계 아웃라인이 주질환:동반질환:기타질환 = 8:1.5:0.5 로 비중을 준다.
+// 값이 없는 예전 데이터는 '주질환'으로 본다(그때는 전부 주질환처럼 다뤘다).
+const SCOPE_LABEL: Record<string, string> = { main: '주질환', comorbid: '동반질환', other: '기타질환' };
+const SCOPE_ORDER = ['main', 'comorbid', 'other'];
+const SCOPE_COLOR: Record<string, { fg: string; bg: string; bd: string }> = {
+  main: { fg: '#1d4ed8', bg: '#dbeafe', bd: '#93c5fd' },
+  comorbid: { fg: '#0f766e', bg: '#ccfbf1', bd: '#5eead4' },
+  other: { fg: '#6b7280', bg: '#f3f4f6', bd: '#d1d5db' },
+};
+function validScope(v: unknown): string { const s = String(v ?? '').trim().toLowerCase(); return s in SCOPE_LABEL ? s : 'main'; }
 // 케이스 종류(caseType) — 주질환명·동반질환명 기준. 각 종류가 쓸 수 있는 진료 태그를 제한한다.
 const CASE_TYPE_LABEL: Record<string, string> = { internal: '내과', surgical: '수술', both: '내과+수술' };
 const CASE_TYPE_ORDER = ['internal', 'surgical', 'both'];
@@ -1087,7 +1099,7 @@ function PhaseCard({ p, caseType, isLast, busy, regenBusy, onUp, onDown, onRemov
   const setActions = (actions: Action[]) => update({ actions });
   const updAction = (ai: number, patch: Partial<Action>) => setActions(p.actions.map((a, j) => (j === ai ? { ...a, ...patch } : a)));
   const moveAction = (ai: number, dir: -1 | 1) => { const j = ai + dir; if (j < 0 || j >= p.actions.length) return; const a = [...p.actions]; [a[ai], a[j]] = [a[j]!, a[ai]!]; setActions(a); };
-  const addAction = () => setActions([...p.actions, { what: '', why: '', result: '', types: [], detail: '', procedure: [] }]);
+  const addAction = () => setActions([...p.actions, { what: '', why: '', result: '', types: [], scope: 'main', detail: '', procedure: [] }]);
   // 수술 절차(procedure) 편집 헬퍼
   const updProc = (ai: number, si: number, patch: Partial<ProcStep>) =>
     updAction(ai, { procedure: (p.actions[ai]?.procedure ?? []).map((s, j) => (j === si ? { ...s, ...patch } : s)) });
@@ -1179,6 +1191,30 @@ function PhaseCard({ p, caseType, isLast, busy, regenBusy, onUp, onDown, onRemov
                       </button>
                     ))}
                   </div>
+                  {/* 질환 귀속 — 2단계가 이 값으로 주질환:동반질환:기타질환 = 8:1.5:0.5 비중을 잡는다(단일 선택) */}
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginTop: 6, alignItems: 'center' }}>
+                    <span style={{ fontSize: 11, fontWeight: 800, color: 'var(--text-muted)' }}>질환</span>
+                    {SCOPE_ORDER.map((sc) => {
+                      const on = validScope(a.scope) === sc;
+                      const c = SCOPE_COLOR[sc];
+                      return (
+                        <button
+                          key={sc}
+                          type="button"
+                          onClick={() => updAction(ai, { scope: sc })}
+                          disabled={busy}
+                          style={{
+                            padding: '3px 9px', fontSize: 11, fontWeight: 700, borderRadius: 999, cursor: busy ? 'default' : 'pointer',
+                            border: `1px solid ${on ? c.bd : 'var(--border-strong)'}`,
+                            background: on ? c.bg : '#fff',
+                            color: on ? c.fg : 'var(--text-muted)',
+                          }}
+                        >
+                          {SCOPE_LABEL[sc]}
+                        </button>
+                      );
+                    })}
+                  </div>
                   {(() => {
                     const warn = mismatchedTags(caseType, a.types ?? []);
                     const afterMid = !isLast && (a.types ?? []).includes('aftercare');
@@ -1249,6 +1285,18 @@ function PhaseCard({ p, caseType, isLast, busy, regenBusy, onUp, onDown, onRemov
                 <div key={ai} style={actionBox}>
                   <div style={{ display: 'flex', alignItems: 'baseline', flexWrap: 'wrap', gap: 6 }}>
                     <div style={{ fontSize: 14, fontWeight: 700, color: actionWhatColor }}>{a.what || '—'}</div>
+                    {(() => {
+                      const sc = validScope(a.scope);
+                      const c = SCOPE_COLOR[sc];
+                      return (
+                        <span
+                          title="이 행위가 속한 질환 — 2단계에서 주질환:동반질환:기타질환 = 8:1.5:0.5 비중으로 쓰인다"
+                          style={{ fontSize: 11, fontWeight: 700, padding: '1px 7px', borderRadius: 999, border: `1px solid ${c.bd}`, background: c.bg, color: c.fg, whiteSpace: 'nowrap' }}
+                        >
+                          {SCOPE_LABEL[sc]}
+                        </span>
+                      );
+                    })()}
                     {ACTION_TYPE_ORDER.filter((t) => (a.types ?? []).includes(t)).map((t) => (
                       <span key={t} style={tagSticker}>#{ACTION_TYPE_LABEL[t]}</span>
                     ))}
