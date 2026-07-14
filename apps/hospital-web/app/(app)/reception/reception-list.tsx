@@ -114,7 +114,7 @@ export function ReceptionList({ items, hasHospital, loadError, hospitalId }: {
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 0, gap: 12, flexWrap: 'wrap' }}>
         <div>
           <h1 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: 'var(--text)' }}>초진 접수</h1>
-          <p style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--text-secondary)' }}>
+          <p style={{ margin: '4px 0 0', fontSize: 14, color: 'var(--text-secondary)' }}>
             보호자가 작성한 초진 접수증을 확인합니다.
           </p>
         </div>
@@ -126,7 +126,7 @@ export function ReceptionList({ items, hasHospital, loadError, hospitalId }: {
             style={{
               padding: '9px 16px', border: 'none', borderRadius: 'var(--radius)',
               background: linkCopied ? 'var(--success)' : 'var(--accent)', color: '#fff',
-              fontSize: 13, fontWeight: 600, cursor: formUrl ? 'pointer' : 'default', flexShrink: 0,
+              fontSize: 14, fontWeight: 600, cursor: formUrl ? 'pointer' : 'default', flexShrink: 0,
               transition: 'background 0.15s',
             }}
           >
@@ -140,7 +140,7 @@ export function ReceptionList({ items, hasHospital, loadError, hospitalId }: {
       {/* ── 좌측: 접수 목록 ── */}
       <div style={{ flex: 1, minWidth: 0, paddingRight: 24 }}>
         <div style={{ padding: '0 0 10px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>
+          <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>
             접수 목록
             {items.length > 0 && (
               <span style={{ fontWeight: 400, color: 'var(--text-muted)', marginLeft: 6 }}>
@@ -149,7 +149,7 @@ export function ReceptionList({ items, hasHospital, loadError, hospitalId }: {
             )}
           </span>
           <button onClick={() => router.refresh()}
-            style={{ background: 'none', border: 'none', fontSize: 12, color: 'var(--text-muted)', cursor: 'pointer', padding: '2px 4px' }}>
+            style={{ background: 'none', border: 'none', fontSize: 14, color: 'var(--text-muted)', cursor: 'pointer', padding: '2px 4px' }}>
             새로고침
           </button>
         </div>
@@ -160,19 +160,19 @@ export function ReceptionList({ items, hasHospital, loadError, hospitalId }: {
           <Banner danger>접수 목록을 불러오지 못했습니다: {loadError}</Banner>
         ) : items.length === 0 ? (
           <div style={{ padding: '48px 18px', textAlign: 'center' }}>
-            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', marginBottom: 4 }}>아직 접수된 초진 접수증이 없습니다</div>
-            <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>보호자가 접수증을 작성하면 여기에 표시됩니다.</div>
+            <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)', marginBottom: 4 }}>아직 접수된 초진 접수증이 없습니다</div>
+            <div style={{ fontSize: 14, color: 'var(--text-muted)' }}>보호자가 접수증을 작성하면 여기에 표시됩니다.</div>
           </div>
         ) : (
           <>
             <div style={{ marginBottom: 12 }}>
               <input type="search" value={query} onChange={(e) => setQuery(e.target.value)}
                 placeholder="보호자·연락처·환자 검색"
-                style={{ width: '100%', padding: '8px 10px', fontSize: 13, color: 'var(--text)', background: 'var(--bg)', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', outline: 'none', boxSizing: 'border-box' }} />
+                style={{ width: '100%', padding: '8px 10px', fontSize: 14, color: 'var(--text)', background: 'var(--bg)', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', outline: 'none', boxSizing: 'border-box' }} />
             </div>
 
             {filtered.length === 0 ? (
-              <div style={{ padding: '32px 18px', textAlign: 'center', fontSize: 13, color: 'var(--text-muted)' }}>검색·필터 결과가 없습니다.</div>
+              <div style={{ padding: '32px 18px', textAlign: 'center', fontSize: 14, color: 'var(--text-muted)' }}>검색·필터 결과가 없습니다.</div>
             ) : (() => {
               // 환자 단위 row 로 flatten — 한 보호자가 여러 마리를 데리고 오면 마리수만큼 줄이 늘어난다.
               // 사전문진/바로가기 컬럼도 그 환자만 가리키므로 어떤 동물의 기록인지 모호하지 않다.
@@ -183,7 +183,7 @@ export function ReceptionList({ items, hasHospital, loadError, hospitalId }: {
                 return pets.map((p, i) => ({ s, p, petIndex: i }));
               });
               return (
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
                   <thead>
                     <tr style={{ background: 'var(--bg-subtle)' }}>
                       {['접수일 및 시간', '보호자', '연락처', '환자', '사전문진'].map((h) => (
@@ -245,11 +245,11 @@ export function ReceptionList({ items, hasHospital, loadError, hospitalId }: {
       <div style={{ flex: 1, minWidth: 0, borderLeft: '1px solid var(--border-strong)', paddingLeft: 24 }}>
         <div>
           <div style={{ padding: '0 0 12px' }}>
-            <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>접수 상세</div>
-            {selected && <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>{fmtDateTime(selected.created_at)} 접수</div>}
+            <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>접수 상세</div>
+            {selected && <div style={{ fontSize: 14, color: 'var(--text-muted)', marginTop: 2 }}>{fmtDateTime(selected.created_at)} 접수</div>}
           </div>
           {selected ? <Detail s={selected} onOpenSurvey={(ids) => setSurveyModalIds(ids)} /> : (
-            <div style={{ fontSize: 13, color: 'var(--text-muted)', padding: '8px 0' }}>왼쪽에서 항목을 선택하세요.</div>
+            <div style={{ fontSize: 14, color: 'var(--text-muted)', padding: '8px 0' }}>왼쪽에서 항목을 선택하세요.</div>
           )}
         </div>
       </div>
@@ -295,7 +295,7 @@ function Detail({ s, onOpenSurvey }: { s: Submission; onOpenSurvey: (ids: string
             }
             if (p.surveyLinked && p.surveySessionId) {
               return (
-                <div style={{ display: 'flex', gap: 8, padding: '5px 0', fontSize: 13, alignItems: 'flex-start' }}>
+                <div style={{ display: 'flex', gap: 8, padding: '5px 0', fontSize: 14, alignItems: 'flex-start' }}>
                   <span style={{ width: 126, flexShrink: 0, color: 'var(--text-muted)' }}>증상/내원사유</span>
                   <button
                     type="button"
@@ -303,7 +303,7 @@ function Detail({ s, onOpenSurvey }: { s: Submission; onOpenSurvey: (ids: string
                     style={{
                       padding: 0, margin: 0, border: 'none', background: 'transparent',
                       color: 'var(--accent)', textDecoration: 'underline', cursor: 'pointer',
-                      fontSize: 13, fontFamily: 'inherit', lineHeight: 1.4,
+                      fontSize: 14, fontFamily: 'inherit', lineHeight: 1.4,
                     }}
                   >
                     사전문진 내용 참고
@@ -344,7 +344,7 @@ function Row({ k, v }: { k: string; v: string }) {
     } catch { /* 클립보드 미지원/거부 */ }
   }
   return (
-    <div style={{ display: 'flex', gap: 8, padding: '5px 0', fontSize: 13, alignItems: 'flex-start' }}>
+    <div style={{ display: 'flex', gap: 8, padding: '5px 0', fontSize: 14, alignItems: 'flex-start' }}>
       <span style={{ width: 126, flexShrink: 0, color: 'var(--text-muted)' }}>{k}</span>
       <span style={{ flex: 1, minWidth: 0, color: 'var(--text)', wordBreak: 'break-word' }}>{v}</span>
       {canCopy && (
@@ -359,7 +359,7 @@ function Row({ k, v }: { k: string; v: string }) {
 function Banner({ children, danger }: { children: React.ReactNode; danger?: boolean }) {
   return (
     <div style={{
-      padding: '16px 18px', borderRadius: 'var(--radius)', fontSize: 13, lineHeight: 1.6,
+      padding: '16px 18px', borderRadius: 'var(--radius)', fontSize: 14, lineHeight: 1.6,
       background: danger ? 'var(--danger-subtle)' : 'var(--bg-subtle)',
       border: `1px solid ${danger ? 'var(--danger)' : 'var(--border)'}`,
       color: danger ? 'var(--text)' : 'var(--text-secondary)',
@@ -380,7 +380,7 @@ const surveyLinkBtnStyle: CSSProperties = {
   alignItems: 'center',
   gap: 4,
   padding: '4px 10px',
-  fontSize: 12,
+  fontSize: 14,
   fontWeight: 600,
   lineHeight: 1.4,
   color: 'var(--accent)',

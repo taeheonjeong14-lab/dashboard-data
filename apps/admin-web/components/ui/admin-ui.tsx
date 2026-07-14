@@ -30,11 +30,11 @@ export function PageHeader({
       }}
     >
       <div>
-        <h1 style={{ margin: 0, fontSize: 18, fontWeight: 700, letterSpacing: '-0.01em', color: 'var(--text)' }}>
+        <h1 style={{ margin: 0, fontSize: 20, fontWeight: 700, letterSpacing: '-0.01em', color: 'var(--text)' }}>
           {title}
         </h1>
         {description ? (
-          <p style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--text-secondary)' }}>{description}</p>
+          <p style={{ margin: '4px 0 0', fontSize: 14, color: 'var(--text-secondary)' }}>{description}</p>
         ) : null}
       </div>
       {actions ? <div style={{ flexShrink: 0, display: 'flex', gap: 8 }}>{actions}</div> : null}
@@ -85,7 +85,7 @@ export function Field({ label, value, wide }: { label: string; value: ReactNode;
   return (
     <div style={wide ? { gridColumn: '1 / -1' } : undefined}>
       <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 2 }}>{label}</div>
-      <div style={{ fontSize: 13, color: 'var(--text)' }}>{value || '—'}</div>
+      <div style={{ fontSize: 14, color: 'var(--text)' }}>{value || '—'}</div>
     </div>
   );
 }
@@ -130,9 +130,9 @@ export function Empty({ title, text }: { title?: string; text: string }) {
   return (
     <div style={{ padding: '40px 16px', textAlign: 'center' }}>
       {title ? (
-        <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', marginBottom: 4 }}>{title}</div>
+        <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)', marginBottom: 4 }}>{title}</div>
       ) : null}
-      <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>{text}</div>
+      <div style={{ fontSize: 14, color: 'var(--text-muted)' }}>{text}</div>
     </div>
   );
 }
@@ -144,7 +144,7 @@ export function Notice({ children, danger }: { children: ReactNode; danger?: boo
       style={{
         padding: '10px 12px',
         marginBottom: 12,
-        fontSize: 13,
+        fontSize: 14,
         lineHeight: 1.5,
         borderRadius: 'var(--radius)',
         color: danger ? 'var(--danger)' : 'var(--text-secondary)',
@@ -197,11 +197,11 @@ export function Modal({
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-          <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: 'var(--text)' }}>{title}</h2>
+          <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: 'var(--text)' }}>{title}</h2>
           <button
             type="button"
             onClick={onClose}
-            style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 18, color: 'var(--text-muted)', lineHeight: 1 }}
+            style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 20, color: 'var(--text-muted)', lineHeight: 1 }}
           >
             ×
           </button>
@@ -235,7 +235,7 @@ export function PrimaryButton({
         borderRadius: 'var(--radius)',
         background: 'var(--accent)',
         color: '#fff',
-        fontSize: 13,
+        fontSize: 14,
         fontWeight: 600,
         cursor: disabled ? 'default' : 'pointer',
         opacity: disabled ? 0.5 : 1,

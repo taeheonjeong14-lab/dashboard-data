@@ -28,8 +28,8 @@ export function DashboardChrome({ children }: { children: ReactNode }) {
     return (
       <div style={{ padding: "64px 18px", textAlign: "center", color: "var(--text-muted)" }}>
         <div style={{ fontSize: 32, marginBottom: 10 }}>🔒</div>
-        <div style={{ fontSize: 15, fontWeight: 700, color: "var(--text)", marginBottom: 4 }}>접근 권한이 없습니다</div>
-        <div style={{ fontSize: 13 }}>경영 대시보드는 병원 관리자(Master)만 볼 수 있습니다.</div>
+        <div style={{ fontSize: 14, fontWeight: 700, color: "var(--text)", marginBottom: 4 }}>접근 권한이 없습니다</div>
+        <div style={{ fontSize: 14 }}>경영 대시보드는 병원 관리자(Master)만 볼 수 있습니다.</div>
       </div>
     );
   }
@@ -45,7 +45,7 @@ export function DashboardChrome({ children }: { children: ReactNode }) {
         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, flexWrap: "wrap", marginBottom: 16 }}>
           <div>
             <h1 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: "var(--text)" }}>경영 대시보드</h1>
-            <p style={{ margin: "4px 0 0", fontSize: 13, color: "var(--text-secondary)" }}>
+            <p style={{ margin: "4px 0 0", fontSize: 14, color: "var(--text-secondary)" }}>
               매출·신규 고객·블로그·플레이스·광고 성과를 한눈에 확인합니다.
             </p>
           </div>

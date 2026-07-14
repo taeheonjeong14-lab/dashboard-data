@@ -51,7 +51,7 @@ const summaryStyle: CSSProperties = {
   cursor: 'pointer',
   listStyle: 'none',
   padding: '9px 14px',
-  fontSize: 13,
+  fontSize: 14,
   fontWeight: 700,
   color: 'var(--text-secondary)',
   display: 'flex',
@@ -111,14 +111,14 @@ export function BucketDebugPanel({ runId }: { runId: string }) {
       </summary>
 
       <div style={{ padding: '12px 14px' }}>
-        {loading && <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: 0 }}>로드 중…</p>}
-        {error && <p style={{ fontSize: 13, color: 'var(--danger)', margin: 0 }}>오류: {error}</p>}
+        {loading && <p style={{ fontSize: 14, color: 'var(--text-muted)', margin: 0 }}>로드 중…</p>}
+        {error && <p style={{ fontSize: 14, color: 'var(--danger)', margin: 0 }}>오류: {error}</p>}
 
         {data && (
           <>
             {/* 차트 종류 배지 */}
             {isPlusVet && (
-              <div style={{ marginBottom: 10, fontSize: 13, color: 'var(--accent)', background: 'var(--accent-subtle)', border: '1px solid var(--accent-subtle)', borderRadius: 6, padding: '5px 10px' }}>
+              <div style={{ marginBottom: 10, fontSize: 14, color: 'var(--accent)', background: 'var(--accent-subtle)', border: '1px solid var(--accent-subtle)', borderRadius: 6, padding: '5px 10px' }}>
                 PlusVet — Subjective → bodyText (파란색) · Plan → planText (초록색) · Objective 버려짐
               </div>
             )}
@@ -130,7 +130,7 @@ export function BucketDebugPanel({ runId }: { runId: string }) {
                   key={key}
                   type="button"
                   onClick={() => setActiveTab(key)}
-                  style={{ padding: '6px 14px', border: 'none', borderBottom: activeTab === key ? '2px solid var(--accent)' : '2px solid transparent', marginBottom: -2, background: 'none', cursor: 'pointer', fontSize: 13, fontFamily: 'sans-serif', fontWeight: activeTab === key ? 700 : 400, color: activeTab === key ? 'var(--accent)' : 'var(--text-secondary)' }}
+                  style={{ padding: '6px 14px', border: 'none', borderBottom: activeTab === key ? '2px solid var(--accent)' : '2px solid transparent', marginBottom: -2, background: 'none', cursor: 'pointer', fontSize: 14, fontFamily: 'sans-serif', fontWeight: activeTab === key ? 700 : 400, color: activeTab === key ? 'var(--accent)' : 'var(--text-secondary)' }}
                 >
                   {label}
                   {count !== undefined && (
@@ -144,14 +144,14 @@ export function BucketDebugPanel({ runId }: { runId: string }) {
             {activeTab === 'chartBody' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                 {data.chartBodyByDate.length === 0 && (
-                  <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: 0 }}>날짜별 그룹 없음</p>
+                  <p style={{ fontSize: 14, color: 'var(--text-muted)', margin: 0 }}>날짜별 그룹 없음</p>
                 )}
                 {data.chartBodyByDate.map((g) => {
                   const bodyLines = g.bodyText ? g.bodyText.split('\n').filter(Boolean) : [];
                   const planLines = g.planText ? g.planText.split('\n').filter(Boolean) : [];
                   return (
                     <details key={g.dateTime} style={{ border: '1px solid var(--border)', borderRadius: 4, overflow: 'hidden' }}>
-                      <summary style={{ padding: '6px 10px', fontSize: 13, fontWeight: 700, color: 'var(--text-secondary)', cursor: 'pointer', listStyle: 'none', background: 'var(--bg-subtle)', display: 'flex', gap: 8, alignItems: 'center' }}>
+                      <summary style={{ padding: '6px 10px', fontSize: 14, fontWeight: 700, color: 'var(--text-secondary)', cursor: 'pointer', listStyle: 'none', background: 'var(--bg-subtle)', display: 'flex', gap: 8, alignItems: 'center' }}>
                         <span>{g.dateTime}</span>
                         <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>{g.lineCount}줄</span>
                         {g.planDetected && <span style={{ fontSize: 11, background: 'var(--success-subtle)', color: 'var(--success)', border: '1px solid var(--success-subtle)', borderRadius: 10, padding: '1px 6px' }}>Plan 감지</span>}
@@ -183,7 +183,7 @@ export function BucketDebugPanel({ runId }: { runId: string }) {
             {activeTab === 'basicInfo' && (
               <div>
                 {data.bucketLines.basicInfo.length === 0 ? (
-                  <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: 0 }}>기본정보 버킷이 비어있습니다.</p>
+                  <p style={{ fontSize: 14, color: 'var(--text-muted)', margin: 0 }}>기본정보 버킷이 비어있습니다.</p>
                 ) : (
                   <pre style={{ margin: 0, padding: '8px 10px', fontSize: 11, lineHeight: 1.7, background: 'var(--bg-subtle)', border: '1px solid var(--border)', borderRadius: 4, whiteSpace: 'pre-wrap', wordBreak: 'break-all', maxHeight: 500, overflowY: 'auto' }}>
                     {data.bucketLines.basicInfo.map((line, i) => (
@@ -198,7 +198,7 @@ export function BucketDebugPanel({ runId }: { runId: string }) {
             {activeTab === 'lab' && (
               <div>
                 {data.bucketLines.lab.length === 0 ? (
-                  <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: 0 }}>lab 버킷 비어있음 — 버케팅 규칙이 검사 섹션을 찾지 못했을 수 있습니다.</p>
+                  <p style={{ fontSize: 14, color: 'var(--text-muted)', margin: 0 }}>lab 버킷 비어있음 — 버케팅 규칙이 검사 섹션을 찾지 못했을 수 있습니다.</p>
                 ) : (
                   <pre style={{ margin: 0, padding: '8px 10px', fontSize: 11, lineHeight: 1.7, background: 'var(--bg-subtle)', border: '1px solid var(--border)', borderRadius: 4, whiteSpace: 'pre-wrap', wordBreak: 'break-all', maxHeight: 500, overflowY: 'auto' }}>
                     {data.bucketLines.lab.map((line, i) => (
@@ -213,7 +213,7 @@ export function BucketDebugPanel({ runId }: { runId: string }) {
             {activeTab === 'vitals' && (
               <div>
                 {data.bucketLines.vitals.length === 0 ? (
-                  <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: 0 }}>바이탈 버킷이 비어있습니다 — 버케팅 규칙이 바이탈 섹션을 찾지 못했을 수 있습니다.</p>
+                  <p style={{ fontSize: 14, color: 'var(--text-muted)', margin: 0 }}>바이탈 버킷이 비어있습니다 — 버케팅 규칙이 바이탈 섹션을 찾지 못했을 수 있습니다.</p>
                 ) : (
                   <pre style={{ margin: 0, padding: '8px 10px', fontSize: 11, lineHeight: 1.7, background: 'var(--bg-subtle)', border: '1px solid var(--border)', borderRadius: 4, whiteSpace: 'pre-wrap', wordBreak: 'break-all', maxHeight: 500, overflowY: 'auto' }}>
                     {data.bucketLines.vitals.map((line, i) => (
@@ -228,10 +228,10 @@ export function BucketDebugPanel({ runId }: { runId: string }) {
             {activeTab === 'labItems' && (
               <div>
                 {data.labItems.length === 0 ? (
-                  <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: 0 }}>추출된 검사항목 없음</p>
+                  <p style={{ fontSize: 14, color: 'var(--text-muted)', margin: 0 }}>추출된 검사항목 없음</p>
                 ) : (
                   <div style={{ overflowX: 'auto' }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
                       <thead>
                         <tr style={{ background: 'var(--bg-subtle)' }}>
                           {['항목명', '결과값', '단위', '참고치', '플래그', 'p'].map((h) => (

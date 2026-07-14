@@ -270,11 +270,11 @@ export default function SignupPage() {
                 <button key={h.id} type="button" onClick={() => void pickHospital(h)}
                   style={{ textAlign: 'left', padding: '12px', border: '1px solid var(--border)', borderRadius: 'var(--radius)', background: 'var(--bg)', cursor: 'pointer' }}>
                   <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>{h.name}</div>
-                  {h.address && <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>{h.address}</div>}
+                  {h.address && <div style={{ fontSize: 14, color: 'var(--text-muted)', marginTop: 2 }}>{h.address}</div>}
                 </button>
-              )) : <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: 0 }}>검색 결과가 없습니다.</p>}
+              )) : <p style={{ fontSize: 14, color: 'var(--text-muted)', margin: 0 }}>검색 결과가 없습니다.</p>}
               <button type="button" onClick={startNewHospital}
-                style={{ marginTop: 4, padding: '12px', border: '1px dashed var(--border-strong)', borderRadius: 'var(--radius)', background: 'var(--bg-subtle)', color: 'var(--text-secondary)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+                style={{ marginTop: 4, padding: '12px', border: '1px dashed var(--border-strong)', borderRadius: 'var(--radius)', background: 'var(--bg-subtle)', color: 'var(--text-secondary)', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>
                 + 내 병원이 없어요 — 새 병원 등록
               </button>
             </div>
@@ -294,7 +294,7 @@ export default function SignupPage() {
       <div style={{ height: 3, background: 'var(--border)', borderRadius: 999, overflow: 'hidden' }}>
         <div style={{ height: '100%', width: `${Math.round(progress * 100)}%`, background: 'var(--accent)', transition: 'width .25s' }} />
       </div>
-      <div style={{ fontSize: 12.5, color: 'var(--text-muted)', margin: '10px 0 18px' }}>
+      <div style={{ fontSize: 14, color: 'var(--text-muted)', margin: '10px 0 18px' }}>
         {mode === 'new' ? '새 병원 등록' : `${selected?.name ?? ''} · 스태프 가입`} · {stepIdx + 1} / {steps.length}
       </div>
 
@@ -335,7 +335,7 @@ export default function SignupPage() {
                 const on = marketingChannels.includes(c);
                 return (
                   <button key={c} type="button" onClick={() => toggleChannel(c)}
-                    style={{ padding: '8px 14px', fontSize: 13, fontWeight: 600, borderRadius: 999, cursor: 'pointer',
+                    style={{ padding: '8px 14px', fontSize: 14, fontWeight: 600, borderRadius: 999, cursor: 'pointer',
                       border: `1px solid ${on ? 'var(--accent)' : 'var(--border-strong)'}`,
                       background: on ? 'var(--accent-subtle)' : 'var(--bg)', color: on ? 'var(--accent)' : 'var(--text-secondary)' }}>
                     {c}
@@ -364,7 +364,7 @@ export default function SignupPage() {
             <div style={{ display: 'flex', gap: 8 }}>
               <input autoFocus style={{ ...box.input, flex: 1 }} type="email" value={email} onChange={(e) => onEmailChange(e.target.value)} placeholder="you@example.com" disabled={emailVerified} />
               {emailVerified ? (
-                <span style={{ alignSelf: 'center', fontSize: 13, fontWeight: 700, color: 'var(--success)', whiteSpace: 'nowrap' }}>✓ 인증됨</span>
+                <span style={{ alignSelf: 'center', fontSize: 14, fontWeight: 700, color: 'var(--success)', whiteSpace: 'nowrap' }}>✓ 인증됨</span>
               ) : (
                 <button type="button" onClick={() => void sendCode()} disabled={codeBusy} style={{ ...box.btn, width: 'auto', padding: '11px 14px', whiteSpace: 'nowrap' }}>
                   {codeSent ? '재발송' : '인증하기'}
@@ -377,7 +377,7 @@ export default function SignupPage() {
                 <button type="button" onClick={() => void checkCode()} disabled={codeBusy || code.length !== 6} style={{ ...box.btn, width: 'auto', padding: '11px 14px' }}>확인</button>
               </div>
             )}
-            {codeMsg && <p style={{ margin: 0, fontSize: 12, color: emailVerified ? 'var(--success)' : 'var(--danger)' }}>{codeMsg}</p>}
+            {codeMsg && <p style={{ margin: 0, fontSize: 14, color: emailVerified ? 'var(--success)' : 'var(--danger)' }}>{codeMsg}</p>}
             <PasswordInput style={box.input} value={password} onChange={(e) => setPassword(e.target.value)} placeholder="비밀번호 (6자 이상)" />
             <PasswordInput style={box.input} value={passwordConfirm} onChange={(e) => setPasswordConfirm(e.target.value)} placeholder="비밀번호 확인" />
           </>
@@ -385,7 +385,7 @@ export default function SignupPage() {
         {step === 'review' && (
           <>
             <StepHead title="입력 내용 확인" desc={mode === 'new' ? '아래 내용으로 병원 등록을 신청합니다.' : '아래 내용으로 가입을 신청합니다.'} />
-            <div style={{ display: 'grid', gap: 4, fontSize: 13, color: 'var(--text-secondary)' }}>
+            <div style={{ display: 'grid', gap: 4, fontSize: 14, color: 'var(--text-secondary)' }}>
               {mode === 'new' ? (
                 <>
                   <Row k="병원" v={hName} /><Row k="전화" v={hPhone} /><Row k="주소" v={`${addrBase} ${addrDetail}`.trim()} />
@@ -401,7 +401,7 @@ export default function SignupPage() {
         )}
       </div>
 
-      {message && <p style={{ color: 'var(--danger)', fontSize: 13, margin: '12px 0 0' }}>{message}</p>}
+      {message && <p style={{ color: 'var(--danger)', fontSize: 14, margin: '12px 0 0' }}>{message}</p>}
 
       <div style={{ display: 'flex', gap: 10, marginTop: 18 }}>
         <button type="button" onClick={back} style={box.btnSecondary}>이전</button>
@@ -435,16 +435,16 @@ function FileDrop({ file, onFile, accept }: { file: File | null; onFile: (f: Fil
       <input ref={inputRef} type="file" accept={accept} style={{ display: 'none' }} onChange={(e) => onFile(e.target.files?.[0] ?? null)} />
       {file ? (
         <div>
-          <div style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--success)' }}>✓ {file.name}</div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--success)' }}>✓ {file.name}</div>
           <button type="button" onClick={(e) => { e.stopPropagation(); onFile(null); }}
-            style={{ marginTop: 8, fontSize: 12, color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer' }}>
+            style={{ marginTop: 8, fontSize: 14, color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer' }}>
             다른 파일 선택
           </button>
         </div>
       ) : (
         <>
-          <div style={{ fontSize: 13.5, color: 'var(--text-secondary)', fontWeight: 600 }}>파일을 끌어다 놓거나 클릭하여 선택</div>
-          <div style={{ fontSize: 11.5, color: 'var(--text-muted)', marginTop: 4 }}>PDF 또는 이미지</div>
+          <div style={{ fontSize: 14, color: 'var(--text-secondary)', fontWeight: 600 }}>파일을 끌어다 놓거나 클릭하여 선택</div>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>PDF 또는 이미지</div>
         </>
       )}
     </div>
@@ -463,8 +463,8 @@ function Info({ title, children }: { title: string; children: React.ReactNode })
 function StepHead({ title, desc }: { title: string; desc?: string }) {
   return (
     <div>
-      <h2 style={{ margin: 0, fontSize: 19, fontWeight: 700, color: 'var(--text)', letterSpacing: '-0.01em' }}>{title}</h2>
-      {desc && <p style={{ margin: '8px 0 0', fontSize: 13.5, color: 'var(--text-secondary)', lineHeight: 1.6 }}>{desc}</p>}
+      <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: 'var(--text)', letterSpacing: '-0.01em' }}>{title}</h2>
+      {desc && <p style={{ margin: '8px 0 0', fontSize: 14, color: 'var(--text-secondary)', lineHeight: 1.6 }}>{desc}</p>}
     </div>
   );
 }
@@ -477,7 +477,7 @@ function Shell({ children, subtitle }: { children: React.ReactNode; subtitle?: s
       <div style={box.card}>
         <div style={{ textAlign: 'center', marginBottom: 24 }}>
           <Image src="/logo-login.png" alt="THEHAMM" width={158} height={166} priority style={{ display: 'block', width: 170, height: 'auto', margin: '0 auto 10px' }} />
-          {subtitle && <p style={{ margin: 0, fontSize: 13, color: 'var(--text-muted)' }}>{subtitle}</p>}
+          {subtitle && <p style={{ margin: 0, fontSize: 14, color: 'var(--text-muted)' }}>{subtitle}</p>}
         </div>
         {children}
       </div>
@@ -488,11 +488,11 @@ function Shell({ children, subtitle }: { children: React.ReactNode; subtitle?: s
 const box: Record<string, React.CSSProperties> = {
   container: { display: 'flex', minHeight: '100vh', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-subtle)', padding: 16 },
   card: { width: '100%', maxWidth: 480, background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: 40, boxShadow: '0 1px 3px rgba(0,0,0,0.06)', margin: '16px 0' },
-  input: { width: '100%', padding: '11px 12px', fontSize: 15, background: 'var(--bg-subtle)', color: 'var(--text)', border: 'none', borderBottom: '2px solid var(--border-strong)', borderRadius: '8px 8px 0 0', outline: 'none', boxSizing: 'border-box' },
+  input: { width: '100%', padding: '11px 12px', fontSize: 14, background: 'var(--bg-subtle)', color: 'var(--text)', border: 'none', borderBottom: '2px solid var(--border-strong)', borderRadius: '8px 8px 0 0', outline: 'none', boxSizing: 'border-box' },
   btn: { padding: '12px 16px', fontSize: 14, fontWeight: 700, background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: 'var(--radius)', cursor: 'pointer' },
   btnSecondary: { padding: '12px 16px', fontSize: 14, fontWeight: 600, background: 'transparent', color: 'var(--text-secondary)', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', cursor: 'pointer' },
-  msg: { padding: '12px 14px', borderRadius: 'var(--radius)', fontSize: 13.5, lineHeight: 1.6 },
+  msg: { padding: '12px 14px', borderRadius: 'var(--radius)', fontSize: 14, lineHeight: 1.6 },
   msgOk: { background: 'var(--success-subtle)', color: 'var(--success)', border: '1px solid var(--success)' },
-  footer: { marginTop: 20, textAlign: 'center', fontSize: 13, color: 'var(--text-muted)' },
+  footer: { marginTop: 20, textAlign: 'center', fontSize: 14, color: 'var(--text-muted)' },
   link: { color: 'var(--accent)', fontWeight: 500 },
 };

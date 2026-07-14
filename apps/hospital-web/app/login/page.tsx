@@ -183,7 +183,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   subtitle: {
     margin: 0,
-    fontSize: '13px',
+    fontSize: '14px',
     color: 'var(--text-muted)',
   },
   form: {
@@ -195,7 +195,7 @@ const styles: Record<string, React.CSSProperties> = {
     gap: '6px',
   },
   label: {
-    fontSize: '13px',
+    fontSize: '14px',
     fontWeight: 500,
     color: 'var(--text-secondary)',
   },
@@ -226,7 +226,7 @@ const styles: Record<string, React.CSSProperties> = {
   messageBox: {
     padding: '10px 12px',
     borderRadius: 'var(--radius)',
-    fontSize: '13px',
+    fontSize: '14px',
     lineHeight: 1.5,
   },
   messageError: {
@@ -264,7 +264,7 @@ const styles: Record<string, React.CSSProperties> = {
   footerText: {
     marginTop: '20px',
     textAlign: 'center',
-    fontSize: '13px',
+    fontSize: '14px',
     color: 'var(--text-muted)',
   },
   link: {

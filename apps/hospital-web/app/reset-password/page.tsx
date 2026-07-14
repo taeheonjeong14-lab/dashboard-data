@@ -113,7 +113,7 @@ export default function ResetPasswordPage() {
         </div>
 
         {phase === 'checking' && (
-          <p style={{ textAlign: 'center', color: 'var(--text-secondary)', fontSize: '13px' }}>링크 확인 중…</p>
+          <p style={{ textAlign: 'center', color: 'var(--text-secondary)', fontSize: '14px' }}>링크 확인 중…</p>
         )}
 
         {phase === 'invalid' && (
@@ -213,10 +213,10 @@ const styles: Record<string, React.CSSProperties> = {
   },
   logoArea: { textAlign: 'center', marginBottom: '28px' },
   logoImg: { display: 'block', width: '190px', height: 'auto', margin: '0 auto 12px' },
-  subtitle: { margin: 0, fontSize: '13px', color: 'var(--text-muted)' },
+  subtitle: { margin: 0, fontSize: '14px', color: 'var(--text-muted)' },
   form: { display: 'grid', gap: '16px' },
   field: { display: 'grid', gap: '6px' },
-  label: { fontSize: '13px', fontWeight: 500, color: 'var(--text-secondary)' },
+  label: { fontSize: '14px', fontWeight: 500, color: 'var(--text-secondary)' },
   input: {
     width: '100%',
     padding: '9px 2px',
@@ -229,7 +229,7 @@ const styles: Record<string, React.CSSProperties> = {
     outline: 'none',
     transition: 'border-color 0.15s',
   },
-  messageBox: { padding: '10px 12px', borderRadius: 'var(--radius)', fontSize: '13px', lineHeight: 1.5 },
+  messageBox: { padding: '10px 12px', borderRadius: 'var(--radius)', fontSize: '14px', lineHeight: 1.5 },
   messageError: { background: 'var(--danger-subtle)', color: 'var(--danger)', border: '1px solid var(--danger)' },
   messageSuccess: { background: 'var(--success-subtle)', color: 'var(--success)', border: '1px solid var(--success)' },
   submitBtn: {
@@ -246,6 +246,6 @@ const styles: Record<string, React.CSSProperties> = {
     marginTop: '4px',
   },
   submitBtnDisabled: { opacity: 0.55, cursor: 'not-allowed' },
-  footerText: { marginTop: '20px', textAlign: 'center', fontSize: '13px', color: 'var(--text-muted)' },
+  footerText: { marginTop: '20px', textAlign: 'center', fontSize: '14px', color: 'var(--text-muted)' },
   link: { color: 'var(--accent)', fontWeight: 500 },
 };

@@ -527,10 +527,10 @@ export function CaseTab() {
       {/* LEFT — 제출한 케이스 목록 */}
       <div style={{ flex: 1, minWidth: 0, paddingRight: 24 }}>
         <div style={{ padding: '0 0 10px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>제출한 케이스</span>
+          <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>제출한 케이스</span>
           <button
             onClick={() => void loadList()}
-            style={{ background: 'none', border: 'none', fontSize: 12, color: 'var(--text-muted)', cursor: 'pointer', padding: '2px 4px' }}
+            style={{ background: 'none', border: 'none', fontSize: 14, color: 'var(--text-muted)', cursor: 'pointer', padding: '2px 4px' }}
           >
             새로고침
           </button>
@@ -539,15 +539,15 @@ export function CaseTab() {
         {listLoading ? (
           <CenteredSpinner minHeight={200} />
         ) : listError ? (
-          <div style={{ padding: '20px 18px', fontSize: 13, color: 'var(--danger)' }}>{listError}</div>
+          <div style={{ padding: '20px 18px', fontSize: 14, color: 'var(--danger)' }}>{listError}</div>
         ) : items.length === 0 ? (
           <div style={{ padding: '48px 18px', textAlign: 'center' }}>
             <div style={{ fontSize: 28, marginBottom: 8 }}>🩺</div>
-            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', marginBottom: 4 }}>아직 제출한 케이스가 없습니다</div>
-            <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>오른쪽에서 차트 PDF와 케이스 개요를 등록하세요.</div>
+            <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)', marginBottom: 4 }}>아직 제출한 케이스가 없습니다</div>
+            <div style={{ fontSize: 14, color: 'var(--text-muted)' }}>오른쪽에서 차트 PDF와 케이스 개요를 등록하세요.</div>
           </div>
         ) : (
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
             <thead>
               <tr style={{ background: 'var(--bg-subtle)' }}>
                 {['등록일', '환자 이름', '보호자 이름', '주질환명', '사진'].map((h) => (
@@ -603,13 +603,13 @@ export function CaseTab() {
       {/* RIGHT — 새 케이스 등록 폼 */}
       <div style={{ flex: 1, minWidth: 0, borderLeft: '1px solid var(--border-strong)', paddingLeft: 24 }}>
         <div style={{ padding: '0 0 10px' }}>
-          <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>진료케이스 등록</div>
-          <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>차트 PDF·케이스 개요·사진을 등록해 주세요</div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>진료케이스 등록</div>
+          <div style={{ fontSize: 14, color: 'var(--text-muted)', marginTop: 2 }}>차트 PDF·케이스 개요·사진을 등록해 주세요</div>
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           {stage === 'error' && (
-            <div style={{ background: 'var(--danger-subtle)', border: '1px solid var(--danger)', borderRadius: 'var(--radius)', padding: '10px 12px', fontSize: 12, color: 'var(--text)' }}>
+            <div style={{ background: 'var(--danger-subtle)', border: '1px solid var(--danger)', borderRadius: 'var(--radius)', padding: '10px 12px', fontSize: 14, color: 'var(--text)' }}>
               <span style={{ fontWeight: 700, color: 'var(--danger)' }}>오류 </span>
               {errorMessage}
             </div>
@@ -663,7 +663,7 @@ export function CaseTab() {
                   {pdfFiles.map((f, idx) => (
                     <div key={idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, background: '#fff', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '6px 10px' }}>
                       <div style={{ minWidth: 0 }}>
-                        <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', wordBreak: 'break-all' }}>{f.name}</div>
+                        <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)', wordBreak: 'break-all' }}>{f.name}</div>
                         <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 1 }}>{formatBytes(f.size)}</div>
                       </div>
                       {!isProcessing && (
@@ -671,7 +671,7 @@ export function CaseTab() {
                           type="button"
                           onClick={(e) => { e.stopPropagation(); removePdfFile(idx); }}
                           aria-label="삭제"
-                          style={{ flexShrink: 0, width: 22, height: 22, borderRadius: '50%', border: '1px solid var(--border)', background: 'var(--bg-subtle)', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 12, lineHeight: 1 }}
+                          style={{ flexShrink: 0, width: 22, height: 22, borderRadius: '50%', border: '1px solid var(--border)', background: 'var(--bg-subtle)', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 14, lineHeight: 1 }}
                         >
                           ✕
                         </button>
@@ -683,7 +683,7 @@ export function CaseTab() {
               ) : (
                 <>
                   <div style={{ fontSize: 20, marginBottom: 5 }}>📄</div>
-                  <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 2 }}>끌어다 놓거나 클릭하여 선택</div>
+                  <div style={{ fontSize: 14, color: 'var(--text-secondary)', marginBottom: 2 }}>끌어다 놓거나 클릭하여 선택</div>
                   <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>PDF · 최대 70MB · 여러 개 가능</div>
                 </>
               )}
@@ -731,7 +731,7 @@ export function CaseTab() {
                   {extraDocs.map((f, idx) => (
                     <div key={idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, background: '#fff', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '6px 10px' }}>
                       <div style={{ minWidth: 0 }}>
-                        <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', wordBreak: 'break-all' }}>{f.name}</div>
+                        <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)', wordBreak: 'break-all' }}>{f.name}</div>
                         <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 1 }}>{formatBytes(f.size)}</div>
                       </div>
                       {!isProcessing && (
@@ -739,7 +739,7 @@ export function CaseTab() {
                           type="button"
                           onClick={(e) => { e.stopPropagation(); removeExtraDoc(idx); }}
                           aria-label="삭제"
-                          style={{ flexShrink: 0, width: 22, height: 22, borderRadius: '50%', border: '1px solid var(--border)', background: 'var(--bg-subtle)', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 12, lineHeight: 1 }}
+                          style={{ flexShrink: 0, width: 22, height: 22, borderRadius: '50%', border: '1px solid var(--border)', background: 'var(--bg-subtle)', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 14, lineHeight: 1 }}
                         >
                           ✕
                         </button>
@@ -751,7 +751,7 @@ export function CaseTab() {
               ) : (
                 <>
                   <div style={{ fontSize: 20, marginBottom: 5 }}>📎</div>
-                  <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 2 }}>끌어다 놓거나 클릭하여 선택</div>
+                  <div style={{ fontSize: 14, color: 'var(--text-secondary)', marginBottom: 2 }}>끌어다 놓거나 클릭하여 선택</div>
                   <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>PDF · JPG · PNG · PDF 최대 70MB · 이미지 최대 30MB</div>
                 </>
               )}
@@ -829,7 +829,7 @@ export function CaseTab() {
                         <button
                           type="button"
                           onClick={() => removeGroup(group.id)}
-                          style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: 12, cursor: 'pointer', padding: '2px 4px', whiteSpace: 'nowrap' }}
+                          style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: 14, cursor: 'pointer', padding: '2px 4px', whiteSpace: 'nowrap' }}
                         >
                           날짜 삭제
                         </button>
@@ -859,8 +859,8 @@ export function CaseTab() {
                       }}
                     >
                       <input id={inputId} type="file" accept=".jpg,.jpeg,.png,.webp,image/*" multiple style={{ display: 'none' }} onChange={(e) => onGroupImageChange(group.id, e)} />
-                      <div style={{ fontSize: 16, marginBottom: 3 }}>🖼️</div>
-                      <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>이 날짜 이미지 끌어다 놓거나 클릭</div>
+                      <div style={{ fontSize: 20, marginBottom: 3 }}>🖼️</div>
+                      <div style={{ fontSize: 14, color: 'var(--text-secondary)' }}>이 날짜 이미지 끌어다 놓거나 클릭</div>
                     </div>
 
                     {group.previews.length > 0 && (
@@ -875,7 +875,7 @@ export function CaseTab() {
                                   e.stopPropagation();
                                   removeImageFromGroup(group.id, idx);
                                 }}
-                                style={{ position: 'absolute', top: -5, right: -5, width: 18, height: 18, borderRadius: '50%', background: 'var(--danger)', color: '#fff', border: 'none', fontSize: 10, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}
+                                style={{ position: 'absolute', top: -5, right: -5, width: 18, height: 18, borderRadius: '50%', background: 'var(--danger)', color: '#fff', border: 'none', fontSize: 11, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}
                               >
                                 ×
                               </button>
@@ -893,7 +893,7 @@ export function CaseTab() {
               <button
                 type="button"
                 onClick={addGroup}
-                style={{ marginTop: 10, width: '100%', padding: 8, background: 'var(--bg-subtle)', border: '1px dashed var(--border-strong)', borderRadius: 'var(--radius)', fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', cursor: 'pointer' }}
+                style={{ marginTop: 10, width: '100%', padding: 8, background: 'var(--bg-subtle)', border: '1px dashed var(--border-strong)', borderRadius: 'var(--radius)', fontSize: 14, fontWeight: 600, color: 'var(--text-secondary)', cursor: 'pointer' }}
               >
                 + 날짜 추가하기
               </button>
@@ -911,7 +911,7 @@ export function CaseTab() {
               color: canSubmit ? '#fff' : 'var(--text-muted)',
               border: `1px solid ${canSubmit ? 'var(--accent)' : 'var(--border)'}`,
               borderRadius: 'var(--radius)',
-              fontSize: 13,
+              fontSize: 14,
               fontWeight: 600,
               cursor: canSubmit ? 'pointer' : 'not-allowed',
               display: 'flex',
@@ -931,7 +931,7 @@ export function CaseTab() {
             )}
           </button>
           {stage === 'done' && (
-            <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--success)', textAlign: 'center', lineHeight: 1.5 }}>
+            <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--success)', textAlign: 'center', lineHeight: 1.5 }}>
               접수되었습니다 · 분석이 끝나면 왼쪽 목록에 표시됩니다
             </div>
           )}
@@ -960,7 +960,7 @@ const inputStyle: React.CSSProperties = {
   borderRadius: 'var(--radius)',
   background: 'var(--bg)',
   color: 'var(--text)',
-  fontSize: 13,
+  fontSize: 14,
   outline: 'none',
   boxSizing: 'border-box',
 };
@@ -972,7 +972,7 @@ const textareaStyle: React.CSSProperties = {
   borderRadius: 'var(--radius)',
   background: 'var(--bg)',
   color: 'var(--text)',
-  fontSize: 13,
+  fontSize: 14,
   outline: 'none',
   boxSizing: 'border-box',
   resize: 'vertical',
@@ -985,7 +985,7 @@ const selectStyle: React.CSSProperties = {
   borderRadius: 'var(--radius)',
   backgroundColor: 'var(--bg)',
   color: 'var(--text)',
-  fontSize: 13,
+  fontSize: 14,
   appearance: 'none',
   backgroundImage:
     'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'12\' height=\'8\' viewBox=\'0 0 12 8\'%3E%3Cpath d=\'M1 1l5 5 5-5\' stroke=\'%236b7280\' stroke-width=\'1.5\' fill=\'none\' stroke-linecap=\'round\'/%3E%3C/svg%3E")',

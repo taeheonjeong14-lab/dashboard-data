@@ -65,8 +65,8 @@ export function UnreadNotifications() {
       <section style={{ marginBottom: 28, borderRadius: 'var(--radius-lg)', border: '1px solid var(--accent)', background: 'var(--accent-subtle)', boxShadow: '0 6px 18px var(--accent-subtle)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '18px' }}>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--text)' }}>읽지 않은 알림이 없어요</div>
-            <p style={{ margin: '3px 0 0', fontSize: 12.5, color: 'var(--text-secondary)', lineHeight: 1.45 }}>새 소식은 여기와 상단 종 아이콘에서 확인할 수 있어요.</p>
+            <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>읽지 않은 알림이 없어요</div>
+            <p style={{ margin: '3px 0 0', fontSize: 14, color: 'var(--text-secondary)', lineHeight: 1.45 }}>새 소식은 여기와 상단 종 아이콘에서 확인할 수 있어요.</p>
           </div>
         </div>
       </section>
@@ -85,21 +85,21 @@ export function UnreadNotifications() {
             {items.length > 99 ? '99+' : items.length}
           </span>
         </div>
-        <button type="button" onClick={() => void markAll()} style={{ fontSize: 12, fontWeight: 600, color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer' }}>모두 읽음</button>
+        <button type="button" onClick={() => void markAll()} style={{ fontSize: 14, fontWeight: 600, color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer' }}>모두 읽음</button>
       </div>
       <div>
         {visible.map((n) => {
           const warn = WARN_TYPES.has(n.type);
           return (
             <button key={n.id} type="button" onClick={() => void onClick(n)}
-              className="homeCard"
+              className="homeCard hospBtnFree"
               style={{ display: 'flex', alignItems: 'flex-start', gap: 12, width: '100%', textAlign: 'left', padding: '13px 18px', border: 'none', borderBottom: '1px solid var(--border)', borderRadius: 0, background: 'transparent', cursor: 'pointer' }}>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ display: 'flex', gap: 6, alignItems: 'baseline' }}>
-                  <span style={{ flex: 1, minWidth: 0, fontSize: 13.5, fontWeight: 700, color: warn ? 'var(--danger)' : 'var(--text)' }}>{n.title}</span>
+                  <span style={{ flex: 1, minWidth: 0, fontSize: 14, fontWeight: 700, color: warn ? 'var(--danger)' : 'var(--text)' }}>{n.title}</span>
                   <span style={{ flexShrink: 0, fontSize: 11, color: 'var(--text-muted)' }}>{ago(n.created_at)}</span>
                 </div>
-                {n.body && <p style={{ margin: '3px 0 0', fontSize: 12.5, color: 'var(--text-secondary)', lineHeight: 1.45, overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>{n.body}</p>}
+                {n.body && <p style={{ margin: '3px 0 0', fontSize: 14, color: 'var(--text-secondary)', lineHeight: 1.45, overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>{n.body}</p>}
               </div>
               {(n.link || n.type === 'token_low') && <ChevronRight size={16} className="homeArrow" style={{ flexShrink: 0, marginTop: 3 }} />}
             </button>
@@ -107,7 +107,7 @@ export function UnreadNotifications() {
         })}
       </div>
       {more > 0 && (
-        <div style={{ padding: '10px 18px', fontSize: 12, color: 'var(--text-muted)', textAlign: 'center' }}>
+        <div style={{ padding: '10px 18px', fontSize: 14, color: 'var(--text-muted)', textAlign: 'center' }}>
           외 {more}개의 읽지 않은 알림이 더 있어요
         </div>
       )}

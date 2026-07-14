@@ -107,7 +107,7 @@ export default function AdminRegistrations() {
         <div className="adminRailToolbar" style={{ gap: 4 }}>
           {STATUS_TABS.map((t) => (
             <button key={t.key} type="button" onClick={() => setTab(t.key)}
-              style={{ flex: 1, padding: '7px 0', fontSize: 13, fontWeight: 700, borderRadius: 6, cursor: 'pointer',
+              style={{ flex: 1, padding: '7px 0', fontSize: 14, fontWeight: 700, borderRadius: 6, cursor: 'pointer',
                 border: `1px solid ${tab === t.key ? 'var(--accent)' : 'var(--border-strong)'}`,
                 background: tab === t.key ? 'var(--accent-subtle)' : '#fff', color: tab === t.key ? 'var(--accent)' : 'var(--text-secondary)' }}>
               {t.label}
@@ -116,18 +116,18 @@ export default function AdminRegistrations() {
         </div>
         <div style={{ maxHeight: 'calc(100vh - var(--topbar-height) - 60px)', overflowY: 'auto' }}>
           {loading ? (
-            <p style={{ margin: 10, fontSize: 13, color: 'var(--text-muted)' }}>불러오는 중…</p>
+            <p style={{ margin: 10, fontSize: 14, color: 'var(--text-muted)' }}>불러오는 중…</p>
           ) : error ? (
-            <p style={{ margin: 10, fontSize: 13, color: 'var(--danger)' }}>{error}</p>
+            <p style={{ margin: 10, fontSize: 14, color: 'var(--danger)' }}>{error}</p>
           ) : list.length === 0 ? (
-            <p style={{ margin: 10, fontSize: 13, color: 'var(--text-muted)' }}>신청이 없습니다.</p>
+            <p style={{ margin: 10, fontSize: 14, color: 'var(--text-muted)' }}>신청이 없습니다.</p>
           ) : (
             list.map((r) => (
               <div key={r.id} onClick={() => setSelectedId(r.id)}
                 style={{ padding: '10px 12px', borderBottom: '1px solid var(--border)', cursor: 'pointer',
                   background: selectedId === r.id ? 'var(--accent-subtle)' : 'transparent' }}>
                 <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 }}>
-                  <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.hospital_name}</span>
+                  <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.hospital_name}</span>
                   <span style={{ fontSize: 11, color: 'var(--text-muted)', flexShrink: 0 }}>{fmt(r.created_at)}</span>
                 </div>
                 <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
@@ -143,19 +143,19 @@ export default function AdminRegistrations() {
       <div className="adminLayoutMainPane">
         <div className="adminLayoutMainColumnInset">
           {!selectedId ? (
-            <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>좌측에서 신청을 선택하세요.</p>
+            <p style={{ fontSize: 14, color: 'var(--text-muted)' }}>좌측에서 신청을 선택하세요.</p>
           ) : detailLoading || !detail ? (
-            <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>불러오는 중…</p>
+            <p style={{ fontSize: 14, color: 'var(--text-muted)' }}>불러오는 중…</p>
           ) : (
             <div style={{ display: 'grid', gap: 14, maxWidth: 640 }}>
-              <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800 }}>{detail.registration.hospital_name}</h2>
+              <h2 style={{ margin: 0, fontSize: 20, fontWeight: 800 }}>{detail.registration.hospital_name}</h2>
               {detail.registration.di_conflict && (
                 <div style={banner('var(--danger-subtle)', 'var(--danger)')}>
                   ⚠ 대표(마스터) 본인인증 DI가 기존 계정과 중복됩니다
                   {detail.registration.di_conflict_hospital ? ` — 기존: ${detail.registration.di_conflict_hospital}` : ''}. 신청자에게 확인 후 처리하세요.
                 </div>
               )}
-              <dl style={{ display: 'grid', gridTemplateColumns: '120px 1fr', gap: '8px 12px', margin: 0, fontSize: 13 }}>
+              <dl style={{ display: 'grid', gridTemplateColumns: '120px 1fr', gap: '8px 12px', margin: 0, fontSize: 14 }}>
                 <Row k="병원 전화" v={detail.registration.phone} />
                 <Row k="병원 이메일" v={detail.registration.email} />
                 <Row k="주소" v={[detail.registration.address, detail.registration.address_detail].filter(Boolean).join(' ')} />
@@ -174,16 +174,16 @@ export default function AdminRegistrations() {
               {detail.registration.status === 'pending' ? (
                 <>
                   <textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="심사 메모(거절 사유 등)" rows={3}
-                    style={{ width: '100%', padding: '8px 10px', border: '1px solid var(--border-strong)', borderRadius: 8, fontSize: 13, outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit', resize: 'vertical' }} />
+                    style={{ width: '100%', padding: '8px 10px', border: '1px solid var(--border-strong)', borderRadius: 8, fontSize: 14, outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit', resize: 'vertical' }} />
                   <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
                     <button type="button" onClick={() => void act('reject')} disabled={acting}
-                      style={{ padding: '9px 18px', borderRadius: 8, border: '1px solid var(--danger)', background: '#fff', color: 'var(--danger)', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>거절</button>
+                      style={{ padding: '9px 18px', borderRadius: 8, border: '1px solid var(--danger)', background: '#fff', color: 'var(--danger)', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>거절</button>
                     <button type="button" onClick={() => void act('approve')} disabled={acting}
-                      style={{ padding: '9px 20px', borderRadius: 8, border: 'none', background: 'var(--accent)', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>{acting ? '처리 중…' : '승인'}</button>
+                      style={{ padding: '9px 20px', borderRadius: 8, border: 'none', background: 'var(--accent)', color: '#fff', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>{acting ? '처리 중…' : '승인'}</button>
                   </div>
                 </>
               ) : (
-                <p style={{ margin: 0, fontSize: 13, color: 'var(--text-muted)' }}>처리됨 · {fmt(detail.registration.reviewed_at)}</p>
+                <p style={{ margin: 0, fontSize: 14, color: 'var(--text-muted)' }}>처리됨 · {fmt(detail.registration.reviewed_at)}</p>
               )}
             </div>
           )}
@@ -253,8 +253,8 @@ export function RegistrationDetailPanel({
     }
   };
 
-  if (loading) return <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>불러오는 중…</p>;
-  if (error) return <p style={{ fontSize: 13, color: 'var(--danger)' }}>{error}</p>;
+  if (loading) return <p style={{ fontSize: 14, color: 'var(--text-muted)' }}>불러오는 중…</p>;
+  if (error) return <p style={{ fontSize: 14, color: 'var(--danger)' }}>{error}</p>;
   if (!detail) return null;
 
   const reg = detail.registration;
@@ -266,7 +266,7 @@ export function RegistrationDetailPanel({
           {reg.di_conflict_hospital ? ` — 기존: ${reg.di_conflict_hospital}` : ''}. 신청자에게 확인 후 처리하세요.
         </div>
       )}
-      <dl style={{ display: 'grid', gridTemplateColumns: '120px 1fr', gap: '8px 12px', margin: 0, fontSize: 13 }}>
+      <dl style={{ display: 'grid', gridTemplateColumns: '120px 1fr', gap: '8px 12px', margin: 0, fontSize: 14 }}>
         <Row k="병원 전화" v={reg.phone} />
         <Row k="병원 이메일" v={reg.email} />
         <Row k="주소" v={[reg.address, reg.address_detail].filter(Boolean).join(' ')} />
@@ -289,17 +289,17 @@ export function RegistrationDetailPanel({
             onChange={(e) => setNote(e.target.value)}
             placeholder="심사 메모(거절 사유 등)"
             rows={3}
-            style={{ width: '100%', padding: '8px 10px', border: '1px solid var(--border-strong)', borderRadius: 8, fontSize: 13, outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit', resize: 'vertical' }}
+            style={{ width: '100%', padding: '8px 10px', border: '1px solid var(--border-strong)', borderRadius: 8, fontSize: 14, outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit', resize: 'vertical' }}
           />
           <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
             <button type="button" onClick={() => void act('reject')} disabled={acting}
-              style={{ padding: '9px 18px', borderRadius: 8, border: '1px solid var(--danger)', background: '#fff', color: 'var(--danger)', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>거절</button>
+              style={{ padding: '9px 18px', borderRadius: 8, border: '1px solid var(--danger)', background: '#fff', color: 'var(--danger)', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>거절</button>
             <button type="button" onClick={() => void act('approve')} disabled={acting}
-              style={{ padding: '9px 20px', borderRadius: 8, border: 'none', background: 'var(--accent)', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>{acting ? '처리 중…' : '승인'}</button>
+              style={{ padding: '9px 20px', borderRadius: 8, border: 'none', background: 'var(--accent)', color: '#fff', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>{acting ? '처리 중…' : '승인'}</button>
           </div>
         </>
       ) : (
-        <p style={{ margin: 0, fontSize: 13, color: 'var(--text-muted)' }}>처리됨 · {fmt(reg.reviewed_at)}</p>
+        <p style={{ margin: 0, fontSize: 14, color: 'var(--text-muted)' }}>처리됨 · {fmt(reg.reviewed_at)}</p>
       )}
     </div>
   );
@@ -314,14 +314,14 @@ function Row({ k, v }: { k: string; v: string | null }) {
   );
 }
 function FileLink({ label, url }: { label: string; url: string | null }) {
-  if (!url) return <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>{label}: 없음</span>;
+  if (!url) return <span style={{ fontSize: 14, color: 'var(--text-muted)' }}>{label}: 없음</span>;
   return (
     <a href={url} target="_blank" rel="noreferrer"
-      style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent)', border: '1px solid var(--accent)', borderRadius: 6, padding: '6px 12px', textDecoration: 'none' }}>
+      style={{ fontSize: 14, fontWeight: 700, color: 'var(--accent)', border: '1px solid var(--accent)', borderRadius: 6, padding: '6px 12px', textDecoration: 'none' }}>
       {label} 열기 ↗
     </a>
   );
 }
 function banner(bg: string, color: string): CSSProperties {
-  return { padding: 12, fontSize: 13, background: bg, borderRadius: 8, color };
+  return { padding: 12, fontSize: 14, background: bg, borderRadius: 8, color };
 }

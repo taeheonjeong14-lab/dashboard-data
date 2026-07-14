@@ -79,8 +79,8 @@ export default function AdminNaverKeyword() {
   return (
     <div style={{ maxWidth: 1200, margin: '0 auto' }}>
       <div style={{ marginBottom: 16 }}>
-        <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--text)' }}>네이버 검색량</div>
-        <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 3 }}>
+        <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--text)' }}>네이버 검색량</div>
+        <div style={{ fontSize: 14, color: 'var(--text-muted)', marginTop: 3 }}>
           키워드의 월간 PC·모바일 검색수를 네이버 검색광고 키워드도구로 조회합니다. 연관 키워드도 함께 나옵니다.
         </div>
       </div>
@@ -103,7 +103,7 @@ export default function AdminNaverKeyword() {
               borderRadius: 8,
               outline: 'none',
               font: 'inherit',
-              fontSize: 13,
+              fontSize: 14,
               resize: 'vertical',
               boxSizing: 'border-box',
               background: '#fff',
@@ -119,7 +119,7 @@ export default function AdminNaverKeyword() {
               width: '100%',
               marginTop: 8,
               padding: '11px 20px',
-              fontSize: 13,
+              fontSize: 14,
               fontWeight: 700,
               borderRadius: 8,
               cursor: loading || !input.trim() ? 'default' : 'pointer',
@@ -153,7 +153,7 @@ export default function AdminNaverKeyword() {
                   value={filter}
                   onChange={(e) => setFilter(e.target.value)}
                   placeholder="결과 내 키워드 필터"
-                  style={{ flex: 1, minWidth: 180, padding: '8px 12px', border: '1px solid var(--border-strong)', borderRadius: 8, outline: 'none', font: 'inherit', fontSize: 13, background: '#fff', color: '#111' }}
+                  style={{ flex: 1, minWidth: 180, padding: '8px 12px', border: '1px solid var(--border-strong)', borderRadius: 8, outline: 'none', font: 'inherit', fontSize: 14, background: '#fff', color: '#111' }}
                 />
                 <span style={{ fontSize: 11, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
                   {rows.length} / {data?.count}개 · 조회 계정 {data?.account}
@@ -161,7 +161,7 @@ export default function AdminNaverKeyword() {
               </div>
 
               <div style={{ overflowX: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
                   <thead>
                     <tr style={{ borderBottom: '2px solid var(--border-strong)' }}>
                       <th style={{ ...th, textAlign: 'left' }}>키워드</th>
@@ -200,7 +200,7 @@ export default function AdminNaverKeyword() {
                   </tbody>
                 </table>
                 {rows.length === 0 ? (
-                  <div style={{ padding: 24, textAlign: 'center', fontSize: 13, color: 'var(--text-muted)' }}>필터 결과 없음</div>
+                  <div style={{ padding: 24, textAlign: 'center', fontSize: 14, color: 'var(--text-muted)' }}>필터 결과 없음</div>
                 ) : null}
               </div>
             </>
@@ -222,13 +222,13 @@ const emptyPanel: React.CSSProperties = {
   minHeight: 220,
   padding: 24,
   textAlign: 'center',
-  fontSize: 13,
+  fontSize: 14,
   color: 'var(--text-muted)',
   border: '1px dashed var(--border)',
   borderRadius: 10,
 };
-const th: React.CSSProperties = { padding: '10px 10px', fontSize: 13, fontWeight: 700, color: 'var(--text-secondary)', whiteSpace: 'nowrap' };
+const th: React.CSSProperties = { padding: '10px 10px', fontSize: 14, fontWeight: 700, color: 'var(--text-secondary)', whiteSpace: 'nowrap' };
 const td: React.CSSProperties = { padding: '9px 10px', verticalAlign: 'middle' };
 function banner(bg: string, color: string): React.CSSProperties {
-  return { padding: 12, marginBottom: 12, fontSize: 13, background: bg, borderRadius: 8, color };
+  return { padding: 12, marginBottom: 12, fontSize: 14, background: bg, borderRadius: 8, color };
 }

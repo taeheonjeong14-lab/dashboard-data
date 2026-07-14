@@ -237,7 +237,7 @@
   border-bottom: 1px solid var(--border);
   background: transparent;
   font: inherit;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 500;
   color: var(--text-secondary);
   cursor: pointer;
@@ -298,7 +298,7 @@
   border-bottom: 2px solid transparent;
   background: none;
   font: inherit;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 500;
   color: var(--text-muted);
   padding: 9px 12px;
@@ -388,7 +388,7 @@ details[open] > .chartDateRow .chartDateChev { transform: rotate(90deg); }
 
 .adminLegacyTopHeader h1 {
   margin: 0 0 6px;
-  font-size: 18px;
+  font-size: 20px;
   font-weight: 700;
   letter-spacing: -0.02em;
   color: var(--text);
@@ -397,7 +397,7 @@ details[open] > .chartDateRow .chartDateChev { transform: rotate(90deg); }
 .adminLegacyTopHeader p {
   margin: 0 0 14px;
   color: var(--text-muted);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .adminLegacyEnvCheck {
@@ -405,7 +405,7 @@ details[open] > .chartDateRow .chartDateChev { transform: rotate(90deg); }
   align-items: center;
   margin-top: 2px;
   margin-bottom: 10px;
-  font-size: 13px;
+  font-size: 14px;
   color: var(--text-secondary);
   background: var(--bg-subtle);
   border: 1px solid var(--border);
@@ -425,7 +425,7 @@ details[open] > .chartDateRow .chartDateChev { transform: rotate(90deg); }
   padding: 8px 16px;
   border-radius: var(--radius);
   font-weight: 600;
-  font-size: 13px;
+  font-size: 14px;
   cursor: pointer;
   transition: all 0.14s ease;
   font-family: inherit;
@@ -435,7 +435,7 @@ details[open] > .chartDateRow .chartDateChev { transform: rotate(90deg); }
 .adminLegacySecondaryBtn {
   padding: 5px 12px;
   border-radius: var(--radius);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
   font-family: inherit;
   cursor: pointer;
@@ -467,11 +467,11 @@ details[open] > .chartDateRow .chartDateChev { transform: rotate(90deg); }
 .adminApp button:not(.adminBtnFree):not(.adminRailRow):not(.adminDataTab):not(.adminUnderlineTab),
 .adminApp a.adminLegacyPrimaryBtn,
 .adminApp a.adminLegacySmallBtn {
-  /* 상단바 로그아웃 버튼과 동일한 조합: 패딩 6px 12px + 12px 폰트 + line-height 1.5 → 높이 30px.
+  /* 상단바 로그아웃 버튼과 동일한 조합: 패딩 6px 12px + 본문 폰트(14px) + line-height 1.5 → 높이 33px.
      인라인 style 이 우선하므로 !important 로 눌러야 실제로 먹는다.
      좌우 패딩까지 함께 고정한다 — 세로만 잡으면 화면마다 좌우가 제각각이라 글자가 눌린다. */
   padding: 6px 12px !important;
-  font-size: 13px !important;
+  font-size: 14px !important;
   line-height: 1.5 !important;
   display: inline-flex;
   align-items: center;
@@ -535,7 +535,7 @@ details[open] > .chartDateRow .chartDateChev { transform: rotate(90deg); }
 .adminLegacyStatus {
   min-height: 28px;
   margin-bottom: 12px;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 500;
   color: var(--accent);
   display: flex;
@@ -560,7 +560,7 @@ details[open] > .chartDateRow .chartDateChev { transform: rotate(90deg); }
 .adminLegacyPanel h2 {
   margin-top: 0;
   margin-bottom: 14px;
-  font-size: 18px;
+  font-size: 20px;
   font-weight: 700;
   color: var(--text);
 }
@@ -577,7 +577,7 @@ details[open] > .chartDateRow .chartDateChev { transform: rotate(90deg); }
 .adminLegacyUploadGrid label {
   display: grid;
   gap: 5px;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
   color: var(--text-secondary);
 }
@@ -590,7 +590,7 @@ details[open] > .chartDateRow .chartDateChev { transform: rotate(90deg); }
   background: var(--bg);
   color: var(--text);
   font: inherit;
-  font-size: 13px;
+  font-size: 14px;
   transition: border-color 0.12s ease, box-shadow 0.12s ease;
 }
 
@@ -616,7 +616,7 @@ details[open] > .chartDateRow .chartDateChev { transform: rotate(90deg); }
   border-radius: var(--radius);
   background: var(--accent-subtle);
   border: 0;
-  font-size: 13px;
+  font-size: 14px;
   color: var(--accent);
 }
 
@@ -624,7 +624,7 @@ details[open] > .chartDateRow .chartDateChev { transform: rotate(90deg); }
 .adminDetailTable {
   width: 100%;
   border-collapse: collapse;
-  font-size: 13px;
+  font-size: 14px;
 }
 .adminDetailTable th {
   background: transparent;
@@ -662,7 +662,7 @@ details[open] > .chartDateRow .chartDateChev { transform: rotate(90deg); }
 .adminLegacyPage table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 13px;
+  font-size: 14px;
   min-width: 860px;
   background: transparent;
 }
@@ -704,7 +704,7 @@ details[open] > .chartDateRow .chartDateChev { transform: rotate(90deg); }
 
 .adminLegacyMonoCell {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
-  font-size: 13px;
+  font-size: 14px;
   color: var(--text-secondary);
 }
 
@@ -737,7 +737,7 @@ details[open] > .chartDateRow .chartDateChev { transform: rotate(90deg); }
   background: transparent;
   border-radius: var(--radius);
   padding: 5px 12px;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
   cursor: pointer;
   transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease;
@@ -781,7 +781,7 @@ details[open] > .chartDateRow .chartDateChev { transform: rotate(90deg); }
 .adminLegacyModalCard h3 {
   margin-top: 0;
   margin-bottom: 16px;
-  font-size: 18px;
+  font-size: 20px;
   font-weight: 700;
   color: var(--text);
   letter-spacing: -0.01em;
@@ -795,7 +795,7 @@ details[open] > .chartDateRow .chartDateChev { transform: rotate(90deg); }
 .adminLegacyModalForm label {
   display: grid;
   gap: 4px;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
   color: var(--text-secondary);
 }
@@ -808,7 +808,7 @@ details[open] > .chartDateRow .chartDateChev { transform: rotate(90deg); }
   background: var(--bg);
   color: var(--text);
   font: inherit;
-  font-size: 13px;
+  font-size: 14px;
   transition: border-color 0.12s ease, box-shadow 0.12s ease;
 }
 
@@ -819,7 +819,7 @@ details[open] > .chartDateRow .chartDateChev { transform: rotate(90deg); }
   background: var(--bg);
   color: var(--text);
   font: inherit;
-  font-size: 13px;
+  font-size: 14px;
   resize: vertical;
   transition: border-color 0.12s ease, box-shadow 0.12s ease;
 }
@@ -834,7 +834,7 @@ details[open] > .chartDateRow .chartDateChev { transform: rotate(90deg); }
 
 .adminLegacyModalForm h4 {
   margin: 6px 0 0;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 700;
   color: var(--text-secondary);
 }
@@ -855,7 +855,7 @@ details[open] > .chartDateRow .chartDateChev { transform: rotate(90deg); }
   border-radius: var(--radius);
   padding: 8px 16px;
   cursor: pointer;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
   font-family: inherit;
   transition: all 0.12s ease;
@@ -898,7 +898,7 @@ details[open] > .chartDateRow .chartDateChev { transform: rotate(90deg); }
   right: 10px;
   top: 50%;
   transform: translateY(-52%);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 700;
   color: var(--text-muted);
   transition: transform 0.16s ease;
@@ -924,7 +924,7 @@ details[open] > .chartDateRow .chartDateChev { transform: rotate(90deg); }
   right: 10px;
   top: 50%;
   transform: translateY(-52%);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 700;
   color: var(--text-muted);
   transition: transform 0.16s ease;
@@ -941,7 +941,7 @@ details[open] > .chartDateRow .chartDateChev { transform: rotate(90deg); }
   border: 1px solid var(--border-strong);
   border-radius: var(--radius);
   padding: 7px 8px;
-  font-size: 13px;
+  font-size: 14px;
   font-family: inherit;
   box-sizing: border-box;
   width: 100%;
@@ -965,7 +965,7 @@ details[open] > .chartDateRow .chartDateChev { transform: rotate(90deg); }
   }
 
   .adminLegacyTopHeader h1 {
-    font-size: 18px;
+    font-size: 20px;
   }
 
   .adminLegacyActions {

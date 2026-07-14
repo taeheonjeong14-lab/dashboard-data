@@ -16,7 +16,7 @@ type Group = { title: string; items: Feature[] };
 
 // 카드 설명 — 길이와 무관하게 항상 2줄 높이를 차지(짧으면 빈 줄 확보, 길면 2줄로 자름) → 카드 높이 고정.
 const cardDesc: React.CSSProperties = {
-  margin: '4px 0 0', fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.5,
+  margin: '4px 0 0', fontSize: 14, color: 'var(--text-secondary)', lineHeight: 1.5,
   minHeight: 'calc(12.5px * 1.5 * 2)',
   display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden',
 };
@@ -91,15 +91,15 @@ export default async function AdminHomePage() {
       <div className="homeRise" style={{ position: 'relative', overflow: 'hidden', borderRadius: 'var(--radius-lg)', padding: '34px 30px', marginBottom: 26, background: 'linear-gradient(135deg, var(--accent-subtle) 0%, var(--bg) 62%)', border: '1px solid var(--border)' }}>
         <div aria-hidden style={{ position: 'absolute', top: -70, right: -50, width: 220, height: 220, borderRadius: '50%', background: 'radial-gradient(circle, var(--accent-subtle) 0%, transparent 70%)', opacity: 0.7, pointerEvents: 'none' }} />
         <div style={{ position: 'relative' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 600, color: 'var(--text-muted)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, fontWeight: 600, color: 'var(--text-muted)' }}>
             <span style={{ display: 'inline-flex', width: 6, height: 6, borderRadius: '50%', background: 'var(--accent)' }} />
             {dateStr}
           </div>
-          <div style={{ marginTop: 14, fontSize: 13, fontWeight: 600, color: 'var(--accent)' }}>{greet}</div>
+          <div style={{ marginTop: 14, fontSize: 14, fontWeight: 600, color: 'var(--accent)' }}>{greet}</div>
           <h1 style={{ margin: '6px 0 0', fontSize: 28, fontWeight: 800, color: 'var(--text)', letterSpacing: '-0.02em' }}>
             {name || '관리자'}님, 반가워요 👋
           </h1>
-          <p style={{ margin: '10px 0 0', fontSize: 18, color: 'var(--text-secondary)' }}>
+          <p style={{ margin: '10px 0 0', fontSize: 20, color: 'var(--text-secondary)' }}>
             관리자 콘솔이에요. 아래에서 원하는 작업을 선택하세요.
           </p>
         </div>
@@ -109,7 +109,7 @@ export default async function AdminHomePage() {
       <section className="homeRise" style={{ marginBottom: 26, borderRadius: 'var(--radius-lg)', border: '1px solid var(--border)', background: 'var(--bg)', overflow: 'hidden', animationDelay: '0.04s' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '14px 18px', borderBottom: todoTotal > 0 ? '1px solid var(--border)' : 'none' }}>
           <ListTodo size={16} style={{ color: 'var(--accent)' }} />
-          <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>처리할 작업</span>
+          <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>처리할 작업</span>
           {todoTotal > 0 && (
             <span style={{ minWidth: 18, height: 18, padding: '0 5px', borderRadius: 999, background: 'var(--danger)', color: '#fff', fontSize: 11, fontWeight: 700, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1 }}>
               {todoTotal > 99 ? '99+' : todoTotal}
@@ -119,14 +119,14 @@ export default async function AdminHomePage() {
         {todoTotal === 0 ? (
           <div style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '16px 18px' }}>
             <CheckCircle2 size={17} style={{ color: 'var(--success)', flexShrink: 0 }} />
-            <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>지금 처리할 대기 작업이 없어요. 깔끔합니다 👍</span>
+            <span style={{ fontSize: 14, color: 'var(--text-secondary)' }}>지금 처리할 대기 작업이 없어요. 깔끔합니다 👍</span>
           </div>
         ) : (
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, padding: '14px 18px' }}>
             {todos.map((t) => (
               <Link key={`${t.label}-${t.sub}`} href={t.href} className="homeCard"
                 style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', borderRadius: 999, border: '1px solid var(--border)', background: 'var(--bg-raised)', textDecoration: 'none' }}>
-                <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>{t.label} {t.sub}</span>
+                <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)' }}>{t.label} {t.sub}</span>
                 <span style={{ minWidth: 18, height: 18, padding: '0 6px', borderRadius: 999, background: 'var(--accent)', color: '#fff', fontSize: 11, fontWeight: 700, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1 }}>{t.n}</span>
               </Link>
             ))}
@@ -136,7 +136,7 @@ export default async function AdminHomePage() {
 
       {GROUPS.map((g, gi) => (
         <section key={g.title} className="homeRise" style={{ marginBottom: 26, animationDelay: `${0.05 + gi * 0.06}s` }}>
-          <h2 style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '0 0 13px', fontSize: 13, fontWeight: 700, color: 'var(--text-secondary)', letterSpacing: '0.01em' }}>
+          <h2 style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '0 0 13px', fontSize: 14, fontWeight: 700, color: 'var(--text-secondary)', letterSpacing: '0.01em' }}>
             <span style={{ display: 'inline-flex', width: 4, height: 14, borderRadius: 2, background: 'var(--accent)' }} />
             {g.title}
           </h2>
@@ -154,7 +154,7 @@ export default async function AdminHomePage() {
                     <Icon size={21} style={{ color: 'var(--accent)' }} />
                   </span>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <span style={{ fontSize: 18, fontWeight: 700, color: 'var(--text)' }}>{f.label}</span>
+                    <span style={{ fontSize: 20, fontWeight: 700, color: 'var(--text)' }}>{f.label}</span>
                     <p style={cardDesc}>{f.desc}</p>
                   </div>
                   <ChevronRight size={18} className="homeArrow" style={{ flexShrink: 0 }} />

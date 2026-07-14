@@ -27,20 +27,20 @@ function formatCollectedDate(dateKey: string): string {
 function TrendArrow({ trend }: { trend: -1 | 0 | 1 }) {
   if (trend > 0) {
     return (
-      <span style={{ fontSize: 12, fontWeight: 600, color: "var(--success)" }} title="상승">
+      <span style={{ fontSize: 14, fontWeight: 600, color: "var(--success)" }} title="상승">
         ↑
       </span>
     );
   }
   if (trend < 0) {
     return (
-      <span style={{ fontSize: 12, fontWeight: 600, color: "var(--danger)" }} title="하락">
+      <span style={{ fontSize: 14, fontWeight: 600, color: "var(--danger)" }} title="하락">
         ↓
       </span>
     );
   }
   return (
-    <span style={{ fontSize: 12, fontWeight: 600, color: "var(--text-secondary)" }} title="변동 없음">
+    <span style={{ fontSize: 14, fontWeight: 600, color: "var(--text-secondary)" }} title="변동 없음">
       —
     </span>
   );
@@ -166,12 +166,12 @@ export default function PlaceDashboardPage() {
           return (
             <div style={{ marginBottom: 12, display: "flex", flexDirection: "column", gap: 2 }}>
               {latestText && (
-                <p style={{ margin: 0, fontSize: 12, color: "var(--text-muted)" }}>
+                <p style={{ margin: 0, fontSize: 14, color: "var(--text-muted)" }}>
                   최신 수집 날짜: {latestText}
                 </p>
               )}
               {baselineText && (
-                <p style={{ margin: 0, fontSize: 12, color: "var(--text-muted)" }}>
+                <p style={{ margin: 0, fontSize: 14, color: "var(--text-muted)" }}>
                   순위 비교 날짜: {baselineText}
                 </p>
               )}

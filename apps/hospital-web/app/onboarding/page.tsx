@@ -104,7 +104,7 @@ export default function OnboardingPage() {
             <div style={{ height: 3, background: 'var(--border)', borderRadius: 999, overflow: 'hidden' }}>
               <div style={{ height: '100%', width: `${Math.round(progress * 100)}%`, background: 'var(--accent)', transition: 'width .25s' }} />
             </div>
-            <div style={{ fontSize: 12.5, color: 'var(--text-muted)', margin: '10px 0 18px' }}>{hospitalName} · {idx} / {STEPS.length - 1}</div>
+            <div style={{ fontSize: 14, color: 'var(--text-muted)', margin: '10px 0 18px' }}>{hospitalName} · {idx} / {STEPS.length - 1}</div>
           </>
         )}
 
@@ -130,7 +130,7 @@ export default function OnboardingPage() {
               <p style={box.p}>리포트에 들어갈 문구예요. 비워두면 기본 문구가 사용됩니다. (각 줄 최대 15자)</p>
               <input style={box.input} maxLength={15} value={t1} onChange={(e) => setT1(e.target.value)} placeholder={DEFAULT_T1} />
               <input style={box.input} maxLength={15} value={t2} onChange={(e) => setT2(e.target.value)} placeholder={DEFAULT_T2} />
-              <p style={{ fontSize: 11.5, color: 'var(--text-muted)', margin: 0 }}>기본값: “{DEFAULT_T1}” / “{DEFAULT_T2}”</p>
+              <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: 0 }}>기본값: “{DEFAULT_T1}” / “{DEFAULT_T2}”</p>
             </>
           )}
           {step === 'color' && (
@@ -147,9 +147,9 @@ export default function OnboardingPage() {
                 {logoBusy ? '업로드 중…' : logoUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={logoUrl} alt="logo" style={{ maxHeight: 80, maxWidth: '100%' }} />
-                ) : <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>클릭하여 로고 이미지 선택</span>}
+                ) : <span style={{ fontSize: 14, color: 'var(--text-secondary)' }}>클릭하여 로고 이미지 선택</span>}
               </div>
-              {logoUrl && <button type="button" onClick={() => logoInput.current?.click()} style={{ fontSize: 12, color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer' }}>다른 이미지 선택</button>}
+              {logoUrl && <button type="button" onClick={() => logoInput.current?.click()} style={{ fontSize: 14, color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer' }}>다른 이미지 선택</button>}
             </>
           )}
           {step === 'keywords' && (
@@ -172,7 +172,7 @@ export default function OnboardingPage() {
           )}
           {step === 'review' && (
             <><h2 style={box.h}>입력 내용 확인</h2>
-              <div style={{ display: 'grid', gap: 4, fontSize: 13, color: 'var(--text-secondary)' }}>
+              <div style={{ display: 'grid', gap: 4, fontSize: 14, color: 'var(--text-secondary)' }}>
                 <Row k="영문명" v={nameEn} /><Row k="차트" v={CHART_TYPES.find((c) => c.v === chart)?.l ?? '-'} />
                 <Row k="수의사 수" v={vetCount} /><Row k="슬로건" v={`${t1 || DEFAULT_T1} / ${t2 || DEFAULT_T2}`} />
                 <Row k="브랜드색" v={color} /><Row k="로고" v={logoUrl ? '업로드됨' : '없음'} />
@@ -181,7 +181,7 @@ export default function OnboardingPage() {
           )}
         </div>
 
-        {msg && <p style={{ color: 'var(--danger)', fontSize: 13, margin: '12px 0 0' }}>{msg}</p>}
+        {msg && <p style={{ color: 'var(--danger)', fontSize: 14, margin: '12px 0 0' }}>{msg}</p>}
 
         <div style={{ display: 'flex', gap: 10, marginTop: 18 }}>
           {idx > 0 && <button type="button" onClick={() => setIdx((i) => i - 1)} style={box.btnSecondary}>이전</button>}
@@ -208,8 +208,8 @@ const box: Record<string, React.CSSProperties> = {
   card: { width: '100%', maxWidth: 480, background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: 40, boxShadow: '0 1px 3px rgba(0,0,0,0.06)', margin: '16px 0' },
   h: { margin: 0, fontSize: 20, fontWeight: 700, color: 'var(--text)', letterSpacing: '-0.01em' },
   p: { margin: '10px 0 4px', fontSize: 14, color: 'var(--text-secondary)', lineHeight: 1.6 },
-  input: { width: '100%', padding: '11px 12px', fontSize: 15, background: 'var(--bg)', color: 'var(--text)', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', outline: 'none', boxSizing: 'border-box' },
+  input: { width: '100%', padding: '11px 12px', fontSize: 14, background: 'var(--bg)', color: 'var(--text)', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', outline: 'none', boxSizing: 'border-box' },
   btn: { padding: '12px 16px', fontSize: 14, fontWeight: 700, background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: 'var(--radius)', cursor: 'pointer' },
   btnSecondary: { padding: '12px 16px', fontSize: 14, fontWeight: 600, background: 'transparent', color: 'var(--text-secondary)', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', cursor: 'pointer' },
-  addBtn: { padding: '9px', fontSize: 13, fontWeight: 600, color: 'var(--accent)', background: 'var(--bg-subtle)', border: '1px dashed var(--border-strong)', borderRadius: 'var(--radius)', cursor: 'pointer' },
+  addBtn: { padding: '9px', fontSize: 14, fontWeight: 600, color: 'var(--accent)', background: 'var(--bg-subtle)', border: '1px dashed var(--border-strong)', borderRadius: 'var(--radius)', cursor: 'pointer' },
 };

@@ -70,13 +70,14 @@ export function NotificationBell() {
   return (
     <div ref={ref} style={{ position: 'relative' }}>
       <button
+        className="hospIconBtn"
         onClick={() => { setOpen((o) => !o); if (!open) void load(); }}
         title="알림"
         style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', width: 30, height: 30, borderRadius: 'var(--radius)', color: 'var(--text-muted)', background: 'transparent', border: 'none', cursor: 'pointer' }}
       >
         <Bell size={16} />
         {unread > 0 && (
-          <span style={{ position: 'absolute', top: -2, right: -2, minWidth: 16, height: 16, padding: '0 4px', borderRadius: 999, background: 'var(--danger)', color: '#fff', fontSize: 10, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1 }}>
+          <span style={{ position: 'absolute', top: -2, right: -2, minWidth: 16, height: 16, padding: '0 4px', borderRadius: 999, background: 'var(--danger)', color: '#fff', fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1 }}>
             {unread > 99 ? '99+' : unread}
           </span>
         )}
@@ -86,20 +87,20 @@ export function NotificationBell() {
         <div style={{ position: 'absolute', top: 38, right: 0, width: 340, maxHeight: 440, display: 'flex', flexDirection: 'column', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', boxShadow: '0 8px 28px rgba(0,0,0,0.16)', overflow: 'hidden', zIndex: 100 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 14px', borderBottom: '1px solid var(--border)' }}>
             <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>알림</span>
-            {unread > 0 && <button type="button" onClick={() => void markAll()} style={{ fontSize: 12, color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer' }}>모두 읽음</button>}
+            {unread > 0 && <button type="button" onClick={() => void markAll()} style={{ fontSize: 14, color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer' }}>모두 읽음</button>}
           </div>
           <div style={{ overflowY: 'auto' }}>
             {items.length === 0 ? (
-              <p style={{ margin: 0, padding: '28px 14px', fontSize: 13, color: 'var(--text-muted)', textAlign: 'center' }}>알림이 없습니다.</p>
+              <p style={{ margin: 0, padding: '28px 14px', fontSize: 14, color: 'var(--text-muted)', textAlign: 'center' }}>알림이 없습니다.</p>
             ) : (
               items.map((n) => (
-                <button key={n.id} type="button" onClick={() => void onClick(n)}
+                <button key={n.id} type="button" className="hospBtnFree" onClick={() => void onClick(n)}
                   style={{ display: 'block', width: '100%', textAlign: 'left', padding: '11px 14px', border: 'none', borderBottom: '1px solid var(--border)', background: n.read ? 'transparent' : 'var(--accent-subtle)', cursor: 'pointer' }}>
                   <div style={{ display: 'flex', gap: 6, alignItems: 'baseline' }}>
-                    <span style={{ flex: 1, minWidth: 0, fontSize: 13, fontWeight: n.read ? 500 : 700, color: 'var(--text)' }}>{n.title}</span>
+                    <span style={{ flex: 1, minWidth: 0, fontSize: 14, fontWeight: n.read ? 500 : 700, color: 'var(--text)' }}>{n.title}</span>
                     <span style={{ flexShrink: 0, fontSize: 11, color: 'var(--text-muted)' }}>{ago(n.created_at)}</span>
                   </div>
-                  {n.body && <div style={{ marginTop: 3, fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.4 }}>{n.body}</div>}
+                  {n.body && <div style={{ marginTop: 3, fontSize: 14, color: 'var(--text-secondary)', lineHeight: 1.4 }}>{n.body}</div>}
                 </button>
               ))
             )}

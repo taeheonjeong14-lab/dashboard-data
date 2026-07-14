@@ -23,6 +23,20 @@
   --radius-lg: 16px;
   --sidebar-width: 210px;
   --topbar-height: 44px;
+
+  /* ── 타이포 3레벨 (admin-web 과 동일) ─────────────────────────────
+     화면마다 11/11.5/12/12.5/13/13.5 처럼 눈에 띄지도 않는 값이 흩어져 통일성이 깨졌다.
+     앞으로는 이 셋만 쓴다(인라인 fontSize 하드코딩 금지).
+       본문(fs-body)  — 기본 텍스트·입력값·목록 행·버튼 라벨
+       보조(fs-sub)   — 캡션·배지·부가 설명·표 헤더
+       제목(fs-title) — 페이지·모달 제목 (섹션 제목은 본문 + 굵게) */
+  --fs-body: 14px;
+  --fs-sub: 11px;
+  --fs-title: 20px;
+
+  /* 버튼 — 높이 하나로 통일(본문 14px + 패딩 6px 12px → 33px). */
+  --btn-height: 33px;
+  --btn-padding-x: 12px;
 }
 
 .dark {
@@ -54,9 +68,30 @@ body {
   color: var(--text);
   font-family: 'Pretendard', system-ui, -apple-system, sans-serif;
   margin: 0;
-  font-size: 14px;
+  font-size: var(--fs-body);
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
+}
+
+/* ── 버튼 높이 통일 (로그인 후 병원 화면 = .hospitalApp 안) ──────────────
+   상단바 로그아웃 버튼과 같은 조합(패딩 6px 12px + 본문 14px + line-height 1.5 → 33px).
+   화면마다 인라인 style 로 높이를 제각각 주고 있어 !important 로 눌러야 실제로 먹는다.
+   목록 행·탭처럼 '버튼 모양이 아닌' 버튼은 .hospBtnFree 로 빠져나간다. */
+.hospitalApp button:not(.hospBtnFree),
+.hospitalApp a.hospBtn {
+  padding: 6px 12px !important;
+  font-size: 14px !important;
+  line-height: 1.5 !important;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+/* 아이콘 전용(정사각) 버튼은 좌우 패딩을 줄인다 — 라벨이 없어 12px 는 과하다. */
+.hospitalApp button.hospIconBtn {
+  padding: 6px !important;
 }
 
 a {

@@ -53,7 +53,7 @@ function RankChartCard({
       <div style={{ display: "flex", gap: 16, alignItems: "flex-start", flexWrap: "wrap" }}>
         {/* 좌: 키워드 선택 */}
         <div style={{ width: 170, flexShrink: 0, display: "flex", flexDirection: "column", gap: 6 }}>
-          <span style={{ fontSize: 12, fontWeight: 600, color: "var(--text-secondary)" }}>키워드</span>
+          <span style={{ fontSize: 14, fontWeight: 600, color: "var(--text-secondary)" }}>키워드</span>
           {series.keywords.length > 0 ? (
             <select value={kw} onChange={(e) => setKeyword(e.target.value)} style={{ ...selectStyle, width: "100%", maxWidth: "100%" }}>
               {series.keywords.map((k) => (
@@ -61,7 +61,7 @@ function RankChartCard({
               ))}
             </select>
           ) : (
-            <span style={{ fontSize: 12, color: "var(--text-muted)" }}>키워드 없음</span>
+            <span style={{ fontSize: 14, color: "var(--text-muted)" }}>키워드 없음</span>
           )}
         </div>
         {/* 우: 그래프(폭 축소) */}
@@ -91,7 +91,7 @@ function RankChartCard({
                     const sec = dk && p ? p[`${dk}_section`] : undefined;
                     return [`${value}위${sec ? ` · ${sec}` : ""}`, name];
                   }}
-                  contentStyle={{ fontSize: 12 }}
+                  contentStyle={{ fontSize: 14 }}
                 />
                 <Legend wrapperStyle={{ fontSize: 11 }} />
                 {defs.map((d) => (
@@ -175,7 +175,7 @@ export default function CompetitorAnalysisPage() {
     <div style={{ display: "flex", flexDirection: "column", gap: 28 }}>
       <div>
         <h1 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: "var(--text)" }}>경쟁병원 분석</h1>
-        <p style={{ margin: "4px 0 0", fontSize: 13, color: "var(--text-secondary)" }}>
+        <p style={{ margin: "4px 0 0", fontSize: 14, color: "var(--text-secondary)" }}>
           우리 병원과 경쟁 병원의 검색 노출 순위·리뷰 추이를 비교합니다.
           {competitors.length === 0 ? " (관리자에서 경쟁 병원을 등록하면 비교 항목이 추가됩니다.)" : ""}
         </p>
@@ -196,7 +196,7 @@ export default function CompetitorAnalysisPage() {
               <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
               <XAxis dataKey="month" tick={{ fontSize: 11 }} tickFormatter={(m: string) => m.slice(2)} />
               <YAxis tick={{ fontSize: 11 }} width={36} allowDecimals={false} />
-              <Tooltip contentStyle={{ fontSize: 12 }} />
+              <Tooltip contentStyle={{ fontSize: 14 }} />
               <Legend wrapperStyle={{ fontSize: 11 }} />
               {reviewDefs.map((d) => (
                 <Bar key={d.key} dataKey={d.key} name={d.name} fill={d.color} />
@@ -215,6 +215,6 @@ export default function CompetitorAnalysisPage() {
 // 경영 대시보드 컨셉: 흰 카드 배경 없이 페이지에 바로 — 섹션 간 간격(gap)으로만 구분.
 const card: React.CSSProperties = { padding: 0 };
 const selectStyle: React.CSSProperties = {
-  padding: "6px 2px", fontSize: 13, borderRadius: 0, border: "none", borderBottom: "1px solid var(--border-strong)",
+  padding: "6px 2px", fontSize: 14, borderRadius: 0, border: "none", borderBottom: "1px solid var(--border-strong)",
   background: "transparent", color: "var(--text)", outline: "none", maxWidth: 240, fontFamily: "inherit", cursor: "pointer",
 };

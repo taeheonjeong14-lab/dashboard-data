@@ -45,7 +45,7 @@ function Dot({ light }: { light: Light }) {
 
 function LightChip({ axis, light }: { axis: string; light: Light }) {
   return (
-    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '5px 11px', borderRadius: 999, border: `1px solid ${LIGHT_COLOR[light]}`, background: `${LIGHT_COLOR[light]}14`, fontSize: 13, fontWeight: 700, color: LIGHT_COLOR[light] }}>
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '5px 11px', borderRadius: 999, border: `1px solid ${LIGHT_COLOR[light]}`, background: `${LIGHT_COLOR[light]}14`, fontSize: 14, fontWeight: 700, color: LIGHT_COLOR[light] }}>
       <Dot light={light} />
       {axis} {lightLabel(light)}
     </span>
@@ -63,7 +63,7 @@ function Field({ label, children, valueStyle }: { label: string; children: React
   return (
     <>
       <span style={fieldLabelStyle}>{label}</span>
-      <div style={{ fontSize: 13, lineHeight: 1.55, color: 'var(--text)', ...valueStyle }}>{children}</div>
+      <div style={{ fontSize: 14, lineHeight: 1.55, color: 'var(--text)', ...valueStyle }}>{children}</div>
     </>
   );
 }
@@ -94,7 +94,7 @@ function FindingCard({ f }: { f: ReviewerFinding & Partial<Pick<Finding, 'models
       {/* 헤더: 심각도 · 항목 · 지적한 모델 */}
       <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap', marginBottom: 9 }}>
         <span style={badge(color)}>{SEV_LABEL[f.severity] ?? f.severity}</span>
-        <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-secondary)' }}>{item ? item.label : f.rubricId}</span>
+        <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-secondary)' }}>{item ? item.label : f.rubricId}</span>
         <span style={{ display: 'inline-flex', gap: 4, marginLeft: 'auto', flexWrap: 'wrap' }}>
           <ModelChips models={f.models} />
         </span>
@@ -120,8 +120,8 @@ function MetricStrip({ metrics }: { metrics: SeoMetric[] }) {
       {metrics.map((m) => (
         <div key={m.key} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '5px 10px', borderRadius: 8, border: '1px solid var(--border)', background: '#fff' }}>
           <span style={{ width: 7, height: 7, borderRadius: 999, background: STATUS_COLOR[m.status] }} />
-          <span style={{ fontSize: 13, color: 'var(--text-secondary)', fontWeight: 600 }}>{m.label}</span>
-          <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>{m.value}</span>
+          <span style={{ fontSize: 14, color: 'var(--text-secondary)', fontWeight: 600 }}>{m.label}</span>
+          <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>{m.value}</span>
           <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>/ {m.target}</span>
         </div>
       ))}
@@ -138,7 +138,7 @@ function ModelBreakdown({ reviewers, axis }: { reviewers: ReviewerBreakdown[]; a
   if (total === 0) return null;
   return (
     <div style={{ marginTop: 10 }}>
-      <button type="button" onClick={() => setOpen((v) => !v)} style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer', padding: '4px 0' }}>
+      <button type="button" onClick={() => setOpen((v) => !v)} style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer', padding: '4px 0' }}>
         모델별 상세 {open ? '▾' : '▸'}
       </button>
       {open ? (
@@ -153,7 +153,7 @@ function ModelBreakdown({ reviewers, axis }: { reviewers: ReviewerBreakdown[]; a
                 {items.length ? (
                   <div style={{ display: 'grid', gap: 8 }}>{items.map((f, i) => <FindingCard key={i} f={f} />)}</div>
                 ) : (
-                  <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>지적 없음</div>
+                  <div style={{ fontSize: 14, color: 'var(--text-muted)' }}>지적 없음</div>
                 )}
               </div>
             );
@@ -172,37 +172,37 @@ function CriteriaDrawer({ onClose }: { onClose: () => void }) {
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.4)', zIndex: 200, display: 'flex', justifyContent: 'flex-end' }} onClick={onClose}>
       <div style={{ width: 'min(460px, 94vw)', height: '100%', background: 'var(--bg)', overflowY: 'auto', padding: '18px 20px', boxShadow: '-8px 0 30px rgba(0,0,0,0.15)' }} onClick={(e) => e.stopPropagation()}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-          <h3 style={{ margin: 0, fontSize: 18, fontWeight: 800 }}>평가 기준</h3>
-          <button type="button" onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 18, cursor: 'pointer', color: 'var(--text-muted)' }}>×</button>
+          <h3 style={{ margin: 0, fontSize: 20, fontWeight: 800 }}>평가 기준</h3>
+          <button type="button" onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: 'var(--text-muted)' }}>×</button>
         </div>
-        <p style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.6, marginTop: 0 }}>
+        <p style={{ fontSize: 14, color: 'var(--text-secondary)', lineHeight: 1.6, marginTop: 0 }}>
           Claude·Grok·Gemini 3개 모델이 각각 검수한 뒤 공통된 지적을 취합합니다(합의도 3/3·2/3·1/3). 단일 모델만 지적한 건 &apos;참고&apos;로 분리됩니다.
         </p>
 
-        <h4 style={{ fontSize: 13, fontWeight: 800, margin: '14px 0 6px' }}>신호등</h4>
-        <ul style={{ fontSize: 13, color: 'var(--text)', lineHeight: 1.6, paddingLeft: 18, margin: 0, listStyleType: 'disc' }}>
+        <h4 style={{ fontSize: 14, fontWeight: 800, margin: '14px 0 6px' }}>신호등</h4>
+        <ul style={{ fontSize: 14, color: 'var(--text)', lineHeight: 1.6, paddingLeft: 18, margin: 0, listStyleType: 'disc' }}>
           <li><b style={{ color: LIGHT_COLOR.red }}>미흡(빨강)</b> — 의학: 합의된 &apos;틀린 내용&apos;(사실·의학·안전 오류) → 게시 전 수정. SEO: 치명 지표(분량 급부족·이미지 0·제목 키워드 없음) 등.</li>
           <li><b style={{ color: LIGHT_COLOR.yellow }}>주의(노랑)</b> — 다듬을 것(과장·오해·불명확).</li>
           <li><b style={{ color: LIGHT_COLOR.green }}>양호(초록)</b> — 지적 없음.</li>
         </ul>
 
-        <h4 style={{ fontSize: 13, fontWeight: 800, margin: '14px 0 6px' }}>의학 심각도</h4>
-        <ul style={{ fontSize: 13, color: 'var(--text)', lineHeight: 1.6, paddingLeft: 18, margin: 0, listStyleType: 'disc' }}>
+        <h4 style={{ fontSize: 14, fontWeight: 800, margin: '14px 0 6px' }}>의학 심각도</h4>
+        <ul style={{ fontSize: 14, color: 'var(--text)', lineHeight: 1.6, paddingLeft: 18, margin: 0, listStyleType: 'disc' }}>
           {sevRow('high')}{sevRow('medium')}{sevRow('low')}
         </ul>
 
-        <h4 style={{ fontSize: 13, fontWeight: 800, margin: '14px 0 6px' }}>의학 항목</h4>
-        <ul style={{ fontSize: 13, color: 'var(--text)', lineHeight: 1.6, paddingLeft: 18, margin: 0, listStyleType: 'disc' }}>
+        <h4 style={{ fontSize: 14, fontWeight: 800, margin: '14px 0 6px' }}>의학 항목</h4>
+        <ul style={{ fontSize: 14, color: 'var(--text)', lineHeight: 1.6, paddingLeft: 18, margin: 0, listStyleType: 'disc' }}>
           {MEDICAL_ITEMS.map((m) => <li key={m.id} style={{ marginBottom: 3 }}><b>{m.label}</b> — {m.shortDesc}</li>)}
         </ul>
 
-        <h4 style={{ fontSize: 13, fontWeight: 800, margin: '14px 0 6px' }}>네이버 SEO 항목</h4>
-        <ul style={{ fontSize: 13, color: 'var(--text)', lineHeight: 1.6, paddingLeft: 18, margin: 0, listStyleType: 'disc' }}>
+        <h4 style={{ fontSize: 14, fontWeight: 800, margin: '14px 0 6px' }}>네이버 SEO 항목</h4>
+        <ul style={{ fontSize: 14, color: 'var(--text)', lineHeight: 1.6, paddingLeft: 18, margin: 0, listStyleType: 'disc' }}>
           {SEO_ITEMS.map((s) => <li key={s.id} style={{ marginBottom: 3 }}><b>{s.label}</b> — {s.shortDesc}</li>)}
         </ul>
 
-        <h4 style={{ fontSize: 13, fontWeight: 800, margin: '14px 0 6px' }}>결정적 목표값</h4>
-        <ul style={{ fontSize: 13, color: 'var(--text)', lineHeight: 1.6, paddingLeft: 18, margin: 0, listStyleType: 'disc' }}>
+        <h4 style={{ fontSize: 14, fontWeight: 800, margin: '14px 0 6px' }}>결정적 목표값</h4>
+        <ul style={{ fontSize: 14, color: 'var(--text)', lineHeight: 1.6, paddingLeft: 18, margin: 0, listStyleType: 'disc' }}>
           {METRIC_SPECS.map((m) => <li key={m.key} style={{ marginBottom: 3 }}><b>{m.label}</b>: {m.target}</li>)}
         </ul>
       </div>
@@ -212,14 +212,14 @@ function CriteriaDrawer({ onClose }: { onClose: () => void }) {
 
 function SectionHeader({ light, title }: { light: Light; title: string }) {
   return (
-    <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 8, display: 'flex', gap: 8, alignItems: 'center' }}>
+    <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 8, display: 'flex', gap: 8, alignItems: 'center' }}>
       <Dot light={light} /> {title}
     </div>
   );
 }
 
 function ConsensusList({ items }: { items: ReviewerFinding[] }) {
-  if (items.length === 0) return <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>공통된 지적 없음.</div>;
+  if (items.length === 0) return <div style={{ fontSize: 14, color: 'var(--text-muted)' }}>공통된 지적 없음.</div>;
   return <div style={{ display: 'grid', gap: 8 }}>{items.map((f, i) => <FindingCard key={i} f={f} />)}</div>;
 }
 
@@ -252,13 +252,13 @@ function SummaryBar({ review, onCriteria }: { review: BlogReview; onCriteria: ()
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
           <LightChip axis="의학" light={review.medical.light} />
           <LightChip axis="네이버" light={review.seo.light} />
-          {review.gated ? <span style={{ ...badge('#e5484d'), fontSize: 13, padding: '4px 10px' }}>⚠ 게시 전 수정 필요</span> : null}
+          {review.gated ? <span style={{ ...badge('#e5484d'), fontSize: 14, padding: '4px 10px' }}>⚠ 게시 전 수정 필요</span> : null}
         </div>
-        <button type="button" onClick={onCriteria} style={{ fontSize: 13, fontWeight: 600, padding: '5px 11px', borderRadius: 8, border: '1px solid var(--border-strong)', background: '#fff', color: 'var(--text-secondary)', cursor: 'pointer' }}>
+        <button type="button" onClick={onCriteria} style={{ fontSize: 14, fontWeight: 600, padding: '5px 11px', borderRadius: 8, border: '1px solid var(--border-strong)', background: '#fff', color: 'var(--text-secondary)', cursor: 'pointer' }}>
           평가 기준 ⓘ
         </button>
       </div>
-      {review.summary ? <div style={{ fontSize: 13, color: 'var(--text)', marginTop: 10, lineHeight: 1.5 }}>{review.summary}</div> : null}
+      {review.summary ? <div style={{ fontSize: 14, color: 'var(--text)', marginTop: 10, lineHeight: 1.5 }}>{review.summary}</div> : null}
       {review.modelsUsed?.length ? <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6 }}>사용 모델: {review.modelsUsed.join(' · ')}</div> : null}
     </div>
   );
@@ -395,17 +395,17 @@ export function AnnotatedBlogReview({ review, title, bodyText }: { review: BlogR
       <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) 320px', gap: 18, alignItems: 'start' }}>
         {/* 본문 + 의학 하이라이트 */}
         <div>
-          <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 8, display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
+          <div style={{ fontSize: 14, color: 'var(--text-muted)', marginBottom: 8, display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
             {legendDot('#e5484d', '높음')}{legendDot('#f5a623', '중간')}{legendDot('#8a8f98', '낮음')}
             <span>· 하이라이트에 커서를 올리면 상세</span>
           </div>
-          {title ? <div style={{ fontSize: 18, fontWeight: 800, marginBottom: 10 }}>{title}</div> : null}
-          <div style={{ ...card, whiteSpace: 'pre-wrap', wordBreak: 'break-word', lineHeight: 1.95, fontSize: 13, color: 'var(--text)' }}>
+          {title ? <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 10 }}>{title}</div> : null}
+          <div style={{ ...card, whiteSpace: 'pre-wrap', wordBreak: 'break-word', lineHeight: 1.95, fontSize: 14, color: 'var(--text)' }}>
             {nodes.length ? nodes : <span style={{ color: 'var(--text-muted)' }}>본문이 비어 있습니다.</span>}
           </div>
           {unmatched.length ? (
             <div style={{ marginTop: 12 }}>
-              <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--text-muted)', marginBottom: 6 }}>본문에서 위치를 특정하지 못한 지적</div>
+              <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text-muted)', marginBottom: 6 }}>본문에서 위치를 특정하지 못한 지적</div>
               <div style={{ display: 'grid', gap: 8 }}>{unmatched.map((f, i) => <FindingCard key={i} f={f} />)}</div>
             </div>
           ) : null}
@@ -413,12 +413,12 @@ export function AnnotatedBlogReview({ review, title, bodyText }: { review: BlogR
 
         {/* 우측 네이버 SEO 패널 */}
         <aside style={{ display: 'grid', gap: 12, position: 'sticky', top: 8 }}>
-          <div style={{ fontSize: 13, fontWeight: 800, display: 'flex', gap: 8, alignItems: 'center' }}>
+          <div style={{ fontSize: 14, fontWeight: 800, display: 'flex', gap: 8, alignItems: 'center' }}>
             <Dot light={review.seo.light} /> 네이버 최적화
           </div>
           <div style={{ ...card, display: 'grid', gap: 7 }}>
             {review.seo.metrics.map((m) => (
-              <div key={m.key} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, fontSize: 13 }}>
+              <div key={m.key} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, fontSize: 14 }}>
                 <span style={{ color: 'var(--text-secondary)' }}>{m.label}</span>
                 <span><b style={{ color: STATUS_COLOR[m.status] }}>{m.value}</b> <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>/ {m.target}</span></span>
               </div>
@@ -427,7 +427,7 @@ export function AnnotatedBlogReview({ review, title, bodyText }: { review: BlogR
           {seoAll.length ? (
             <ul style={{ margin: 0, paddingLeft: 16, listStyleType: 'disc', display: 'grid', gap: 7 }}>
               {seoAll.map((f, i) => (
-                <li key={i} style={{ fontSize: 13, lineHeight: 1.5 }}>
+                <li key={i} style={{ fontSize: 14, lineHeight: 1.5 }}>
                   <span style={{ color: sevColor(f.severity), fontWeight: 700 }}>{f.issue}</span>
                   {f.suggestion ? <span style={{ color: 'var(--text-muted)' }}> → {f.suggestion}</span> : null}
                   <span style={{ display: 'inline-flex', gap: 4, marginLeft: 6, verticalAlign: 'middle' }}>
@@ -436,7 +436,7 @@ export function AnnotatedBlogReview({ review, title, bodyText }: { review: BlogR
                 </li>
               ))}
             </ul>
-          ) : <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>지적 없음.</div>}
+          ) : <div style={{ fontSize: 14, color: 'var(--text-muted)' }}>지적 없음.</div>}
         </aside>
       </div>
 

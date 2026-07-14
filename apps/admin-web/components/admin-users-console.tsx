@@ -35,7 +35,7 @@ const fieldLabelStyle: CSSProperties = {
 const fieldStyle: CSSProperties = {
   width: '100%',
   padding: '5px 0',
-  fontSize: 13,
+  fontSize: 14,
   lineHeight: 1.45,
   background: 'transparent',
   border: 0,
@@ -61,7 +61,7 @@ function DataCard({ title, desc, children, padding }: { title?: string; desc?: s
   const hasHeader = !!(title || desc);
   return (
     <div style={{ background: '#ffffff', border: '1px solid var(--border)', borderRadius: 10, padding: padding ?? '14px 16px' }}>
-      {title ? <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>{title}</div> : null}
+      {title ? <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>{title}</div> : null}
       {desc ? <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{desc}</div> : null}
       <div style={{ display: 'grid', gap: 12, marginTop: hasHeader ? 12 : 0 }}>{children}</div>
     </div>
@@ -71,7 +71,7 @@ function DataCard({ title, desc, children, padding }: { title?: string; desc?: s
 // Buttons
 const btnBase: CSSProperties = {
   padding: '5px 10px',
-  fontSize: 13,
+  fontSize: 14,
   fontWeight: 600,
   borderRadius: 6,
   cursor: 'pointer',
@@ -326,13 +326,13 @@ export default function AdminUsersConsole() {
       {/* 페이지 헤더 */}
       <div style={{ marginBottom: 16, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
         <div style={{ minWidth: 0 }}>
-          <h1 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: 'var(--text)' }}>사용자 관리</h1>
-          <p style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--text-secondary)' }}>
+          <h1 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: 'var(--text)' }}>사용자 관리</h1>
+          <p style={{ margin: '4px 0 0', fontSize: 14, color: 'var(--text-secondary)' }}>
             전체 {totalCount}명{pendingCount > 0 ? ` · 승인 대기 ${pendingCount}명` : ''} — 사용자 정보·소속 병원·토큰·승인 상태를 관리합니다.
           </p>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
-          <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>{loading ? '처리 중…' : message}</span>
+          <span style={{ fontSize: 14, color: 'var(--text-muted)' }}>{loading ? '처리 중…' : message}</span>
           <button type="button" style={btnSecondary} onClick={() => void refresh()} disabled={loading}>
             새로고침
           </button>
@@ -349,7 +349,7 @@ export default function AdminUsersConsole() {
             placeholder="이름·이메일·전화·병원 검색"
             aria-label="사용자 검색"
             disabled={loading}
-            style={{ width: '100%', padding: '8px 12px', fontSize: 13, border: '1px solid var(--border-strong)', borderRadius: 8, background: '#fff', color: 'var(--text)', outline: 'none', boxSizing: 'border-box', marginBottom: 10 }}
+            style={{ width: '100%', padding: '8px 12px', fontSize: 14, border: '1px solid var(--border-strong)', borderRadius: 8, background: '#fff', color: 'var(--text)', outline: 'none', boxSizing: 'border-box', marginBottom: 10 }}
           />
           <div style={{ border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden', background: '#fff' }}>
             {filtered.map((u, i) => {
@@ -372,7 +372,7 @@ export default function AdminUsersConsole() {
                   }}
                 >
                   <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-                    <span style={{ fontWeight: 600, fontSize: 13, color: active ? 'var(--accent)' : 'var(--text)' }}>{u.name || '(이름 없음)'}</span>
+                    <span style={{ fontWeight: 600, fontSize: 14, color: active ? 'var(--accent)' : 'var(--text)' }}>{u.name || '(이름 없음)'}</span>
                     <StatusBadge user={u} />
                   </span>
                   <span style={{ display: 'block', marginTop: 3, fontSize: 11, color: 'var(--text-muted)' }}>{u.email ?? '—'}</span>
@@ -380,7 +380,7 @@ export default function AdminUsersConsole() {
               );
             })}
             {filtered.length === 0 ? (
-              <div style={{ padding: '40px 14px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>결과가 없습니다.</div>
+              <div style={{ padding: '40px 14px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 14 }}>결과가 없습니다.</div>
             ) : null}
           </div>
         </div>
@@ -391,8 +391,8 @@ export default function AdminUsersConsole() {
             <div style={{ display: 'grid', gap: 12 }}>
               {/* 선택 사용자 헤더 */}
               <div>
-                <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--text)' }}>{selectedUser.name || '(이름 없음)'}</div>
-                <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 2 }}>
+                <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--text)' }}>{selectedUser.name || '(이름 없음)'}</div>
+                <div style={{ fontSize: 14, color: 'var(--text-muted)', marginTop: 2 }}>
                   {selectedUser.email ?? '이메일 없음'} · 가입 {formatDate(selectedUser.createdAt)}
                 </div>
               </div>
@@ -438,7 +438,7 @@ export default function AdminUsersConsole() {
                     <input value={editForm.phone} onChange={(e) => setEditForm((f) => ({ ...f, phone: formatPhone(e.target.value) }))} inputMode="numeric" placeholder="01012345678" style={fieldStyle} />
                   </LabeledField>
                 </div>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--text-secondary)', cursor: 'pointer' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, color: 'var(--text-secondary)', cursor: 'pointer' }}>
                   <input
                     type="checkbox"
                     checked={editForm.active}
@@ -483,8 +483,8 @@ export default function AdminUsersConsole() {
           ) : (
             <div style={{ padding: '64px 18px', textAlign: 'center', color: 'var(--text-muted)' }}>
               <div style={{ fontSize: 28, marginBottom: 8 }}>👤</div>
-              <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', marginBottom: 4 }}>선택된 사용자가 없습니다</div>
-              <div style={{ fontSize: 13 }}>좌측 목록에서 사용자를 선택하세요.</div>
+              <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)', marginBottom: 4 }}>선택된 사용자가 없습니다</div>
+              <div style={{ fontSize: 14 }}>좌측 목록에서 사용자를 선택하세요.</div>
             </div>
           )}
         </div>

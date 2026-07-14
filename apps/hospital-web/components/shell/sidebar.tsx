@@ -116,7 +116,7 @@ const styles: Record<string, React.CSSProperties> = {
     gap: '10px',
     padding: '10px 12px',
     borderRadius: 'var(--radius)',
-    fontSize: '13.5px',
+    fontSize: '14px',
     fontWeight: 500,
     textDecoration: 'none',
     color: 'var(--text-secondary)',
@@ -131,7 +131,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   badge: {
     marginLeft: 'auto',
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: 600,
     padding: '1px 6px',
     borderRadius: 999,

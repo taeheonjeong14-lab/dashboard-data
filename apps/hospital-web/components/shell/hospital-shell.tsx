@@ -26,7 +26,8 @@ export function HospitalShell({ children, userName, hospitalName, tokenBalance, 
   return (
     <HospitalProvider userId={userId} hospitalId={hospitalId} isStaff={isStaff}>
       <SessionWatcher />
-      <div style={{ display: 'flex', minHeight: '100vh' }}>
+      {/* .hospitalApp — 버튼 높이/폰트 통일 CSS의 스코프(globals.css). 보호자용 공개 페이지(설문·초진 접수증)는 제외 */}
+      <div className="hospitalApp" style={{ display: 'flex', minHeight: '100vh' }}>
         <TopBar userName={userName} hospitalName={hospitalName} tokenBalance={tokenBalance} isMaster={isMaster} />
         {!isHome && <Sidebar />}
         <div

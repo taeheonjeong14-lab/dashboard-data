@@ -11,9 +11,9 @@ import { AnnotatedBlogReview } from '@/components/admin-blog-review-result';
 
 type Hospital = { id: string; name: string };
 
-const input: CSSProperties = { width: '100%', padding: '8px 11px', fontSize: 13, border: '1px solid var(--border)', borderRadius: 8, background: '#fff', color: 'var(--text)', boxSizing: 'border-box' };
-const label: CSSProperties = { fontSize: 13, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 4, display: 'block' };
-const btnPrimary: CSSProperties = { padding: '9px 16px', fontSize: 13, fontWeight: 700, borderRadius: 8, background: 'var(--accent)', color: '#fff', border: '1px solid var(--accent)', cursor: 'pointer' };
+const input: CSSProperties = { width: '100%', padding: '8px 11px', fontSize: 14, border: '1px solid var(--border)', borderRadius: 8, background: '#fff', color: 'var(--text)', boxSizing: 'border-box' };
+const label: CSSProperties = { fontSize: 14, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 4, display: 'block' };
+const btnPrimary: CSSProperties = { padding: '9px 16px', fontSize: 14, fontWeight: 700, borderRadius: 8, background: 'var(--accent)', color: '#fff', border: '1px solid var(--accent)', cursor: 'pointer' };
 
 export default function AdminBlogReview() {
   const [hospitals, setHospitals] = useState<Hospital[]>([]);
@@ -81,8 +81,8 @@ export default function AdminBlogReview() {
   return (
     <div style={{ padding: '4px 0' }}>
       <div style={{ maxWidth: 980 }}>
-      <h1 style={{ fontSize: 18, fontWeight: 800, margin: '0 0 4px' }}>글 검수</h1>
-      <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: '0 0 16px', lineHeight: 1.5 }}>
+      <h1 style={{ fontSize: 20, fontWeight: 800, margin: '0 0 4px' }}>글 검수</h1>
+      <p style={{ fontSize: 14, color: 'var(--text-secondary)', margin: '0 0 16px', lineHeight: 1.5 }}>
         네이버 블로그 링크를 넣으면 본문을 가져와 <b>의학적 정확성</b>과 <b>네이버 최적화</b>를 검수합니다. Claude·Grok·Gemini 3개 모델의 공통 지적을 취합합니다.
       </p>
 
@@ -128,14 +128,14 @@ export default function AdminBlogReview() {
           </button>
         </div>
 
-        <button type="button" onClick={() => setPaste((v) => !v)} style={{ fontSize: 13, color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', padding: 0 }}>
+        <button type="button" onClick={() => setPaste((v) => !v)} style={{ fontSize: 14, color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', padding: 0 }}>
           {paste ? '← 링크로 검수' : '링크 대신 본문 직접 붙여넣기'}
         </button>
       </div>
 
-      {error ? <div style={{ marginTop: 12, fontSize: 13, color: '#e5484d', background: '#e5484d14', border: '1px solid #e5484d', borderRadius: 8, padding: '9px 12px' }}>{error}</div> : null}
+      {error ? <div style={{ marginTop: 12, fontSize: 14, color: '#e5484d', background: '#e5484d14', border: '1px solid #e5484d', borderRadius: 8, padding: '9px 12px' }}>{error}</div> : null}
 
-      {loading ? <div style={{ marginTop: 16, fontSize: 13, color: 'var(--text-muted)' }}>3개 모델로 검수하고 취합하는 중… (수십 초 걸릴 수 있어요)</div> : null}
+      {loading ? <div style={{ marginTop: 16, fontSize: 14, color: 'var(--text-muted)' }}>3개 모델로 검수하고 취합하는 중… (수십 초 걸릴 수 있어요)</div> : null}
       </div>
 
       {review ? <div style={{ marginTop: 18 }}><AnnotatedBlogReview review={review} title={post.title} bodyText={post.bodyText} /></div> : null}

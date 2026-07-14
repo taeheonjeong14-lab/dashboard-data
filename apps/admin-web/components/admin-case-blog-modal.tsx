@@ -42,11 +42,11 @@ const cardStyle: CSSProperties = {
   textAlign: 'left',
 };
 const btnPrimary: CSSProperties = {
-  padding: '8px 14px', fontSize: 13, fontWeight: 700, borderRadius: 8,
+  padding: '8px 14px', fontSize: 14, fontWeight: 700, borderRadius: 8,
   background: 'var(--accent)', color: '#fff', border: '1px solid var(--accent)', cursor: 'pointer',
 };
 const btnSecondary: CSSProperties = {
-  padding: '8px 14px', fontSize: 13, fontWeight: 600, borderRadius: 8,
+  padding: '8px 14px', fontSize: 14, fontWeight: 600, borderRadius: 8,
   background: '#fff', color: 'var(--text-secondary)', border: '1px solid var(--border-strong)', cursor: 'pointer',
 };
 const btnTiny: CSSProperties = {
@@ -58,7 +58,7 @@ const iconBtn: CSSProperties = { ...btnTiny, padding: '4px 6px', lineHeight: 1, 
 const iconBtnActive: CSSProperties = { ...iconBtn, background: 'var(--bg-subtle)', borderColor: 'var(--text-muted)', color: 'var(--text)' }; // 편집 활성(색 없이 회색 강조)
 const iconBtnDanger: CSSProperties = { ...iconBtn, color: 'var(--danger)' }; // 삭제 — 빨간 X
 // 납작한 보조 버튼(전체 다시 생성 · 이미지 다시 분석 등 헤더용).
-const btnFlat: CSSProperties = { ...btnSecondary, padding: '4px 12px', fontSize: 13, fontWeight: 600 };
+const btnFlat: CSSProperties = { ...btnSecondary, padding: '4px 12px', fontSize: 14, fontWeight: 600 };
 
 // 선 스타일 SVG 아이콘 — stroke=currentColor 라 버튼 색을 따라간다(세련·일관).
 function Icon({ name, size = 14 }: { name: 'edit' | 'check' | 'refresh' | 'x' | 'condense' | 'up' | 'down'; size?: number }) {
@@ -76,7 +76,7 @@ function Icon({ name, size = 14 }: { name: 'edit' | 'check' | 'refresh' | 'x' | 
 }
 const fieldLabel: CSSProperties = { fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', letterSpacing: '-0.01em' };
 const inputStyle: CSSProperties = {
-  width: '100%', padding: '7px 10px', fontSize: 13, lineHeight: 1.5,
+  width: '100%', padding: '7px 10px', fontSize: 14, lineHeight: 1.5,
   border: '1px solid var(--border)', borderRadius: 6, background: '#fff', color: 'var(--text)',
   outline: 'none', boxSizing: 'border-box', resize: 'vertical', wordBreak: 'break-word', whiteSpace: 'pre-wrap',
 };
@@ -94,7 +94,7 @@ const nextStepLabel: CSSProperties = { fontSize: 11, fontWeight: 800, letterSpac
 // 성격 해시태그 칩(선택 on/off): 선택된 것만 accent, 평소엔 회색.
 function hashChip(on: boolean): CSSProperties {
   return {
-    padding: '4px 11px', fontSize: 13, fontWeight: 700, borderRadius: 999, cursor: 'pointer',
+    padding: '4px 11px', fontSize: 14, fontWeight: 700, borderRadius: 999, cursor: 'pointer',
     border: `1px solid ${on ? 'var(--accent)' : 'var(--border)'}`,
     background: on ? 'rgba(49, 130, 246, 0.12)' : '#fff',
     color: on ? 'var(--accent)' : 'var(--text-muted)',
@@ -342,7 +342,7 @@ function LabResultsPanel({ dates, open, onToggle }: { dates: LabDate[]; open: bo
         style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: open ? 8 : 0, background: 'none', border: 'none', padding: 0, width: '100%', textAlign: 'left', cursor: 'pointer' }}
       >
         <span style={{ fontSize: 11, color: 'var(--text-muted)', width: 10 }}>{open ? '▾' : '▸'}</span>
-        <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>검사결과 (PDF 추출)</span>
+        <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>검사결과 (PDF 추출)</span>
       </button>
       {open ? (
       <div style={{ display: 'grid', gap: 10 }}>
@@ -808,8 +808,8 @@ export function CaseBlogButton({
             <div style={{ padding: '16px 20px 0', flexShrink: 0 }}>
               <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
                 <div>
-                  <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: 'var(--text)' }}>진료케이스 작성</h2>
-                  <p style={{ margin: '3px 0 0', fontSize: 13, color: 'var(--text-muted)' }}>
+                  <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: 'var(--text)' }}>진료케이스 작성</h2>
+                  <p style={{ margin: '3px 0 0', fontSize: 14, color: 'var(--text-muted)' }}>
                     인과 흐름 → 아웃라인 → 블로그 글 → 글 검수 → 이미지. 각 단계를 검수·수정한 뒤 다음으로 넘어갑니다.
                   </p>
                 </div>
@@ -820,7 +820,7 @@ export function CaseBlogButton({
                   const active = step === n; const done = step > n;
                   return (
                     <div key={n} style={{
-                      flex: 1, padding: '7px 10px', borderRadius: 8, fontSize: 13, fontWeight: 700, textAlign: 'center',
+                      flex: 1, padding: '7px 10px', borderRadius: 8, fontSize: 14, fontWeight: 700, textAlign: 'center',
                       background: active ? 'var(--accent)' : done ? 'var(--accent-subtle)' : '#fff',
                       color: active ? '#fff' : done ? 'var(--accent)' : 'var(--text-muted)',
                       border: `1px solid ${active || done ? 'var(--accent)' : 'var(--border-strong)'}`,
@@ -829,7 +829,7 @@ export function CaseBlogButton({
                 })}
               </div>
               {error ? (
-                <div style={{ marginTop: 10, padding: '10px 12px', borderRadius: 8, background: 'var(--danger-subtle)', color: 'var(--danger)', fontSize: 13 }}>{error}</div>
+                <div style={{ marginTop: 10, padding: '10px 12px', borderRadius: 8, background: 'var(--danger-subtle)', color: 'var(--danger)', fontSize: 14 }}>{error}</div>
               ) : null}
             </div>
 
@@ -848,7 +848,7 @@ export function CaseBlogButton({
                       style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginBottom: overviewOpen ? 8 : 0, background: 'none', border: 'none', padding: 0, width: '100%', textAlign: 'left', cursor: 'pointer' }}
                     >
                       <span style={{ fontSize: 11, color: 'var(--text-muted)', width: 10 }}>{overviewOpen ? '▾' : '▸'}</span>
-                      <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>케이스 개요 (담당자 작성)</span>
+                      <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>케이스 개요 (담당자 작성)</span>
                       {missingOverview > 0 ? <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--danger)' }}>⚠ 미작성 {missingOverview}</span> : null}
                     </button>
                     {overviewOpen ? (
@@ -859,13 +859,13 @@ export function CaseBlogButton({
                             return (
                               <div key={o.label} style={{ display: 'grid', gap: 2 }}>
                                 <span style={{ fontSize: 11, fontWeight: 700, color: empty ? 'var(--danger)' : 'var(--text-muted)' }}>{o.label}</span>
-                                <span style={{ fontSize: 13, color: empty ? 'var(--danger)' : 'var(--text)', whiteSpace: 'pre-wrap', fontStyle: empty ? 'italic' : 'normal' }}>{empty ? '미작성' : o.value}</span>
+                                <span style={{ fontSize: 14, color: empty ? 'var(--danger)' : 'var(--text)', whiteSpace: 'pre-wrap', fontStyle: empty ? 'italic' : 'normal' }}>{empty ? '미작성' : o.value}</span>
                               </div>
                             );
                           })}
                         </div>
                       ) : (
-                        <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>{genLoading === 1 ? '불러오는 중…' : '케이스 개요 없음'}</div>
+                        <div style={{ fontSize: 14, color: 'var(--text-muted)' }}>{genLoading === 1 ? '불러오는 중…' : '케이스 개요 없음'}</div>
                       )
                     ) : null}
                   </div>
@@ -916,7 +916,7 @@ export function CaseBlogButton({
                   ) : step === 4 ? (
                     reviewLoading ? <Loading text="Claude·Grok·Gemini 3개 모델로 검수하고 취합하는 중…" /> : (
                       review ? <AdminBlogReviewResult review={review} /> : (
-                        <div style={{ padding: '48px 8px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>
+                        <div style={{ padding: '48px 8px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 14 }}>
                           아직 검수 결과가 없습니다. 상단 &apos;다시 검수&apos;를 눌러 검수하세요.
                         </div>
                       )
@@ -966,7 +966,7 @@ export function CaseBlogButton({
 }
 
 function Loading({ text }: { text: string }) {
-  return <div style={{ padding: '48px 8px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>{text}</div>;
+  return <div style={{ padding: '48px 8px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 14 }}>{text}</div>;
 }
 
 function RowTools({ onUp, onDown, onRemove, busy }: { onUp: () => void; onDown: () => void; onRemove: () => void; busy?: boolean }) {
@@ -1018,12 +1018,12 @@ function PhaseCard({ p, caseType, isLast, busy, regenBusy, onUp, onDown, onRemov
             value={p.period}
             onChange={(e) => update({ period: e.target.value })}
             placeholder="날짜 (예: 2026년 02월 17일 (최초 진단일))"
-            style={{ ...inputStyle, flex: 1, fontWeight: 700, fontSize: 13 }}
+            style={{ ...inputStyle, flex: 1, fontWeight: 700, fontSize: 14 }}
           />
         ) : (
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--text)' }}>{p.period || '날짜 미입력'}</div>
-            {p.name ? <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 2 }}>{p.name}</div> : null}
+            <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--text)' }}>{p.period || '날짜 미입력'}</div>
+            {p.name ? <div style={{ fontSize: 14, color: 'var(--text-muted)', marginTop: 2 }}>{p.name}</div> : null}
           </div>
         )}
         <div style={{ display: 'flex', gap: 5, flexShrink: 0, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
@@ -1062,7 +1062,7 @@ function PhaseCard({ p, caseType, isLast, busy, regenBusy, onUp, onDown, onRemov
           <div style={{ display: 'grid', gap: 8 }}>
             <span style={fieldLabel}>무엇을 했나 (행위별)</span>
             {p.actions.length === 0 ? (
-              <div style={{ fontSize: 13, color: 'var(--text-muted)', padding: '6px 2px' }}>행위가 없습니다. 아래에서 추가하세요. (기록 없는 날짜는 비워둬도 됩니다)</div>
+              <div style={{ fontSize: 14, color: 'var(--text-muted)', padding: '6px 2px' }}>행위가 없습니다. 아래에서 추가하세요. (기록 없는 날짜는 비워둬도 됩니다)</div>
             ) : (
               p.actions.map((a, ai) => (
                 <div key={ai} style={actionBox}>
@@ -1146,13 +1146,13 @@ function PhaseCard({ p, caseType, isLast, busy, regenBusy, onUp, onDown, onRemov
         <>
           {/* 행위별(읽기 전용) — 성격 해시태그를 각 행위 카드에 표시 */}
           {p.actions.length === 0 ? (
-            <div style={{ fontSize: 13, color: 'var(--text-muted)', padding: '4px 2px' }}>기록된 행위가 없는 날짜입니다.</div>
+            <div style={{ fontSize: 14, color: 'var(--text-muted)', padding: '4px 2px' }}>기록된 행위가 없는 날짜입니다.</div>
           ) : (
             <div style={{ display: 'grid', gap: 8 }}>
               {p.actions.map((a, ai) => (
                 <div key={ai} style={actionBox}>
                   <div style={{ display: 'flex', alignItems: 'baseline', flexWrap: 'wrap', gap: 6 }}>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: actionWhatColor }}>{a.what || '—'}</div>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: actionWhatColor }}>{a.what || '—'}</div>
                     {ACTION_TYPE_ORDER.filter((t) => (a.types ?? []).includes(t)).map((t) => (
                       <span key={t} style={tagSticker}>#{ACTION_TYPE_LABEL[t]}</span>
                     ))}
@@ -1161,17 +1161,17 @@ function PhaseCard({ p, caseType, isLast, busy, regenBusy, onUp, onDown, onRemov
                     ) : null}
                   </div>
                   {a.why.trim() ? (
-                    <div style={{ display: 'flex', gap: 6, marginTop: 6, fontSize: 13, color: 'var(--text-secondary)' }}>
+                    <div style={{ display: 'flex', gap: 6, marginTop: 6, fontSize: 14, color: 'var(--text-secondary)' }}>
                       <span style={viewMiniLabel}>목적</span><span style={{ whiteSpace: 'pre-wrap' }}>{a.why}</span>
                     </div>
                   ) : null}
                   {a.result.trim() ? (
-                    <div style={{ display: 'flex', gap: 6, marginTop: 4, fontSize: 13, color: 'var(--text-secondary)' }}>
+                    <div style={{ display: 'flex', gap: 6, marginTop: 4, fontSize: 14, color: 'var(--text-secondary)' }}>
                       <span style={viewMiniLabel}>결과</span><span style={{ whiteSpace: 'pre-wrap' }}>{a.result}</span>
                     </div>
                   ) : null}
                   {(a.types ?? []).includes('medical') && a.detail.trim() ? (
-                    <div style={{ display: 'flex', gap: 6, marginTop: 4, fontSize: 13, color: 'var(--text-secondary)' }}>
+                    <div style={{ display: 'flex', gap: 6, marginTop: 4, fontSize: 14, color: 'var(--text-secondary)' }}>
                       <span style={viewMiniLabel}>상세</span><span style={{ whiteSpace: 'pre-wrap' }}>{a.detail}</span>
                     </div>
                   ) : null}
@@ -1181,9 +1181,9 @@ function PhaseCard({ p, caseType, isLast, busy, regenBusy, onUp, onDown, onRemov
                         <div key={si} style={procBox}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                             <span style={procNumBadge}>{si + 1}</span>
-                            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>{s.step || '—'}</span>
+                            <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>{s.step || '—'}</span>
                           </div>
-                          {s.note.trim() ? <div style={{ marginTop: 4, fontSize: 13, color: 'var(--text-secondary)', whiteSpace: 'pre-wrap' }}>{s.note}</div> : null}
+                          {s.note.trim() ? <div style={{ marginTop: 4, fontSize: 14, color: 'var(--text-secondary)', whiteSpace: 'pre-wrap' }}>{s.note}</div> : null}
                         </div>
                       ))}
                     </div>
@@ -1197,7 +1197,7 @@ function PhaseCard({ p, caseType, isLast, busy, regenBusy, onUp, onDown, onRemov
           {!isLast && nextSteps.length > 0 ? (
             <div style={nextStepBox}>
               <span style={nextStepLabel}>NEXT STEP</span>
-              <ul style={{ margin: '4px 0 0', paddingLeft: 18, listStyleType: 'disc', fontSize: 13, color: 'var(--text)', lineHeight: 1.5 }}>
+              <ul style={{ margin: '4px 0 0', paddingLeft: 18, listStyleType: 'disc', fontSize: 14, color: 'var(--text)', lineHeight: 1.5 }}>
                 {nextSteps.map((s, i) => <li key={i} style={{ listStyleType: 'disc' }}>{s}</li>)}
               </ul>
             </div>
@@ -1209,8 +1209,8 @@ function PhaseCard({ p, caseType, isLast, busy, regenBusy, onUp, onDown, onRemov
       {regenOpen ? (
         <div style={regenOverlay} onClick={() => setRegenOpen(false)}>
           <div style={regenDialog} onClick={(e) => e.stopPropagation()}>
-            <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--text)' }}>이 날짜 다시 생성</div>
-            <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 4, marginBottom: 10 }}>
+            <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text)' }}>이 날짜 다시 생성</div>
+            <div style={{ fontSize: 14, color: 'var(--text-secondary)', marginTop: 4, marginBottom: 10 }}>
               {p.period || '이 날짜'}에서 어떤 부분이 수정이 필요할까요? 지적하면 그 부분을 반영해 이 날짜만 다시 만듭니다.
               <br />(비워두면 품질만 개선해 다시 정리)
             </div>
@@ -1244,7 +1244,7 @@ function AxisCard({ axis, caseType, anesthesia, busy, setField }: {
   return (
     <div style={cardBox}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: edit ? 10 : 8 }}>
-        <span style={{ fontSize: 13, fontWeight: 800, color: 'var(--text)' }}>흐름 요약</span>
+        <span style={{ fontSize: 14, fontWeight: 800, color: 'var(--text)' }}>흐름 요약</span>
         <button type="button" onClick={() => setEdit((v) => !v)} disabled={busy}
           style={edit ? iconBtnActive : iconBtn} title={edit ? '수정 완료' : '수기 수정'} aria-label={edit ? '수정 완료' : '수기 수정'}>
           {edit ? <Icon name="check" /> : <Icon name="edit" />}
@@ -1252,16 +1252,16 @@ function AxisCard({ axis, caseType, anesthesia, busy, setField }: {
       </div>
       {edit ? (
         <div style={{ display: 'grid', gap: 10 }}>
-          <label style={{ display: 'grid', gap: 4, fontSize: 13, color: 'var(--text-secondary)' }}>
+          <label style={{ display: 'grid', gap: 4, fontSize: 14, color: 'var(--text-secondary)' }}>
             케이스 종류 (주질환·동반질환 기준 — 태그 허용 범위를 정함)
             <select value={caseType} onChange={(e) => setField('caseType', e.target.value)}
-              style={{ padding: '6px 8px', borderRadius: 8, border: '1px solid var(--border-strong)', background: '#fff', fontSize: 13 }}>
+              style={{ padding: '6px 8px', borderRadius: 8, border: '1px solid var(--border-strong)', background: '#fff', fontSize: 14 }}>
               <option value="">미판정</option>
               {CASE_TYPE_ORDER.map((t) => <option key={t} value={t}>{CASE_TYPE_LABEL[t]}</option>)}
             </select>
           </label>
           <LabeledTextarea label="한 줄 요약" value={axis} onChange={(v) => setField('axis', v)} rows={2} />
-          <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--text-secondary)', cursor: 'pointer' }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, color: 'var(--text-secondary)', cursor: 'pointer' }}>
             <input type="checkbox" checked={anesthesia} onChange={(e) => setField('anesthesia', e.target.checked)} style={{ width: 15, height: 15 }} />
             전신마취 동반 (체크 시 2단계에서 마취 전 안전성 평가 비중↑)
           </label>
@@ -1269,12 +1269,12 @@ function AxisCard({ axis, caseType, anesthesia, busy, setField }: {
       ) : (
         <div style={{ display: 'grid', gap: 8 }}>
           <div>
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 10px', borderRadius: 999, background: caseType ? 'var(--accent-subtle)' : 'var(--bg-subtle)', border: `1px solid ${caseType ? 'rgba(29,78,216,0.22)' : 'var(--border)'}`, color: caseType ? 'var(--accent)' : 'var(--text-muted)', fontSize: 13, fontWeight: 700 }}>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 10px', borderRadius: 999, background: caseType ? 'var(--accent-subtle)' : 'var(--bg-subtle)', border: `1px solid ${caseType ? 'rgba(29,78,216,0.22)' : 'var(--border)'}`, color: caseType ? 'var(--accent)' : 'var(--text-muted)', fontSize: 14, fontWeight: 700 }}>
               케이스 종류: {caseLabel}
             </span>
           </div>
-          <div style={{ fontSize: 13, color: 'var(--text)', whiteSpace: 'pre-wrap' }}>{axis || '—'}</div>
-          <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
+          <div style={{ fontSize: 14, color: 'var(--text)', whiteSpace: 'pre-wrap' }}>{axis || '—'}</div>
+          <div style={{ fontSize: 14, color: 'var(--text-secondary)' }}>
             전신마취 동반: <b style={{ color: anesthesia ? 'var(--accent)' : 'var(--text-muted)' }}>{anesthesia ? '예' : '아니오'}</b>
           </div>
         </div>
@@ -1290,7 +1290,7 @@ function CausalEditor({ causal, busy, setField, updatePhase, movePhase, addPhase
   movePhase: (i: number, dir: -1 | 1) => void; addPhase: () => void; removePhase: (i: number) => void;
   regenPhase: (i: number, feedback: string) => void; phaseBusy: number | null;
 }) {
-  if (!causal) return <div style={{ fontSize: 13, color: 'var(--text-muted)', padding: 12 }}>인과 흐름이 없습니다. “다시 생성”을 눌러 주세요.</div>;
+  if (!causal) return <div style={{ fontSize: 14, color: 'var(--text-muted)', padding: 12 }}>인과 흐름이 없습니다. “다시 생성”을 눌러 주세요.</div>;
   return (
     <div style={{ display: 'grid', gap: 12 }}>
       <AxisCard axis={causal.axis} caseType={causal.caseType} anesthesia={causal.anesthesia} busy={busy} setField={setField} />
@@ -1338,7 +1338,7 @@ function OutlineActionChip({ a }: { a: Action }) {
   return (
     <div style={{ position: 'relative' }} onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}>
       <div style={{ ...actionBox, padding: '5px 9px', cursor: hasDetail ? 'help' : 'default', display: 'flex', alignItems: 'flex-start', gap: 5 }}>
-        <span style={{ flex: 1, minWidth: 0, fontSize: 13, fontWeight: 700, color: actionWhatColor, whiteSpace: 'normal', wordBreak: 'break-word', lineHeight: 1.35 }}>{a.what || '—'}</span>
+        <span style={{ flex: 1, minWidth: 0, fontSize: 14, fontWeight: 700, color: actionWhatColor, whiteSpace: 'normal', wordBreak: 'break-word', lineHeight: 1.35 }}>{a.what || '—'}</span>
         {hasDetail ? <span style={{ flexShrink: 0, marginTop: 1, fontSize: 11, color: 'var(--text-muted)' }}>ⓘ</span> : null}
       </div>
       {hover && hasDetail ? (
@@ -1391,10 +1391,10 @@ function TimelineFacts({ groups }: { groups: { time: string; items: string[] }[]
             ) : null}
           </div>
           <div style={{ paddingBottom: i < groups.length - 1 ? 12 : 0 }}>
-            {g.time ? <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--text)' }}>{g.time}</div> : null}
+            {g.time ? <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text)' }}>{g.time}</div> : null}
             {g.items.length > 0 ? (
               <ul style={{ margin: '3px 0 0', paddingLeft: 15, listStyleType: 'circle', display: 'grid', gap: 2 }}>
-                {g.items.map((it, k) => <li key={k} style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{it}</li>)}
+                {g.items.map((it, k) => <li key={k} style={{ fontSize: 14, color: 'var(--text-secondary)' }}>{it}</li>)}
               </ul>
             ) : null}
           </div>
@@ -1417,7 +1417,7 @@ function SectionCard({ s, i, tagCards, updateSection, moveSection, removeSection
   const totalCards = tagCards.reduce((n, g) => n + g.actions.length, 0);
   const points = s.points.filter((p) => p.trim());
   const facts = s.facts.filter((f) => f.trim());
-  const listUl: CSSProperties = { margin: 0, paddingLeft: 18, listStyleType: 'disc', fontSize: 13, lineHeight: 1.6 };
+  const listUl: CSSProperties = { margin: 0, paddingLeft: 18, listStyleType: 'disc', fontSize: 14, lineHeight: 1.6 };
   return (
     <div style={cardBox}>
       {/* 헤더: 해시태그 제목(편집 시 태그 선택) + 수기수정/이동/삭제 */}
@@ -1432,7 +1432,7 @@ function SectionCard({ s, i, tagCards, updateSection, moveSection, removeSection
             {ACTION_TYPE_ORDER.map((t) => <option key={t} value={t}>#{ACTION_TYPE_LABEL[t]}</option>)}
           </select>
         ) : (
-          <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--accent)' }}>{title}</div>
+          <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--accent)' }}>{title}</div>
         )}
         <div style={{ display: 'flex', gap: 5, flexShrink: 0 }}>
           <button
@@ -1487,7 +1487,7 @@ function SectionCard({ s, i, tagCards, updateSection, moveSection, removeSection
                   <ul style={{ ...listUl, color: 'var(--text)' }}>
                     {points.map((p, k) => <li key={k} style={{ listStyleType: 'disc' }}>{p}</li>)}
                   </ul>
-                ) : <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>—</span>}
+                ) : <span style={{ fontSize: 14, color: 'var(--text-muted)' }}>—</span>}
               </div>
               {facts.length ? (() => {
                 // 내과 치료·회복 및 경과 확인 섹션은 시점 타임라인으로 렌더(시점 헤더가 있을 때만).
@@ -1546,7 +1546,7 @@ function OutlineEditor({ outline, causal, updateSection, moveSection, addSection
   moveSection: (i: number, dir: -1 | 1) => void; addSection: () => void; removeSection: (i: number) => void;
   imageMeta: (fileName: string) => CaseImg | null;
 }) {
-  if (!outline) return <div style={{ fontSize: 13, color: 'var(--text-muted)', padding: 12 }}>아웃라인이 없습니다. “다시 생성”을 눌러 주세요.</div>;
+  if (!outline) return <div style={{ fontSize: 14, color: 'var(--text-muted)', padding: 12 }}>아웃라인이 없습니다. “다시 생성”을 눌러 주세요.</div>;
   // 해시태그 섹션에 묶일 카드: 그 태그가 붙은 행위를 날짜(phase)별로 묶어 반환(빈 날짜 제외). 다중 태그면 여러 섹션에 중복 등장.
   const cardsForTag = (tag: string): { period: string; actions: Action[] }[] =>
     tag && causal
@@ -1608,7 +1608,7 @@ function BlogBody({ body }: { body: string }) {
             </div>
           );
         }
-        return <p key={i} style={{ margin: 0, width: '100%', fontSize: 13, lineHeight: 1.75, color: 'var(--text)', textAlign: 'left', whiteSpace: 'pre-wrap' }}>{b}</p>;
+        return <p key={i} style={{ margin: 0, width: '100%', fontSize: 14, lineHeight: 1.75, color: 'var(--text)', textAlign: 'left', whiteSpace: 'pre-wrap' }}>{b}</p>;
       })}
     </div>
   );
@@ -1634,7 +1634,7 @@ function BlogEditor({ blog, setField, outline, imageMeta, generateSection, confi
   const [tagsEdit, setTagsEdit] = useState(false); // 태그 편집 모드(끄면 해시태그처럼 표시)
   const [busy, setBusy] = useState<{ index: number; mode: 'regenerate' | 'condense' } | null>(null); // AI 처리 중인 섹션
   const [regen, setRegen] = useState<{ index: number; text: string } | null>(null); // 다시 생성 피드백 모달
-  if (!blog) return <div style={{ fontSize: 13, color: 'var(--text-muted)', padding: 12 }}>블로그 글이 없습니다. “다시 생성”을 눌러 주세요.</div>;
+  if (!blog) return <div style={{ fontSize: 14, color: 'var(--text-muted)', padding: 12 }}>블로그 글이 없습니다. “다시 생성”을 눌러 주세요.</div>;
   const liveCount = blog.bodyMarkdown.length;
   const inRange = liveCount >= 2500 && liveCount <= 3500;
   const sectionsWithImages = (outline?.sections ?? []).filter((s) => s.imageFileNames.length > 0);
@@ -1663,7 +1663,7 @@ function BlogEditor({ blog, setField, outline, imageMeta, generateSection, confi
       {/* 관련 이미지 (아웃라인 연결 · 참고용) */}
       {sectionsWithImages.length > 0 ? (
         <div style={cardBox}>
-          <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 8 }}>관련 이미지 (아웃라인 연결 · 참고용)</div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', marginBottom: 8 }}>관련 이미지 (아웃라인 연결 · 참고용)</div>
           <div style={{ display: 'grid', gap: 10 }}>
             {sectionsWithImages.map((s) => (
               <div key={s.id} style={{ display: 'grid', gap: 5 }}>
@@ -1685,7 +1685,7 @@ function BlogEditor({ blog, setField, outline, imageMeta, generateSection, confi
           value={blog.title}
           onChange={(e) => setField('title', e.target.value)}
           placeholder="제목"
-          style={{ width: '100%', fontSize: 18, fontWeight: 800, color: 'var(--text)', lineHeight: 1.4, border: 'none', outline: 'none', background: 'transparent', padding: 0 }}
+          style={{ width: '100%', fontSize: 20, fontWeight: 800, color: 'var(--text)', lineHeight: 1.4, border: 'none', outline: 'none', background: 'transparent', padding: 0 }}
         />
       </div>
       {/* 섹션별 카드 — 제목 라인은 크고 굵은 색 글씨 + [다시 생성/수기 수정/간결화] + 글자수 */}
@@ -1710,7 +1710,7 @@ function BlogEditor({ blog, setField, outline, imageMeta, generateSection, confi
             return (
               <div key={i} style={{ ...cardBox, opacity: isBusy ? 0.55 : 1 }}>
                 <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8, marginBottom: 8 }}>
-                  <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--accent)', lineHeight: 1.4, flex: 1, minWidth: 0 }}>{sec.heading || '(제목 없음)'}</div>
+                  <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--accent)', lineHeight: 1.4, flex: 1, minWidth: 0 }}>{sec.heading || '(제목 없음)'}</div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
                     <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)' }}>{count.toLocaleString()}자</span>
                     {isBusy ? (
@@ -1747,11 +1747,11 @@ function BlogEditor({ blog, setField, outline, imageMeta, generateSection, confi
             ) : blog.tags.length ? (
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                 {blog.tags.map((t, i) => (
-                  <span key={i} style={{ fontSize: 13, fontWeight: 600, color: 'var(--accent)', background: 'var(--accent-subtle)', borderRadius: 999, padding: '3px 10px' }}>#{t}</span>
+                  <span key={i} style={{ fontSize: 14, fontWeight: 600, color: 'var(--accent)', background: 'var(--accent-subtle)', borderRadius: 999, padding: '3px 10px' }}>#{t}</span>
                 ))}
               </div>
             ) : (
-              <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>태그 없음</span>
+              <span style={{ fontSize: 14, color: 'var(--text-muted)' }}>태그 없음</span>
             )}
           </div>
 
@@ -1759,8 +1759,8 @@ function BlogEditor({ blog, setField, outline, imageMeta, generateSection, confi
       {regen ? (
         <div style={regenOverlay} onClick={() => setRegen(null)}>
           <div style={regenDialog} onClick={(e) => e.stopPropagation()}>
-            <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--text)' }}>이 섹션 다시 생성</div>
-            <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 4, marginBottom: 10 }}>
+            <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text)' }}>이 섹션 다시 생성</div>
+            <div style={{ fontSize: 14, color: 'var(--text-secondary)', marginTop: 4, marginBottom: 10 }}>
               어떤 부분을 어떻게 고칠지 알려주세요. 그 내용을 반영해 이 섹션만 다시 씁니다.
               <br />(비워두면 뜻은 유지한 채 문장 품질만 개선)
             </div>
@@ -1790,7 +1790,7 @@ function Step4Editor({ outline, caseImages, imageMeta, updateSection }: {
   imageMeta: (fileName: string) => CaseImg | null;
   updateSection: (i: number, patch: Partial<Section>) => void;
 }) {
-  if (!outline) return <div style={{ fontSize: 13, color: 'var(--text-muted)', padding: 12 }}>아웃라인이 없습니다.</div>;
+  if (!outline) return <div style={{ fontSize: 14, color: 'var(--text-muted)', padding: 12 }}>아웃라인이 없습니다.</div>;
   const assigned = new Set(outline.sections.flatMap((s) => s.imageFileNames));
   const unassigned = caseImages.filter((c) => !assigned.has(c.fileName));
   const addTo = (sectionIdx: number, fn: string) => {
@@ -1800,12 +1800,12 @@ function Step4Editor({ outline, caseImages, imageMeta, updateSection }: {
   };
   return (
     <div style={{ display: 'grid', gap: 12 }}>
-      <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>
+      <div style={{ fontSize: 14, color: 'var(--text-muted)' }}>
         진단 기반으로 섹션에 배정된 이미지입니다. ×로 제거하거나, 아래 미배정 이미지를 섹션에 추가할 수 있습니다. (“이미지 다시 분석”으로 재배정)
       </div>
       {outline.sections.map((s, i) => (
         <div key={s.id} style={cardBox}>
-          <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 8 }}>{s.label || `섹션 ${i + 1}`}</div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', marginBottom: 8 }}>{s.label || `섹션 ${i + 1}`}</div>
           {s.imageFileNames.length ? (
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
               {s.imageFileNames.map((fn) => (
@@ -1813,13 +1813,13 @@ function Step4Editor({ outline, caseImages, imageMeta, updateSection }: {
               ))}
             </div>
           ) : (
-            <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>배정된 이미지 없음</div>
+            <div style={{ fontSize: 14, color: 'var(--text-muted)' }}>배정된 이미지 없음</div>
           )}
         </div>
       ))}
       {unassigned.length ? (
         <div style={cardBox}>
-          <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 8 }}>미배정 이미지 ({unassigned.length}) — 섹션에 추가</div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', marginBottom: 8 }}>미배정 이미지 ({unassigned.length}) — 섹션에 추가</div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
             {unassigned.map((c) => (
               <div key={c.fileName} style={{ display: 'grid', gap: 4, width: 110 }}>

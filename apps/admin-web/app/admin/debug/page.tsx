@@ -92,43 +92,43 @@ export default function DebugPage() {
 
   return (
     <div style={{ padding: '24px 32px', maxWidth: 900, fontFamily: 'monospace' }}>
-      <h1 style={{ fontSize: 18, fontWeight: 700, margin: '0 0 6px', fontFamily: 'sans-serif' }}>
+      <h1 style={{ fontSize: 20, fontWeight: 700, margin: '0 0 6px', fontFamily: 'sans-serif' }}>
         차트 파이프라인 진단
       </h1>
-      <p style={{ fontSize: 13, color: '#64748b', margin: '0 0 20px', fontFamily: 'sans-serif' }}>
+      <p style={{ fontSize: 14, color: '#64748b', margin: '0 0 20px', fontFamily: 'sans-serif' }}>
         환경변수·DB·chart-api 연결 상태와 마지막 추출 결과를 확인합니다.
       </p>
 
       <div style={{ display: 'flex', gap: 8, marginBottom: 24, flexWrap: 'wrap', alignItems: 'center' }}>
         <button onClick={() => void runDiag()} disabled={loading}
-          style={{ padding: '8px 18px', background: '#1d4ed8', color: '#fff', border: 'none', borderRadius: 6, cursor: loading ? 'not-allowed' : 'pointer', fontSize: 13, fontFamily: 'sans-serif' }}>
+          style={{ padding: '8px 18px', background: '#1d4ed8', color: '#fff', border: 'none', borderRadius: 6, cursor: loading ? 'not-allowed' : 'pointer', fontSize: 14, fontFamily: 'sans-serif' }}>
           {loading ? '진단 중…' : '인프라 재진단'}
         </button>
         <button onClick={() => void loadLastRun()} disabled={lastRunLoading}
-          style={{ padding: '8px 18px', background: '#334155', color: '#fff', border: 'none', borderRadius: 6, cursor: lastRunLoading ? 'not-allowed' : 'pointer', fontSize: 13, fontFamily: 'sans-serif' }}>
+          style={{ padding: '8px 18px', background: '#334155', color: '#fff', border: 'none', borderRadius: 6, cursor: lastRunLoading ? 'not-allowed' : 'pointer', fontSize: 14, fontFamily: 'sans-serif' }}>
           {lastRunLoading ? '불러오는 중…' : '마지막 추출 새로고침'}
         </button>
         <a href="/admin/debug/buckets"
-          style={{ padding: '8px 18px', background: '#fff', color: '#1d4ed8', border: '1px solid #93c5fd', borderRadius: 6, fontSize: 13, fontFamily: 'sans-serif', textDecoration: 'none', fontWeight: 600 }}>
+          style={{ padding: '8px 18px', background: '#fff', color: '#1d4ed8', border: '1px solid #93c5fd', borderRadius: 6, fontSize: 14, fontFamily: 'sans-serif', textDecoration: 'none', fontWeight: 600 }}>
           버킷 상세 디버그 →
         </a>
       </div>
 
       {/* 마지막 추출 결과 */}
       <div style={{ marginBottom: 28 }}>
-        <h2 style={{ fontSize: 18, fontWeight: 700, margin: '0 0 10px', fontFamily: 'sans-serif' }}>
+        <h2 style={{ fontSize: 20, fontWeight: 700, margin: '0 0 10px', fontFamily: 'sans-serif' }}>
           마지막 PDF 추출 결과
         </h2>
         {lastRunLoading ? (
-          <p style={{ fontSize: 13, color: '#64748b', fontFamily: 'sans-serif' }}>불러오는 중…</p>
+          <p style={{ fontSize: 14, color: '#64748b', fontFamily: 'sans-serif' }}>불러오는 중…</p>
         ) : lastRun?.error ? (
-          <p style={{ fontSize: 13, color: '#b91c1c', fontFamily: 'sans-serif' }}>오류: {lastRun.error}</p>
+          <p style={{ fontSize: 14, color: '#b91c1c', fontFamily: 'sans-serif' }}>오류: {lastRun.error}</p>
         ) : !lastRun?.run ? (
-          <p style={{ fontSize: 13, color: '#94a3b8', fontFamily: 'sans-serif' }}>저장된 run이 없습니다.</p>
+          <p style={{ fontSize: 14, color: '#94a3b8', fontFamily: 'sans-serif' }}>저장된 run이 없습니다.</p>
         ) : (
           <div style={{ border: '1px solid #e2e8f0', borderRadius: 8, overflow: 'hidden' }}>
             {/* run 헤더 */}
-            <div style={{ padding: '10px 14px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0', fontSize: 13, fontFamily: 'sans-serif', display: 'flex', gap: 16 }}>
+            <div style={{ padding: '10px 14px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0', fontSize: 14, fontFamily: 'sans-serif', display: 'flex', gap: 16 }}>
               <span><strong>ID:</strong> {lastRun.run.friendlyId ?? lastRun.run.id}</span>
               <span><strong>시각:</strong> {new Date(lastRun.run.createdAt).toLocaleString('ko-KR')}</span>
               <span><strong>상태:</strong> {lastRun.run.status}</span>
@@ -136,7 +136,7 @@ export default function DebugPage() {
 
             {/* 진단 메시지 */}
             {diagnosis && (
-              <div style={{ padding: '10px 14px', background: diagnosis.startsWith('✅') ? '#f0fdf4' : diagnosis.startsWith('❌') ? '#fef2f2' : '#fffbeb', borderBottom: '1px solid #e2e8f0', fontSize: 13, fontFamily: 'sans-serif', fontWeight: 600, color: diagnosis.startsWith('✅') ? '#15803d' : diagnosis.startsWith('❌') ? '#b91c1c' : '#92400e' }}>
+              <div style={{ padding: '10px 14px', background: diagnosis.startsWith('✅') ? '#f0fdf4' : diagnosis.startsWith('❌') ? '#fef2f2' : '#fffbeb', borderBottom: '1px solid #e2e8f0', fontSize: 14, fontFamily: 'sans-serif', fontWeight: 600, color: diagnosis.startsWith('✅') ? '#15803d' : diagnosis.startsWith('❌') ? '#b91c1c' : '#92400e' }}>
                 {diagnosis}
               </div>
             )}
@@ -155,7 +155,7 @@ export default function DebugPage() {
               ].map(({ label, value, warn }) => (
                 <div key={label} style={{ background: '#fff', padding: '10px 12px' }}>
                   <div style={{ fontSize: 11, color: '#64748b', fontFamily: 'sans-serif', marginBottom: 3 }}>{label}</div>
-                  <div style={{ fontSize: 18, fontWeight: 700, color: warn ? '#b91c1c' : '#0f172a' }}>{String(value)}</div>
+                  <div style={{ fontSize: 20, fontWeight: 700, color: warn ? '#b91c1c' : '#0f172a' }}>{String(value)}</div>
                 </div>
               ))}
             </div>
@@ -174,7 +174,7 @@ export default function DebugPage() {
 
             {/* raw_payload에 effectiveHead 없을 때 안내 */}
             {llmCount === null && (
-              <div style={{ padding: '10px 14px', fontSize: 13, color: '#64748b', fontFamily: 'sans-serif', borderTop: '1px solid #e2e8f0' }}>
+              <div style={{ padding: '10px 14px', fontSize: 14, color: '#64748b', fontFamily: 'sans-serif', borderTop: '1px solid #e2e8f0' }}>
                 ℹ️ LLM 줄 수 정보가 없습니다. chart-api를 새 버전으로 배포하면 상세 정보가 표시됩니다.
                 <br />DB에 저장된 정보 기준 — 차트행: {dbCounts?.chartByDate ?? '?'}건, 검사항목: {dbCounts?.labItems ?? '?'}건
               </div>
@@ -184,20 +184,20 @@ export default function DebugPage() {
       </div>
 
       {/* 인프라 진단 */}
-      {error && <p style={{ color: '#b91c1c', fontSize: 13, marginBottom: 16, fontFamily: 'sans-serif' }}>오류: {error}</p>}
+      {error && <p style={{ color: '#b91c1c', fontSize: 14, marginBottom: 16, fontFamily: 'sans-serif' }}>오류: {error}</p>}
       {result && (
         <div>
-          <h2 style={{ fontSize: 18, fontWeight: 700, margin: '0 0 10px', fontFamily: 'sans-serif' }}>인프라 진단</h2>
-          <div style={{ display: 'inline-block', marginBottom: 12, padding: '6px 14px', borderRadius: 6, fontSize: 13, fontWeight: 700, fontFamily: 'sans-serif', background: result.ok ? '#f0fdf4' : '#fef2f2', color: result.ok ? '#15803d' : '#b91c1c', border: `1px solid ${result.ok ? 'rgba(22,163,74,0.3)' : 'rgba(185,28,28,0.3)'}` }}>
+          <h2 style={{ fontSize: 20, fontWeight: 700, margin: '0 0 10px', fontFamily: 'sans-serif' }}>인프라 진단</h2>
+          <div style={{ display: 'inline-block', marginBottom: 12, padding: '6px 14px', borderRadius: 6, fontSize: 14, fontWeight: 700, fontFamily: 'sans-serif', background: result.ok ? '#f0fdf4' : '#fef2f2', color: result.ok ? '#15803d' : '#b91c1c', border: `1px solid ${result.ok ? 'rgba(22,163,74,0.3)' : 'rgba(185,28,28,0.3)'}` }}>
             {result.ok ? '✓ 모든 단계 통과' : '✗ 실패한 단계 있음'}
           </div>
           <div style={{ display: 'grid', gap: 8 }}>
             {Object.entries(result.steps).map(([key, step]) => (
               <div key={key} style={{ border: `1px solid ${step.ok ? '#e2e8f0' : 'rgba(185,28,28,0.35)'}`, borderRadius: 8, overflow: 'hidden' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: step.ok ? '#f8fafc' : '#fef2f2' }}>
-                  <span style={{ fontSize: 18 }}>{step.ok ? '✅' : '❌'}</span>
-                  <span style={{ fontWeight: 700, fontSize: 13, fontFamily: 'sans-serif', color: '#0f172a' }}>{STEP_LABELS[key] ?? key}</span>
-                  <span style={{ fontSize: 13, color: step.ok ? '#15803d' : '#b91c1c', marginLeft: 'auto' }}>{step.detail}</span>
+                  <span style={{ fontSize: 20 }}>{step.ok ? '✅' : '❌'}</span>
+                  <span style={{ fontWeight: 700, fontSize: 14, fontFamily: 'sans-serif', color: '#0f172a' }}>{STEP_LABELS[key] ?? key}</span>
+                  <span style={{ fontSize: 14, color: step.ok ? '#15803d' : '#b91c1c', marginLeft: 'auto' }}>{step.detail}</span>
                 </div>
                 {step.data && (
                   <pre style={{ margin: 0, padding: '10px 14px', fontSize: 11, lineHeight: 1.7, background: '#f1f5f9', borderTop: '1px solid #e2e8f0', overflowX: 'auto', whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>

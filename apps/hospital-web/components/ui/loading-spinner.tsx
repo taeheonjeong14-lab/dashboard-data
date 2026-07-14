@@ -35,7 +35,7 @@ export function CenteredSpinner({
           animation: 'cs-spin 0.7s linear infinite',
         }}
       />
-      {label ? <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>{label}</span> : null}
+      {label ? <span style={{ fontSize: 14, color: 'var(--text-muted)' }}>{label}</span> : null}
       <span style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)' }}>로딩 중</span>
       <style>{`@keyframes cs-spin { to { transform: rotate(360deg); } }`}</style>
     </div>

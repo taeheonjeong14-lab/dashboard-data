@@ -90,13 +90,13 @@ export function AnswersModal({ detail, onClose }: { detail: SessionDetail; onClo
   return (
     <Modal title={`문진 답변${detail.patientName ? ` — ${detail.patientName}` : ''}`} onClose={onClose} maxWidth={560}>
       {answered.length === 0 ? (
-        <p style={{ margin: 0, fontSize: 13, color: 'var(--text-muted)' }}>응답한 문진이 없습니다.</p>
+        <p style={{ margin: 0, fontSize: 14, color: 'var(--text-muted)' }}>응답한 문진이 없습니다.</p>
       ) : (
         <div style={{ display: 'grid', gap: 8 }}>
           {answered.map(({ q, disp }) => (
             <div key={q.id} style={{ padding: '8px 10px', background: 'var(--bg-subtle)', borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}>
-              <p style={{ margin: '0 0 3px', fontSize: 11.5, fontWeight: 500, color: 'var(--text-muted)' }}>Q{q.order}. {q.text}</p>
-              <p style={{ margin: 0, fontSize: 13, fontWeight: 500, color: 'var(--text)' }}>{disp}</p>
+              <p style={{ margin: '0 0 3px', fontSize: 11, fontWeight: 500, color: 'var(--text-muted)' }}>Q{q.order}. {q.text}</p>
+              <p style={{ margin: 0, fontSize: 14, fontWeight: 500, color: 'var(--text)' }}>{disp}</p>
             </div>
           ))}
         </div>
@@ -167,7 +167,7 @@ function likelihoodChip(raw?: string) {
   else if (/중|mid|medium/i.test(v)) color = '#bf6a00';
   else if (/낮|low|하/i.test(v)) color = 'var(--text-muted)';
   return (
-    <span style={{ flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11.5, fontWeight: 700, color }}>
+    <span style={{ flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11, fontWeight: 700, color }}>
       <span style={{ width: 6, height: 6, borderRadius: '50%', background: color }} />
       {v}
     </span>
@@ -201,7 +201,7 @@ export function SessionDetailView({ detail, origin, hideShareLink = false, hideA
               type="button"
               onClick={() => setQListOpen(true)}
               style={{
-                padding: '5px 10px', fontSize: 12, fontWeight: 600, color: 'var(--text)',
+                padding: '5px 10px', fontSize: 14, fontWeight: 600, color: 'var(--text)',
                 background: 'var(--bg-subtle)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
                 cursor: 'pointer', whiteSpace: 'nowrap',
               }}
@@ -226,7 +226,7 @@ export function SessionDetailView({ detail, origin, hideShareLink = false, hideA
             title="AI 사전 분석"
             right={<StatusBadge status={detail.analysisStatus} label={ANALYSIS_LABEL[detail.analysisStatus] ?? detail.analysisStatus} variant="analysis" />}
           >
-            <p style={{ margin: 0, fontSize: 13, color: 'var(--text-muted)' }}>AI가 사전문진을 분석하고 있습니다…</p>
+            <p style={{ margin: 0, fontSize: 14, color: 'var(--text-muted)' }}>AI가 사전문진을 분석하고 있습니다…</p>
           </Section>
         ) : detail.analysisStatus === 'error' ? (
           <Section
@@ -234,7 +234,7 @@ export function SessionDetailView({ detail, origin, hideShareLink = false, hideA
             title="AI 사전 분석"
             right={<StatusBadge status="error" label={ANALYSIS_LABEL.error ?? '오류'} variant="analysis" />}
           >
-            <p style={{ margin: 0, fontSize: 13, color: 'var(--danger)' }}>분석 중 오류가 발생했습니다. 재분석을 시도해 주세요.</p>
+            <p style={{ margin: 0, fontSize: 14, color: 'var(--danger)' }}>분석 중 오류가 발생했습니다. 재분석을 시도해 주세요.</p>
           </Section>
         ) : (
           <>
@@ -244,8 +244,8 @@ export function SessionDetailView({ detail, origin, hideShareLink = false, hideA
               right={<CopyIconBtn text={detail.draftSummary ?? ''} title="요약 복사" />}
             >
               {detail.draftSummary
-                ? <div style={{ fontSize: 13.5, color: 'var(--text)', lineHeight: 1.75 }}>{renderSummaryText(detail.draftSummary)}</div>
-                : <p style={{ margin: 0, fontSize: 13, color: 'var(--text-muted)' }}>요약이 없습니다.</p>}
+                ? <div style={{ fontSize: 14, color: 'var(--text)', lineHeight: 1.75 }}>{renderSummaryText(detail.draftSummary)}</div>
+                : <p style={{ margin: 0, fontSize: 14, color: 'var(--text-muted)' }}>요약이 없습니다.</p>}
             </Section>
 
             <Section icon={<Stethoscope size={15} />} title="예상 감별진단 (DDx)" right={<CopyIconBtn text={ddxCopyText(detail)} title="감별진단 복사" />}>
@@ -254,12 +254,12 @@ export function SessionDetailView({ detail, origin, hideShareLink = false, hideA
                   {ddxParsed.map((d, i) => (
                     <div key={i} style={{ padding: i === 0 ? '0 0 11px' : '11px 0', borderTop: i === 0 ? undefined : '1px solid var(--border)' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
-                        <span style={{ flexShrink: 0, width: 18, height: 18, borderRadius: '50%', background: 'var(--bg-subtle)', color: 'var(--text-secondary)', fontSize: 10.5, fontWeight: 700, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>{i + 1}</span>
-                        <span style={{ flex: 1, minWidth: 0, fontSize: 13.5, fontWeight: 600, color: 'var(--text)', wordBreak: 'break-word' }}>{d.name}</span>
+                        <span style={{ flexShrink: 0, width: 18, height: 18, borderRadius: '50%', background: 'var(--bg-subtle)', color: 'var(--text-secondary)', fontSize: 11, fontWeight: 700, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>{i + 1}</span>
+                        <span style={{ flex: 1, minWidth: 0, fontSize: 14, fontWeight: 600, color: 'var(--text)', wordBreak: 'break-word' }}>{d.name}</span>
                         {likelihoodChip(d.likelihood)}
                       </div>
                       {Array.isArray(d.reasons) && d.reasons.length > 0 && (
-                        <ul style={{ margin: '5px 0 0', paddingLeft: 27, fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.55 }}>
+                        <ul style={{ margin: '5px 0 0', paddingLeft: 27, fontSize: 14, color: 'var(--text-secondary)', lineHeight: 1.55 }}>
                           {d.reasons.map((r, ri) => <li key={ri}>{r}</li>)}
                         </ul>
                       )}
@@ -270,7 +270,7 @@ export function SessionDetailView({ detail, origin, hideShareLink = false, hideA
                             <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--success)', marginBottom: 6 }}>추가 확인 필요한 사항</div>
                             <div style={{ display: 'grid', gap: 4 }}>
                               {cps.map((c, ci) => (
-                                <div key={ci} style={{ display: 'flex', alignItems: 'flex-start', gap: 6, fontSize: 12, color: 'var(--text)', lineHeight: 1.55 }}>
+                                <div key={ci} style={{ display: 'flex', alignItems: 'flex-start', gap: 6, fontSize: 14, color: 'var(--text)', lineHeight: 1.55 }}>
                                   <Check size={13} style={{ flexShrink: 0, marginTop: 2, color: 'var(--success)' }} />
                                   <span>{c}</span>
                                 </div>
@@ -283,9 +283,9 @@ export function SessionDetailView({ detail, origin, hideShareLink = false, hideA
                   ))}
                 </div>
               ) : detail.draftDdx ? (
-                <pre style={{ margin: 0, fontSize: 12.5, color: 'var(--text-secondary)', whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontFamily: 'inherit', lineHeight: 1.6 }}>{detail.draftDdx}</pre>
+                <pre style={{ margin: 0, fontSize: 14, color: 'var(--text-secondary)', whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontFamily: 'inherit', lineHeight: 1.6 }}>{detail.draftDdx}</pre>
               ) : (
-                <p style={{ margin: 0, fontSize: 13, color: 'var(--text-muted)' }}>예방·관리 목적 방문으로 예상 감별진단이 필요하지 않은 것으로 보입니다.</p>
+                <p style={{ margin: 0, fontSize: 14, color: 'var(--text-muted)' }}>예방·관리 목적 방문으로 예상 감별진단이 필요하지 않은 것으로 보입니다.</p>
               )}
             </Section>
           </>
@@ -345,9 +345,9 @@ export function SessionDetailModal({ open, sessionIds, userId, onClose }: {
     <div onClick={onClose} style={overlayStyle}>
       <div onClick={(e) => e.stopPropagation()} style={panelStyle}>
         <header style={headerStyle}>
-          <h2 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: 'var(--text)' }}>사전문진 상세</h2>
+          <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: 'var(--text)' }}>사전문진 상세</h2>
           <button type="button" onClick={onClose}
-            style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 18, color: 'var(--text-muted)', lineHeight: 1 }}>×</button>
+            style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 20, color: 'var(--text-muted)', lineHeight: 1 }}>×</button>
         </header>
 
         {sessionIds.length > 1 && (
@@ -359,7 +359,7 @@ export function SessionDetailModal({ open, sessionIds, userId, onClose }: {
                   border: `1px solid ${i === activeIdx ? 'var(--accent)' : 'var(--border-strong)'}`,
                   background: i === activeIdx ? 'var(--accent-subtle)' : 'var(--bg)',
                   color: i === activeIdx ? 'var(--accent)' : 'var(--text-secondary)',
-                  fontSize: 12.5, fontWeight: i === activeIdx ? 600 : 500, cursor: 'pointer',
+                  fontSize: 14, fontWeight: i === activeIdx ? 600 : 500, cursor: 'pointer',
                 }}>
                 환자 {i + 1}
               </button>
@@ -371,11 +371,11 @@ export function SessionDetailModal({ open, sessionIds, userId, onClose }: {
           {loading ? (
             <CenteredSpinner minHeight={200} />
           ) : loadError ? (
-            <p style={{ margin: 0, fontSize: 13, color: 'var(--danger)' }}>{loadError}</p>
+            <p style={{ margin: 0, fontSize: 14, color: 'var(--danger)' }}>{loadError}</p>
           ) : detail ? (
             <SessionDetailView detail={detail} origin={origin} hideShareLink />
           ) : (
-            <p style={{ margin: 0, fontSize: 13, color: 'var(--text-muted)' }}>표시할 사전문진이 없습니다.</p>
+            <p style={{ margin: 0, fontSize: 14, color: 'var(--text-muted)' }}>표시할 사전문진이 없습니다.</p>
           )}
         </div>
       </div>
@@ -392,7 +392,7 @@ export function Section({ title, right, children, tone = 'default', icon, accent
       {accentBar && <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 3, background: 'var(--accent)' }} />}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: hasIcon ? 10 : 8 }}>
         {hasIcon ? (
-          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>
             <span style={{ display: 'inline-flex', color: 'var(--text-muted)' }}>{icon}</span>
             {title}
           </div>
@@ -413,7 +413,7 @@ export function Row({ k, v, copyable = true }: { k: string; v: string; copyable?
     try { await navigator.clipboard.writeText(v); setCopied(true); setTimeout(() => setCopied(false), 1200); } catch { /* 무시 */ }
   }
   return (
-    <div style={{ display: 'flex', gap: 8, padding: '5px 0', fontSize: 13, alignItems: 'flex-start' }}>
+    <div style={{ display: 'flex', gap: 8, padding: '5px 0', fontSize: 14, alignItems: 'flex-start' }}>
       <span style={{ width: 84, flexShrink: 0, color: 'var(--text-muted)' }}>{k}</span>
       <span style={{ flex: 1, minWidth: 0, color: 'var(--text)', wordBreak: 'break-word' }}>{v}</span>
       {canCopy && (
@@ -445,7 +445,7 @@ export function CopyBtn({ text, label }: { text: string; label: string }) {
   const [copied, setCopied] = useState(false);
   return (
     <button type="button" onClick={async () => { try { await navigator.clipboard.writeText(text); setCopied(true); setTimeout(() => setCopied(false), 1500); } catch { /* 무시 */ } }}
-      style={{ flexShrink: 0, padding: '6px 12px', fontSize: 12.5, fontWeight: 600, cursor: 'pointer', borderRadius: 'var(--radius)', border: `1px solid ${copied ? 'var(--success)' : 'var(--border-strong)'}`, background: 'var(--bg)', color: copied ? 'var(--success)' : 'var(--text)' }}>
+      style={{ flexShrink: 0, padding: '6px 12px', fontSize: 14, fontWeight: 600, cursor: 'pointer', borderRadius: 'var(--radius)', border: `1px solid ${copied ? 'var(--success)' : 'var(--border-strong)'}`, background: 'var(--bg)', color: copied ? 'var(--success)' : 'var(--text)' }}>
       {copied ? '복사 완료' : label}
     </button>
   );
@@ -484,24 +484,24 @@ export function SurveyKakaoSend({ token, defaultPhone, patientName, guardianName
   return (
     <div style={{ display: 'grid', gap: 6 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', flexShrink: 0 }}>알림톡</span>
+        <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-secondary)', flexShrink: 0 }}>알림톡</span>
         <input
           value={phone}
           onChange={(e) => setPhone(formatPhone(e.target.value))}
           placeholder="010-0000-0000"
           type="tel"
           inputMode="numeric"
-          style={{ flex: 1, minWidth: 0, padding: '7px 2px', fontSize: 12.5, color: 'var(--text)', background: 'transparent', border: 'none', borderBottom: '1px solid var(--border-strong)', borderRadius: 0, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }}
+          style={{ flex: 1, minWidth: 0, padding: '7px 2px', fontSize: 14, color: 'var(--text)', background: 'transparent', border: 'none', borderBottom: '1px solid var(--border-strong)', borderRadius: 0, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }}
         />
-        <button type="button" onClick={send} disabled={sending} style={{ ...kakaoPillStyle(sending), flexShrink: 0, padding: '7px 14px', fontSize: 12.5 }}>
+        <button type="button" onClick={send} disabled={sending} style={{ ...kakaoPillStyle(sending), flexShrink: 0, padding: '7px 14px', fontSize: 14 }}>
           <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" style={{ display: 'block' }}>
             <path fill={sending ? 'var(--text-muted)' : '#3c1e1e'} d="M12 3C6.477 3 2 6.486 2 10.79c0 2.79 1.86 5.236 4.65 6.61-.205.73-.74 2.64-.847 3.05-.133.51.187.503.394.366.163-.108 2.6-1.766 3.65-2.48.51.075 1.034.114 1.553.114 5.523 0 10-3.486 10-7.79C22 6.486 17.523 3 12 3z" />
           </svg>
           {sending ? '발송 중…' : '카카오 발송'}
         </button>
       </div>
-      {msg && <p style={{ margin: 0, fontSize: 11.5, color: 'var(--success)' }}>{msg}</p>}
-      {err && <p style={{ margin: 0, fontSize: 11.5, color: 'var(--danger)' }}>{err}</p>}
+      {msg && <p style={{ margin: 0, fontSize: 11, color: 'var(--success)' }}>{msg}</p>}
+      {err && <p style={{ margin: 0, fontSize: 11, color: 'var(--danger)' }}>{err}</p>}
     </div>
   );
 }
@@ -535,7 +535,7 @@ export function StatusBadge({ status, label, variant = 'default' }: { status: st
   );
 }
 
-export const subHeadStyle: CSSProperties = { margin: '0 0 6px', fontSize: 11.5, fontWeight: 700, color: 'var(--text-secondary)' };
+export const subHeadStyle: CSSProperties = { margin: '0 0 6px', fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)' };
 
 const overlayStyle: CSSProperties = {
   position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: 16,

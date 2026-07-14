@@ -152,7 +152,7 @@ export default function StartConsultationPage() {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20, gap: 12 }}>
         <div>
           <h1 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: 'var(--text)' }}>진료 시작</h1>
-          <p style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--text-secondary)' }}>
+          <p style={{ margin: '4px 0 0', fontSize: 14, color: 'var(--text-secondary)' }}>
             사전문진에서 시작하거나, 환자 정보를 직접 입력하세요.
           </p>
         </div>
@@ -160,7 +160,7 @@ export default function StartConsultationPage() {
       </div>
 
       {error && (
-        <div style={{ padding: '10px 14px', background: 'var(--danger-subtle)', border: '1px solid var(--danger)', borderRadius: 'var(--radius)', color: 'var(--danger)', fontSize: 13, marginBottom: 16 }}>
+        <div style={{ padding: '10px 14px', background: 'var(--danger-subtle)', border: '1px solid var(--danger)', borderRadius: 'var(--radius)', color: 'var(--danger)', fontSize: 14, marginBottom: 16 }}>
           {error}
         </div>
       )}
@@ -168,11 +168,11 @@ export default function StartConsultationPage() {
       {/* 사전문진 선택 */}
       <div style={cardStyle}>
         <SectionTitle hint="(선택)" style={{ marginBottom: 4 }}>사전문진에서 시작</SectionTitle>
-        <p style={{ margin: '0 0 12px', fontSize: 12, color: 'var(--text-muted)' }}>완료된 사전문진을 선택하면 답변이 진료에 반영됩니다.</p>
+        <p style={{ margin: '0 0 12px', fontSize: 14, color: 'var(--text-muted)' }}>완료된 사전문진을 선택하면 답변이 진료에 반영됩니다.</p>
         {surveysLoading ? (
-          <p style={{ margin: 0, fontSize: 13, color: 'var(--text-muted)' }}>불러오는 중...</p>
+          <p style={{ margin: 0, fontSize: 14, color: 'var(--text-muted)' }}>불러오는 중...</p>
         ) : surveys.length === 0 ? (
-          <p style={{ margin: 0, fontSize: 13, color: 'var(--text-muted)' }}>사용 가능한 완료 사전문진이 없습니다. 아래에 직접 입력해 주세요.</p>
+          <p style={{ margin: 0, fontSize: 14, color: 'var(--text-muted)' }}>사용 가능한 완료 사전문진이 없습니다. 아래에 직접 입력해 주세요.</p>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 220, overflowY: 'auto' }}>
             <button type="button" onClick={() => selectSurvey(null)}
@@ -183,7 +183,7 @@ export default function StartConsultationPage() {
               <button key={s.id} type="button" onClick={() => selectSurvey(s)} style={pickRow(selectedSurveyId === s.id)}>
                 <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 2 }}>
                   <span style={{ fontWeight: 600 }}>{s.patientName || '(이름 없음)'}{s.guardianName ? ` / ${s.guardianName}` : ''}</span>
-                  <span style={{ fontSize: 11.5, color: 'var(--text-muted)' }}>{s.visitType || '—'} · {fmtDate(s.createdAt)} 제출</span>
+                  <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{s.visitType || '—'} · {fmtDate(s.createdAt)} 제출</span>
                 </span>
               </button>
             ))}
@@ -225,7 +225,7 @@ export default function StartConsultationPage() {
 function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
   return (
     <label style={{ display: 'block' }}>
-      <span style={{ display: 'block', fontSize: 12.5, fontWeight: 500, color: 'var(--text-secondary)', marginBottom: 6 }}>
+      <span style={{ display: 'block', fontSize: 14, fontWeight: 500, color: 'var(--text-secondary)', marginBottom: 6 }}>
         {label}{required && <span style={{ color: 'var(--danger)', marginLeft: 3 }}>*</span>}
       </span>
       {children}
@@ -238,7 +238,7 @@ const cardStyle: CSSProperties = {
 };
 const btnSecondary: CSSProperties = {
   padding: '8px 14px', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
-  background: 'var(--bg)', color: 'var(--text)', fontSize: 13, fontWeight: 500, cursor: 'pointer',
+  background: 'var(--bg)', color: 'var(--text)', fontSize: 14, fontWeight: 500, cursor: 'pointer',
   display: 'inline-flex', alignItems: 'center',
 };
 function pickRow(selected: boolean): CSSProperties {
@@ -247,6 +247,6 @@ function pickRow(selected: boolean): CSSProperties {
     padding: '10px 12px', borderRadius: 'var(--radius)',
     border: `1px solid ${selected ? 'var(--accent)' : 'var(--border)'}`,
     background: selected ? 'var(--accent-subtle)' : 'var(--bg)',
-    color: selected ? 'var(--accent)' : 'var(--text)', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit',
+    color: selected ? 'var(--accent)' : 'var(--text)', fontSize: 14, cursor: 'pointer', fontFamily: 'inherit',
   };
 }

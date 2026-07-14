@@ -176,7 +176,7 @@ export function HealthReportPreviewModal({
             background: '#f8fafc',
           }}
         >
-          <div style={{ fontWeight: 800, fontSize: 18, color: '#0f172a' }}>미리보기</div>
+          <div style={{ fontWeight: 800, fontSize: 20, color: '#0f172a' }}>미리보기</div>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
             <button type="button" className="adminLegacySmallBtn" disabled={loading} onClick={() => void load()}>
               새로고침
@@ -188,9 +188,9 @@ export function HealthReportPreviewModal({
         </div>
         <div style={{ flex: '1 1 auto', overflow: 'auto', padding: '0 8px 16px' }}>
           {loading ? (
-            <p style={{ padding: 24, color: '#64748b', fontSize: 13 }}>불러오는 중…</p>
+            <p style={{ padding: 24, color: '#64748b', fontSize: 14 }}>불러오는 중…</p>
           ) : error ? (
-            <p style={{ padding: 24, color: '#b91c1c', fontSize: 13, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{error}</p>
+            <p style={{ padding: 24, color: '#b91c1c', fontSize: 14, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{error}</p>
           ) : model ? (
             <HealthReportPreviewPages model={model} />
           ) : null}

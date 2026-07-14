@@ -427,7 +427,7 @@ export default function HealthReportPage() {
         {/* 헤더 */}
         <div>
           <h1 style={{ margin: 0, fontSize: '20px', fontWeight: 700, color: 'var(--text)' }}>건강검진 리포트</h1>
-          <p style={{ margin: '4px 0 0', fontSize: '13px', color: 'var(--text-secondary)' }}>
+          <p style={{ margin: '4px 0 0', fontSize: '14px', color: 'var(--text-secondary)' }}>
             차트 PDF를 업로드해 보호자용 건강검진 리포트 생성을 요청하고, 진행 상태를 확인합니다.
           </p>
         </div>
@@ -441,19 +441,19 @@ export default function HealthReportPage() {
       <div style={{ flex: 1, minWidth: 0, paddingRight: '24px' }}>
         <div>
           <div style={{ padding: '0 0 10px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text)' }}>리포트 목록</span>
-            <button onClick={() => void loadList()} style={{ background: 'none', border: 'none', fontSize: '12px', color: 'var(--text-muted)', cursor: 'pointer', padding: '2px 4px' }}>새로고침</button>
+            <span style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text)' }}>리포트 목록</span>
+            <button onClick={() => void loadList()} style={{ background: 'none', border: 'none', fontSize: '14px', color: 'var(--text-muted)', cursor: 'pointer', padding: '2px 4px' }}>새로고침</button>
           </div>
 
           {listLoading ? (
             <CenteredSpinner minHeight={200} />
           ) : listError ? (
-            <div style={{ padding: '20px 18px', fontSize: '13px', color: 'var(--danger)' }}>{listError}</div>
+            <div style={{ padding: '20px 18px', fontSize: '14px', color: 'var(--danger)' }}>{listError}</div>
           ) : items.length === 0 ? (
             <div style={{ padding: '48px 18px', textAlign: 'center' }}>
               <div style={{ fontSize: '28px', marginBottom: '8px' }}>📋</div>
-              <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text)', marginBottom: '4px' }}>아직 요청이 없습니다</div>
-              <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>오른쪽에서 PDF를 업로드해 첫 요청을 시작하세요.</div>
+              <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text)', marginBottom: '4px' }}>아직 요청이 없습니다</div>
+              <div style={{ fontSize: '14px', color: 'var(--text-muted)' }}>오른쪽에서 PDF를 업로드해 첫 요청을 시작하세요.</div>
             </div>
           ) : (
             <>
@@ -463,7 +463,7 @@ export default function HealthReportPage() {
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   placeholder="환자명 또는 보호자명 검색"
-                  style={{ width: '100%', padding: '8px 30px 8px 10px', fontSize: '13px', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', background: 'var(--bg)', color: 'var(--text)', outline: 'none', boxSizing: 'border-box' }}
+                  style={{ width: '100%', padding: '8px 30px 8px 10px', fontSize: '14px', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', background: 'var(--bg)', color: 'var(--text)', outline: 'none', boxSizing: 'border-box' }}
                 />
                 {search && (
                   <button type="button" onClick={() => setSearch('')} aria-label="검색어 지우기"
@@ -471,11 +471,11 @@ export default function HealthReportPage() {
                 )}
               </div>
               {filteredItems.length === 0 ? (
-                <div style={{ padding: '32px 18px', textAlign: 'center', fontSize: '13px', color: 'var(--text-muted)' }}>
+                <div style={{ padding: '32px 18px', textAlign: 'center', fontSize: '14px', color: 'var(--text-muted)' }}>
                   ‘{search.trim()}’ 검색 결과가 없습니다.
                 </div>
               ) : (
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px' }}>
               <thead>
                 <tr style={{ background: 'var(--bg-subtle)' }}>
                   {['요청일', '환자명', '보호자명', '상태'].map((h) => (
@@ -512,7 +512,7 @@ export default function HealthReportPage() {
                         </span>
                       ) : item.shareUrl ? (
                         <a href={item.shareUrl} target="_blank" rel="noopener noreferrer"
-                          style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '4px 10px', background: 'var(--accent)', color: '#fff', borderRadius: 'var(--radius)', fontSize: '12px', fontWeight: 600, textDecoration: 'none', whiteSpace: 'nowrap' }}>
+                          style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '4px 10px', background: 'var(--accent)', color: '#fff', borderRadius: 'var(--radius)', fontSize: '14px', fontWeight: 600, textDecoration: 'none', whiteSpace: 'nowrap' }}>
                           리포트 확인
                         </a>
                       ) : item.shareExpired ? (
@@ -542,14 +542,14 @@ export default function HealthReportPage() {
         <div style={{ position: 'sticky', top: '24px' }}>
           <div style={{ padding: '0 0 10px' }}>
             <SectionTitle>리포트 생성 요청</SectionTitle>
-            <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '2px' }}>차트 PDF를 업로드해 주세요</div>
+            <div style={{ fontSize: '14px', color: 'var(--text-muted)', marginTop: '2px' }}>차트 PDF를 업로드해 주세요</div>
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
 
             {/* Error */}
             {stage === 'error' && (
-              <div style={{ background: 'var(--danger-subtle)', border: '1px solid var(--danger)', borderRadius: 'var(--radius)', padding: '10px 12px', fontSize: '12px', color: 'var(--text)' }}>
+              <div style={{ background: 'var(--danger-subtle)', border: '1px solid var(--danger)', borderRadius: 'var(--radius)', padding: '10px 12px', fontSize: '14px', color: 'var(--text)' }}>
                 <span style={{ fontWeight: 700, color: 'var(--danger)' }}>오류 </span>{errorMessage}
               </div>
             )}
@@ -586,7 +586,7 @@ export default function HealthReportPage() {
                       {pdfFiles.map((f, idx) => (
                         <div key={idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', background: '#fff', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '6px 10px' }}>
                           <div style={{ minWidth: 0 }}>
-                            <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text)', wordBreak: 'break-all' }}>{f.name}</div>
+                            <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text)', wordBreak: 'break-all' }}>{f.name}</div>
                             <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '1px' }}>{formatBytes(f.size)}</div>
                           </div>
                           {!isProcessing && (
@@ -594,7 +594,7 @@ export default function HealthReportPage() {
                               type="button"
                               onClick={(e) => { e.stopPropagation(); removePdfFile(idx); }}
                               aria-label="삭제"
-                              style={{ flexShrink: 0, width: '22px', height: '22px', borderRadius: '50%', border: '1px solid var(--border)', background: 'var(--bg-subtle)', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: '12px', lineHeight: 1 }}
+                              style={{ flexShrink: 0, width: '22px', height: '22px', borderRadius: '50%', border: '1px solid var(--border)', background: 'var(--bg-subtle)', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: '14px', lineHeight: 1 }}
                             >
                               ✕
                             </button>
@@ -606,7 +606,7 @@ export default function HealthReportPage() {
                   ) : (
                     <>
                       <div style={{ fontSize: '20px', marginBottom: '5px' }}>📄</div>
-                      <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '2px' }}>끌어다 놓거나 클릭하여 선택</div>
+                      <div style={{ fontSize: '14px', color: 'var(--text-secondary)', marginBottom: '2px' }}>끌어다 놓거나 클릭하여 선택</div>
                       <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>PDF · 최대 70MB · 여러 개 가능</div>
                     </>
                   )}
@@ -632,7 +632,7 @@ export default function HealthReportPage() {
                 >
                   <input ref={imageInputRef} type="file" accept=".jpg,.jpeg,.png,.webp,image/*" multiple style={{ display: 'none' }} onChange={onImageChange} />
                   <div style={{ fontSize: '20px', marginBottom: '5px' }}>🖼️</div>
-                  <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '2px' }}>끌어다 놓거나 클릭하여 선택</div>
+                  <div style={{ fontSize: '14px', color: 'var(--text-secondary)', marginBottom: '2px' }}>끌어다 놓거나 클릭하여 선택</div>
                   <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
                     최대 {MAX_IMAGES}장 · jpg / png / webp{imageFiles.length > 0 ? ` · ${imageFiles.length}/${MAX_IMAGES}장` : ''}
                   </div>
@@ -648,7 +648,7 @@ export default function HealthReportPage() {
                         <img src={src} alt={imageFiles[idx]?.name ?? `img-${idx}`} style={{ width: '60px', height: '60px', objectFit: 'cover', borderRadius: 'var(--radius)', border: '1px solid var(--border)' }} />
                         {!isProcessing && (
                           <button onClick={(e) => { e.stopPropagation(); removeImage(idx); }}
-                            style={{ position: 'absolute', top: '-5px', right: '-5px', width: '18px', height: '18px', borderRadius: '50%', background: 'var(--danger)', color: '#fff', border: 'none', fontSize: '10px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}>
+                            style={{ position: 'absolute', top: '-5px', right: '-5px', width: '18px', height: '18px', borderRadius: '50%', background: 'var(--danger)', color: '#fff', border: 'none', fontSize: '11px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}>
                             ×
                           </button>
                         )}
@@ -664,17 +664,17 @@ export default function HealthReportPage() {
                   value={emphasisText} onChange={(e) => setEmphasisText(e.target.value)}
                   disabled={isProcessing} rows={3}
                   placeholder="보호자에게 강조할 사항을 입력하세요"
-                  style={{ width: '100%', padding: '8px 10px', border: '1px solid var(--border)', borderRadius: 'var(--radius)', background: 'var(--bg)', color: 'var(--text)', resize: 'vertical', outline: 'none', fontSize: '13px', boxSizing: 'border-box' }}
+                  style={{ width: '100%', padding: '8px 10px', border: '1px solid var(--border)', borderRadius: 'var(--radius)', background: 'var(--bg)', color: 'var(--text)', resize: 'vertical', outline: 'none', fontSize: '14px', boxSizing: 'border-box' }}
                 />
               </FormField>
 
               {/* Submit */}
               <button onClick={handleSubmit} disabled={!canSubmit}
-                style={{ ...primaryPillStyle(!canSubmit), width: '100%', padding: '10px', fontSize: '13px' }}>
+                style={{ ...primaryPillStyle(!canSubmit), width: '100%', padding: '10px', fontSize: '14px' }}>
                 {isProcessing ? <><Spinner />파일 업로드 중…</> : '리포트 생성 요청'}
               </button>
               {stage === 'done' && (
-                <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--success)', textAlign: 'center', lineHeight: 1.5 }}>
+                <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--success)', textAlign: 'center', lineHeight: 1.5 }}>
                   접수되었습니다 · 분석이 끝나면 왼쪽 목록에 표시됩니다
                   {imageWarning && (
                     <div style={{ marginTop: '6px', fontWeight: 600, color: 'var(--danger)' }}>{imageWarning}</div>
@@ -706,7 +706,7 @@ function FormField({ label, hint, required, children }: { label: string; hint?: 
 const selectStyle: React.CSSProperties = {
   width: '100%', padding: '8px 10px',
   border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)',
-  backgroundColor: 'var(--bg)', color: 'var(--text)', fontSize: '13px',
+  backgroundColor: 'var(--bg)', color: 'var(--text)', fontSize: '14px',
   appearance: 'none',
   backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'12\' height=\'8\' viewBox=\'0 0 12 8\'%3E%3Cpath d=\'M1 1l5 5 5-5\' stroke=\'%236b7280\' stroke-width=\'1.5\' fill=\'none\' stroke-linecap=\'round\'/%3E%3C/svg%3E")',
   backgroundRepeat: 'no-repeat', backgroundPosition: 'right 10px center', paddingRight: '28px', cursor: 'pointer',

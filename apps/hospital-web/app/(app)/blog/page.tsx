@@ -19,7 +19,7 @@ export default function BlogContentPage() {
       <StickyHeader>
         <div style={{ marginBottom: 16 }}>
           <h1 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: 'var(--text)' }}>블로그 컨텐츠</h1>
-          <p style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--text-secondary)' }}>
+          <p style={{ margin: '4px 0 0', fontSize: 14, color: 'var(--text-secondary)' }}>
             진료케이스·건강상식 블로그 콘텐츠 자료를 등록합니다.
           </p>
         </div>
@@ -46,6 +46,7 @@ export default function BlogContentPage() {
             return (
               <button
                 key={t.key}
+                className="hospBtnFree"
                 onClick={() => setTab(t.key)}
                 style={base}
                 onMouseEnter={active ? undefined : (e) => { e.currentTarget.style.color = 'var(--text)'; }}
@@ -69,7 +70,7 @@ function Placeholder({ label }: { label: string }) {
     <div style={{ padding: '64px 18px', textAlign: 'center' }}>
       <div style={{ fontSize: 28, marginBottom: 8 }}>🛠️</div>
       <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)', marginBottom: 4 }}>{label}</div>
-      <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>곧 추가될 예정입니다.</div>
+      <div style={{ fontSize: 14, color: 'var(--text-muted)' }}>곧 추가될 예정입니다.</div>
     </div>
   );
 }

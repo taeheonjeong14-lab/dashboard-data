@@ -33,7 +33,7 @@ export default function VerifyEmailPage() {
         <h1
           style={{
             margin: '0 0 12px',
-            fontSize: '18px',
+            fontSize: '20px',
             fontWeight: 700,
             color: 'var(--text)',
           }}

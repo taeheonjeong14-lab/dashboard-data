@@ -33,7 +33,7 @@ function StageSticker({ stage }: { stage: 'writing' | 'drafted' | 'saved' }) {
 
 const btnSecondary: CSSProperties = {
   padding: '5px 10px',
-  fontSize: 13,
+  fontSize: 14,
   fontWeight: 600,
   borderRadius: 6,
   background: '#fff',
@@ -43,7 +43,7 @@ const btnSecondary: CSSProperties = {
 };
 const ctaBtnStyle: CSSProperties = {
   padding: '10px 22px',
-  fontSize: 13,
+  fontSize: 14,
   fontWeight: 700,
   borderRadius: 8,
   background: 'var(--accent)',
@@ -351,7 +351,7 @@ export default function AdminCaseBlog() {
             placeholder="제목·병원·환자·태그 검색"
             aria-label="진료케이스 검색"
             disabled={loading}
-            style={{ flex: 1, minWidth: 0, padding: '8px 0', background: 'transparent', border: 0, borderRadius: 0, outline: 'none', font: 'inherit', fontSize: 13 }}
+            style={{ flex: 1, minWidth: 0, padding: '8px 0', background: 'transparent', border: 0, borderRadius: 0, outline: 'none', font: 'inherit', fontSize: 14 }}
           />
         </div>
 
@@ -400,13 +400,13 @@ export default function AdminCaseBlog() {
         </div>
         <div style={{ maxHeight: 'min(72vh, calc(100vh - 200px))', overflow: 'auto' }}>
           {loading ? (
-            <p style={{ margin: '10px 10px', fontSize: 13, color: 'var(--text-muted)' }}>불러오는 중…</p>
+            <p style={{ margin: '10px 10px', fontSize: 14, color: 'var(--text-muted)' }}>불러오는 중…</p>
           ) : error ? (
-            <p style={{ margin: '10px 10px', fontSize: 13, color: 'var(--danger)' }}>{error}</p>
+            <p style={{ margin: '10px 10px', fontSize: 14, color: 'var(--danger)' }}>{error}</p>
           ) : items.length === 0 ? (
-            <p style={{ margin: '10px 10px', fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.5 }}>작성된 진료케이스가 없습니다.</p>
+            <p style={{ margin: '10px 10px', fontSize: 14, color: 'var(--text-muted)', lineHeight: 1.5 }}>작성된 진료케이스가 없습니다.</p>
           ) : filtered.length === 0 ? (
-            <p style={{ margin: '10px 10px', fontSize: 13, color: 'var(--text-muted)' }}>검색 결과 없음</p>
+            <p style={{ margin: '10px 10px', fontSize: 14, color: 'var(--text-muted)' }}>검색 결과 없음</p>
           ) : (
             filtered.map((it) => (
               <button
@@ -440,10 +440,10 @@ export default function AdminCaseBlog() {
               <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 8, fontFamily: 'ui-monospace, monospace' }}>
                 {selected.friendlyId ? `진료케이스 ID · ${caseId(selected.friendlyId)}` : ''}
               </div>
-              <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--text)', marginBottom: 4 }}>
+              <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--text)', marginBottom: 4 }}>
                 {[selected.hospitalName, selected.patientName].filter(Boolean).join(' · ') || '진료케이스'}
               </div>
-              <div style={{ fontSize: 13, marginBottom: 20 }}>아직 작성 중인 진료케이스입니다.</div>
+              <div style={{ fontSize: 14, marginBottom: 20 }}>아직 작성 중인 진료케이스입니다.</div>
               <CaseBlogButton runId={selected.runId} label="작성 이어가기" triggerStyle={ctaBtnStyle} onClose={() => void load()} />
             </div>
           ) : selected ? (
@@ -468,8 +468,8 @@ export default function AdminCaseBlog() {
                   <CaseBlogButton runId={selected.runId} label="수정" triggerStyle={editBtnStyle} onClose={() => void load()} />
                 </div>
               </div>
-              <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: 'var(--text)', lineHeight: 1.35 }}>{selected.title}</h2>
-              <div style={{ marginTop: 6, fontSize: 13, color: 'var(--text-muted)' }}>
+              <h2 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: 'var(--text)', lineHeight: 1.35 }}>{selected.title}</h2>
+              <div style={{ marginTop: 6, fontSize: 14, color: 'var(--text-muted)' }}>
                 {[selected.hospitalName, selected.patientName ? `${selected.patientName}${selected.ownerName ? ` (${selected.ownerName})` : ''}` : '', selected.finalDiagnosis, `작성 ${formatDate(selected.createdAt)}`]
                   .filter(Boolean)
                   .join(' · ')}
@@ -486,7 +486,7 @@ export default function AdminCaseBlog() {
               <div
                 style={{
                   marginTop: 16,
-                  fontSize: 13,
+                  fontSize: 14,
                   lineHeight: 1.8,
                   color: 'var(--text)',
                   whiteSpace: 'pre-wrap',
@@ -502,7 +502,7 @@ export default function AdminCaseBlog() {
 
               <div style={{ marginTop: 14, borderTop: '1px solid var(--border)', paddingTop: 14 }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>
                       사진 {caseImages.length}장
                       <span style={{ fontSize: 11, fontWeight: 500, color: 'var(--text-muted)', marginLeft: 6 }}>
                         · AI 추천 {caseImages.filter((i) => i.aiPicked).length}장
@@ -524,7 +524,7 @@ export default function AdminCaseBlog() {
                         onClick={() => void downloadSelectedImages()}
                         disabled={checked.size === 0 || downloading}
                         style={{
-                          padding: '5px 12px', fontSize: 13, fontWeight: 600, borderRadius: 6,
+                          padding: '5px 12px', fontSize: 14, fontWeight: 600, borderRadius: 6,
                           background: checked.size === 0 || downloading ? 'var(--bg-raised)' : 'var(--accent)',
                           color: checked.size === 0 || downloading ? 'var(--text-muted)' : '#fff',
                           border: 'none', cursor: checked.size === 0 || downloading ? 'not-allowed' : 'pointer',
@@ -539,7 +539,7 @@ export default function AdminCaseBlog() {
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                     {groupedImages.map(({ date, images: dateImages }, gi) => (
                     <div key={date ?? 'no-date'} style={gi > 0 ? { borderTop: '1px solid var(--border)', paddingTop: 16 } : undefined}>
-                      <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent)', marginBottom: 8, letterSpacing: '0.03em' }}>
+                      <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--accent)', marginBottom: 8, letterSpacing: '0.03em' }}>
                         {date ? date.replace(/-/g, '.') : '날짜 미지정'}
                         <span style={{ fontWeight: 400, color: 'var(--text-muted)', marginLeft: 6 }}>{dateImages.length}장</span>
                         {date && (phasesByDate.get(date)?.length ?? 0) > 0 ? (
@@ -591,15 +591,15 @@ export default function AdminCaseBlog() {
                     ))}
                   </div>
                   ) : (
-                    <div style={{ fontSize: 13, color: 'var(--text-muted)', padding: '8px 0' }}>등록된 사진이 없습니다.</div>
+                    <div style={{ fontSize: 14, color: 'var(--text-muted)', padding: '8px 0' }}>등록된 사진이 없습니다.</div>
                   )}
                 </div>
             </article>
           ) : (
             <div style={{ padding: '64px 18px', textAlign: 'center', color: 'var(--text-muted)' }}>
               <div style={{ fontSize: 28, marginBottom: 8 }}>📝</div>
-              <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', marginBottom: 4 }}>선택된 진료케이스가 없습니다</div>
-              <div style={{ fontSize: 13 }}>좌측 목록에서 글을 선택하세요.</div>
+              <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)', marginBottom: 4 }}>선택된 진료케이스가 없습니다</div>
+              <div style={{ fontSize: 14 }}>좌측 목록에서 글을 선택하세요.</div>
             </div>
           )}
         </div>
@@ -622,8 +622,8 @@ export default function AdminCaseBlog() {
             style={{ width: 'min(92vw, 420px)', background: '#fff', borderRadius: 12, border: '1px solid var(--border)', overflow: 'hidden', boxShadow: '0 12px 40px rgba(0,0,0,0.18)' }}
           >
             <div style={{ padding: '20px 22px 16px' }}>
-              <h2 style={{ margin: '0 0 8px', fontSize: 18, fontWeight: 700, color: 'var(--text)' }}>네이버 블로그에 임시저장까지 완료되었나요?</h2>
-              <p style={{ margin: 0, fontSize: 13, lineHeight: 1.6, color: 'var(--text-secondary)' }}>
+              <h2 style={{ margin: '0 0 8px', fontSize: 20, fontWeight: 700, color: 'var(--text)' }}>네이버 블로그에 임시저장까지 완료되었나요?</h2>
+              <p style={{ margin: 0, fontSize: 14, lineHeight: 1.6, color: 'var(--text-secondary)' }}>
                 확인을 누르면 이 진료케이스 상태가 <b style={{ color: '#2563eb' }}>저장완료</b>로 변경됩니다.
               </p>
             </div>
@@ -635,7 +635,7 @@ export default function AdminCaseBlog() {
                 type="button"
                 onClick={() => void markSaved(selected.runId)}
                 disabled={saving}
-                style={{ padding: '8px 18px', fontSize: 13, fontWeight: 700, borderRadius: 6, border: '1px solid #dc2626', background: saving ? '#fca5a5' : '#dc2626', color: '#fff', cursor: saving ? 'not-allowed' : 'pointer' }}
+                style={{ padding: '8px 18px', fontSize: 14, fontWeight: 700, borderRadius: 6, border: '1px solid #dc2626', background: saving ? '#fca5a5' : '#dc2626', color: '#fff', cursor: saving ? 'not-allowed' : 'pointer' }}
               >
                 {saving ? '처리 중…' : '확인'}
               </button>
@@ -750,14 +750,14 @@ function PostProcessModal({ runId, patientName, body, onClose }: { runId: string
         style={{ width: 'min(92vw, 760px)', maxHeight: '90vh', display: 'flex', flexDirection: 'column', background: '#fff', borderRadius: 12, border: '1px solid var(--border)', overflow: 'hidden', boxShadow: '0 12px 40px rgba(0,0,0,0.18)' }}
       >
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 18px', borderBottom: '1px solid var(--border)' }}>
-          <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: 'var(--text)' }}>후처리 및 복사</h2>
-          <button type="button" onClick={onClose} aria-label="닫기" style={{ border: 0, background: 'transparent', fontSize: 18, lineHeight: 1, cursor: 'pointer', color: 'var(--text-muted)' }}>
+          <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: 'var(--text)' }}>후처리 및 복사</h2>
+          <button type="button" onClick={onClose} aria-label="닫기" style={{ border: 0, background: 'transparent', fontSize: 20, lineHeight: 1, cursor: 'pointer', color: 'var(--text-muted)' }}>
             ×
           </button>
         </div>
 
         <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--border)' }}>
-          <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 8 }}>
+          <div style={{ fontSize: 14, color: 'var(--text-secondary)', marginBottom: 8 }}>
             실제 환자명 <b style={{ color: 'var(--text)' }}>{patientName || '—'}</b> 을(를) 본문에서{' '}
             <b style={{ color: 'var(--text)' }}>{occurrences}곳</b> 찾았습니다. 가명을 입력하면 치환되고(선택),
             아래 미리보기처럼 <b style={{ color: 'var(--text)' }}>서식 포함</b>으로 복사되어 네이버에 그대로 붙여넣을 수 있습니다.
@@ -767,19 +767,19 @@ function PostProcessModal({ runId, patientName, body, onClose }: { runId: string
             value={pseudo}
             onChange={(e) => onPseudoChange(e.target.value)}
             placeholder="가명 입력 (예: OO)"
-            style={{ width: '100%', padding: '9px 12px', fontSize: 13, border: '1px solid var(--border-strong)', borderRadius: 8, outline: 'none', boxSizing: 'border-box' }}
+            style={{ width: '100%', padding: '9px 12px', fontSize: 14, border: '1px solid var(--border-strong)', borderRadius: 8, outline: 'none', boxSizing: 'border-box' }}
           />
           {formatError ? (
-            <div style={{ marginTop: 8, fontSize: 13, color: 'var(--danger)' }}>{formatError}</div>
+            <div style={{ marginTop: 8, fontSize: 14, color: 'var(--danger)' }}>{formatError}</div>
           ) : null}
         </div>
 
         <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '14px 18px' }}>
-          <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 8 }}>
+          <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 8 }}>
             미리보기 {formattedMd ? '· 서식 적용됨' : '· 평문 ("서식 적용"을 누르면 AI가 꾸밈)'} (복사되는 그대로)
           </div>
           <div
-            style={{ fontSize: 13, lineHeight: 1.8, color: 'var(--text)', wordBreak: 'break-word' }}
+            style={{ fontSize: 14, lineHeight: 1.8, color: 'var(--text)', wordBreak: 'break-word' }}
             dangerouslySetInnerHTML={{ __html: previewHtml }}
           />
         </div>
@@ -802,7 +802,7 @@ function PostProcessModal({ runId, patientName, body, onClose }: { runId: string
             disabled={formatting}
             style={{
               padding: '8px 16px',
-              fontSize: 13,
+              fontSize: 14,
               fontWeight: 700,
               borderRadius: 6,
               border: 'none',

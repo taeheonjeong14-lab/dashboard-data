@@ -42,7 +42,7 @@ export function TopBar({ userName, userEmail }: TopBarProps) {
           alignItems: 'center',
           gap: 8,
           textDecoration: 'none',
-          fontSize: 18,
+          fontSize: 20,
           fontWeight: 800,
           letterSpacing: '-0.01em',
           color: 'var(--text)',
@@ -65,7 +65,7 @@ export function TopBar({ userName, userEmail }: TopBarProps) {
         {displayName ? (
           <span
             style={{
-              fontSize: 13,
+              fontSize: 14,
               color: 'var(--text-secondary)',
               maxWidth: 280,
               overflow: 'hidden',
@@ -124,7 +124,7 @@ export function TopBar({ userName, userEmail }: TopBarProps) {
             alignItems: 'center',
             gap: 6,
             padding: '6px 10px',
-            fontSize: 13,
+            fontSize: 14,
             color: 'var(--text-secondary)',
             background: 'transparent',
             border: '1px solid var(--border)',

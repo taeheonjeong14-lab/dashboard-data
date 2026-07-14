@@ -131,9 +131,9 @@ export default function AdminHospitalConsole() {
         <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden' }}>
           {/* 로딩·실패 상태를 레일에도 보여준다(목록이 말없이 텅 비면 원인을 알 수 없다). */}
           {loading ? (
-            <p style={{ margin: 12, fontSize: 13, color: 'var(--text-muted)' }}>불러오는 중…</p>
+            <p style={{ margin: 12, fontSize: 14, color: 'var(--text-muted)' }}>불러오는 중…</p>
           ) : error ? (
-            <div style={{ margin: 12, fontSize: 13, color: 'var(--danger)', lineHeight: 1.6 }}>
+            <div style={{ margin: 12, fontSize: 14, color: 'var(--danger)', lineHeight: 1.6 }}>
               목록을 불러오지 못했습니다.
               <div style={{ marginTop: 4, color: 'var(--text-muted)', wordBreak: 'break-all' }}>{error}</div>
               <button
@@ -157,7 +157,7 @@ export default function AdminHospitalConsole() {
                 style={{ padding: '10px 12px', cursor: 'pointer', borderBottom: '1px solid var(--border)', background: active ? 'var(--accent-subtle)' : 'transparent' }}
               >
                 <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 }}>
-                  <span style={{ flex: 1, minWidth: 0, fontSize: 13, fontWeight: active ? 700 : 500, color: active ? 'var(--accent)' : 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  <span style={{ flex: 1, minWidth: 0, fontSize: 14, fontWeight: active ? 700 : 500, color: active ? 'var(--accent)' : 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                     {r.hospital_name}
                   </span>
                   {r.di_conflict ? <span style={badge('#fee2e2', '#b91c1c')}>DI중복</span> : null}
@@ -181,7 +181,7 @@ export default function AdminHospitalConsole() {
                 style={{ padding: '10px 12px', cursor: 'pointer', borderBottom: '1px solid var(--border)', background: active ? 'var(--accent-subtle)' : 'transparent' }}
               >
                 <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 }}>
-                  <span style={{ flex: 1, minWidth: 0, fontSize: 13, fontWeight: active ? 700 : 500, color: active ? 'var(--accent)' : 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  <span style={{ flex: 1, minWidth: 0, fontSize: 14, fontWeight: active ? 700 : 500, color: active ? 'var(--accent)' : 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                     {h.hospitalName}
                   </span>
                   {pending > 0 ? <span style={badge('#fef3c7', '#b45309')}>입금대기 {pending}</span> : null}
@@ -198,7 +198,7 @@ export default function AdminHospitalConsole() {
             );
           })}
           {!loading && !error && filteredHospitals.length === 0 && filteredRegistrations.length === 0 ? (
-            <div style={{ padding: 14, fontSize: 13, color: 'var(--text-muted)' }}>
+            <div style={{ padding: 14, fontSize: 14, color: 'var(--text-muted)' }}>
               {query.trim() ? '검색 결과 없음' : '병원이 없습니다.'}
             </div>
           ) : null}
@@ -223,19 +223,19 @@ export default function AdminHospitalConsole() {
       <div className="adminLayoutMainPane">
         <div className="adminLayoutMainColumnInset">
           {/* 상단 요약 — 흩어져 있던 대기 건수를 한곳에서 */}
-          {error ? <p style={{ fontSize: 13, color: 'var(--danger)', paddingTop: 16 }}>{error}</p> : null}
+          {error ? <p style={{ fontSize: 14, color: 'var(--danger)', paddingTop: 16 }}>{error}</p> : null}
 
           {!selection ? (
-            <p style={{ fontSize: 13, color: 'var(--text-muted)', paddingTop: 16 }}>
+            <p style={{ fontSize: 14, color: 'var(--text-muted)', paddingTop: 16 }}>
               좌측에서 병원 또는 심사 대기 신청을 선택하세요.
             </p>
           ) : selection.kind === 'registration' ? (
             <div style={{ display: 'grid', gap: 12, paddingTop: 16 }}>
               <div>
-                <h1 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>
+                <h1 style={{ margin: 0, fontSize: 20, fontWeight: 700 }}>
                   {registrations.find((r) => r.id === selection.id)?.hospital_name ?? '신청 상세'}
                 </h1>
-                <p style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--text-secondary)' }}>
+                <p style={{ margin: '4px 0 0', fontSize: 14, color: 'var(--text-secondary)' }}>
                   심사 대기 신청 — 승인하면 병원이 생성됩니다.
                 </p>
               </div>
@@ -252,10 +252,10 @@ export default function AdminHospitalConsole() {
               {/* 병원 헤더 — 이름·주소 + (우측) 토큰 버튼 */}
               <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', paddingTop: 16 }}>
                 <div style={{ minWidth: 0 }}>
-                  <h1 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: 'var(--text)' }}>
+                  <h1 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: 'var(--text)' }}>
                     {selection.kind === 'new-hospital' ? '신규 병원' : selectedHospital?.hospitalName ?? '(이름 없음)'}
                   </h1>
-                  <p style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--text-secondary)' }}>
+                  <p style={{ margin: '4px 0 0', fontSize: 14, color: 'var(--text-secondary)' }}>
                     {selection.kind === 'new-hospital' ? (
                       '정보를 입력하고 저장하세요.'
                     ) : (
@@ -315,7 +315,7 @@ export default function AdminHospitalConsole() {
             style={{ width: 'min(96vw, 980px)', background: '#fff', border: '1px solid var(--border)', borderRadius: 12, boxShadow: '0 20px 60px rgba(0,0,0,0.25)', overflow: 'hidden' }}
           >
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '13px 16px', borderBottom: '1px solid var(--border)' }}>
-              <span style={{ fontSize: 18, fontWeight: 800 }}>
+              <span style={{ fontSize: 20, fontWeight: 800 }}>
                 토큰 — {selectedHospital?.hospitalName ?? ''}
               </span>
               <button

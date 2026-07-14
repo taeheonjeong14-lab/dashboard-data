@@ -66,7 +66,7 @@ type LedgerGroup = { key: string; kind: string; label: string; createdAt: string
 // 상세 내역 한 행 — 일간(flat)·월간(접이식) 양쪽에서 재사용.
 function LedgerRow({ g, border }: { g: LedgerGroup; border: boolean }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '11px 14px', borderTop: border ? '1px solid var(--border)' : 'none', fontSize: 13 }}>
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '11px 14px', borderTop: border ? '1px solid var(--border)' : 'none', fontSize: 14 }}>
       <div style={{ minWidth: 0 }}>
         <span style={{ fontWeight: 700, color: g.kind === 'charge' ? 'var(--text)' : 'var(--success)' }}>
           {g.label}
@@ -397,7 +397,7 @@ export function SettingsModal({ open, onClose, initialTab }: { open: boolean; on
       <div onClick={(e) => e.stopPropagation()} style={dialog} role="dialog" aria-modal="true">
         {/* Header */}
         <div style={dialogHeader}>
-          <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)' }}>설정</span>
+          <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>설정</span>
           <button onClick={onClose} title="닫기" style={closeBtn}><X size={18} /></button>
         </div>
 
@@ -409,6 +409,7 @@ export function SettingsModal({ open, onClose, initialTab }: { open: boolean; on
               return (
                 <button
                   key={key}
+                  className="hospBtnFree"
                   onClick={() => setTab(key)}
                   style={{
                     ...menuItem,
@@ -429,7 +430,7 @@ export function SettingsModal({ open, onClose, initialTab }: { open: boolean; on
             {tab === 'members' && isMaster && <MembersPanel />}
             {tab === 'basic' && (
               loadingProfile ? (
-                <p style={{ margin: 0, fontSize: 13, color: 'var(--text-muted)' }}>불러오는 중…</p>
+                <p style={{ margin: 0, fontSize: 14, color: 'var(--text-muted)' }}>불러오는 중…</p>
               ) : (
                 <form onSubmit={(e) => void handleProfileSubmit(e)} style={formStyle}>
                   <Field label="이메일" hint="변경 불가">
@@ -463,8 +464,8 @@ export function SettingsModal({ open, onClose, initialTab }: { open: boolean; on
                 {/* 서브탭: 토큰 구매 | 사용 내역 */}
                 <div style={{ display: 'flex', gap: 4, borderBottom: '1px solid var(--border)' }}>
                   {([['buy', '토큰 구매'], ['history', '상세 내역']] as const).map(([k, lbl]) => (
-                    <button key={k} type="button" onClick={() => setUsageSub(k)}
-                      style={{ padding: '8px 12px', fontSize: 13.5, fontWeight: usageSub === k ? 700 : 500, color: usageSub === k ? 'var(--accent)' : 'var(--text-muted)', background: 'transparent', border: 'none', borderBottom: `2px solid ${usageSub === k ? 'var(--accent)' : 'transparent'}`, marginBottom: -1, cursor: 'pointer' }}>
+                    <button key={k} type="button" className="hospBtnFree" onClick={() => setUsageSub(k)}
+                      style={{ padding: '8px 12px', fontSize: 14, fontWeight: usageSub === k ? 700 : 500, color: usageSub === k ? 'var(--accent)' : 'var(--text-muted)', background: 'transparent', border: 'none', borderBottom: `2px solid ${usageSub === k ? 'var(--accent)' : 'transparent'}`, marginBottom: -1, cursor: 'pointer' }}>
                       {lbl}
                     </button>
                   ))}
@@ -474,22 +475,22 @@ export function SettingsModal({ open, onClose, initialTab }: { open: boolean; on
                   /* 주문 접수 + 입금 안내 — 단독 스텝 */
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                     <button type="button" onClick={() => setPlacedOrder(null)}
-                      style={{ alignSelf: 'flex-start', display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', background: 'transparent', border: 'none', cursor: 'pointer', padding: 0 }}>
+                      style={{ alignSelf: 'flex-start', display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 14, fontWeight: 600, color: 'var(--text-secondary)', background: 'transparent', border: 'none', cursor: 'pointer', padding: 0 }}>
                       ← 토큰 구매
                     </button>
 
                     {/* 접수 확인 */}
                     <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', gap: 6 }}>
-                      <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--text)' }}>주문이 접수되었습니다</div>
-                      <div style={{ fontSize: 12.5, color: 'var(--text-secondary)' }}>
+                      <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--text)' }}>주문이 접수되었습니다</div>
+                      <div style={{ fontSize: 14, color: 'var(--text-secondary)' }}>
                         주문번호 <b style={{ color: 'var(--text)' }}>#{placedOrder.orderNo}</b>
-                        <span style={{ marginLeft: 8, fontSize: 11.5, fontWeight: 700, color: '#b45309', background: '#fef3c7', padding: '2px 8px', borderRadius: 999 }}>● 입금 대기 중</span>
+                        <span style={{ marginLeft: 8, fontSize: 11, fontWeight: 700, color: '#b45309', background: '#fef3c7', padding: '2px 8px', borderRadius: 999 }}>● 입금 대기 중</span>
                       </div>
                     </div>
 
                     {/* 주문 요약 */}
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '12px 14px', borderRadius: 10, background: 'var(--bg-raised)' }}>
-                      <span style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--text)' }}>
+                      <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>
                         {fmtTok(placedOrder.baseTokens)}{placedOrder.bonusTokens > 0 ? <span style={{ color: 'var(--accent)' }}> + {fmtTok(placedOrder.bonusTokens)}</span> : null} 토큰 충전
                       </span>
                       <span style={{ fontSize: 14, fontWeight: 800, color: 'var(--text)' }}>{fmtWon(placedOrder.priceKrw)}원</span>
@@ -497,26 +498,26 @@ export function SettingsModal({ open, onClose, initialTab }: { open: boolean; on
 
                     {/* 입금액 강조 */}
                     <div style={{ textAlign: 'center', marginTop: 4 }}>
-                      <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 4 }}>아래 계좌로 입금해 주세요</div>
+                      <div style={{ fontSize: 14, color: 'var(--text-secondary)', marginBottom: 4 }}>아래 계좌로 입금해 주세요</div>
                       <div style={{ fontSize: 30, fontWeight: 900, color: 'var(--accent)', letterSpacing: '-0.02em' }}>
-                        {fmtWon(placedOrder.priceKrw)}<span style={{ fontSize: 18, fontWeight: 800 }}>원</span>
+                        {fmtWon(placedOrder.priceKrw)}<span style={{ fontSize: 20, fontWeight: 800 }}>원</span>
                       </div>
                     </div>
 
                     {/* 계좌 박스 */}
                     <div style={{ border: '1.5px solid var(--accent)', borderRadius: 12, padding: '16px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
                       <div style={{ minWidth: 0 }}>
-                        <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>국민은행</div>
-                        <div style={{ fontSize: 19, fontWeight: 800, color: 'var(--text)', letterSpacing: '0.01em' }}>031601-04-242731</div>
-                        <div style={{ fontSize: 12.5, color: 'var(--text-secondary)', marginTop: 2 }}>주식회사 바른반려연구소</div>
+                        <div style={{ fontSize: 14, color: 'var(--text-muted)' }}>국민은행</div>
+                        <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--text)', letterSpacing: '0.01em' }}>031601-04-242731</div>
+                        <div style={{ fontSize: 14, color: 'var(--text-secondary)', marginTop: 2 }}>주식회사 바른반려연구소</div>
                       </div>
                       <button type="button" onClick={() => navigator.clipboard?.writeText('031601-04-242731')}
-                        style={{ flexShrink: 0, fontSize: 13, fontWeight: 700, color: '#fff', background: 'var(--accent)', border: 'none', borderRadius: 8, padding: '9px 14px', cursor: 'pointer' }}>
+                        style={{ flexShrink: 0, fontSize: 14, fontWeight: 700, color: '#fff', background: 'var(--accent)', border: 'none', borderRadius: 8, padding: '9px 14px', cursor: 'pointer' }}>
                         계좌 복사
                       </button>
                     </div>
 
-                    <p style={{ margin: 0, fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.8 }}>
+                    <p style={{ margin: 0, fontSize: 14, color: 'var(--text-muted)', lineHeight: 1.8 }}>
                       · 입금자명을 <b>병원명</b>으로 해주시면 확인이 빨라요.<br />
                       · 입금이 확인되면 토큰이 충전됩니다(영업일 기준).<br />
                       · 카드 결제는 추후 제공됩니다.
@@ -530,14 +531,14 @@ export function SettingsModal({ open, onClose, initialTab }: { open: boolean; on
                       display: 'flex', alignItems: 'baseline', justifyContent: 'space-between',
                       padding: '14px 16px', borderRadius: 'var(--radius)', background: 'var(--bg-raised)',
                     }}>
-                      <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>현재 보유 토큰</span>
-                      <span style={{ fontSize: 22, fontWeight: 800, color: 'var(--text)' }}>
+                      <span style={{ fontSize: 14, color: 'var(--text-secondary)' }}>현재 보유 토큰</span>
+                      <span style={{ fontSize: 20, fontWeight: 800, color: 'var(--text)' }}>
                         {overview?.balance == null ? '-' : fmtTok(overview.balance)}{' '}
-                        <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-muted)' }}>토큰</span>
+                        <span style={{ fontSize: 14, fontWeight: 500, color: 'var(--text-muted)' }}>토큰</span>
                       </span>
                     </div>
                     {/* 상품 선택 */}
-                    <div style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text-secondary)' }}>충전 상품 선택</div>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-secondary)' }}>충전 상품 선택</div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                       {TOKEN_PACKAGES.map((p) => {
                         const sel = selectedPkg === p.id;
@@ -545,6 +546,7 @@ export function SettingsModal({ open, onClose, initialTab }: { open: boolean; on
                           <button
                             key={p.id}
                             type="button"
+                            className="hospBtnFree"
                             onClick={() => setSelectedPkg(p.id)}
                             style={{
                               position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
@@ -555,25 +557,25 @@ export function SettingsModal({ open, onClose, initialTab }: { open: boolean; on
                             }}
                           >
                             {p.tag ? (
-                              <span style={{ position: 'absolute', top: -9, left: 14, fontSize: 10.5, fontWeight: 800, color: '#fff', background: 'var(--accent)', padding: '2px 8px', borderRadius: 999 }}>
+                              <span style={{ position: 'absolute', top: -9, left: 14, fontSize: 11, fontWeight: 800, color: '#fff', background: 'var(--accent)', padding: '2px 8px', borderRadius: 999 }}>
                                 🔥 {p.tag}
                               </span>
                             ) : null}
                             <div style={{ minWidth: 0 }}>
-                              <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--text)', lineHeight: 1.3 }}>
-                                {fmtTok(p.base)}<span style={{ fontSize: 12.5, fontWeight: 600 }}> 토큰</span>
+                              <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--text)', lineHeight: 1.3 }}>
+                                {fmtTok(p.base)}<span style={{ fontSize: 14, fontWeight: 600 }}> 토큰</span>
                                 {p.bonus > 0 ? (
-                                  <span style={{ color: 'var(--accent)' }}> + {fmtTok(p.bonus)}<span style={{ fontSize: 12.5, fontWeight: 600 }}> 토큰</span></span>
+                                  <span style={{ color: 'var(--accent)' }}> + {fmtTok(p.bonus)}<span style={{ fontSize: 14, fontWeight: 600 }}> 토큰</span></span>
                                 ) : null}
                               </div>
                               {p.bonus > 0 ? (
-                                <span style={{ display: 'inline-block', marginTop: 6, fontSize: 11.5, fontWeight: 800, color: 'var(--accent)', background: sel ? 'var(--bg)' : 'var(--accent-subtle)', padding: '3px 9px', borderRadius: 999 }}>
+                                <span style={{ display: 'inline-block', marginTop: 6, fontSize: 11, fontWeight: 800, color: 'var(--accent)', background: sel ? 'var(--bg)' : 'var(--accent-subtle)', padding: '3px 9px', borderRadius: 999 }}>
                                   🎁 {p.bonusPct}% 추가 적립
                                 </span>
                               ) : null}
                             </div>
                             <div style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
-                              <div style={{ fontSize: 17, fontWeight: 800, color: 'var(--text)' }}>{fmtWon(p.price)}<span style={{ fontSize: 12, fontWeight: 600 }}> 원</span></div>
+                              <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--text)' }}>{fmtWon(p.price)}<span style={{ fontSize: 14, fontWeight: 600 }}> 원</span></div>
                             </div>
                           </button>
                         );
@@ -585,24 +587,24 @@ export function SettingsModal({ open, onClose, initialTab }: { open: boolean; on
                       type="button"
                       disabled={placing}
                       onClick={() => void placeOrder()}
-                      style={{ marginTop: 2, padding: '12px 16px', fontSize: 14.5, fontWeight: 700, color: '#fff', background: placing ? 'var(--text-muted)' : 'var(--accent)', border: 'none', borderRadius: 'var(--radius)', cursor: placing ? 'default' : 'pointer' }}
+                      style={{ marginTop: 2, padding: '12px 16px', fontSize: 14, fontWeight: 700, color: '#fff', background: placing ? 'var(--text-muted)' : 'var(--accent)', border: 'none', borderRadius: 'var(--radius)', cursor: placing ? 'default' : 'pointer' }}
                     >
                       {placing ? '주문 중…' : '구매하기'}
                     </button>
 
                     {myOrders.length > 0 ? (
                       <div style={{ marginTop: 4 }}>
-                        <div style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 8 }}>내 주문</div>
+                        <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 8 }}>내 주문</div>
                         <div style={{ border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden' }}>
                           {myOrders.slice(0, 5).map((o, i) => {
                             const st = ORDER_STATUS[o.status ?? ''] ?? { label: o.status ?? '', color: 'var(--text-muted)' };
                             return (
-                              <div key={o.orderNo} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, padding: '10px 12px', borderTop: i ? '1px solid var(--border)' : 'none', fontSize: 12.5 }}>
+                              <div key={o.orderNo} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, padding: '10px 12px', borderTop: i ? '1px solid var(--border)' : 'none', fontSize: 14 }}>
                                 <div style={{ minWidth: 0 }}>
                                   <div style={{ fontWeight: 700, color: 'var(--text)' }}>{fmtTok(o.totalTokens)}토큰 · {fmtWon(o.priceKrw)}원</div>
                                   <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>#{o.orderNo}{o.createdAt ? ` · ${new Date(o.createdAt).toLocaleDateString('ko-KR')}` : ''}</div>
                                 </div>
-                                <span style={{ fontSize: 11.5, fontWeight: 700, color: st.color, whiteSpace: 'nowrap' }}>{st.label}</span>
+                                <span style={{ fontSize: 11, fontWeight: 700, color: st.color, whiteSpace: 'nowrap' }}>{st.label}</span>
                               </div>
                             );
                           })}
@@ -616,9 +618,9 @@ export function SettingsModal({ open, onClose, initialTab }: { open: boolean; on
                 <>
                 {/* 상세 내역 — 월별 접이식(최근 1년) */}
                 <div>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 10 }}>상세 내역</div>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', marginBottom: 10 }}>상세 내역</div>
                   {groupedLedger.length === 0 ? (
-                    <div style={{ padding: 12, fontSize: 13, color: 'var(--text-muted)', border: '1px solid var(--border-strong)', borderRadius: 10 }}>
+                    <div style={{ padding: 12, fontSize: 14, color: 'var(--text-muted)', border: '1px solid var(--border-strong)', borderRadius: 10 }}>
                       {loadingOverview ? '불러오는 중…' : '내역이 없습니다.'}
                     </div>
                   ) : (
@@ -629,8 +631,9 @@ export function SettingsModal({ open, onClose, initialTab }: { open: boolean; on
                           <div key={mg.month} style={{ border: '1px solid var(--border-strong)', borderRadius: 10, overflow: 'hidden' }}>
                             <button
                               type="button"
+                              className="hospBtnFree"
                               onClick={() => setOpenMonths((prev) => { const n = new Set(prev); if (n.has(mg.month)) n.delete(mg.month); else n.add(mg.month); return n; })}
-                              style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', padding: '11px 14px', background: 'var(--bg-subtle)', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 700, color: 'var(--text)' }}
+                              style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', padding: '11px 14px', background: 'var(--bg-subtle)', border: 'none', cursor: 'pointer', fontSize: 14, fontWeight: 700, color: 'var(--text)' }}
                             >
                               <span>{mg.label} <span style={{ fontWeight: 500, color: 'var(--text-muted)' }}>· {mg.items.length}건</span></span>
                               <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>{isOpen ? '접기 ▲' : '펼치기 ▼'}</span>
@@ -649,9 +652,9 @@ export function SettingsModal({ open, onClose, initialTab }: { open: boolean; on
 
             {tab === 'payment' && isMaster && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                <div style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text-secondary)' }}>구독</div>
+                <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-secondary)' }}>구독</div>
                 <SubscriptionPanel />
-                <p style={{ margin: 0, fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.7 }}>
+                <p style={{ margin: 0, fontSize: 14, color: 'var(--text-muted)', lineHeight: 1.7 }}>
                   * 구독료는 보유 토큰에서 차감됩니다. 카드 등록·토큰 충전은 결제 연동(PG) 후 제공됩니다.
                 </p>
               </div>
@@ -662,8 +665,8 @@ export function SettingsModal({ open, onClose, initialTab }: { open: boolean; on
                 <span style={{ display: 'inline-flex', width: 48, height: 48, borderRadius: 14, background: 'var(--bg-raised)', alignItems: 'center', justifyContent: 'center' }}>
                   <Wallet size={22} style={{ color: 'var(--text-muted)' }} />
                 </span>
-                <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)' }}>준비 중입니다</div>
-                <p style={{ margin: 0, fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.7 }}>
+                <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>준비 중입니다</div>
+                <p style={{ margin: 0, fontSize: 14, color: 'var(--text-secondary)', lineHeight: 1.7 }}>
                   결제수단 등록 기능은 결제 연동(PG) 후 제공됩니다.
                 </p>
               </div>
@@ -697,10 +700,10 @@ function Field({ label, hint, required, children }: { label: string; hint?: stri
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
-        <label style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>
+        <label style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)' }}>
           {label}{required && <span style={{ color: 'var(--danger)', marginLeft: 3 }}>*</span>}
         </label>
-        {hint && <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{hint}</span>}
+        {hint && <span style={{ fontSize: 14, color: 'var(--text-muted)' }}>{hint}</span>}
       </div>
       {children}
     </div>
@@ -710,7 +713,7 @@ function Field({ label, hint, required, children }: { label: string; hint?: stri
 function Msg({ type, text }: { type: 'success' | 'error'; text: string }) {
   return (
     <p style={{
-      margin: 0, fontSize: 13, padding: '8px 12px', borderRadius: 'var(--radius)',
+      margin: 0, fontSize: 14, padding: '8px 12px', borderRadius: 'var(--radius)',
       background: type === 'success' ? 'var(--success-subtle)' : 'var(--danger-subtle)',
       color: type === 'success' ? 'var(--success)' : 'var(--danger)',
       border: `1px solid ${type === 'success' ? 'var(--success)' : 'var(--danger)'}`,
@@ -742,7 +745,7 @@ const leftMenu: React.CSSProperties = {
 };
 const menuItem: React.CSSProperties = {
   display: 'flex', alignItems: 'center', gap: 9, padding: '8px 10px',
-  border: 'none', borderRadius: 'var(--radius)', fontSize: 13, textAlign: 'left',
+  border: 'none', borderRadius: 'var(--radius)', fontSize: 14, textAlign: 'left',
   cursor: 'pointer', width: '100%',
 };
 const content: React.CSSProperties = { flex: 1, minWidth: 0, minHeight: 0, padding: '20px 22px', overflowY: 'auto' };

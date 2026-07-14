@@ -111,7 +111,7 @@ export function TopBar({ userName, hospitalName, tokenBalance, isMaster = false 
           alignItems: 'center',
           gap: 8,
           textDecoration: 'none',
-          fontSize: 16,
+          fontSize: 20,
           fontWeight: 800,
           letterSpacing: '-0.01em',
           color: 'var(--text)',
@@ -145,7 +145,7 @@ export function TopBar({ userName, hospitalName, tokenBalance, isMaster = false 
               borderRadius: 'var(--radius)',
               background: 'var(--accent-subtle)',
               color: 'var(--accent)',
-              fontSize: 13,
+              fontSize: 14,
               fontWeight: 600,
               whiteSpace: 'nowrap',
               border: 'none',
@@ -166,7 +166,7 @@ export function TopBar({ userName, hospitalName, tokenBalance, isMaster = false 
               borderRadius: 'var(--radius)',
               background: 'var(--accent-subtle)',
               color: 'var(--accent)',
-              fontSize: 13,
+              fontSize: 14,
               fontWeight: 600,
               whiteSpace: 'nowrap',
             }}
@@ -178,7 +178,7 @@ export function TopBar({ userName, hospitalName, tokenBalance, isMaster = false 
         <span
           title={mask ? '데모 마스킹 중 (URL 에 ?demo=0 으로 해제)' : undefined}
           style={{
-            fontSize: 13,
+            fontSize: 14,
             color: 'var(--text-secondary)',
             maxWidth: 280,
             overflow: 'hidden',
@@ -212,6 +212,7 @@ export function TopBar({ userName, hospitalName, tokenBalance, isMaster = false 
         <NotificationBell />
 
         <button
+          className="hospIconBtn"
           onClick={() => { setSettingsTab('basic'); setSettingsOpen(true); }}
           title="설정"
           style={{
@@ -238,7 +239,7 @@ export function TopBar({ userName, hospitalName, tokenBalance, isMaster = false 
             alignItems: 'center',
             gap: 6,
             padding: '6px 10px',
-            fontSize: 12,
+            fontSize: 14,
             color: 'var(--text-secondary)',
             background: 'transparent',
             border: '1px solid var(--border)',

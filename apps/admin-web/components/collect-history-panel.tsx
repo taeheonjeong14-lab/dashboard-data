@@ -253,8 +253,8 @@ export default function CollectHistoryPanel({ hospitals }: { hospitals: ChartHos
     <div style={{ maxWidth: 920 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
         <div>
-          <h2 style={{ margin: '0 0 4px', fontSize: 18, fontWeight: 700, color: 'var(--text)' }}>수집 내역</h2>
-          <p style={{ margin: 0, fontSize: 13, color: 'var(--text-muted)' }}>
+          <h2 style={{ margin: '0 0 4px', fontSize: 20, fontWeight: 700, color: 'var(--text)' }}>수집 내역</h2>
+          <p style={{ margin: 0, fontSize: 14, color: 'var(--text-muted)' }}>
             경영통계 수동 업로드와 자동 수집(수동 실행·스케줄)이 한 곳에 시간순으로 모입니다.
           </p>
         </div>
@@ -262,19 +262,19 @@ export default function CollectHistoryPanel({ hospitals }: { hospitals: ChartHos
           type="button"
           onClick={() => void load()}
           disabled={loading}
-          style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', background: '#fff', border: '1px solid var(--border-strong)', borderRadius: 8, padding: '6px 11px', cursor: 'pointer' }}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 14, fontWeight: 600, color: 'var(--text-secondary)', background: '#fff', border: '1px solid var(--border-strong)', borderRadius: 8, padding: '6px 11px', cursor: 'pointer' }}
         >
           <RefreshCw size={13} className={loading ? 'adminSpin' : undefined} />
           새로고침
         </button>
       </div>
 
-      {error && <p style={{ margin: '0 0 12px', fontSize: 13, color: 'var(--danger)' }}>{error}</p>}
+      {error && <p style={{ margin: '0 0 12px', fontSize: 14, color: 'var(--danger)' }}>{error}</p>}
 
       {loading && items.length === 0 ? (
-        <p style={{ margin: 0, fontSize: 13, color: 'var(--text-muted)' }}>불러오는 중…</p>
+        <p style={{ margin: 0, fontSize: 14, color: 'var(--text-muted)' }}>불러오는 중…</p>
       ) : items.length === 0 ? (
-        <p style={{ margin: 0, fontSize: 13, color: 'var(--text-muted)' }}>수집 내역이 없습니다.</p>
+        <p style={{ margin: 0, fontSize: 14, color: 'var(--text-muted)' }}>수집 내역이 없습니다.</p>
       ) : (
         <div style={{ display: 'grid', gap: 8 }}>
           {items.map((item) => {
@@ -302,7 +302,7 @@ export default function CollectHistoryPanel({ hospitals }: { hospitals: ChartHos
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap' }}>
-                      <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>{nameOf(item.hospitalId)}</span>
+                      <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>{nameOf(item.hospitalId)}</span>
                       <Badge {...src} />
                       {item.kind === 'manual_stats' && item.chartType && (
                         <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
@@ -310,7 +310,7 @@ export default function CollectHistoryPanel({ hospitals }: { hospitals: ChartHos
                         </span>
                       )}
                     </div>
-                    <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>
+                    <span style={{ fontSize: 14, color: 'var(--text-muted)' }}>
                       {formatKst(item.at)}
                       {dur && ` · ${dur}`}
                     </span>
@@ -326,7 +326,7 @@ export default function CollectHistoryPanel({ hospitals }: { hospitals: ChartHos
                           display: 'inline-flex',
                           alignItems: 'center',
                           gap: 4,
-                          fontSize: 13,
+                          fontSize: 14,
                           fontWeight: 600,
                           color: 'var(--accent)',
                           background: 'var(--accent-subtle)',
@@ -368,7 +368,7 @@ export default function CollectHistoryPanel({ hospitals }: { hospitals: ChartHos
                         return (
                           <div key={s.key}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 13, color: 'var(--text-secondary)' }}>
+                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 14, color: 'var(--text-secondary)' }}>
                                 {stepDone ? (
                                   <CheckCircle2 size={13} style={{ color: 'var(--success)', flexShrink: 0 }} />
                                 ) : running ? (
@@ -394,7 +394,7 @@ export default function CollectHistoryPanel({ hospitals }: { hospitals: ChartHos
 
                 {/* 요약 */}
                 {item.kind === 'manual_stats' ? (
-                  <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid var(--border)', display: 'flex', gap: 16, flexWrap: 'wrap', fontSize: 13, color: 'var(--text-secondary)' }}>
+                  <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid var(--border)', display: 'flex', gap: 16, flexWrap: 'wrap', fontSize: 14, color: 'var(--text-secondary)' }}>
                     <span>적재 <strong style={{ color: 'var(--accent)' }}>{(item.importedRows ?? 0).toLocaleString()}</strong>행</span>
                     <span>전체 {(item.totalRows ?? 0).toLocaleString()}행</span>
                     {(item.errorRows ?? 0) > 0 && <span style={{ color: 'var(--danger)' }}>오류 {item.errorRows}행</span>}
@@ -404,7 +404,7 @@ export default function CollectHistoryPanel({ hospitals }: { hospitals: ChartHos
                   </div>
                 ) : (
                   ((item.upserts?.length ?? 0) > 0 || (item.failedSteps?.length ?? 0) > 0 || item.status === 'failed') && (
-                    <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid var(--border)', display: 'grid', gap: 4, fontSize: 13 }}>
+                    <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid var(--border)', display: 'grid', gap: 4, fontSize: 14 }}>
                       {item.failedSteps?.map((s) => {
                         const human = humanizeCollectError(s.error);
                         return (

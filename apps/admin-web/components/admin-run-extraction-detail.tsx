@@ -292,7 +292,7 @@ function CaseImageCard({ img, numbers = [], confidence, editMode = false, onDele
               style={{ width: '100%', height: 160, objectFit: 'contain', display: 'block' }}
             />
           ) : (
-            <div style={{ height: 120, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)', fontSize: 13 }}>
+            <div style={{ height: 120, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)', fontSize: 14 }}>
               이미지 없음
             </div>
           )}
@@ -307,7 +307,7 @@ function CaseImageCard({ img, numbers = [], confidence, editMode = false, onDele
                     borderRadius: '50%',
                     background: '#a3ff00',
                     color: '#1a2e05',
-                    fontSize: 13,
+                    fontSize: 14,
                     fontWeight: 800,
                     display: 'flex',
                     alignItems: 'center',
@@ -597,7 +597,7 @@ export function CaseImagesSection({ runId, onAddAnalysis }: { runId: string; onA
   return (
     <details open style={{ ...sectionStyle, gridColumn: '1 / -1' }}>
       <summary style={summaryStyle} onClick={(e) => e.preventDefault()}>
-        <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>이미지 분석</span>
+        <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>이미지 분석</span>
         <span style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
           {onAddAnalysis && (
             <button
@@ -623,19 +623,19 @@ export function CaseImagesSection({ runId, onAddAnalysis }: { runId: string; onA
       </summary>
       <div style={{ padding: '12px 14px' }}>
         {loading ? (
-          <p style={{ margin: 0, fontSize: 13, color: 'var(--text-muted)' }}>불러오는 중…</p>
+          <p style={{ margin: 0, fontSize: 14, color: 'var(--text-muted)' }}>불러오는 중…</p>
         ) : error ? (
-          <p style={{ margin: 0, fontSize: 13, color: 'var(--danger)' }}>{error}</p>
+          <p style={{ margin: 0, fontSize: 14, color: 'var(--danger)' }}>{error}</p>
         ) : images.length === 0 ? (
           autoRetrying ? (
-            <p style={{ margin: 0, fontSize: 13, color: 'var(--accent)', fontWeight: 600 }}>
+            <p style={{ margin: 0, fontSize: 14, color: 'var(--accent)', fontWeight: 600 }}>
               ⏳ 병원에서 제출한 이미지를 분석하고 있습니다… 잠시만 기다려 주세요.
               <span style={{ display: 'block', marginTop: 4, fontWeight: 400, color: 'var(--text-muted)' }}>
                 사진이 많으면 1~2분 정도 걸릴 수 있어요. 끝나면 자동으로 표시됩니다.
               </span>
             </p>
           ) : (
-            <p style={{ margin: 0, fontSize: 13, color: 'var(--text-muted)' }}>
+            <p style={{ margin: 0, fontSize: 14, color: 'var(--text-muted)' }}>
               이미지가 없습니다. 차트 데이터 수집 시 이미지를 첨부하면 여기에 분석 결과가 표시됩니다.
             </p>
           )
@@ -773,7 +773,7 @@ function SourcePdfMenu({ pdfs }: { pdfs: { name: string; url: string }[] }) {
               style={{
                 display: 'block',
                 padding: '7px 10px',
-                fontSize: 13,
+                fontSize: 14,
                 color: 'var(--text)',
                 textDecoration: 'none',
                 borderRadius: 6,
@@ -909,8 +909,8 @@ function ReExtractButton({ runId, onReloaded }: { runId: string; onReloaded?: ()
           <div style={{ height: '100%', width: `${pct}%`, background: phase === 'done' ? '#16a34a' : '#2563eb', transition: 'width 0.5s ease' }} />
         </div>
       )}
-      {phase === 'done' && <span style={{ fontSize: 13, color: '#16a34a' }}>재추출 완료 — 결과를 갱신했습니다.</span>}
-      {phase === 'error' && <span style={{ fontSize: 13, color: '#dc2626' }}>{errMsg}</span>}
+      {phase === 'done' && <span style={{ fontSize: 14, color: '#16a34a' }}>재추출 완료 — 결과를 갱신했습니다.</span>}
+      {phase === 'error' && <span style={{ fontSize: 14, color: '#dc2626' }}>{errMsg}</span>}
     </div>
   );
 }
@@ -1392,7 +1392,7 @@ export function AdminRunExtractionDetail({
   }
 
   if (loading && !result) {
-    return <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>상세 불러오는 중…</p>;
+    return <p style={{ fontSize: 14, color: 'var(--text-muted)' }}>상세 불러오는 중…</p>;
   }
   if (error || !result) {
     return (
@@ -1402,7 +1402,7 @@ export function AdminRunExtractionDetail({
           border: `1px solid ${divider}`,
           background: 'var(--danger-subtle)',
           color: 'var(--danger)',
-          fontSize: 13,
+          fontSize: 14,
         }}
       >
         {error ?? '데이터가 없습니다.'}
@@ -1444,14 +1444,14 @@ export function AdminRunExtractionDetail({
     <div style={{ paddingBottom: 24 }}>
       {!embedded ? (
         <header style={{ marginBottom: 16, display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center' }}>
-          <h1 style={{ margin: 0, fontSize: 18, fontWeight: 800 }}>추출 결과</h1>
+          <h1 style={{ margin: 0, fontSize: 20, fontWeight: 800 }}>추출 결과</h1>
           {result.run.chartType && (
-            <span style={{ fontSize: 13, color: 'var(--text-muted)', background: 'var(--bg-subtle)', padding: '3px 8px', borderRadius: 4 }}>
+            <span style={{ fontSize: 14, color: 'var(--text-muted)', background: 'var(--bg-subtle)', padding: '3px 8px', borderRadius: 4 }}>
               {result.run.chartType}
             </span>
           )}
-          {result.run.healthStage !== 'none' && <StatusBadge category="health" stage={result.run.healthStage} style={{ fontSize: 13, padding: '3px 8px' }} />}
-          {result.run.blogStage !== 'none' && <StatusBadge category="blog" stage={result.run.blogStage} style={{ fontSize: 13, padding: '3px 8px' }} />}
+          {result.run.healthStage !== 'none' && <StatusBadge category="health" stage={result.run.healthStage} style={{ fontSize: 14, padding: '3px 8px' }} />}
+          {result.run.blogStage !== 'none' && <StatusBadge category="blog" stage={result.run.blogStage} style={{ fontSize: 14, padding: '3px 8px' }} />}
           {sourcePdfs.length > 0 ? (
             <span style={{ marginLeft: 'auto', display: 'inline-flex', gap: 6, alignItems: 'center' }}>
               <SourcePdfMenu pdfs={sourcePdfs} />
@@ -1477,17 +1477,17 @@ export function AdminRunExtractionDetail({
       ) : (
         <div style={{ marginBottom: 14, display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
           {result.basicInfo?.hospitalName && (
-            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>
+            <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>
               {result.basicInfo.hospitalName}
             </span>
           )}
           {result.basicInfo?.patientName && (
-            <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
+            <span style={{ fontSize: 14, color: 'var(--text-secondary)' }}>
               {result.basicInfo.patientName}
             </span>
           )}
           {result.basicInfo?.ownerName && (
-            <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>
+            <span style={{ fontSize: 14, color: 'var(--text-muted)' }}>
               ({result.basicInfo.ownerName})
             </span>
           )}
@@ -1533,13 +1533,13 @@ export function AdminRunExtractionDetail({
       )}
 
       {result.run.extractedAt && (
-        <div style={{ marginTop: -6, marginBottom: 14, fontSize: 13, color: 'var(--text-muted)' }}>
+        <div style={{ marginTop: -6, marginBottom: 14, fontSize: 14, color: 'var(--text-muted)' }}>
           마지막 추출: {formatExtractedAt(result.run.extractedAt)}
         </div>
       )}
 
       {saveError ? (
-        <div style={{ marginBottom: 12, padding: 12, border: `1px solid ${divider}`, background: 'var(--danger-subtle)', color: 'var(--danger)', fontSize: 13 }}>
+        <div style={{ marginBottom: 12, padding: 12, border: `1px solid ${divider}`, background: 'var(--danger-subtle)', color: 'var(--danger)', fontSize: 14 }}>
           {saveError}
         </div>
       ) : null}
@@ -1561,7 +1561,7 @@ export function AdminRunExtractionDetail({
               onClick={() => setActiveTab(t.key)}
               style={{
                 padding: '8px 12px',
-                fontSize: 13,
+                fontSize: 14,
                 fontWeight: active ? 600 : 500,
                 color: active ? 'var(--accent)' : 'var(--text-muted)',
                 background: 'none',
@@ -1586,7 +1586,7 @@ export function AdminRunExtractionDetail({
       {/* 케이스개요 (진료케이스 · 병원 작성) — 전체 너비 */}
       <details open style={{ ...sectionStyle, gridColumn: '1 / -1', display: activeTab === 'caseOverview' ? undefined : 'none' }}>
         <summary style={summaryStyle} onClick={(e) => e.preventDefault()}>
-          <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>케이스개요 <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>(병원 작성)</span></span>
+          <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>케이스개요 <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>(병원 작성)</span></span>
         </summary>
         <div style={{ display: 'grid', gap: 12, padding: '8px 2px' }}>
           {CASE_OVERVIEW_LABELS.map(({ key, label }) => {
@@ -1594,7 +1594,7 @@ export function AdminRunExtractionDetail({
             return (
               <div key={key} style={{ display: 'grid', gap: 3 }}>
                 <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)' }}>{label}</span>
-                <span style={{ fontSize: 13, color: val ? 'var(--text)' : 'var(--text-muted)', whiteSpace: 'pre-wrap', fontStyle: val ? 'normal' : 'italic' }}>{val || '미작성'}</span>
+                <span style={{ fontSize: 14, color: val ? 'var(--text)' : 'var(--text-muted)', whiteSpace: 'pre-wrap', fontStyle: val ? 'normal' : 'italic' }}>{val || '미작성'}</span>
               </div>
             );
           })}
@@ -1604,9 +1604,9 @@ export function AdminRunExtractionDetail({
       {/* 강조사항 (건강검진 · 병원 작성) — 전체 너비 */}
       <details open style={{ ...sectionStyle, gridColumn: '1 / -1', display: activeTab === 'emphasis' ? undefined : 'none' }}>
         <summary style={summaryStyle} onClick={(e) => e.preventDefault()}>
-          <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>강조사항 <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>(병원 작성)</span></span>
+          <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>강조사항 <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>(병원 작성)</span></span>
         </summary>
-        <div style={{ padding: '8px 2px', fontSize: 13, color: 'var(--text)', whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>
+        <div style={{ padding: '8px 2px', fontSize: 14, color: 'var(--text)', whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>
           {emphasisText.trim() || '작성된 강조사항이 없습니다.'}
         </div>
       </details>
@@ -1614,16 +1614,16 @@ export function AdminRunExtractionDetail({
       {/* 추가 자료 (외부 검사 결과서 등 · 병원 업로드 → LLM 텍스트 추출) — 전체 너비 */}
       <details open style={{ ...sectionStyle, gridColumn: '1 / -1', display: activeTab === 'additionalDocs' ? undefined : 'none' }}>
         <summary style={summaryStyle} onClick={(e) => e.preventDefault()}>
-          <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>추가 자료 <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>(병원 업로드 · LLM 추출 텍스트)</span></span>
+          <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>추가 자료 <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>(병원 업로드 · LLM 추출 텍스트)</span></span>
         </summary>
         <div style={{ display: 'grid', gap: 18, padding: '8px 2px' }}>
           {additionalDocs.length === 0 ? (
-            <span style={{ fontSize: 13, color: 'var(--text-muted)', fontStyle: 'italic' }}>업로드된 추가 자료가 없습니다.</span>
+            <span style={{ fontSize: 14, color: 'var(--text-muted)', fontStyle: 'italic' }}>업로드된 추가 자료가 없습니다.</span>
           ) : (
             additionalDocs.map((d, i) => (
               <div key={`${d.path ?? ''}-${i}`} style={{ display: 'grid', gap: 6 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', wordBreak: 'break-all' }}>{d.filename || `파일 ${i + 1}`}</span>
+                  <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', wordBreak: 'break-all' }}>{d.filename || `파일 ${i + 1}`}</span>
                   {d.path && d.bucket ? (
                     <button
                       type="button"
@@ -1649,20 +1649,20 @@ export function AdminRunExtractionDetail({
                   ) : null}
                 </div>
                 {d.error ? (
-                  <span style={{ fontSize: 13, color: 'var(--danger)' }}>추출 실패: {d.error}</span>
+                  <span style={{ fontSize: 14, color: 'var(--danger)' }}>추출 실패: {d.error}</span>
                 ) : (
                   <>
                     {(d.summary ?? '').trim() ? (
                       <div style={{ display: 'grid', gap: 3 }}>
                         <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--accent)' }}>AI 요약 <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>(진료케이스 생성에 반영되는 내용)</span></span>
-                        <div style={{ fontSize: 13, color: 'var(--text)', whiteSpace: 'pre-wrap', lineHeight: 1.6, background: 'var(--accent-subtle)', border: '1px solid rgba(29,78,216,0.22)', borderRadius: 'var(--radius)', padding: '10px 12px' }}>
+                        <div style={{ fontSize: 14, color: 'var(--text)', whiteSpace: 'pre-wrap', lineHeight: 1.6, background: 'var(--accent-subtle)', border: '1px solid rgba(29,78,216,0.22)', borderRadius: 'var(--radius)', padding: '10px 12px' }}>
                           {(d.summary ?? '').trim()}
                         </div>
                       </div>
                     ) : null}
                     <div style={{ display: 'grid', gap: 3 }}>
                       <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)' }}>추출 원문</span>
-                      <div style={{ fontSize: 13, color: (d.text ?? '').trim() ? 'var(--text)' : 'var(--text-muted)', whiteSpace: 'pre-wrap', lineHeight: 1.6, background: 'var(--bg-subtle)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '10px 12px', fontStyle: (d.text ?? '').trim() ? 'normal' : 'italic' }}>
+                      <div style={{ fontSize: 14, color: (d.text ?? '').trim() ? 'var(--text)' : 'var(--text-muted)', whiteSpace: 'pre-wrap', lineHeight: 1.6, background: 'var(--bg-subtle)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '10px 12px', fontStyle: (d.text ?? '').trim() ? 'normal' : 'italic' }}>
                         {(d.text ?? '').trim() || '추출된 텍스트가 없습니다.'}
                       </div>
                     </div>
@@ -1677,7 +1677,7 @@ export function AdminRunExtractionDetail({
       {/* 기본 정보 — 전체 너비 */}
       <details open style={{ ...sectionStyle, gridColumn: '1 / -1', display: activeTab === 'basic' ? undefined : 'none' }}>
         <summary style={summaryStyle} onClick={(e) => e.preventDefault()}>
-          <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>기본정보</span>
+          <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>기본정보</span>
           <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
             <CopyTextButton
               disabled={!result.basicInfo}
@@ -1751,7 +1751,7 @@ export function AdminRunExtractionDetail({
                   ['sex', '성별'],
                 ] as const
               ).map(([key, label]) => (
-                <label key={key} style={{ display: 'grid', gap: 4, fontSize: 13 }}>
+                <label key={key} style={{ display: 'grid', gap: 4, fontSize: 14 }}>
                   <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}>{label}</span>
                   <input
                     className="adminLegacyInput"
@@ -1763,7 +1763,7 @@ export function AdminRunExtractionDetail({
               ))}
             </div>
           ) : (
-            <dl style={{ margin: '10px 0 0', display: 'grid', gridTemplateColumns: '7rem 1fr', gap: 6, fontSize: 13 }}>
+            <dl style={{ margin: '10px 0 0', display: 'grid', gridTemplateColumns: '7rem 1fr', gap: 6, fontSize: 14 }}>
               {result.basicInfo ? (
                 <>
                   <dt style={{ color: 'var(--text-muted)' }}>병원명</dt>
@@ -1794,7 +1794,7 @@ export function AdminRunExtractionDetail({
       {/* 예방접종 — 전체 너비 */}
       <details open style={{ ...sectionStyle, gridColumn: '1 / -1', display: activeTab === 'vaccination' ? undefined : 'none' }}>
         <summary style={summaryStyle} onClick={(e) => e.preventDefault()}>
-          <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>접종·기생충</span>
+          <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>접종·기생충</span>
           <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
             <CopyTextButton
               text={result.vaccinationRecords
@@ -1914,7 +1914,7 @@ export function AdminRunExtractionDetail({
       {/* 차트 본문 — 전체 너비 */}
       <details open style={{ ...sectionStyle, gridColumn: '1 / -1', display: activeTab === 'chart' ? undefined : 'none' }}>
         <summary style={summaryStyle} onClick={(e) => e.preventDefault()}>
-          <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>차트본문</span>
+          <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>차트본문</span>
           <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
             <CopyTextButton
               text={result.chartBodyByDate.map((c) => `${c.dateTime}\n${c.bodyText}`).join('\n\n')}
@@ -1956,10 +1956,10 @@ export function AdminRunExtractionDetail({
                       setDraftChart((rows) => rows?.map((r) => (r.id === c.id ? { ...r, bodyText: v } : r)) ?? null);
                     }}
                     rows={12}
-                    style={{ width: '100%', fontFamily: 'inherit', fontSize: 13, padding: 8, border: `1px solid ${divider}`, borderRadius: 6 }}
+                    style={{ width: '100%', fontFamily: 'inherit', fontSize: 14, padding: 8, border: `1px solid ${divider}`, borderRadius: 6 }}
                   />
                 ) : (
-                  <pre style={{ margin: 0, whiteSpace: 'pre-wrap', fontSize: 13, lineHeight: 1.6, color: 'var(--text)', border: '1px solid var(--border)', borderRadius: 6, padding: '10px 12px' }}>
+                  <pre style={{ margin: 0, whiteSpace: 'pre-wrap', fontSize: 14, lineHeight: 1.6, color: 'var(--text)', border: '1px solid var(--border)', borderRadius: 6, padding: '10px 12px' }}>
                     {c.bodyText || '—'}
                   </pre>
                 )}
@@ -1972,7 +1972,7 @@ export function AdminRunExtractionDetail({
       {/* 처방·플랜 — 전체 너비 */}
       <details open style={{ ...sectionStyle, gridColumn: '1 / -1', display: activeTab === 'plan' ? undefined : 'none' }}>
         <summary style={summaryStyle} onClick={(e) => e.preventDefault()}>
-          <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>플랜</span>
+          <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>플랜</span>
           <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
             <CopyTextButton
               text={planGroups
@@ -2014,7 +2014,7 @@ export function AdminRunExtractionDetail({
               </summary>
               <div style={{ marginTop: 4 }}>
               {!g.planRowsFromDb && g.rows.length > 0 ? (
-                <p style={{ fontSize: 13, color: 'var(--warning)', margin: '0 0 6px' }}>DB 행 없음 — plan_text 파싱 미리보기. 저장 시 DB에 반영됩니다.</p>
+                <p style={{ fontSize: 14, color: 'var(--warning)', margin: '0 0 6px' }}>DB 행 없음 — plan_text 파싱 미리보기. 저장 시 DB에 반영됩니다.</p>
               ) : null}
               <table className="adminDetailTable">
                 <thead>
@@ -2137,7 +2137,7 @@ export function AdminRunExtractionDetail({
       {/* Lab — 전체 너비 */}
       <details open style={{ ...sectionStyle, gridColumn: '1 / -1', display: activeTab === 'lab' ? undefined : 'none' }}>
         <summary style={summaryStyle} onClick={(e) => e.preventDefault()}>
-          <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>검사결과</span>
+          <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>검사결과</span>
           <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
             <CopyTextButton
               text={result.labItemsByDate
@@ -2440,7 +2440,7 @@ export function AdminRunExtractionDetail({
       {/* Vitals — 왼쪽 칸 */}
       <details open style={{ ...sectionStyle, gridColumn: '1 / -1', display: activeTab === 'vitals' ? undefined : 'none' }}>
         <summary style={summaryStyle} onClick={(e) => e.preventDefault()}>
-          <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>바이탈</span>
+          <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>바이탈</span>
           <CopyTextButton
             text={result.vitalsByDate
               .map(
@@ -2484,7 +2484,7 @@ export function AdminRunExtractionDetail({
       {/* 신체검사 — 오른쪽 칸 */}
       <details open style={{ ...sectionStyle, gridColumn: '1 / -1', display: activeTab === 'exam' ? undefined : 'none' }}>
         <summary style={summaryStyle} onClick={(e) => e.preventDefault()}>
-          <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>신체검사</span>
+          <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>신체검사</span>
           <CopyTextButton
             text={result.physicalExamByDate
               .map((g) =>
@@ -2540,7 +2540,7 @@ export function AdminRunExtractionDetail({
       {activeTab === 'debug' && (
         <div style={{ gridColumn: '1 / -1' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 12, paddingBottom: 8, borderBottom: '1px solid var(--border)' }}>
-            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>디버그</span>
+            <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>디버그</span>
           </div>
           <BucketDebugPanel key={runId} runId={runId} />
         </div>
@@ -2566,13 +2566,13 @@ export function AdminRunExtractionDetail({
       >
         <div style={{ background: '#fff', borderRadius: 8 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderBottom: '1px solid rgba(15,23,42,0.1)' }}>
-            <span style={{ fontWeight: 700, fontSize: 18 }}>건강검진 리포트 생성</span>
+            <span style={{ fontWeight: 700, fontSize: 20 }}>건강검진 리포트 생성</span>
             <button type="button" className="adminLegacySmallBtn" onClick={() => setGenModalOpen(false)}>닫기</button>
           </div>
           {genSuccess ? (
             <div style={{ padding: '28px 16px', textAlign: 'center' }}>
-              <p style={{ fontSize: 13, color: 'var(--success)', fontWeight: 600, marginBottom: 12 }}>생성이 완료되었습니다.</p>
-              <a href="/admin/health-report" style={{ fontSize: 13, color: 'var(--accent)', textDecoration: 'underline' }}>
+              <p style={{ fontSize: 14, color: 'var(--success)', fontWeight: 600, marginBottom: 12 }}>생성이 완료되었습니다.</p>
+              <a href="/admin/health-report" style={{ fontSize: 14, color: 'var(--accent)', textDecoration: 'underline' }}>
                 건강검진 리포트 메뉴에서 확인하기 →
               </a>
             </div>
@@ -2580,64 +2580,64 @@ export function AdminRunExtractionDetail({
             <div style={{ padding: '16px 16px 20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
               {genExistingReport === true && (
                 <div style={{ background: 'var(--warning-subtle)', border: '1px solid var(--warning-subtle)', borderRadius: 6, padding: '10px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-                  <span style={{ fontSize: 13, color: 'var(--warning)' }}>이 차트로 생성된 건강검진 리포트가 이미 있습니다.</span>
+                  <span style={{ fontSize: 14, color: 'var(--warning)' }}>이 차트로 생성된 건강검진 리포트가 이미 있습니다.</span>
                   <a
                     href="/admin/health-report"
-                    style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent)', textDecoration: 'underline', whiteSpace: 'nowrap', flexShrink: 0 }}
+                    style={{ fontSize: 14, fontWeight: 700, color: 'var(--accent)', textDecoration: 'underline', whiteSpace: 'nowrap', flexShrink: 0 }}
                   >
                     리포트 확인하기 →
                   </a>
                 </div>
               )}
-              <label style={{ fontSize: 13 }}>
+              <label style={{ fontSize: 14 }}>
                 <div style={{ fontWeight: 600, marginBottom: 4 }}>검진일자</div>
                 <input
                   type="date"
                   value={genCheckupDate}
                   onChange={(e) => setGenCheckupDate(e.target.value)}
-                  style={{ display: 'block', width: '100%', padding: '7px 10px', border: '1px solid var(--border)', borderRadius: 4, fontSize: 13, boxSizing: 'border-box' }}
+                  style={{ display: 'block', width: '100%', padding: '7px 10px', border: '1px solid var(--border)', borderRadius: 4, fontSize: 14, boxSizing: 'border-box' }}
                 />
               </label>
-              <label style={{ fontSize: 13 }}>
+              <label style={{ fontSize: 14 }}>
                 <div style={{ fontWeight: 600, marginBottom: 4 }}>담당 수의사</div>
                 <input
                   type="text"
                   value={genVeterinarian}
                   onChange={(e) => setGenVeterinarian(e.target.value)}
                   placeholder="예: 홍길동"
-                  style={{ display: 'block', width: '100%', padding: '7px 10px', border: '1px solid var(--border)', borderRadius: 4, fontSize: 13, boxSizing: 'border-box' }}
+                  style={{ display: 'block', width: '100%', padding: '7px 10px', border: '1px solid var(--border)', borderRadius: 4, fontSize: 14, boxSizing: 'border-box' }}
                 />
               </label>
-              <label style={{ fontSize: 13 }}>
+              <label style={{ fontSize: 14 }}>
                 <div style={{ fontWeight: 600, marginBottom: 4 }}>프로그램</div>
                 <input
                   type="text"
                   value={genProgram}
                   onChange={(e) => setGenProgram(e.target.value)}
                   placeholder="예: 종합건강검진 A"
-                  style={{ display: 'block', width: '100%', padding: '7px 10px', border: '1px solid var(--border)', borderRadius: 4, fontSize: 13, boxSizing: 'border-box' }}
+                  style={{ display: 'block', width: '100%', padding: '7px 10px', border: '1px solid var(--border)', borderRadius: 4, fontSize: 14, boxSizing: 'border-box' }}
                 />
               </label>
-              <label style={{ fontSize: 13 }}>
+              <label style={{ fontSize: 14 }}>
                 <div style={{ fontWeight: 600, marginBottom: 4 }}>반드시 포함되어야 하는 내용</div>
                 <textarea
                   value={genMustInclude}
                   onChange={(e) => setGenMustInclude(e.target.value.slice(0, HEALTH_CHECKUP_MUST_INCLUDE_MAX_CHARS))}
                   placeholder="LLM이 반드시 반영해야 하는 특이사항을 입력하세요"
                   rows={4}
-                  style={{ display: 'block', width: '100%', padding: '7px 10px', border: '1px solid var(--border)', borderRadius: 4, fontSize: 13, resize: 'vertical', fontFamily: 'inherit', boxSizing: 'border-box' }}
+                  style={{ display: 'block', width: '100%', padding: '7px 10px', border: '1px solid var(--border)', borderRadius: 4, fontSize: 14, resize: 'vertical', fontFamily: 'inherit', boxSizing: 'border-box' }}
                 />
                 <div style={{ fontSize: 11, color: 'var(--text-muted)', textAlign: 'right', marginTop: 2 }}>
                   {genMustInclude.length} / {HEALTH_CHECKUP_MUST_INCLUDE_MAX_CHARS}
                 </div>
               </label>
-              {genError && <p style={{ margin: 0, fontSize: 13, color: 'var(--danger)' }}>{genError}</p>}
+              {genError && <p style={{ margin: 0, fontSize: 14, color: 'var(--danger)' }}>{genError}</p>}
               <button
                 type="button"
                 className="adminLegacyPrimaryBtn"
                 onClick={() => void generateReport()}
                 disabled={genLoading}
-                style={{ width: '100%', fontSize: 13 }}
+                style={{ width: '100%', fontSize: 14 }}
               >
                 {genLoading ? '생성 중…' : '생성하기'}
               </button>
@@ -2664,15 +2664,15 @@ export function AdminRunExtractionDetail({
       >
         <div style={{ background: '#fff', borderRadius: 8 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderBottom: '1px solid rgba(15,23,42,0.1)' }}>
-            <span style={{ fontWeight: 700, fontSize: 18 }}>이미지 추가 분석</span>
+            <span style={{ fontWeight: 700, fontSize: 20 }}>이미지 추가 분석</span>
             <button type="button" className="adminLegacySmallBtn" onClick={closeImgModal} disabled={imgModalStatus === 'uploading'}>닫기</button>
           </div>
 
           {imgModalStatus === 'done' ? (
             <div style={{ padding: '28px 16px', textAlign: 'center' }}>
-              <p style={{ fontSize: 13, color: 'var(--success)', fontWeight: 600, marginBottom: 8 }}>분석이 완료되었습니다.</p>
+              <p style={{ fontSize: 14, color: 'var(--success)', fontWeight: 600, marginBottom: 8 }}>분석이 완료되었습니다.</p>
               {imgModalError && (
-                <p style={{ fontSize: 13, color: 'var(--warning)', background: 'var(--warning-subtle)', border: '1px solid var(--warning-subtle)', borderRadius: 6, padding: '6px 10px', marginBottom: 12 }}>
+                <p style={{ fontSize: 14, color: 'var(--warning)', background: 'var(--warning-subtle)', border: '1px solid var(--warning-subtle)', borderRadius: 6, padding: '6px 10px', marginBottom: 12 }}>
                   {imgModalError}
                 </p>
               )}
@@ -2680,13 +2680,13 @@ export function AdminRunExtractionDetail({
             </div>
           ) : (
             <div style={{ padding: '16px 16px 20px', display: 'flex', flexDirection: 'column', gap: 12 }}>
-              <p style={{ margin: 0, fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+              <p style={{ margin: 0, fontSize: 14, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
                 추가로 분석할 이미지를 선택하세요. 기존 분석 이미지는 유지되고 새 이미지가 추가됩니다.
               </p>
 
               {/* 날짜 선택 */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                <label style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>분석 날짜</label>
+                <label style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)' }}>분석 날짜</label>
                 {imgModalDates.length > 0 && (
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                     {imgModalDates.map((d) => (
@@ -2715,7 +2715,7 @@ export function AdminRunExtractionDetail({
                   max={new Date().toISOString().slice(0, 10)}
                   onChange={(e) => setImgModalDate(e.target.value)}
                   disabled={imgModalStatus === 'uploading'}
-                  style={{ padding: '6px 8px', border: '1px solid var(--border-strong)', borderRadius: 6, fontSize: 13, width: 'fit-content' }}
+                  style={{ padding: '6px 8px', border: '1px solid var(--border-strong)', borderRadius: 6, fontSize: 14, width: 'fit-content' }}
                 />
                 <p style={{ margin: 0, fontSize: 11, color: 'var(--text-muted)' }}>
                   기존 날짜를 고르면 그 그룹에 합쳐 재분석되고, 새 날짜면 새 그룹이 생깁니다.
@@ -2737,7 +2737,7 @@ export function AdminRunExtractionDetail({
                   userSelect: 'none',
                 }}
               >
-                <p style={{ margin: 0, fontSize: 13, color: 'var(--text-muted)' }}>
+                <p style={{ margin: 0, fontSize: 14, color: 'var(--text-muted)' }}>
                   이미지 드래그 또는 클릭 · JPEG / PNG / WebP
                 </p>
                 <p style={{ margin: '4px 0 0', fontSize: 11, color: 'var(--text-muted)' }}>최대 50장 · 장당 8MB · 자동 압축</p>
@@ -2764,7 +2764,7 @@ export function AdminRunExtractionDetail({
                       <button
                         type="button"
                         onClick={(e) => { e.stopPropagation(); setImgModalFiles((prev) => prev.filter((_, ii) => ii !== i)); }}
-                        style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 0, fontSize: 13, lineHeight: 1 }}
+                        style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 0, fontSize: 14, lineHeight: 1 }}
                         disabled={imgModalStatus === 'uploading'}
                       >×</button>
                     </div>
@@ -2773,7 +2773,7 @@ export function AdminRunExtractionDetail({
               )}
 
               {imgModalError && (
-                <p style={{ margin: 0, fontSize: 13, color: 'var(--danger)' }}>{imgModalError}</p>
+                <p style={{ margin: 0, fontSize: 14, color: 'var(--danger)' }}>{imgModalError}</p>
               )}
 
               <button
@@ -2781,7 +2781,7 @@ export function AdminRunExtractionDetail({
                 className="adminLegacyPrimaryBtn"
                 onClick={() => void submitImages()}
                 disabled={imgModalStatus === 'uploading' || imgModalFiles.length === 0 || !imgModalDate}
-                style={{ width: '100%', fontSize: 13 }}
+                style={{ width: '100%', fontSize: 14 }}
               >
                 {imgModalStatus === 'uploading' ? '분석 중… (OpenAI Vision)' : `분석 시작 (${imgModalFiles.length}장)`}
               </button>

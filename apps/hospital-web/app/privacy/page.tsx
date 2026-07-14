@@ -10,9 +10,9 @@ const DPO_NAME = '정태헌 (대표이사)';
 const DPO_EMAIL = 'taeheon.jeong@babanlabs.com';
 const EFFECTIVE = '2026년 7월 1일';
 
-const wrap: CSSProperties = { maxWidth: 760, margin: '0 auto', padding: '40px 20px 80px', color: '#1f2937', fontSize: 15, lineHeight: 1.75, fontFamily: '"Pretendard","Pretendard Variable",-apple-system,BlinkMacSystemFont,system-ui,sans-serif', wordBreak: 'keep-all' };
+const wrap: CSSProperties = { maxWidth: 760, margin: '0 auto', padding: '40px 20px 80px', color: '#1f2937', fontSize: 14, lineHeight: 1.75, fontFamily: '"Pretendard","Pretendard Variable",-apple-system,BlinkMacSystemFont,system-ui,sans-serif', wordBreak: 'keep-all' };
 const h1: CSSProperties = { fontSize: 24, fontWeight: 700, margin: '0 0 4px' };
-const h2: CSSProperties = { fontSize: 17, fontWeight: 700, margin: '28px 0 8px' };
+const h2: CSSProperties = { fontSize: 20, fontWeight: 700, margin: '28px 0 8px' };
 const p: CSSProperties = { margin: '0 0 8px' };
 const li: CSSProperties = { margin: '0 0 4px' };
 
@@ -20,7 +20,7 @@ export default function PrivacyPolicyPage() {
   return (
     <main style={wrap}>
       <h1 style={h1}>개인정보처리방침</h1>
-      <p style={{ ...p, color: '#6b7280', fontSize: 13 }}>시행일: {EFFECTIVE}</p>
+      <p style={{ ...p, color: '#6b7280', fontSize: 14 }}>시행일: {EFFECTIVE}</p>
 
       <p style={{ ...p, marginTop: 16 }}>
         동물병원(이하 “병원”)과 {COMPANY}(이하 “회사”)는 정보주체의 개인정보를 중요하게 생각하며 「개인정보 보호법」 등 관계 법령을 준수합니다.

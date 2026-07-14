@@ -73,19 +73,19 @@ export default function AiAssistPage() {
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 0, gap: 12, flexWrap: 'wrap' }}>
         <div>
           <h1 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: 'var(--text)' }}>AI 진료 보조</h1>
-          <p style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--text-secondary)' }}>
+          <p style={{ margin: '4px 0 0', fontSize: 14, color: 'var(--text-secondary)' }}>
             진료를 시작하고 AI 감별진단·요약을 확인합니다.
           </p>
         </div>
         <Link href="/ai-assist/new"
-          style={{ padding: '9px 16px', border: 'none', borderRadius: 'var(--radius)', background: 'var(--accent)', color: '#fff', fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>
+          style={{ padding: '9px 16px', border: 'none', borderRadius: 'var(--radius)', background: 'var(--accent)', color: '#fff', fontSize: 14, fontWeight: 600, textDecoration: 'none' }}>
           + 진료 시작
         </Link>
       </div>
       </StickyHeader>
 
       {error && (
-        <div style={{ padding: '12px 16px', background: 'var(--danger-subtle)', border: '1px solid var(--danger)', borderRadius: 'var(--radius)', color: 'var(--danger)', fontSize: 13, marginBottom: 16 }}>
+        <div style={{ padding: '12px 16px', background: 'var(--danger-subtle)', border: '1px solid var(--danger)', borderRadius: 'var(--radius)', color: 'var(--danger)', fontSize: 14, marginBottom: 16 }}>
           {error}
         </div>
       )}
@@ -95,7 +95,7 @@ export default function AiAssistPage() {
         <div style={{ marginBottom: 14 }}>
           <input type="search" value={search} onChange={(e) => setSearch(e.target.value)}
             placeholder="환자 또는 보호자 검색"
-            style={{ width: '100%', maxWidth: 320, padding: '9px 2px', fontSize: 13, color: 'var(--text)', background: 'transparent', border: 'none', borderBottom: '1px solid var(--border-strong)', borderRadius: 0, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+            style={{ width: '100%', maxWidth: 320, padding: '9px 2px', fontSize: 14, color: 'var(--text)', background: 'transparent', border: 'none', borderBottom: '1px solid var(--border-strong)', borderRadius: 0, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }} />
         </div>
       )}
 
@@ -103,7 +103,7 @@ export default function AiAssistPage() {
       <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
         <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <h2 style={{ margin: 0, fontSize: 14, fontWeight: 600, color: 'var(--text)' }}>진료 내역</h2>
-          {!loading && <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>총 {filtered.length}건</span>}
+          {!loading && <span style={{ fontSize: 14, color: 'var(--text-muted)' }}>총 {filtered.length}건</span>}
         </div>
 
         {loading ? (
@@ -115,9 +115,9 @@ export default function AiAssistPage() {
             </div>
             {!search && (
               <>
-                <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>“진료 시작”으로 첫 진료를 기록해 보세요.</div>
+                <div style={{ fontSize: 14, color: 'var(--text-muted)' }}>“진료 시작”으로 첫 진료를 기록해 보세요.</div>
                 <Link href="/ai-assist/new"
-                  style={{ marginTop: 4, padding: '8px 16px', background: 'var(--accent)', color: '#fff', borderRadius: 'var(--radius)', fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>
+                  style={{ marginTop: 4, padding: '8px 16px', background: 'var(--accent)', color: '#fff', borderRadius: 'var(--radius)', fontSize: 14, fontWeight: 600, textDecoration: 'none' }}>
                   진료 시작하기
                 </Link>
               </>
@@ -138,21 +138,21 @@ export default function AiAssistPage() {
                 onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--bg-subtle)')}
                 onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}>
                 <div style={{ minWidth: 0 }}>
-                  <div style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--text)' }}>
+                  <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)' }}>
                     {c.patientName || '(이름 없음)'}
                     {c.surveySessionId && (
-                      <span style={{ marginLeft: 6, fontSize: 10, padding: '1px 6px', background: 'var(--accent-subtle)', color: 'var(--accent)', borderRadius: 999, fontWeight: 500 }}>사전문진</span>
+                      <span style={{ marginLeft: 6, fontSize: 11, padding: '1px 6px', background: 'var(--accent-subtle)', color: 'var(--accent)', borderRadius: 999, fontWeight: 500 }}>사전문진</span>
                     )}
                   </div>
-                  {c.guardianName && <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>{c.guardianName}</div>}
+                  {c.guardianName && <div style={{ fontSize: 14, color: 'var(--text-muted)', marginTop: 2 }}>{c.guardianName}</div>}
                 </div>
-                <div style={{ fontSize: 12.5, color: 'var(--text-secondary)' }}>{c.visitType || '—'}</div>
+                <div style={{ fontSize: 14, color: 'var(--text-secondary)' }}>{c.visitType || '—'}</div>
                 <div>
                   <span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: 999, fontSize: 11, fontWeight: 500, background: c.status === 'completed' ? 'var(--success-subtle)' : 'var(--bg-raised)', color: c.status === 'completed' ? 'var(--success)' : 'var(--text-secondary)', border: `1px solid ${c.status === 'completed' ? 'var(--success)' : 'var(--border)'}` }}>
                     {STATUS_LABEL[c.status] ?? c.status}
                   </span>
                 </div>
-                <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{fmtDateTime(c.updatedAt)}</div>
+                <div style={{ fontSize: 14, color: 'var(--text-secondary)' }}>{fmtDateTime(c.updatedAt)}</div>
               </div>
             ))}
           </>

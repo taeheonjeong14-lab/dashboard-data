@@ -91,8 +91,8 @@ export default function AdminFeatureUsage() {
       {/* 헤더 + 기간 */}
       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10, marginBottom: 14 }}>
         <div>
-          <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--text)' }}>사용 현황</div>
-          <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 3 }}>
+          <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--text)' }}>사용 현황</div>
+          <div style={{ fontSize: 14, color: 'var(--text-muted)', marginTop: 3 }}>
             병원별 진료케이스·건강검진·초진 접수·사전문진 사용 건수
           </div>
         </div>
@@ -104,7 +104,7 @@ export default function AdminFeatureUsage() {
               onClick={() => setPeriod(p.key)}
               style={{
                 padding: '6px 12px',
-                fontSize: 13,
+                fontSize: 14,
                 fontWeight: 700,
                 borderRadius: 8,
                 cursor: 'pointer',
@@ -125,9 +125,9 @@ export default function AdminFeatureUsage() {
           <div key={f.key} style={tile}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <span style={{ width: 8, height: 8, borderRadius: 2, background: f.color, flexShrink: 0 }} />
-              <span style={{ fontSize: 13, color: 'var(--text-secondary)', fontWeight: 600 }}>{f.label}</span>
+              <span style={{ fontSize: 14, color: 'var(--text-secondary)', fontWeight: 600 }}>{f.label}</span>
             </div>
-            <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--text)', marginTop: 6 }}>
+            <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--text)', marginTop: 6 }}>
               {loading ? '—' : num(totals?.[f.key] ?? 0)}
             </div>
           </div>
@@ -135,9 +135,9 @@ export default function AdminFeatureUsage() {
         {/* 사용 토큰 합계 — 강조 타일 */}
         <div style={{ ...tile, borderColor: 'var(--accent)', background: 'var(--accent-subtle)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <span style={{ fontSize: 13, color: 'var(--accent)', fontWeight: 700 }}>사용 토큰</span>
+            <span style={{ fontSize: 14, color: 'var(--accent)', fontWeight: 700 }}>사용 토큰</span>
           </div>
-          <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--accent)', marginTop: 6 }}>
+          <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--accent)', marginTop: 6 }}>
             {loading ? '—' : num(totals?.tokensUsed ?? 0)}
           </div>
         </div>
@@ -151,11 +151,11 @@ export default function AdminFeatureUsage() {
           onChange={(e) => setQuery(e.target.value)}
           placeholder="병원명·주소 검색"
           aria-label="병원 검색"
-          style={{ flex: 1, minWidth: 180, padding: '8px 12px', border: '1px solid var(--border-strong)', borderRadius: 8, outline: 'none', font: 'inherit', fontSize: 13 }}
+          style={{ flex: 1, minWidth: 180, padding: '8px 12px', border: '1px solid var(--border-strong)', borderRadius: 8, outline: 'none', font: 'inherit', fontSize: 14 }}
           disabled={loading}
         />
         {zeroCount > 0 ? (
-          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: 'var(--text-secondary)', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 14, color: 'var(--text-secondary)', cursor: 'pointer', whiteSpace: 'nowrap' }}>
             <input type="checkbox" checked={showZero} onChange={(e) => setShowZero(e.target.checked)} />
             사용 없는 병원 {zeroCount}곳 보기
           </label>
@@ -167,7 +167,7 @@ export default function AdminFeatureUsage() {
 
       {/* 병원별 테이블 */}
       <div style={{ overflowX: 'auto' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
           <thead>
             <tr style={{ borderBottom: '2px solid var(--border-strong)' }}>
               <th style={{ ...th, textAlign: 'left' }}>병원</th>
@@ -198,12 +198,12 @@ export default function AdminFeatureUsage() {
           </tbody>
         </table>
         {!loading && visible.length === 0 ? (
-          <div style={{ padding: 24, textAlign: 'center', fontSize: 13, color: 'var(--text-muted)' }}>
+          <div style={{ padding: 24, textAlign: 'center', fontSize: 14, color: 'var(--text-muted)' }}>
             {query.trim() ? '검색 결과 없음' : '해당 기간에 사용 기록이 없습니다.'}
           </div>
         ) : null}
         {loading ? (
-          <div style={{ padding: 24, textAlign: 'center', fontSize: 13, color: 'var(--text-muted)' }}>불러오는 중…</div>
+          <div style={{ padding: 24, textAlign: 'center', fontSize: 14, color: 'var(--text-muted)' }}>불러오는 중…</div>
         ) : null}
       </div>
     </div>
@@ -227,7 +227,7 @@ const tile: React.CSSProperties = {
 };
 const th: React.CSSProperties = {
   padding: '10px 10px',
-  fontSize: 13,
+  fontSize: 14,
   fontWeight: 700,
   color: 'var(--text-secondary)',
   whiteSpace: 'nowrap',
@@ -238,5 +238,5 @@ const td: React.CSSProperties = {
 };
 
 function banner(bg: string, color: string): React.CSSProperties {
-  return { padding: 12, marginBottom: 12, fontSize: 13, background: bg, borderRadius: 8, color };
+  return { padding: 12, marginBottom: 12, fontSize: 14, background: bg, borderRadius: 8, color };
 }

@@ -22,7 +22,7 @@ export function SectionTitle({
     <div style={style}>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, flexWrap: 'wrap' }}>
         <h3 style={{ margin: 0, fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>{children}</h3>
-        {hint && <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{hint}</span>}
+        {hint && <span style={{ fontSize: 14, color: 'var(--text-muted)' }}>{hint}</span>}
       </div>
       {divider && <div style={{ height: 1, background: 'var(--border)', marginTop: 8 }} />}
     </div>
@@ -43,7 +43,7 @@ export function FieldLabel({
 }) {
   return (
     <div style={{ display: 'flex', alignItems: 'baseline', gap: 5, marginBottom: 6 }}>
-      <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)' }}>
+      <label style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-secondary)' }}>
         {children}
         {required && <span style={{ color: 'var(--danger)', marginLeft: 2 }}>*</span>}
       </label>

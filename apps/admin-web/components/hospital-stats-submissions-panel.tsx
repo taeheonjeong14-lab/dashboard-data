@@ -99,10 +99,10 @@ export function HospitalStatsSubmissionsPanel() {
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-          <span style={{ fontWeight: 700, fontSize: 13 }}>
+          <span style={{ fontWeight: 700, fontSize: 14 }}>
             병원 제출 내역
             {!loading && items.length > 0 && (
-              <span style={{ marginLeft: 6, fontWeight: 400, fontSize: 13, color: 'var(--text-muted)' }}>
+              <span style={{ marginLeft: 6, fontWeight: 400, fontSize: 14, color: 'var(--text-muted)' }}>
                 {filteredItems.length !== items.length
                   ? `${filteredItems.length} / ${items.length}건`
                   : `${items.length}건`}
@@ -173,11 +173,11 @@ export function HospitalStatsSubmissionsPanel() {
       {/* 목록 */}
       <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
         {loading ? (
-          <p style={{ margin: '12px 14px', fontSize: 13, color: 'var(--text-muted)' }}>불러오는 중…</p>
+          <p style={{ margin: '12px 14px', fontSize: 14, color: 'var(--text-muted)' }}>불러오는 중…</p>
         ) : error ? (
-          <p style={{ margin: '12px 14px', fontSize: 13, color: 'var(--danger)' }}>{error}</p>
+          <p style={{ margin: '12px 14px', fontSize: 14, color: 'var(--danger)' }}>{error}</p>
         ) : filteredItems.length === 0 ? (
-          <p style={{ margin: '12px 14px', fontSize: 13, color: 'var(--text-muted)' }}>
+          <p style={{ margin: '12px 14px', fontSize: 14, color: 'var(--text-muted)' }}>
             {items.length === 0 ? '제출된 데이터가 없습니다.' : '필터 결과가 없습니다.'}
           </p>
         ) : (
@@ -208,7 +208,7 @@ export function HospitalStatsSubmissionsPanel() {
               >
                 <span
                   style={{
-                    fontSize: 13,
+                    fontSize: 14,
                     fontWeight: 700,
                     color: 'var(--text)',
                     flex: 1,
@@ -280,10 +280,10 @@ export function HospitalStatsSubmissionsPanel() {
             padding: '12px 14px',
             background: 'var(--bg-subtle)',
             flexShrink: 0,
-            fontSize: 13,
+            fontSize: 14,
           }}
         >
-          <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 6, color: 'var(--text)' }}>
+          <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 6, color: 'var(--text)' }}>
             {selected.hospitalName?.trim() || selected.hospitalId || '—'}
           </div>
           <div style={{ color: 'var(--text-secondary)', marginBottom: 2 }}>

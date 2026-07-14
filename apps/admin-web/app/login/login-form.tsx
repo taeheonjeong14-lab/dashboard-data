@@ -16,7 +16,7 @@ type Props = { forbidden?: boolean };
 const labelStyle: CSSProperties = {
   display: 'grid',
   gap: 6,
-  fontSize: 13,
+  fontSize: 14,
   fontWeight: 600,
   color: 'var(--text-secondary)',
 };
@@ -27,14 +27,14 @@ const inputBase: CSSProperties = {
   border: 'none',
   borderBottom: '1px solid var(--border-strong)',
   borderRadius: 0,
-  fontSize: 13,
+  fontSize: 14,
   color: 'var(--text)',
   outline: 'none',
   transition: 'border-color 0.15s',
 };
 
 const noticeBase: CSSProperties = {
-  fontSize: 13,
+  fontSize: 14,
   lineHeight: 1.5,
   padding: '10px 12px',
   borderRadius: 'var(--radius)',
@@ -132,7 +132,7 @@ export function AdminLoginForm({ forbidden }: Props) {
             border: 'none',
             borderRadius: 'var(--radius)',
             fontWeight: 700,
-            fontSize: 13,
+            fontSize: 14,
             cursor: loading ? 'not-allowed' : 'pointer',
             opacity: loading ? 0.65 : 1,
             transition: 'background 0.15s, opacity 0.15s',

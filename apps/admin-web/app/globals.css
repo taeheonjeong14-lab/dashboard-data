@@ -37,12 +37,12 @@
        본문(fs-body)  — 기본 텍스트·입력값·목록 행·버튼 라벨
        보조(fs-sub)   — 캡션·배지·부가 설명·표 헤더
        제목(fs-title) — 페이지·모달 제목 (섹션 제목은 본문 + 굵게) */
-  --fs-body: 13px;
+  --fs-body: 14px;
   --fs-sub: 11px;
-  --fs-title: 18px;
+  --fs-title: 20px;
 
-  /* 버튼 — 높이 하나로 통일(상단바 로그아웃 버튼 기준 30px). */
-  --btn-height: 30px;
+  /* 버튼 — 높이 하나로 통일(본문 14px + 패딩 6px 12px → 33px). */
+  --btn-height: 33px;
   --btn-padding-x: 12px;
 }
 

@@ -166,7 +166,7 @@ export default function AdminPreConsultation() {
       value={hospitalId ?? ''}
       onChange={(e) => setHospitalId(e.target.value || null)}
       style={{
-        padding: '8px 10px', fontSize: 13, color: 'var(--text)', background: 'var(--bg)',
+        padding: '8px 10px', fontSize: 14, color: 'var(--text)', background: 'var(--bg)',
         border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', outline: 'none', cursor: 'pointer',
       }}
     >
@@ -190,7 +190,7 @@ export default function AdminPreConsultation() {
       <div style={{ display: 'flex', alignItems: 'stretch' }}>
         {/* ── 좌측: 세션 목록 ── */}
         <div style={{ flex: 1, minWidth: 0, paddingRight: 24 }}>
-          <div style={{ padding: '0 0 10px', fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>
+          <div style={{ padding: '0 0 10px', fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>
             문진 목록
             {sessions.length > 0 && (
               <span style={{ fontWeight: 400, color: 'var(--text-muted)', marginLeft: 6 }}>{sessions.length}건</span>
@@ -204,7 +204,7 @@ export default function AdminPreConsultation() {
           ) : sessions.length === 0 ? (
             <Empty title="이 병원의 사전문진이 없습니다" text="보호자가 사전문진을 제출하면 여기에 표시됩니다." />
           ) : (
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
               <thead>
                 <tr style={{ background: 'var(--bg-subtle)' }}>
                   {['발송일시', '환자', '보호자', '상태'].map((h) => (
@@ -239,9 +239,9 @@ export default function AdminPreConsultation() {
         {/* ── 우측: 문진 상세 ── */}
         <div style={{ flex: 1, minWidth: 0, borderLeft: '1px solid var(--border-strong)', paddingLeft: 24 }}>
           <div style={{ padding: '0 0 12px' }}>
-            <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>문진 상세</div>
+            <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>문진 상세</div>
             {selectedSession && (
-              <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 2 }}>{fmtDateTime(selectedSession.createdAt)} 발송</div>
+              <div style={{ fontSize: 14, color: 'var(--text-muted)', marginTop: 2 }}>{fmtDateTime(selectedSession.createdAt)} 발송</div>
             )}
           </div>
           {detailLoading && !detail ? (
@@ -251,7 +251,7 @@ export default function AdminPreConsultation() {
           ) : selectedSession ? (
             <Empty text="상세를 불러오지 못했습니다." />
           ) : (
-            <div style={{ fontSize: 13, color: 'var(--text-muted)', padding: '8px 0' }}>왼쪽에서 항목을 선택하세요.</div>
+            <div style={{ fontSize: 14, color: 'var(--text-muted)', padding: '8px 0' }}>왼쪽에서 항목을 선택하세요.</div>
           )}
         </div>
       </div>
@@ -290,15 +290,15 @@ function DetailBody({ detail }: { detail: SessionDetail }) {
 
       <Section title={`문진 답변 (${questions.length}문항)`}>
         {questions.length === 0 ? (
-          <p style={{ margin: 0, fontSize: 13, color: 'var(--text-muted)' }}>질문이 없습니다.</p>
+          <p style={{ margin: 0, fontSize: 14, color: 'var(--text-muted)' }}>질문이 없습니다.</p>
         ) : (
           <ol style={{ margin: 0, padding: 0, listStyle: 'none', display: 'grid', gap: 12 }}>
             {questions.map((q) => (
               <li key={q.id}>
-                <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>
+                <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)' }}>
                   {q.order}. {q.text}
                 </div>
-                <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 3, whiteSpace: 'pre-wrap' }}>
+                <div style={{ fontSize: 14, color: 'var(--text-secondary)', marginTop: 3, whiteSpace: 'pre-wrap' }}>
                   {answerDisplay(answerByQ.get(q.id))}
                 </div>
               </li>
@@ -312,7 +312,7 @@ function DetailBody({ detail }: { detail: SessionDetail }) {
 
 const preLikeStyle: CSSProperties = {
   margin: 0,
-  fontSize: 13,
+  fontSize: 14,
   lineHeight: 1.6,
   color: 'var(--text)',
   whiteSpace: 'pre-wrap',

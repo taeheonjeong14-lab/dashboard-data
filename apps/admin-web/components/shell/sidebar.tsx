@@ -172,7 +172,7 @@ const styles: Record<string, React.CSSProperties> = {
     gap: '10px',
     padding: '10px 12px',
     borderRadius: 'var(--radius)',
-    fontSize: '13px',
+    fontSize: '14px',
     fontWeight: 500,
     textDecoration: 'none',
     color: 'var(--text-secondary)',

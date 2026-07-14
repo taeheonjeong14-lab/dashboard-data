@@ -164,7 +164,7 @@ const tabBarStyle: React.CSSProperties = {
 function tabButtonStyle(active: boolean): React.CSSProperties {
   return {
     padding: '9px 12px',
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: active ? 600 : 500,
     color: active ? 'var(--accent)' : 'var(--text-muted)',
     background: 'none',
@@ -196,7 +196,7 @@ function DataCard({ title, desc, children }: { title?: string; desc?: string; ch
         padding: '14px 16px',
       }}
     >
-      {title ? <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>{title}</div> : null}
+      {title ? <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>{title}</div> : null}
       {desc ? <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{desc}</div> : null}
       <div style={{ display: 'grid', gap: 12, marginTop: hasHeader ? 12 : 0 }}>{children}</div>
     </div>
@@ -206,7 +206,7 @@ function DataCard({ title, desc, children }: { title?: string; desc?: string; ch
 const fieldStyle: React.CSSProperties = {
   width: '100%',
   padding: '5px 0',
-  fontSize: 13,
+  fontSize: 14,
   lineHeight: 1.45,
   background: 'transparent',
   border: 0,
@@ -306,8 +306,8 @@ function AssetDropzone({
         </>
       ) : (
         <>
-          <span style={{ fontSize: 18, lineHeight: 1 }}>🖼️</span>
-          <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>이미지를 끌어다 놓거나 클릭하여 선택</span>
+          <span style={{ fontSize: 20, lineHeight: 1 }}>🖼️</span>
+          <span style={{ fontSize: 14, color: 'var(--text-secondary)' }}>이미지를 끌어다 놓거나 클릭하여 선택</span>
           <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>PNG·JPG·WEBP·SVG</span>
         </>
       )}
@@ -718,7 +718,7 @@ export default function AdminHospitalsManager({
               borderRadius: 0,
               outline: 'none',
               font: 'inherit',
-              fontSize: 13,
+              fontSize: 14,
             }}
             disabled={loading}
           />
@@ -750,7 +750,7 @@ export default function AdminHospitalsManager({
               padding: '11px 14px',
               borderRadius: 0,
               fontWeight: 700,
-              fontSize: 13,
+              fontSize: 14,
               cursor: loading ? 'not-allowed' : 'pointer',
             }}
           >
@@ -766,27 +766,27 @@ export default function AdminHospitalsManager({
             임베드에선 콘솔 헤더가 같은 정보를 보여주므로 감춘다. */}
         <div style={{ display: embedded ? 'none' : 'flex', paddingTop: 16, marginBottom: 16, alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
           <div style={{ minWidth: 0 }}>
-            <h1 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: 'var(--text)' }}>
+            <h1 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: 'var(--text)' }}>
               {form.name.trim() || (selectedId ? '(이름 없음)' : '신규 병원')}
             </h1>
-            <p style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--text-secondary)' }}>
+            <p style={{ margin: '4px 0 0', fontSize: 14, color: 'var(--text-secondary)' }}>
               {[form.address, form.addressDetail].map((s) => s.trim()).filter(Boolean).join(' ') || '주소 미입력'}
             </p>
           </div>
           {selectedId ? (
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0, padding: '8px 12px', borderRadius: 8, background: 'var(--bg-raised)', border: '1px solid var(--border)' }}>
-              <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
+              <span style={{ fontSize: 14, color: 'var(--text-secondary)' }}>
                 토큰 잔액 <b style={{ color: 'var(--text)' }}>{Math.round(selectedBalance).toLocaleString()}</b> 토큰
               </span>
               <button type="button" onClick={() => void grantTokens()} disabled={loading}
-                style={{ padding: '7px 14px', fontSize: 13, fontWeight: 700, borderRadius: 6, border: 'none', background: 'var(--accent)', color: '#fff', cursor: loading ? 'default' : 'pointer' }}>
+                style={{ padding: '7px 14px', fontSize: 14, fontWeight: 700, borderRadius: 6, border: 'none', background: 'var(--accent)', color: '#fff', cursor: loading ? 'default' : 'pointer' }}>
                 토큰 지급
               </button>
             </div>
           ) : null}
         </div>
         {loading || message ? (
-          <div className="adminLegacyStatus" style={{ marginBottom: 10, fontSize: 13 }}>
+          <div className="adminLegacyStatus" style={{ marginBottom: 10, fontSize: 14 }}>
             {loading ? '처리 중...' : message}
           </div>
         ) : null}
@@ -809,7 +809,7 @@ export default function AdminHospitalsManager({
           })}
         </div>
 
-        <form onSubmit={saveHospital} className="adminLegacyModalForm" style={{ gap: 6, fontSize: 13 }}>
+        <form onSubmit={saveHospital} className="adminLegacyModalForm" style={{ gap: 6, fontSize: 14 }}>
           {/* 🏥 병원 기본 정보 */}
           <TabPanel active={activeTab === 'identity'}>
             <DataCard>
@@ -899,7 +899,7 @@ export default function AdminHospitalsManager({
           {/* 키워드 — 블로그·플레이스 검색 순위 모니터링 키워드 모음 (흰 박스 2열) */}
           <TabPanel active={activeTab === 'keyword'}>
             {form.wish_keywords.length > 0 && (
-              <div style={{ marginBottom: 12, padding: '10px 12px', background: 'var(--accent-subtle)', borderRadius: 8, fontSize: 13, color: 'var(--text-secondary)' }}>
+              <div style={{ marginBottom: 12, padding: '10px 12px', background: 'var(--accent-subtle)', borderRadius: 8, fontSize: 14, color: 'var(--text-secondary)' }}>
                 <b style={{ color: 'var(--accent)' }}>마스터 희망 키워드</b>: {form.wish_keywords.join(', ')}
               </div>
             )}
@@ -912,13 +912,13 @@ export default function AdminHospitalsManager({
                 type="button"
                 onClick={() => void refreshKeywordVolumes()}
                 disabled={volumeBusy}
-                style={{ flexShrink: 0, padding: '7px 14px', fontSize: 13, fontWeight: 700, borderRadius: 6, border: 'none', cursor: volumeBusy ? 'default' : 'pointer', background: volumeBusy ? 'var(--text-muted)' : 'var(--accent)', color: '#fff' }}
+                style={{ flexShrink: 0, padding: '7px 14px', fontSize: 14, fontWeight: 700, borderRadius: 6, border: 'none', cursor: volumeBusy ? 'default' : 'pointer', background: volumeBusy ? 'var(--text-muted)' : 'var(--accent)', color: '#fff' }}
               >
                 {volumeBusy ? '검색량 갱신 중…' : '검색량 지금 갱신'}
               </button>
             </div>
             {volumeMsg && (
-              <div style={{ marginBottom: 10, fontSize: 13, color: 'var(--text-secondary)' }}>{volumeMsg}</div>
+              <div style={{ marginBottom: 10, fontSize: 14, color: 'var(--text-secondary)' }}>{volumeMsg}</div>
             )}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, alignItems: 'start' }}>
               <DataCard title="플레이스 키워드" desc="플레이스 검색 순위 모니터링 대상 키워드">
@@ -1010,7 +1010,7 @@ export default function AdminHospitalsManager({
           {/* ⚔️ 경쟁병원 분석 — 경쟁병원별 흰 박스 (최대 3) */}
           <TabPanel active={activeTab === 'competitor'}>
             {form.wish_competitors.length > 0 && (
-              <div style={{ marginBottom: 12, padding: '10px 12px', background: 'var(--accent-subtle)', borderRadius: 8, fontSize: 13, color: 'var(--text-secondary)' }}>
+              <div style={{ marginBottom: 12, padding: '10px 12px', background: 'var(--accent-subtle)', borderRadius: 8, fontSize: 14, color: 'var(--text-secondary)' }}>
                 <b style={{ color: 'var(--accent)' }}>마스터 희망 경쟁병원</b>: {form.wish_competitors.join(', ')}
               </div>
             )}
@@ -1073,7 +1073,7 @@ export default function AdminHospitalsManager({
               <input value={form.code} onChange={(e) => setForm((f) => ({ ...f, code: e.target.value }))} style={fieldStyle} />
             </LabeledField>
 
-            <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--text-secondary)', cursor: 'pointer', marginTop: 14 }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, color: 'var(--text-secondary)', cursor: 'pointer', marginTop: 14 }}>
               <input
                 type="checkbox"
                 checked={form.barun_plan_enabled}
@@ -1102,7 +1102,7 @@ export default function AdminHospitalsManager({
               </button>
               {selectedId ? (
                 <button type="button" onClick={() => void deleteHospital()} disabled={loading}
-                  style={{ padding: '8px 14px', fontSize: 13, fontWeight: 700, borderRadius: 6, border: '1px solid var(--danger)', background: '#fff', color: 'var(--danger)', cursor: 'pointer' }}>
+                  style={{ padding: '8px 14px', fontSize: 14, fontWeight: 700, borderRadius: 6, border: '1px solid var(--danger)', background: '#fff', color: 'var(--danger)', cursor: 'pointer' }}>
                   병원 삭제
                 </button>
               ) : null}

@@ -84,6 +84,7 @@ function Section({ title, children, defaultOpen = false }: { title: string; chil
     <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden', marginBottom: '16px' }}>
       <button
         type="button"
+        className="hospBtnFree"
         onClick={() => setOpen((v) => !v)}
         style={{
           width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
@@ -92,7 +93,7 @@ function Section({ title, children, defaultOpen = false }: { title: string; chil
         }}
       >
         {title}
-        <span style={{ fontSize: '16px', color: 'var(--text-muted)', transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}>
+        <span style={{ fontSize: '20px', color: 'var(--text-muted)', transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}>
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
             <path d="M4 6l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
@@ -118,7 +119,7 @@ function CopyButton({ text }: { text: string }) {
       title={copied ? '복사됨' : '복사'}
       style={{
         padding: '4px 8px', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
-        background: 'var(--bg)', color: 'var(--text-secondary)', fontSize: '12px', cursor: 'pointer',
+        background: 'var(--bg)', color: 'var(--text-secondary)', fontSize: '14px', cursor: 'pointer',
         display: 'inline-flex', alignItems: 'center', gap: '4px',
       }}
     >
@@ -313,7 +314,7 @@ export default function ConsultationDetailPage() {
     borderRadius: 'var(--radius)',
     background: 'var(--accent)',
     color: '#fff',
-    fontSize: '13px',
+    fontSize: '14px',
     fontWeight: 600,
     cursor: 'pointer',
     display: 'inline-flex',
@@ -327,7 +328,7 @@ export default function ConsultationDetailPage() {
     borderRadius: 'var(--radius)',
     background: 'var(--bg)',
     color: 'var(--text)',
-    fontSize: '13px',
+    fontSize: '14px',
     fontWeight: 500,
     cursor: 'pointer',
   };
@@ -336,7 +337,7 @@ export default function ConsultationDetailPage() {
     return (
       <div style={{ padding: '24px' }}>
         <p style={{ color: 'var(--danger)' }}>잘못된 경로입니다.</p>
-        <Link href="/ai-assist" style={{ color: 'var(--accent)', fontSize: '13px' }}>목록으로</Link>
+        <Link href="/ai-assist" style={{ color: 'var(--accent)', fontSize: '14px' }}>목록으로</Link>
       </div>
     );
   }
@@ -349,7 +350,7 @@ export default function ConsultationDetailPage() {
     return (
       <div style={{ padding: '24px' }}>
         <p style={{ color: 'var(--danger)', fontSize: '14px' }}>{error || '기록을 찾을 수 없습니다.'}</p>
-        <Link href="/ai-assist" style={{ color: 'var(--accent)', fontSize: '13px' }}>목록으로 돌아가기</Link>
+        <Link href="/ai-assist" style={{ color: 'var(--accent)', fontSize: '14px' }}>목록으로 돌아가기</Link>
       </div>
     );
   }
@@ -364,7 +365,7 @@ export default function ConsultationDetailPage() {
           <h1 style={{ margin: '0 0 4px', fontSize: '20px', fontWeight: 700, color: 'var(--text)' }}>
             문진 기록
           </h1>
-          <p style={{ margin: 0, fontSize: '13px', color: 'var(--text-secondary)' }}>
+          <p style={{ margin: 0, fontSize: '14px', color: 'var(--text-secondary)' }}>
             {formatDate(consultation.createdAt)}
           </p>
         </div>
@@ -378,8 +379,8 @@ export default function ConsultationDetailPage() {
 
       {/* Patient info */}
       <div style={cardStyle}>
-        <h2 style={{ margin: '0 0 16px', fontSize: '15px', fontWeight: 600, color: 'var(--text)' }}>환자 정보</h2>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '24px', fontSize: '13px' }}>
+        <h2 style={{ margin: '0 0 16px', fontSize: '14px', fontWeight: 600, color: 'var(--text)' }}>환자 정보</h2>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '24px', fontSize: '14px' }}>
           {[
             { label: '환자 이름', value: consultation.patientName },
             { label: '보호자 이름', value: consultation.guardianName },
@@ -449,13 +450,13 @@ export default function ConsultationDetailPage() {
           {(summaryResult || consultation.summary) && (
             <div style={cardStyle}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
-                <h2 style={{ margin: 0, fontSize: '15px', fontWeight: 600, color: 'var(--text)' }}>수의사 요약</h2>
+                <h2 style={{ margin: 0, fontSize: '14px', fontWeight: 600, color: 'var(--text)' }}>수의사 요약</h2>
                 <CopyButton text={summaryResult || consultation.summary || ''} />
               </div>
               {summaryError && (
-                <p style={{ color: 'var(--danger)', fontSize: '13px', margin: '0 0 8px' }}>{summaryError}</p>
+                <p style={{ color: 'var(--danger)', fontSize: '14px', margin: '0 0 8px' }}>{summaryError}</p>
               )}
-              <p style={{ margin: 0, fontSize: '13px', color: 'var(--text)', lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>
+              <p style={{ margin: 0, fontSize: '14px', color: 'var(--text)', lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>
                 {summaryResult || consultation.summary}
               </p>
             </div>
@@ -464,27 +465,27 @@ export default function ConsultationDetailPage() {
           {/* Summary error (no result yet) */}
           {summaryError && !summaryResult && !consultation.summary && (
             <div style={{ ...cardStyle, border: '1px solid var(--danger)' }}>
-              <p style={{ color: 'var(--danger)', fontSize: '13px', margin: 0 }}>{summaryError}</p>
+              <p style={{ color: 'var(--danger)', fontSize: '14px', margin: 0 }}>{summaryError}</p>
             </div>
           )}
 
           {/* CC */}
           {consultation.cc && (
             <div style={cardStyle}>
-              <h2 style={{ margin: '0 0 8px', fontSize: '15px', fontWeight: 600, color: 'var(--text)' }}>CC (주증상)</h2>
-              <p style={{ margin: 0, fontSize: '13px', color: 'var(--text)' }}>{consultation.cc}</p>
+              <h2 style={{ margin: '0 0 8px', fontSize: '14px', fontWeight: 600, color: 'var(--text)' }}>CC (주증상)</h2>
+              <p style={{ margin: 0, fontSize: '14px', color: 'var(--text)' }}>{consultation.cc}</p>
             </div>
           )}
 
           {/* Follow-up questions */}
           {(followupResult.length > 0 || followupError) && (
             <div style={cardStyle}>
-              <h2 style={{ margin: '0 0 12px', fontSize: '15px', fontWeight: 600, color: 'var(--text)' }}>추가 질문 제안</h2>
-              {followupError && <p style={{ color: 'var(--danger)', fontSize: '13px', margin: '0 0 8px' }}>{followupError}</p>}
+              <h2 style={{ margin: '0 0 12px', fontSize: '14px', fontWeight: 600, color: 'var(--text)' }}>추가 질문 제안</h2>
+              {followupError && <p style={{ color: 'var(--danger)', fontSize: '14px', margin: '0 0 8px' }}>{followupError}</p>}
               {followupResult.length > 0 && (
                 <ol style={{ margin: 0, paddingLeft: '20px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   {followupResult.map((q, i) => (
-                    <li key={i} style={{ fontSize: '13px', color: 'var(--text)', lineHeight: 1.5 }}>{q}</li>
+                    <li key={i} style={{ fontSize: '14px', color: 'var(--text)', lineHeight: 1.5 }}>{q}</li>
                   ))}
                 </ol>
               )}
@@ -507,7 +508,7 @@ export default function ConsultationDetailPage() {
                     return (
                       <div key={q.id} style={{ padding: '10px', background: 'var(--bg-subtle)', borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}>
                         <p style={{ margin: '0 0 4px', fontSize: '11px', fontWeight: 500, color: 'var(--text-muted)' }}>Q{q.order}. {q.text}</p>
-                        <p style={{ margin: 0, fontSize: '13px', fontWeight: 500, color: 'var(--text)' }}>{display}</p>
+                        <p style={{ margin: 0, fontSize: '14px', fontWeight: 500, color: 'var(--text)' }}>{display}</p>
                       </div>
                     );
                   })}
@@ -519,7 +520,7 @@ export default function ConsultationDetailPage() {
           {consultation.transcript && (
             <Section title="대화 내용">
               <div style={{ maxHeight: '300px', overflowY: 'auto', background: 'var(--bg-subtle)', borderRadius: 'var(--radius)', padding: '12px' }}>
-                <pre style={{ margin: 0, fontSize: '12px', color: 'var(--text)', whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontFamily: 'inherit' }}>
+                <pre style={{ margin: 0, fontSize: '14px', color: 'var(--text)', whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontFamily: 'inherit' }}>
                   {consultation.transcript}
                 </pre>
               </div>
@@ -532,10 +533,10 @@ export default function ConsultationDetailPage() {
           {(ddxResult || consultation.ddx || ddxError) && (
             <div style={cardStyle}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
-                <h2 style={{ margin: 0, fontSize: '15px', fontWeight: 600, color: 'var(--text)' }}>감별진단 (DDx)</h2>
+                <h2 style={{ margin: 0, fontSize: '14px', fontWeight: 600, color: 'var(--text)' }}>감별진단 (DDx)</h2>
                 {(ddxResult || consultation.ddx) && <CopyButton text={ddxResult || consultation.ddx || ''} />}
               </div>
-              {ddxError && <p style={{ color: 'var(--danger)', fontSize: '13px', marginBottom: '8px' }}>{ddxError}</p>}
+              {ddxError && <p style={{ color: 'var(--danger)', fontSize: '14px', marginBottom: '8px' }}>{ddxError}</p>}
               {ddxParsed ? (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                   {ddxParsed.map((item, i) => (
@@ -558,25 +559,25 @@ export default function ConsultationDetailPage() {
                         <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '10px' }}>
                           <p style={{ margin: '0 0 6px', fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)' }}>근거</p>
                           {Array.isArray(item.reasons) && item.reasons.length > 0 ? (
-                            <ul style={{ margin: 0, paddingLeft: '16px', fontSize: '12px', color: 'var(--text)', lineHeight: 1.5 }}>
+                            <ul style={{ margin: 0, paddingLeft: '16px', fontSize: '14px', color: 'var(--text)', lineHeight: 1.5 }}>
                               {item.reasons.map((r, ri) => <li key={ri}>{r}</li>)}
                             </ul>
-                          ) : <p style={{ margin: 0, fontSize: '12px', color: 'var(--text-muted)' }}>—</p>}
+                          ) : <p style={{ margin: 0, fontSize: '14px', color: 'var(--text-muted)' }}>—</p>}
                         </div>
                         <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '10px' }}>
                           <p style={{ margin: '0 0 6px', fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)' }}>추천 검사</p>
                           {Array.isArray(item.tests) && item.tests.length > 0 ? (
-                            <ul style={{ margin: 0, paddingLeft: '16px', fontSize: '12px', color: 'var(--text)', lineHeight: 1.5 }}>
+                            <ul style={{ margin: 0, paddingLeft: '16px', fontSize: '14px', color: 'var(--text)', lineHeight: 1.5 }}>
                               {item.tests.map((t, ti) => <li key={ti}>{t}</li>)}
                             </ul>
-                          ) : <p style={{ margin: 0, fontSize: '12px', color: 'var(--text-muted)' }}>—</p>}
+                          ) : <p style={{ margin: 0, fontSize: '14px', color: 'var(--text-muted)' }}>—</p>}
                         </div>
                       </div>
                     </div>
                   ))}
                 </div>
               ) : (ddxResult || consultation.ddx) ? (
-                <pre style={{ margin: 0, fontSize: '13px', color: 'var(--text)', whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontFamily: 'inherit', lineHeight: 1.6 }}>
+                <pre style={{ margin: 0, fontSize: '14px', color: 'var(--text)', whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontFamily: 'inherit', lineHeight: 1.6 }}>
                   {ddxResult || consultation.ddx}
                 </pre>
               ) : null}
@@ -586,8 +587,8 @@ export default function ConsultationDetailPage() {
           {/* Draft DDx from survey */}
           {surveyDetail?.draftDdx && !ddxResult && !consultation.ddx && (
             <div style={cardStyle}>
-              <h2 style={{ margin: '0 0 12px', fontSize: '15px', fontWeight: 600, color: 'var(--text)' }}>사전문진 초안 DDx</h2>
-              <pre style={{ margin: 0, fontSize: '13px', color: 'var(--text-secondary)', whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontFamily: 'inherit', lineHeight: 1.6 }}>
+              <h2 style={{ margin: '0 0 12px', fontSize: '14px', fontWeight: 600, color: 'var(--text)' }}>사전문진 초안 DDx</h2>
+              <pre style={{ margin: 0, fontSize: '14px', color: 'var(--text-secondary)', whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontFamily: 'inherit', lineHeight: 1.6 }}>
                 {surveyDetail.draftDdx}
               </pre>
             </div>
@@ -596,7 +597,7 @@ export default function ConsultationDetailPage() {
           {/* No results yet placeholder */}
           {!ddxResult && !consultation.ddx && !ddxError && !surveyDetail?.draftDdx && (
             <div style={{ ...cardStyle, textAlign: 'center', padding: '40px 20px' }}>
-              <p style={{ color: 'var(--text-muted)', fontSize: '13px', margin: '0 0 16px' }}>
+              <p style={{ color: 'var(--text-muted)', fontSize: '14px', margin: '0 0 16px' }}>
                 위의 "감별 진단 실행" 버튼을 눌러 AI 감별진단을 생성하세요.
               </p>
             </div>

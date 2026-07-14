@@ -193,7 +193,7 @@ export function RailFilterOptions({
         borderRadius: 6,
         background: value === v ? 'var(--accent-subtle)' : 'transparent',
         color: value === v ? 'var(--accent)' : 'var(--text-secondary)',
-        fontSize: 13,
+        fontSize: 14,
         fontWeight: value === v ? 700 : 500,
         cursor: 'pointer',
       }}

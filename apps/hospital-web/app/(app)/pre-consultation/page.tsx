@@ -142,7 +142,7 @@ export default function PreConsultationPage() {
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 0, gap: 12, flexWrap: 'wrap' }}>
         <div>
           <h1 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: 'var(--text)' }}>사전문진</h1>
-          <p style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--text-secondary)' }}>
+          <p style={{ margin: '4px 0 0', fontSize: 14, color: 'var(--text-secondary)' }}>
             보호자에게 사전문진 링크를 보내고, 제출된 답변과 AI 사전 분석을 확인합니다.
           </p>
         </div>
@@ -151,7 +151,7 @@ export default function PreConsultationPage() {
           onClick={() => setModalOpen(true)}
           style={{
             padding: '9px 16px', border: 'none', borderRadius: 'var(--radius)',
-            background: 'var(--accent)', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer',
+            background: 'var(--accent)', color: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer',
           }}
         >
           + 사전문진 발송
@@ -160,7 +160,7 @@ export default function PreConsultationPage() {
       </StickyHeader>
 
       {error && (
-        <div style={{ padding: '12px 16px', background: 'var(--danger-subtle)', border: '1px solid var(--danger)', borderRadius: 'var(--radius)', color: 'var(--danger)', fontSize: 13, marginBottom: 16 }}>
+        <div style={{ padding: '12px 16px', background: 'var(--danger-subtle)', border: '1px solid var(--danger)', borderRadius: 'var(--radius)', color: 'var(--danger)', fontSize: 14, marginBottom: 16 }}>
           {error}
         </div>
       )}
@@ -169,7 +169,7 @@ export default function PreConsultationPage() {
         {/* ── 좌측: 목록 ── */}
         <div style={{ flex: 1, minWidth: 0, paddingRight: 24 }}>
           <div style={{ padding: '0 0 10px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>
+            <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>
               사전문진 목록
               {sessions.length > 0 && (
                 <span style={{ fontWeight: 400, color: 'var(--text-muted)', marginLeft: 6 }}>
@@ -178,7 +178,7 @@ export default function PreConsultationPage() {
               )}
             </span>
             <button onClick={() => userId && loadSessions(userId)}
-              style={{ background: 'none', border: 'none', fontSize: 12, color: 'var(--text-muted)', cursor: 'pointer', padding: '2px 4px' }}>
+              style={{ background: 'none', border: 'none', fontSize: 14, color: 'var(--text-muted)', cursor: 'pointer', padding: '2px 4px' }}>
               새로고침
             </button>
           </div>
@@ -187,21 +187,21 @@ export default function PreConsultationPage() {
             <Spinner />
           ) : sessions.length === 0 ? (
             <div style={{ padding: '48px 18px', textAlign: 'center' }}>
-              <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', marginBottom: 4 }}>아직 발송된 사전문진이 없습니다</div>
-              <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>“사전문진 발송”으로 보호자에게 문진 링크를 보내보세요.</div>
+              <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)', marginBottom: 4 }}>아직 발송된 사전문진이 없습니다</div>
+              <div style={{ fontSize: 14, color: 'var(--text-muted)' }}>“사전문진 발송”으로 보호자에게 문진 링크를 보내보세요.</div>
             </div>
           ) : (
             <>
               <div style={{ marginBottom: 12 }}>
                 <input type="search" value={search} onChange={(e) => setSearch(e.target.value)}
                   placeholder="환자·보호자·연락처 검색"
-                  style={{ width: '100%', padding: '8px 10px', fontSize: 13, color: 'var(--text)', background: 'var(--bg)', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+                  style={{ width: '100%', padding: '8px 10px', fontSize: 14, color: 'var(--text)', background: 'var(--bg)', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }} />
               </div>
 
               {filtered.length === 0 ? (
-                <div style={{ padding: '32px 18px', textAlign: 'center', fontSize: 13, color: 'var(--text-muted)' }}>검색 결과가 없습니다.</div>
+                <div style={{ padding: '32px 18px', textAlign: 'center', fontSize: 14, color: 'var(--text-muted)' }}>검색 결과가 없습니다.</div>
               ) : (
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
                   <thead>
                     <tr style={{ background: 'var(--bg-subtle)' }}>
                       {['발송일시', '제출일시', '환자', '보호자', '상태', '액션'].map((h) => (
@@ -250,16 +250,16 @@ export default function PreConsultationPage() {
         {/* ── 우측: 상세 ── */}
         <div style={{ flex: 1, minWidth: 0, borderLeft: '1px solid var(--border-strong)', paddingLeft: 24 }}>
           <div style={{ padding: '0 0 12px' }}>
-            <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>사전문진 상세</div>
+            <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>사전문진 상세</div>
           </div>
           {!selectedId ? (
-            <div style={{ fontSize: 13, color: 'var(--text-muted)', padding: '8px 0' }}>왼쪽에서 항목을 선택하세요.</div>
+            <div style={{ fontSize: 14, color: 'var(--text-muted)', padding: '8px 0' }}>왼쪽에서 항목을 선택하세요.</div>
           ) : detailLoading && !detail ? (
             <Spinner />
           ) : detail ? (
             <SessionDetailView detail={detail} origin={origin} hideAnswersButton />
           ) : (
-            <div style={{ fontSize: 13, color: 'var(--text-muted)', padding: '8px 0' }}>상세를 불러오지 못했습니다.</div>
+            <div style={{ fontSize: 14, color: 'var(--text-muted)', padding: '8px 0' }}>상세를 불러오지 못했습니다.</div>
           )}
         </div>
       </div>
@@ -271,14 +271,14 @@ export default function PreConsultationPage() {
       {resendFor && (
         <Modal title={`재발송${resendFor.patientName ? ` — ${resendFor.patientName}` : ''}`} onClose={() => setResendFor(null)} maxWidth={480}>
           <div style={{ display: 'grid', gap: 14 }}>
-            <p style={{ margin: 0, fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+            <p style={{ margin: 0, fontSize: 14, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
               아래에서 <b>링크를 복사</b>하거나 <b>카카오톡으로 발송</b>하세요.
             </p>
             {origin && resendFor.token && (
               <div>
-                <p style={{ margin: '0 0 6px', fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)' }}>작성 링크</p>
+                <p style={{ margin: '0 0 6px', fontSize: 14, fontWeight: 700, color: 'var(--text-secondary)' }}>작성 링크</p>
                 <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '10px 14px', background: 'var(--bg-subtle)', border: '1px solid var(--border)', borderRadius: 'var(--radius)' }}>
-                  <span style={{ flex: 1, minWidth: 0, fontSize: 12.5, color: 'var(--text)', wordBreak: 'break-all', lineHeight: 1.6 }}>{`${origin}/survey/${resendFor.token}`}</span>
+                  <span style={{ flex: 1, minWidth: 0, fontSize: 14, color: 'var(--text)', wordBreak: 'break-all', lineHeight: 1.6 }}>{`${origin}/survey/${resendFor.token}`}</span>
                   <CopyBtn text={`${origin}/survey/${resendFor.token}`} label="복사" />
                 </div>
               </div>
@@ -384,12 +384,12 @@ function SendModal({ userId, origin, onClose, onCreated }: {
     >
       {created ? (
         <div style={{ display: 'grid', gap: 14 }}>
-          <p style={{ margin: 0, fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+          <p style={{ margin: 0, fontSize: 14, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
             발송 링크가 생성되었습니다. 아래에서 <b>링크를 복사</b>하거나 <b>카카오톡으로 발송</b>하세요.
             보호자가 작성을 완료하면 자동으로 AI 사전 분석이 진행됩니다.
           </p>
           <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '10px 14px', background: 'var(--bg-subtle)', border: '1px solid var(--border)', borderRadius: 'var(--radius)' }}>
-            <span style={{ flex: 1, minWidth: 0, fontSize: 12.5, color: 'var(--text)', wordBreak: 'break-all', lineHeight: 1.6 }}>{shareUrl || '링크 생성 실패'}</span>
+            <span style={{ flex: 1, minWidth: 0, fontSize: 14, color: 'var(--text)', wordBreak: 'break-all', lineHeight: 1.6 }}>{shareUrl || '링크 생성 실패'}</span>
             {shareUrl && <CopyBtn text={shareUrl} label="복사" />}
           </div>
           {created.token && (
@@ -401,7 +401,7 @@ function SendModal({ userId, origin, onClose, onCreated }: {
       ) : (
         <div style={{ display: 'grid', gap: 14 }}>
           {err && (
-            <div style={{ padding: '10px 12px', background: 'var(--danger-subtle)', border: '1px solid var(--danger)', borderRadius: 'var(--radius)', color: 'var(--danger)', fontSize: 12.5 }}>{err}</div>
+            <div style={{ padding: '10px 12px', background: 'var(--danger-subtle)', border: '1px solid var(--danger)', borderRadius: 'var(--radius)', color: 'var(--danger)', fontSize: 14 }}>{err}</div>
           )}
           <Field label="방문 유형">
             <div style={{ display: 'grid', gap: 8 }}>
@@ -412,16 +412,16 @@ function SendModal({ userId, origin, onClose, onCreated }: {
               ].map((o) => {
                 const on = visitType === o.v;
                 return (
-                  <button key={o.v} type="button" onClick={() => setVisitType(o.v)}
+                  <button key={o.v} type="button" className="hospBtnFree" onClick={() => setVisitType(o.v)}
                     style={{
                       display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
                       padding: '11px 14px', borderRadius: 'var(--radius)', cursor: 'pointer', textAlign: 'left',
                       border: `1px solid ${on ? 'var(--accent)' : 'var(--border-strong)'}`,
                       background: on ? 'var(--accent-subtle)' : 'var(--bg)',
-                      color: on ? 'var(--accent)' : 'var(--text-secondary)', fontWeight: on ? 700 : 500, fontSize: 13.5,
+                      color: on ? 'var(--accent)' : 'var(--text-secondary)', fontWeight: on ? 700 : 500, fontSize: 14,
                     }}>
                     <span>{o.label}</span>
-                    <span style={{ fontSize: 11.5, color: on ? 'var(--accent)' : 'var(--text-muted)', fontWeight: 500 }}>{o.desc}</span>
+                    <span style={{ fontSize: 11, color: on ? 'var(--accent)' : 'var(--text-muted)', fontWeight: 500 }}>{o.desc}</span>
                   </button>
                 );
               })}
@@ -475,7 +475,7 @@ function SendModal({ userId, origin, onClose, onCreated }: {
                 placeholder="지난 진료 차트를 붙여넣으면 AI가 경과 확인 맞춤 질문을 생성합니다." rows={4} />
             </Field>
           )}
-          <p style={{ margin: '-2px 0 0', fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.5 }}>
+          <p style={{ margin: '-2px 0 0', fontSize: 14, color: 'var(--text-muted)', lineHeight: 1.5 }}>
             {visitType === '경과 확인'
               ? '이전 차트를 바탕으로 AI 맞춤 질문이 생성됩니다.'
               : visitType === '새 증상'
@@ -496,7 +496,7 @@ function Spinner() {
 function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
   return (
     <label style={{ display: 'block' }}>
-      <span style={{ display: 'block', fontSize: 12.5, fontWeight: 500, color: 'var(--text-secondary)', marginBottom: 6 }}>
+      <span style={{ display: 'block', fontSize: 14, fontWeight: 500, color: 'var(--text-secondary)', marginBottom: 6 }}>
         {label}{required && <span style={{ color: 'var(--danger)', marginLeft: 3 }}>*</span>}
       </span>
       {children}
@@ -514,7 +514,7 @@ const tdStyle: CSSProperties = {
   padding: '11px 12px', color: 'var(--text-secondary)', whiteSpace: 'nowrap',
 };
 const actionBtnBase: CSSProperties = {
-  padding: '5px 10px', fontSize: 12, fontWeight: 600, borderRadius: 'var(--radius)',
+  padding: '5px 10px', fontSize: 14, fontWeight: 600, borderRadius: 'var(--radius)',
   cursor: 'pointer', whiteSpace: 'nowrap', minWidth: 76, textAlign: 'center',
 };
 // 재발송(대기 중) = 진한 회색, 문진 답변(제출 완료) = success(초록) — 솔리드 톤으로 구분.

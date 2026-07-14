@@ -37,7 +37,7 @@ export default function AppError({
         다시 시도
       </button>
       {error.digest ? (
-        <p style={{ marginTop: 20, color: '#9ca3af', fontSize: 12 }}>오류 코드: {error.digest}</p>
+        <p style={{ marginTop: 20, color: '#9ca3af', fontSize: 14 }}>오류 코드: {error.digest}</p>
       ) : null}
     </div>
   );

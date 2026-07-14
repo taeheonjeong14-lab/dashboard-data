@@ -107,7 +107,7 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
     <div onClick={onClose} style={overlay}>
       <div onClick={(e) => e.stopPropagation()} style={dialog} role="dialog" aria-modal="true">
         <div style={dialogHeader}>
-          <span style={{ fontSize: 18, fontWeight: 700, color: 'var(--text)' }}>설정</span>
+          <span style={{ fontSize: 20, fontWeight: 700, color: 'var(--text)' }}>설정</span>
           <button onClick={onClose} title="닫기" style={closeBtn}><X size={18} /></button>
         </div>
 
@@ -131,7 +131,7 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
           <section style={content}>
             {tab === 'basic' && (
               loadingProfile ? (
-                <p style={{ margin: 0, fontSize: 13, color: 'var(--text-muted)' }}>불러오는 중…</p>
+                <p style={{ margin: 0, fontSize: 14, color: 'var(--text-muted)' }}>불러오는 중…</p>
               ) : (
                 <form onSubmit={(e) => void handleProfileSubmit(e)} style={formStyle}>
                   <Field label="이메일" hint="변경 불가">
@@ -179,8 +179,8 @@ function Field({ label, hint, children }: { label: string; hint?: string; childr
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
-        <label style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>{label}</label>
-        {hint && <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>{hint}</span>}
+        <label style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)' }}>{label}</label>
+        {hint && <span style={{ fontSize: 14, color: 'var(--text-muted)' }}>{hint}</span>}
       </div>
       {children}
     </div>
@@ -190,7 +190,7 @@ function Field({ label, hint, children }: { label: string; hint?: string; childr
 function Msg({ type, text }: { type: 'success' | 'error'; text: string }) {
   return (
     <p style={{
-      margin: 0, fontSize: 13, padding: '8px 12px', borderRadius: 'var(--radius)',
+      margin: 0, fontSize: 14, padding: '8px 12px', borderRadius: 'var(--radius)',
       background: type === 'success' ? 'var(--success-subtle)' : 'var(--danger-subtle)',
       color: type === 'success' ? 'var(--success)' : 'var(--danger)',
       border: `1px solid ${type === 'success' ? 'var(--success)' : 'var(--danger)'}`,
@@ -221,16 +221,16 @@ const leftMenu: React.CSSProperties = {
 };
 const menuItem: React.CSSProperties = {
   display: 'flex', alignItems: 'center', gap: 9, padding: '8px 10px',
-  border: 'none', borderRadius: 'var(--radius)', fontSize: 13, textAlign: 'left', cursor: 'pointer', width: '100%',
+  border: 'none', borderRadius: 'var(--radius)', fontSize: 14, textAlign: 'left', cursor: 'pointer', width: '100%',
 };
 const content: React.CSSProperties = { flex: 1, minWidth: 0, minHeight: 0, padding: '20px 22px', overflowY: 'auto' };
 const formStyle: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: 16 };
 const inputStyle: React.CSSProperties = {
-  width: '100%', padding: '8px 2px', fontSize: 13, color: 'var(--text)',
+  width: '100%', padding: '8px 2px', fontSize: 14, color: 'var(--text)',
   background: 'transparent', border: 'none', borderBottom: '1px solid var(--border-strong)', borderRadius: 0, outline: 'none',
 };
 const primaryBtn = (disabled: boolean): React.CSSProperties => ({
-  alignSelf: 'flex-start', padding: '9px 18px', fontSize: 13, fontWeight: 600,
+  alignSelf: 'flex-start', padding: '9px 18px', fontSize: 14, fontWeight: 600,
   color: '#fff', background: disabled ? 'var(--text-muted)' : 'var(--accent)',
   border: 'none', borderRadius: 'var(--radius)', cursor: disabled ? 'default' : 'pointer',
 });

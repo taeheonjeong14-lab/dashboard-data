@@ -128,16 +128,16 @@ export default function AdminPerformanceHospitalLayout({ children }: { children:
                 borderRadius: 0,
                 outline: 'none',
                 font: 'inherit',
-                fontSize: 13,
+                fontSize: 14,
               }}
               disabled={listLoading}
             />
           </div>
           <div style={{ maxHeight: 'min(66vh, calc(100vh - 220px))', overflow: 'auto' }}>
             {listError ? (
-              <p style={{ margin: '10px 10px', fontSize: 13, color: 'var(--danger)' }}>{listError}</p>
+              <p style={{ margin: '10px 10px', fontSize: 14, color: 'var(--danger)' }}>{listError}</p>
             ) : filteredHospitals.length === 0 ? (
-              <p style={{ margin: '10px 10px', fontSize: 13, color: 'var(--text-muted)' }}>
+              <p style={{ margin: '10px 10px', fontSize: 14, color: 'var(--text-muted)' }}>
                 {hospitals.length === 0 ? '등록된 병원이 없습니다.' : '검색 결과 없음'}
               </p>
             ) : (
@@ -188,16 +188,16 @@ export default function AdminPerformanceHospitalLayout({ children }: { children:
                 borderRadius: 0,
                 outline: 'none',
                 font: 'inherit',
-                fontSize: 13,
+                fontSize: 14,
               }}
               disabled={listLoading}
             />
           </div>
           <div style={{ maxHeight: 'min(66vh, calc(100vh - 220px))', overflow: 'auto' }}>
             {listError ? (
-              <p style={{ margin: '10px 10px', fontSize: 13, color: 'var(--danger)' }}>{listError}</p>
+              <p style={{ margin: '10px 10px', fontSize: 14, color: 'var(--danger)' }}>{listError}</p>
             ) : filteredHospitals.length === 0 ? (
-              <p style={{ margin: '10px 10px', fontSize: 13, color: 'var(--text-muted)' }}>
+              <p style={{ margin: '10px 10px', fontSize: 14, color: 'var(--text-muted)' }}>
                 {hospitals.length === 0 ? '등록된 병원이 없습니다.' : '검색 결과 없음'}
               </p>
             ) : (
@@ -242,7 +242,7 @@ export default function AdminPerformanceHospitalLayout({ children }: { children:
                     key={tab.suffix || 'home'}
                     href={href}
                     style={{
-                      fontSize: 13,
+                      fontSize: 14,
                       fontWeight: active ? 800 : 600,
                       color: active ? 'var(--text)' : 'var(--text-muted)',
                       textDecoration: 'none',

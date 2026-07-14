@@ -21,7 +21,7 @@ export function Modal({ title, onClose, children, footer, maxWidth = 520 }: {
         style={{ width: '100%', maxWidth, background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', boxShadow: '0 8px 32px rgba(0,0,0,0.18)', maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}
       >
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '16px 22px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
-          <h2 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: 'var(--text)' }}>{title}</h2>
+          <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: 'var(--text)' }}>{title}</h2>
           <button type="button" onClick={onClose} aria-label="닫기" style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 20, lineHeight: 1, color: 'var(--text-muted)' }}>×</button>
         </div>
         <div style={{ padding: '20px 22px', overflowY: 'auto' }}>{children}</div>

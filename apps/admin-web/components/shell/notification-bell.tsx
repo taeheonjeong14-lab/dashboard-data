@@ -81,12 +81,12 @@ export function NotificationBell() {
       {open && (
         <div style={{ position: 'absolute', top: 38, right: 0, width: 340, maxHeight: 440, display: 'flex', flexDirection: 'column', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', boxShadow: '0 8px 28px rgba(0,0,0,0.16)', overflow: 'hidden', zIndex: 100 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 14px', borderBottom: '1px solid var(--border)' }}>
-            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>알림</span>
-            {unread > 0 && <button type="button" onClick={() => void markAll()} style={{ fontSize: 13, color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer' }}>모두 읽음</button>}
+            <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>알림</span>
+            {unread > 0 && <button type="button" onClick={() => void markAll()} style={{ fontSize: 14, color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer' }}>모두 읽음</button>}
           </div>
           <div style={{ overflowY: 'auto' }}>
             {items.length === 0 ? (
-              <p style={{ margin: 0, padding: '28px 14px', fontSize: 13, color: 'var(--text-muted)', textAlign: 'center' }}>알림이 없습니다.</p>
+              <p style={{ margin: 0, padding: '28px 14px', fontSize: 14, color: 'var(--text-muted)', textAlign: 'center' }}>알림이 없습니다.</p>
             ) : (
               items.map((n) => {
                 const isErr = n.type === 'admin_error';
@@ -96,10 +96,10 @@ export function NotificationBell() {
                     {isErr && <AlertTriangle size={15} style={{ flexShrink: 0, marginTop: 2, color: 'var(--danger)' }} />}
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ display: 'flex', gap: 6, alignItems: 'baseline' }}>
-                        <span style={{ flex: 1, minWidth: 0, fontSize: 13, fontWeight: n.read ? 500 : 700, color: isErr ? 'var(--danger)' : 'var(--text)' }}>{n.title}</span>
+                        <span style={{ flex: 1, minWidth: 0, fontSize: 14, fontWeight: n.read ? 500 : 700, color: isErr ? 'var(--danger)' : 'var(--text)' }}>{n.title}</span>
                         <span style={{ flexShrink: 0, fontSize: 11, color: 'var(--text-muted)' }}>{ago(n.created_at)}</span>
                       </div>
-                      {n.body && <div style={{ marginTop: 3, fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.4 }}>{n.body}</div>}
+                      {n.body && <div style={{ marginTop: 3, fontSize: 14, color: 'var(--text-secondary)', lineHeight: 1.4 }}>{n.body}</div>}
                     </div>
                   </button>
                 );

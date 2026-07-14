@@ -285,7 +285,7 @@ export default function AdminChartData() {
               borderRadius: 0,
               outline: 'none',
               font: 'inherit',
-              fontSize: 13,
+              fontSize: 14,
             }}
             disabled={historyLoading}
           />
@@ -339,11 +339,11 @@ export default function AdminChartData() {
         </div>
         <div style={{ maxHeight: 'min(66vh, calc(100vh - 260px))', overflow: 'auto' }}>
           {historyLoading ? (
-            <p style={{ margin: '10px 10px', fontSize: 13, color: 'var(--text-muted)' }}>불러오는 중…</p>
+            <p style={{ margin: '10px 10px', fontSize: 14, color: 'var(--text-muted)' }}>불러오는 중…</p>
           ) : listError ? (
-            <p style={{ margin: '10px 10px', fontSize: 13, color: 'var(--danger)' }}>{listError}</p>
+            <p style={{ margin: '10px 10px', fontSize: 14, color: 'var(--danger)' }}>{listError}</p>
           ) : filteredHistory.length === 0 ? (
-            <p style={{ margin: '10px 10px', fontSize: 13, color: 'var(--text-muted)' }}>
+            <p style={{ margin: '10px 10px', fontSize: 14, color: 'var(--text-muted)' }}>
               {history.length === 0 ? '이력 없음' : '검색 결과 없음'}
             </p>
           ) : (
@@ -377,7 +377,7 @@ export default function AdminChartData() {
           <button
             type="button"
             className="adminLegacyPrimaryBtn"
-            style={{ width: '100%', fontSize: 13 }}
+            style={{ width: '100%', fontSize: 14 }}
             onClick={() => setUploadModalOpen(true)}
           >
             + 차트 데이터 수집
@@ -388,21 +388,21 @@ export default function AdminChartData() {
       <div className="adminLayoutMainPane">
         <div className="adminLayoutMainColumnInset">
           {listError && !historyLoading ? (
-            <p style={{ margin: '0 0 12px', fontSize: 13, color: 'var(--danger)' }}>{listError}</p>
+            <p style={{ margin: '0 0 12px', fontSize: 14, color: 'var(--danger)' }}>{listError}</p>
           ) : null}
           {deleteError ? (
-            <p style={{ margin: '0 0 12px', fontSize: 13, color: 'var(--danger)' }}>{deleteError}</p>
+            <p style={{ margin: '0 0 12px', fontSize: 14, color: 'var(--danger)' }}>{deleteError}</p>
           ) : null}
 
           {historyLoading ? (
-            <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>이력 불러오는 중…</p>
+            <p style={{ fontSize: 14, color: 'var(--text-muted)' }}>이력 불러오는 중…</p>
           ) : history.length === 0 ? (
             <div
               style={{
                 padding: 18,
                 border: `1px solid ${divider}`,
                 background: 'var(--bg-subtle)',
-                fontSize: 13,
+                fontSize: 14,
                 color: 'var(--text-secondary)',
                 lineHeight: 1.55,
               }}
@@ -411,14 +411,14 @@ export default function AdminChartData() {
                 <p style={{ margin: '0 0 10px', color: 'var(--danger)', fontWeight: 600 }}>{listError}</p>
               ) : null}
               {serverMeta ? (
-                <p style={{ margin: '0 0 10px', fontSize: 13, color: 'var(--text-muted)' }}>
-                  서버가 조회한 DB 기준: <code style={{ fontSize: 13 }}>chart_pdf.parse_runs</code> 전체{' '}
+                <p style={{ margin: '0 0 10px', fontSize: 14, color: 'var(--text-muted)' }}>
+                  서버가 조회한 DB 기준: <code style={{ fontSize: 14 }}>chart_pdf.parse_runs</code> 전체{' '}
                   <strong>{serverMeta.totalParseRuns}</strong>건 · 이번 응답 목록 최대 <strong>{serverMeta.limit}</strong>
                   건
                 </p>
               ) : null}
               저장된 이력이 없습니다. Supabase 프로젝트에 데이터가 있는지,{' '}
-              <code style={{ fontSize: 13 }}>NEXT_PUBLIC_SUPABASE_URL</code>·서비스 롤 키가 맞는지 확인해 주세요.{' '}
+              <code style={{ fontSize: 14 }}>NEXT_PUBLIC_SUPABASE_URL</code>·서비스 롤 키가 맞는지 확인해 주세요.{' '}
               <button
                 type="button"
                 onClick={() => setUploadModalOpen(true)}
@@ -438,7 +438,7 @@ export default function AdminChartData() {
               에서 PDF를 올려 보세요.
             </div>
           ) : filteredHistory.length === 0 ? (
-            <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>검색 조건에 맞는 이력이 없습니다. 왼쪽 검색어를 바꿔 보세요.</p>
+            <p style={{ fontSize: 14, color: 'var(--text-muted)' }}>검색 조건에 맞는 이력이 없습니다. 왼쪽 검색어를 바꿔 보세요.</p>
           ) : selected ? (
             <div style={{ maxHeight: 'calc(100vh - 140px)', overflowY: 'auto', minHeight: 0 }}>
               <AdminRunExtractionDetail
@@ -450,7 +450,7 @@ export default function AdminChartData() {
               />
             </div>
           ) : (
-            <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>왼쪽에서 항목을 선택해 주세요.</p>
+            <p style={{ fontSize: 14, color: 'var(--text-muted)' }}>왼쪽에서 항목을 선택해 주세요.</p>
           )}
         </div>
       </div>
@@ -474,7 +474,7 @@ export default function AdminChartData() {
       >
         <div style={{ display: 'flex', flexDirection: 'column', maxHeight: '88vh', background: '#fff' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderBottom: `1px solid ${divider}`, flexShrink: 0 }}>
-            <span style={{ fontWeight: 700, fontSize: 18 }}>차트 데이터 수집</span>
+            <span style={{ fontWeight: 700, fontSize: 20 }}>차트 데이터 수집</span>
             <button type="button" className="adminLegacySmallBtn" onClick={() => setUploadModalOpen(false)}>닫기</button>
           </div>
           <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>

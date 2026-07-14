@@ -232,8 +232,8 @@ export default function AdminStatsUpload({
             <>
               <FileSpreadsheet size={30} style={{ color: 'var(--success)' }} />
               <div style={{ textAlign: 'center' }}>
-                <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: 'var(--success)' }}>{snapshot.name}</p>
-                <p style={{ margin: '3px 0 0', fontSize: 13, color: 'var(--text-muted)' }}>
+                <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: 'var(--success)' }}>{snapshot.name}</p>
+                <p style={{ margin: '3px 0 0', fontSize: 14, color: 'var(--text-muted)' }}>
                   {(snapshot.size / 1024).toFixed(0)} KB · 클릭 또는 드래그해서 다시 선택
                 </p>
               </div>
@@ -249,10 +249,10 @@ export default function AdminStatsUpload({
             <>
               <Upload size={30} style={{ color: isDragOver ? 'var(--accent)' : 'var(--text-muted)' }} />
               <div style={{ textAlign: 'center' }}>
-                <p style={{ margin: 0, fontSize: 18, fontWeight: 700, color: 'var(--text-secondary)' }}>
+                <p style={{ margin: 0, fontSize: 20, fontWeight: 700, color: 'var(--text-secondary)' }}>
                   엑셀 파일을 드래그하거나 클릭해서 선택
                 </p>
-                <p style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--text-muted)' }}>
+                <p style={{ margin: '4px 0 0', fontSize: 14, color: 'var(--text-muted)' }}>
                   XLSX · XLS · CSV
                 </p>
               </div>
@@ -285,7 +285,7 @@ export default function AdminStatsUpload({
 
       {/* 상태 메시지 */}
       {message && (
-        <p style={{ margin: '12px 0 0', fontSize: 13, fontWeight: 600, color: isError ? 'var(--danger)' : 'var(--success)' }}>
+        <p style={{ margin: '12px 0 0', fontSize: 14, fontWeight: 600, color: isError ? 'var(--danger)' : 'var(--success)' }}>
           {loading ? '처리 중…' : message}
         </p>
       )}
@@ -304,7 +304,7 @@ export default function AdminStatsUpload({
       {/* 업로드 결과 요약 */}
       {result && (
         <div style={{ ...summaryCard, borderColor: 'rgba(22,163,74,0.3)', background: 'var(--success-subtle)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8, fontSize: 13, fontWeight: 700, color: 'var(--success)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8, fontSize: 14, fontWeight: 700, color: 'var(--success)' }}>
             <CheckCircle2 size={15} /> 업로드 완료
           </div>
           <div style={summaryRow}><span>적재 행</span><strong>{String(result.importedRows ?? '-')}</strong></div>
@@ -333,8 +333,8 @@ const fieldGrid: CSSProperties = {
   gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
   gap: 12,
 };
-const fieldLabel: CSSProperties = { fontSize: 13, fontWeight: 700, color: 'var(--text-secondary)' };
-const hint: CSSProperties = { margin: 0, fontSize: 13, color: 'var(--text-muted)' };
+const fieldLabel: CSSProperties = { fontSize: 14, fontWeight: 700, color: 'var(--text-secondary)' };
+const hint: CSSProperties = { margin: 0, fontSize: 14, color: 'var(--text-muted)' };
 const selectStyle: CSSProperties = {
   width: '100%',
   padding: '9px 10px',
@@ -343,7 +343,7 @@ const selectStyle: CSSProperties = {
   background: 'var(--bg)',
   color: 'var(--text)',
   font: 'inherit',
-  fontSize: 13,
+  fontSize: 14,
   cursor: 'pointer',
 };
 const dropzone: CSSProperties = {
@@ -363,7 +363,7 @@ const clearFileBtn: CSSProperties = {
   display: 'inline-flex',
   alignItems: 'center',
   gap: 4,
-  fontSize: 13,
+  fontSize: 14,
   fontWeight: 600,
   color: 'var(--text-muted)',
   background: 'var(--bg)',
@@ -380,7 +380,7 @@ const summaryCard: CSSProperties = {
   border: '1px solid var(--border)',
   borderRadius: 'var(--radius)',
   background: 'var(--bg)',
-  fontSize: 13,
+  fontSize: 14,
   color: 'var(--text-secondary)',
 };
 const summaryRow: CSSProperties = { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 };

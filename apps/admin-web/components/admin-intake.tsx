@@ -146,7 +146,7 @@ export default function AdminIntake() {
       value={hospitalId ?? ''}
       onChange={(e) => setHospitalId(e.target.value || null)}
       style={{
-        padding: '8px 10px', fontSize: 13, color: 'var(--text)', background: 'var(--bg)',
+        padding: '8px 10px', fontSize: 14, color: 'var(--text)', background: 'var(--bg)',
         border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', outline: 'none', cursor: 'pointer',
       }}
     >
@@ -171,7 +171,7 @@ export default function AdminIntake() {
         {/* ── 좌측: 접수 목록 ── */}
         <div style={{ flex: 1, minWidth: 0, paddingRight: 24 }}>
           <div style={{ padding: '0 0 10px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>
+            <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>
               접수 목록
               {items.length > 0 && (
                 <span style={{ fontWeight: 400, color: 'var(--text-muted)', marginLeft: 6 }}>
@@ -196,7 +196,7 @@ export default function AdminIntake() {
                   onChange={(e) => setQuery(e.target.value)}
                   placeholder="보호자·연락처·환자 검색"
                   style={{
-                    width: '100%', padding: '8px 10px', fontSize: 13, color: 'var(--text)', background: 'var(--bg)',
+                    width: '100%', padding: '8px 10px', fontSize: 14, color: 'var(--text)', background: 'var(--bg)',
                     border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', outline: 'none',
                   }}
                 />
@@ -205,7 +205,7 @@ export default function AdminIntake() {
               {filtered.length === 0 ? (
                 <Empty text="검색 결과가 없습니다." />
               ) : (
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
                   <thead>
                     <tr style={{ background: 'var(--bg-subtle)' }}>
                       {['접수일시', '보호자', '연락처', '반려동물', '상태'].map((h) => (
@@ -245,13 +245,13 @@ export default function AdminIntake() {
         {/* ── 우측: 접수 상세 ── */}
         <div style={{ flex: 1, minWidth: 0, borderLeft: '1px solid var(--border-strong)', paddingLeft: 24 }}>
           <div style={{ padding: '0 0 12px' }}>
-            <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>접수 상세</div>
+            <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>접수 상세</div>
             {selected && (
-              <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 2 }}>{fmtDateTime(selected.created_at)} 접수</div>
+              <div style={{ fontSize: 14, color: 'var(--text-muted)', marginTop: 2 }}>{fmtDateTime(selected.created_at)} 접수</div>
             )}
           </div>
           {selected ? <Detail s={selected} /> : (
-            <div style={{ fontSize: 13, color: 'var(--text-muted)', padding: '8px 0' }}>왼쪽에서 항목을 선택하세요.</div>
+            <div style={{ fontSize: 14, color: 'var(--text-muted)', padding: '8px 0' }}>왼쪽에서 항목을 선택하세요.</div>
           )}
         </div>
       </div>
@@ -273,14 +273,14 @@ function Detail({ s }: { s: Submission }) {
 
       <Section title={`반려동물 (${petCount})`}>
         {petCount === 0 ? (
-          <p style={{ margin: 0, fontSize: 13, color: 'var(--text-muted)' }}>등록된 반려동물이 없습니다.</p>
+          <p style={{ margin: 0, fontSize: 14, color: 'var(--text-muted)' }}>등록된 반려동물이 없습니다.</p>
         ) : (
           <div style={{ display: 'grid', gap: 16 }}>
             {s.pets.map((p, i) => (
               <div key={i}>
-                <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 8 }}>
+                <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', marginBottom: 8 }}>
                   {p.name || `반려동물 ${i + 1}`}
-                  <span style={{ fontSize: 13, fontWeight: 400, color: 'var(--text-muted)', marginLeft: 8 }}>
+                  <span style={{ fontSize: 14, fontWeight: 400, color: 'var(--text-muted)', marginLeft: 8 }}>
                     {SPECIES[p.species ?? ''] ?? p.species ?? ''} · {petBreed(p)}
                   </span>
                 </div>

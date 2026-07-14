@@ -32,7 +32,7 @@ function defaultTpl(type: MsgType): Tpl {
 }
 
 const label: React.CSSProperties = { fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', letterSpacing: '-0.02em' };
-const input: React.CSSProperties = { width: '100%', padding: '8px 10px', fontSize: 13, borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)' };
+const input: React.CSSProperties = { width: '100%', padding: '8px 10px', fontSize: 14, borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)' };
 const area: React.CSSProperties = { ...input, minHeight: 90, resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.5 };
 const card: React.CSSProperties = { padding: 14, borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-raised)', display: 'grid', gap: 10 };
 const subBox: React.CSSProperties = { padding: 12, borderRadius: 6, border: '1px dashed var(--border)', display: 'grid', gap: 8 };
@@ -130,14 +130,14 @@ export function HospitalKakaoSection({ hospitalId }: { hospitalId: string }) {
   };
 
   if (!hospitalId) {
-    return <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>병원을 먼저 저장한 뒤 카카오 채널을 설정할 수 있습니다.</p>;
+    return <p style={{ fontSize: 14, color: 'var(--text-muted)' }}>병원을 먼저 저장한 뒤 카카오 채널을 설정할 수 있습니다.</p>;
   }
 
   const tplEditor = (title: string, bodyVars: string, linkHint: string, tpl: Tpl, set: (t: Tpl) => void) => (
     <div style={card}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <b style={{ fontSize: 13 }}>{title}</b>
-        <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: 'var(--text-secondary)' }}>
+        <b style={{ fontSize: 14 }}>{title}</b>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 14, color: 'var(--text-secondary)' }}>
           <input type="checkbox" checked={tpl.active} onChange={(e) => set({ ...tpl, active: e.target.checked })} /> 사용
         </label>
       </div>
@@ -150,7 +150,7 @@ export function HospitalKakaoSection({ hospitalId }: { hospitalId: string }) {
         <span style={label}>버튼 (승인 템플릿의 버튼과 이름·순서가 같아야 함)</span>
 
         <div style={subBox}>
-          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: 'var(--text-secondary)' }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 14, color: 'var(--text-secondary)' }}>
             <input type="checkbox" checked={tpl.ac_enabled} onChange={(e) => set({ ...tpl, ac_enabled: e.target.checked })} />
             채널 추가 버튼
           </label>
@@ -160,7 +160,7 @@ export function HospitalKakaoSection({ hospitalId }: { hospitalId: string }) {
         </div>
 
         <div style={subBox}>
-          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: 'var(--text-secondary)' }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 14, color: 'var(--text-secondary)' }}>
             <input type="checkbox" checked={tpl.wl_enabled} onChange={(e) => set({ ...tpl, wl_enabled: e.target.checked })} />
             웹링크 버튼
           </label>
@@ -177,15 +177,15 @@ export function HospitalKakaoSection({ hospitalId }: { hospitalId: string }) {
 
   return (
     <div style={{ display: 'grid', gap: 14 }}>
-      <p style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.6, margin: 0 }}>
+      <p style={{ fontSize: 14, color: 'var(--text-muted)', lineHeight: 1.6, margin: 0 }}>
         발신프로필키·발신번호를 비워 두면 이 병원은 <b>회사 기본 채널</b>로 발송됩니다(폴백). 템플릿은 병원 채널에 등록·승인된 것과 코드·본문이 정확히 일치해야 합니다.
       </p>
 
       <div style={card}>
-        <b style={{ fontSize: 13 }}>발신 채널</b>
+        <b style={{ fontSize: 14 }}>발신 채널</b>
         <Field text="발신프로필키 (senderkey)"><input style={input} value={senderKey} onChange={(e) => setSenderKey(e.target.value)} /></Field>
         <Field text="발신번호"><input style={input} value={senderPhone} onChange={(e) => setSenderPhone(e.target.value)} placeholder="01012345678" /></Field>
-        <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: 'var(--text-secondary)' }}>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 14, color: 'var(--text-secondary)' }}>
           <input type="checkbox" checked={channelActive} onChange={(e) => setChannelActive(e.target.checked)} /> 채널 사용(끄면 회사 기본 채널로 폴백)
         </label>
       </div>
@@ -195,10 +195,10 @@ export function HospitalKakaoSection({ hospitalId }: { hospitalId: string }) {
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
         <button type="button" onClick={() => void save()} disabled={loading}
-          style={{ padding: '8px 18px', fontSize: 13, fontWeight: 700, borderRadius: 6, border: 'none', background: 'var(--accent)', color: '#fff', cursor: loading ? 'default' : 'pointer' }}>
+          style={{ padding: '8px 18px', fontSize: 14, fontWeight: 700, borderRadius: 6, border: 'none', background: 'var(--accent)', color: '#fff', cursor: loading ? 'default' : 'pointer' }}>
           {loading ? '처리 중…' : '저장'}
         </button>
-        {msg && <span style={{ fontSize: 13, color: msg.includes('완료') ? 'var(--text-secondary)' : 'var(--danger, #dc2626)' }}>{msg}</span>}
+        {msg && <span style={{ fontSize: 14, color: msg.includes('완료') ? 'var(--text-secondary)' : 'var(--danger, #dc2626)' }}>{msg}</span>}
       </div>
     </div>
   );

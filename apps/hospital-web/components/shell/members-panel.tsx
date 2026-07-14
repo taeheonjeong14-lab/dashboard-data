@@ -69,25 +69,25 @@ export function MembersPanel() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div>
-        <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 8 }}>승인 대기 ({pending.length})</div>
+        <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', marginBottom: 8 }}>승인 대기 ({pending.length})</div>
         {loading ? (
-          <p style={{ margin: 0, fontSize: 13, color: 'var(--text-muted)' }}>불러오는 중…</p>
+          <p style={{ margin: 0, fontSize: 14, color: 'var(--text-muted)' }}>불러오는 중…</p>
         ) : error ? (
-          <p style={{ margin: 0, fontSize: 13, color: 'var(--danger)' }}>{error}</p>
+          <p style={{ margin: 0, fontSize: 14, color: 'var(--danger)' }}>{error}</p>
         ) : pending.length === 0 ? (
-          <p style={{ margin: 0, fontSize: 12.5, color: 'var(--text-muted)' }}>승인 대기 중인 스태프가 없습니다.</p>
+          <p style={{ margin: 0, fontSize: 14, color: 'var(--text-muted)' }}>승인 대기 중인 스태프가 없습니다.</p>
         ) : (
           <div style={{ display: 'grid', gap: 8 }}>
             {pending.map((m) => (
               <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px', border: '1px solid var(--border)', borderRadius: 'var(--radius)' }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>{m.name || '이름 미입력'}</div>
-                  <div style={{ fontSize: 11.5, color: 'var(--text-muted)' }}>{m.email}{m.phone ? ` · ${m.phone}` : ''}</div>
+                  <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)' }}>{m.name || '이름 미입력'}</div>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{m.email}{m.phone ? ` · ${m.phone}` : ''}</div>
                 </div>
                 <button type="button" disabled={busy === m.id} onClick={() => void act(m.id, 'approve')}
-                  style={{ padding: '6px 12px', fontSize: 12, fontWeight: 700, borderRadius: 6, border: 'none', background: 'var(--accent)', color: '#fff', cursor: 'pointer' }}>승인</button>
+                  style={{ padding: '6px 12px', fontSize: 14, fontWeight: 700, borderRadius: 6, border: 'none', background: 'var(--accent)', color: '#fff', cursor: 'pointer' }}>승인</button>
                 <button type="button" disabled={busy === m.id} onClick={() => void act(m.id, 'reject')}
-                  style={{ padding: '6px 12px', fontSize: 12, fontWeight: 700, borderRadius: 6, border: '1px solid var(--danger)', background: '#fff', color: 'var(--danger)', cursor: 'pointer' }}>거절</button>
+                  style={{ padding: '6px 12px', fontSize: 14, fontWeight: 700, borderRadius: 6, border: '1px solid var(--danger)', background: '#fff', color: 'var(--danger)', cursor: 'pointer' }}>거절</button>
               </div>
             ))}
           </div>
@@ -95,29 +95,29 @@ export function MembersPanel() {
       </div>
 
       <div>
-        <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 8 }}>멤버 ({active.length})</div>
+        <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', marginBottom: 8 }}>멤버 ({active.length})</div>
         <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius)', overflow: 'hidden' }}>
           {active.map((m, i) => {
             const rl = roleLabel(m);
             return (
               <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px', borderTop: i ? '1px solid var(--border)' : 'none' }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>
+                  <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)' }}>
                     {m.name || '이름 미입력'}
                     <span style={{ marginLeft: 6, fontSize: 11, fontWeight: 700, color: rl.color }}>{rl.text}</span>
                     {m.id === myId ? <span style={{ marginLeft: 4, fontSize: 11, color: 'var(--text-muted)' }}>(나)</span> : null}
                   </div>
-                  <div style={{ fontSize: 11.5, color: 'var(--text-muted)' }}>{m.email}</div>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{m.email}</div>
                 </div>
                 {m.hospital_role === 'staff' && m.id !== myId ? (
                   <button type="button" disabled={busy === m.id} onClick={() => void act(m.id, 'remove')}
-                    style={{ padding: '5px 10px', fontSize: 11.5, fontWeight: 600, borderRadius: 6, border: '1px solid var(--border-strong)', background: '#fff', color: 'var(--text-secondary)', cursor: 'pointer' }}>제외</button>
+                    style={{ padding: '5px 10px', fontSize: 11, fontWeight: 600, borderRadius: 6, border: '1px solid var(--border-strong)', background: '#fff', color: 'var(--text-secondary)', cursor: 'pointer' }}>제외</button>
                 ) : null}
               </div>
             );
           })}
         </div>
-        <p style={{ margin: '8px 0 0', fontSize: 11.5, color: 'var(--text-muted)', lineHeight: 1.5 }}>
+        <p style={{ margin: '8px 0 0', fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.5 }}>
           스태프 초대는 가입 페이지에서 병원을 검색해 가입 → 여기서 승인하는 방식입니다.
         </p>
       </div>

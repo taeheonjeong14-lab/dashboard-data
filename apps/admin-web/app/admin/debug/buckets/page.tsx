@@ -82,7 +82,7 @@ function ChartBodyGroup({ group, isPlusVet }: { group: ChartGroup; isPlusVet: bo
     <div style={{ border: '1px solid #e2e8f0', borderRadius: 6, overflow: 'hidden', marginBottom: 6 }}>
       <button
         onClick={() => setOpen(!open)}
-        style={{ width: '100%', textAlign: 'left', background: '#f8fafc', padding: '8px 12px', border: 'none', cursor: 'pointer', display: 'flex', gap: 10, alignItems: 'center', fontSize: 13, fontFamily: 'monospace' }}
+        style={{ width: '100%', textAlign: 'left', background: '#f8fafc', padding: '8px 12px', border: 'none', cursor: 'pointer', display: 'flex', gap: 10, alignItems: 'center', fontSize: 14, fontFamily: 'monospace' }}
       >
         <span style={{ fontWeight: 700, color: '#0f172a' }}>{group.dateTime}</span>
         <span style={{ color: '#64748b' }}>{group.lineCount}줄</span>
@@ -148,7 +148,7 @@ function RawBucketView({ lines, label }: { lines: string[]; label: string }) {
     <div style={{ border: '1px solid #e2e8f0', borderRadius: 6, overflow: 'hidden', marginBottom: 8 }}>
       <button
         onClick={() => setOpen(!open)}
-        style={{ width: '100%', textAlign: 'left', background: '#f8fafc', padding: '8px 12px', border: 'none', cursor: 'pointer', display: 'flex', gap: 10, alignItems: 'center', fontSize: 13, fontFamily: 'sans-serif', fontWeight: 700 }}
+        style={{ width: '100%', textAlign: 'left', background: '#f8fafc', padding: '8px 12px', border: 'none', cursor: 'pointer', display: 'flex', gap: 10, alignItems: 'center', fontSize: 14, fontFamily: 'sans-serif', fontWeight: 700 }}
       >
         <span>{label}</span>
         <span style={{ color: '#64748b', fontWeight: 400 }}>{lines.length}줄</span>
@@ -211,8 +211,8 @@ export default function BucketDebugPage() {
   return (
     <div style={{ padding: '24px 32px', maxWidth: 1100, fontFamily: 'monospace' }}>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, marginBottom: 6 }}>
-        <h1 style={{ fontSize: 18, fontWeight: 700, margin: 0, fontFamily: 'sans-serif' }}>버킷 디버그</h1>
-        <span style={{ fontSize: 13, color: '#64748b', fontFamily: 'sans-serif' }}>추출 과정 상세 보기</span>
+        <h1 style={{ fontSize: 20, fontWeight: 700, margin: 0, fontFamily: 'sans-serif' }}>버킷 디버그</h1>
+        <span style={{ fontSize: 14, color: '#64748b', fontFamily: 'sans-serif' }}>추출 과정 상세 보기</span>
       </div>
 
       {/* run 선택 */}
@@ -221,29 +221,29 @@ export default function BucketDebugPage() {
           value={runIdInput}
           onChange={(e) => setRunIdInput(e.target.value)}
           placeholder="runId (비워두면 최신 run)"
-          style={{ flex: 1, maxWidth: 360, padding: '6px 10px', border: '1px solid #cbd5e1', borderRadius: 6, fontSize: 13, fontFamily: 'monospace' }}
+          style={{ flex: 1, maxWidth: 360, padding: '6px 10px', border: '1px solid #cbd5e1', borderRadius: 6, fontSize: 14, fontFamily: 'monospace' }}
         />
         <button
           onClick={() => void load(runIdInput.trim() || undefined)}
           disabled={loading}
-          style={{ padding: '6px 16px', background: '#1d4ed8', color: '#fff', border: 'none', borderRadius: 6, cursor: loading ? 'not-allowed' : 'pointer', fontSize: 13, fontFamily: 'sans-serif' }}
+          style={{ padding: '6px 16px', background: '#1d4ed8', color: '#fff', border: 'none', borderRadius: 6, cursor: loading ? 'not-allowed' : 'pointer', fontSize: 14, fontFamily: 'sans-serif' }}
         >
           {loading ? '로드 중…' : '불러오기'}
         </button>
       </div>
 
       {data?.error && (
-        <p style={{ color: '#b91c1c', fontSize: 13, fontFamily: 'sans-serif' }}>오류: {data.error}</p>
+        <p style={{ color: '#b91c1c', fontSize: 14, fontFamily: 'sans-serif' }}>오류: {data.error}</p>
       )}
 
       {!run && !loading && !data?.error && (
-        <p style={{ color: '#94a3b8', fontSize: 13, fontFamily: 'sans-serif' }}>저장된 run이 없습니다.</p>
+        <p style={{ color: '#94a3b8', fontSize: 14, fontFamily: 'sans-serif' }}>저장된 run이 없습니다.</p>
       )}
 
       {run && (
         <>
           {/* run 헤더 */}
-          <div style={{ border: '1px solid #e2e8f0', borderRadius: 8, padding: '10px 14px', background: '#f8fafc', marginBottom: 16, fontSize: 13, fontFamily: 'sans-serif', display: 'flex', flexWrap: 'wrap', gap: 14, alignItems: 'center' }}>
+          <div style={{ border: '1px solid #e2e8f0', borderRadius: 8, padding: '10px 14px', background: '#f8fafc', marginBottom: 16, fontSize: 14, fontFamily: 'sans-serif', display: 'flex', flexWrap: 'wrap', gap: 14, alignItems: 'center' }}>
             <span><strong>ID:</strong> {run.friendlyId ?? run.id}</span>
             <span><strong>시각:</strong> {new Date(run.createdAt).toLocaleString('ko-KR')}</span>
             <span><strong>파일:</strong> {run.fileName ?? '?'}</span>
@@ -268,7 +268,7 @@ export default function BucketDebugPage() {
               <button
                 key={key}
                 onClick={() => setActiveTab(key)}
-                style={{ padding: '8px 16px', border: 'none', borderBottom: activeTab === key ? '2px solid #1d4ed8' : '2px solid transparent', marginBottom: -2, background: 'none', cursor: 'pointer', fontSize: 13, fontFamily: 'sans-serif', fontWeight: activeTab === key ? 700 : 400, color: activeTab === key ? '#1d4ed8' : '#475569' }}
+                style={{ padding: '8px 16px', border: 'none', borderBottom: activeTab === key ? '2px solid #1d4ed8' : '2px solid transparent', marginBottom: -2, background: 'none', cursor: 'pointer', fontSize: 14, fontFamily: 'sans-serif', fontWeight: activeTab === key ? 700 : 400, color: activeTab === key ? '#1d4ed8' : '#475569' }}
               >
                 {label}
                 {count !== undefined && (
@@ -282,12 +282,12 @@ export default function BucketDebugPage() {
           {activeTab === 'chartBody' && (
             <div>
               {isPlusVet && (
-                <div style={{ marginBottom: 10, padding: '6px 12px', background: '#eff6ff', borderRadius: 6, fontSize: 13, fontFamily: 'sans-serif', color: '#1d4ed8' }}>
+                <div style={{ marginBottom: 10, padding: '6px 12px', background: '#eff6ff', borderRadius: 6, fontSize: 14, fontFamily: 'sans-serif', color: '#1d4ed8' }}>
                   PlusVet: Subjective → bodyText (파란색), Plan → planText (초록색), Objective는 버려짐
                 </div>
               )}
               {data.chartBodyByDate.length === 0 ? (
-                <p style={{ color: '#94a3b8', fontSize: 13, fontFamily: 'sans-serif' }}>날짜별 그룹이 없습니다.</p>
+                <p style={{ color: '#94a3b8', fontSize: 14, fontFamily: 'sans-serif' }}>날짜별 그룹이 없습니다.</p>
               ) : (
                 data.chartBodyByDate.map((g) => (
                   <ChartBodyGroup key={g.dateTime} group={g} isPlusVet={isPlusVet} />
@@ -299,12 +299,12 @@ export default function BucketDebugPage() {
           {/* 검사 버킷 탭 */}
           {activeTab === 'lab' && (
             <div>
-              <div style={{ marginBottom: 10, fontSize: 13, color: '#64748b', fontFamily: 'sans-serif' }}>
+              <div style={{ marginBottom: 10, fontSize: 14, color: '#64748b', fontFamily: 'sans-serif' }}>
                 lab 버킷에 할당된 raw 줄 — 이 줄들로 검사항목을 파싱합니다.
                 {isPlusVet && ' PlusVet은 "진단 검사 결과" 섹션 이후 + 검사기기 패널 헤더로 구분됩니다.'}
               </div>
               {data.bucketLines.lab.length === 0 ? (
-                <p style={{ color: '#94a3b8', fontSize: 13, fontFamily: 'sans-serif' }}>lab 버킷이 비어 있습니다. 버케팅 규칙이 검사 섹션을 찾지 못했을 수 있습니다.</p>
+                <p style={{ color: '#94a3b8', fontSize: 14, fontFamily: 'sans-serif' }}>lab 버킷이 비어 있습니다. 버케팅 규칙이 검사 섹션을 찾지 못했을 수 있습니다.</p>
               ) : (
                 <pre style={{ margin: 0, padding: '10px 12px', fontSize: 11, lineHeight: 1.7, background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 6, whiteSpace: 'pre-wrap', wordBreak: 'break-all', maxHeight: 600, overflowY: 'auto' }}>
                   {data.bucketLines.lab.map((line, i) => (
@@ -319,12 +319,12 @@ export default function BucketDebugPage() {
           {activeTab === 'labItems' && (
             <div>
               {data.labItems.length === 0 ? (
-                <p style={{ color: '#94a3b8', fontSize: 13, fontFamily: 'sans-serif' }}>추출된 검사항목이 없습니다.</p>
+                <p style={{ color: '#94a3b8', fontSize: 14, fontFamily: 'sans-serif' }}>추출된 검사항목이 없습니다.</p>
               ) : (
                 <>
-                  <div style={{ marginBottom: 8, fontSize: 13, color: '#64748b', fontFamily: 'sans-serif' }}>총 {data.labItems.length}개 항목</div>
+                  <div style={{ marginBottom: 8, fontSize: 14, color: '#64748b', fontFamily: 'sans-serif' }}>총 {data.labItems.length}개 항목</div>
                   <div style={{ overflowX: 'auto' }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
                       <thead>
                         <tr style={{ background: '#f1f5f9' }}>
                           {['항목명', '결과값', '단위', '참고치', '플래그', '페이지'].map((h) => (
@@ -353,10 +353,10 @@ export default function BucketDebugPage() {
 
                   {data.labItemsByDate.length > 1 && (
                     <div style={{ marginTop: 16 }}>
-                      <div style={{ fontWeight: 700, fontSize: 13, fontFamily: 'sans-serif', marginBottom: 8 }}>날짜별 그룹</div>
+                      <div style={{ fontWeight: 700, fontSize: 14, fontFamily: 'sans-serif', marginBottom: 8 }}>날짜별 그룹</div>
                       {data.labItemsByDate.map((g) => (
                         <div key={g.dateTime} style={{ marginBottom: 10, border: '1px solid #e2e8f0', borderRadius: 6, overflow: 'hidden' }}>
-                          <div style={{ padding: '6px 12px', background: '#f8fafc', fontWeight: 700, fontSize: 13, borderBottom: '1px solid #e2e8f0' }}>{g.dateTime} ({g.items.length}건)</div>
+                          <div style={{ padding: '6px 12px', background: '#f8fafc', fontWeight: 700, fontSize: 14, borderBottom: '1px solid #e2e8f0' }}>{g.dateTime} ({g.items.length}건)</div>
                           <div style={{ padding: '6px 12px', display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                             {g.items.map((item, j) => (
                               <span key={j} style={{ fontSize: 11, padding: '2px 8px', borderRadius: 10, background: '#f1f5f9', color: FLAG_COLOR[item.flag] ?? '#475569', border: '1px solid #e2e8f0' }}>

@@ -31,7 +31,7 @@ export function StatsUploadButton() {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        style={{ padding: '8px 16px', border: 'none', borderRadius: 'var(--radius)', background: 'var(--accent)', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', flexShrink: 0 }}
+        style={{ padding: '8px 16px', border: 'none', borderRadius: 'var(--radius)', background: 'var(--accent)', color: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer', flexShrink: 0 }}
       >
         경영통계 제출
       </button>
@@ -169,10 +169,10 @@ function StatsUploadModal({ onClose }: { onClose: () => void }) {
         style={{ width: '100%', maxWidth: 520, background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: 24, boxShadow: '0 8px 32px rgba(0,0,0,0.18)', maxHeight: '90vh', overflowY: 'auto' }}
       >
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 6 }}>
-          <h2 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: 'var(--text)' }}>경영통계 제출</h2>
-          <button type="button" onClick={() => !isProcessing && onClose()} style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 18, color: 'var(--text-muted)', lineHeight: 1 }}>×</button>
+          <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: 'var(--text)' }}>경영통계 제출</h2>
+          <button type="button" onClick={() => !isProcessing && onClose()} style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 20, color: 'var(--text-muted)', lineHeight: 1 }}>×</button>
         </div>
-        <p style={{ margin: '0 0 20px', fontSize: 13.5, color: 'var(--text-secondary)' }}>
+        <p style={{ margin: '0 0 20px', fontSize: 14, color: 'var(--text-secondary)' }}>
           차트 시스템에서 내보낸 엑셀 또는 CSV 파일을 업로드하면 자동으로 처리됩니다.
         </p>
 
@@ -180,8 +180,8 @@ function StatsUploadModal({ onClose }: { onClose: () => void }) {
         {stage === 'done' && result && (
           <div style={{ background: 'var(--bg-raised)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
             <div style={{ background: 'var(--success-subtle)', borderBottom: '1px solid var(--border)', padding: '14px 20px', display: 'flex', alignItems: 'center', gap: 10 }}>
-              <span style={{ fontSize: 18 }}>✓</span>
-              <div style={{ fontWeight: 700, fontSize: 15, color: 'var(--success)' }}>업로드 완료</div>
+              <span style={{ fontSize: 20 }}>✓</span>
+              <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--success)' }}>업로드 완료</div>
             </div>
             <div style={{ padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: 12 }}>
               <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>
@@ -208,9 +208,9 @@ function StatsUploadModal({ onClose }: { onClose: () => void }) {
         {stage === 'error' && (
           <div style={{ background: 'var(--danger-subtle)', border: '1px solid var(--danger)', borderRadius: 'var(--radius)', padding: '14px 16px', marginBottom: 20, display: 'flex', alignItems: 'flex-start', gap: 10 }}>
             <span style={{ color: 'var(--danger)', fontWeight: 700, flexShrink: 0 }}>오류</span>
-            <div style={{ flex: 1, fontSize: 13, color: 'var(--text)' }}>{errorMessage}</div>
+            <div style={{ flex: 1, fontSize: 14, color: 'var(--text)' }}>{errorMessage}</div>
             <button onClick={() => setStage('idle')}
-              style={{ background: 'none', border: '1px solid var(--danger)', color: 'var(--danger)', borderRadius: 'var(--radius)', padding: '4px 10px', fontSize: 12, cursor: 'pointer', flexShrink: 0 }}>
+              style={{ background: 'none', border: '1px solid var(--danger)', color: 'var(--danger)', borderRadius: 'var(--radius)', padding: '4px 10px', fontSize: 14, cursor: 'pointer', flexShrink: 0 }}>
               다시 시도
             </button>
           </div>
@@ -229,7 +229,7 @@ function StatsUploadModal({ onClose }: { onClose: () => void }) {
               </FormField>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                <p style={{ margin: 0, fontSize: 13, color: 'var(--text-secondary)' }}>
+                <p style={{ margin: 0, fontSize: 14, color: 'var(--text-secondary)' }}>
                   현재 <b style={{ color: 'var(--text)' }}>{CHART_TYPE_LABELS[hospitalChartType ?? chartType]}</b> 차트 기준으로 처리됩니다.
                 </p>
                 <button
@@ -237,7 +237,7 @@ function StatsUploadModal({ onClose }: { onClose: () => void }) {
                   onClick={() => setShowChartSelect(true)}
                   style={{
                     alignSelf: 'flex-start', background: 'none', border: 'none', padding: 0,
-                    fontSize: 12.5, color: 'var(--accent)', cursor: 'pointer', textDecoration: 'underline',
+                    fontSize: 14, color: 'var(--accent)', cursor: 'pointer', textDecoration: 'underline',
                   }}
                 >
                   혹시 다른 차트 시스템 데이터인가요?
@@ -265,18 +265,18 @@ function StatsUploadModal({ onClose }: { onClose: () => void }) {
                 {file ? (
                   <div>
                     <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)', marginBottom: 4 }}>{file.name}</div>
-                    <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{formatBytes(file.size)}</div>
-                    {!isProcessing && <div style={{ fontSize: 12, color: 'var(--accent)', marginTop: 6 }}>클릭하여 다시 선택</div>}
+                    <div style={{ fontSize: 14, color: 'var(--text-muted)' }}>{formatBytes(file.size)}</div>
+                    {!isProcessing && <div style={{ fontSize: 14, color: 'var(--accent)', marginTop: 6 }}>클릭하여 다시 선택</div>}
                   </div>
                 ) : (
                   <div>
                     <div style={{ fontSize: 24, marginBottom: 8, color: 'var(--text-muted)' }}>📊</div>
                     <div style={{ fontSize: 14, color: 'var(--text-secondary)', marginBottom: 4 }}>엑셀 또는 CSV 파일을 여기에 끌어다 놓거나 클릭하여 선택</div>
-                    <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>.xlsx, .xls, .csv 형식, 최대 20MB</div>
+                    <div style={{ fontSize: 14, color: 'var(--text-muted)' }}>.xlsx, .xls, .csv 형식, 최대 20MB</div>
                   </div>
                 )}
               </div>
-              {fileError && <div style={{ marginTop: 6, fontSize: 12, color: 'var(--danger)' }}>{fileError}</div>}
+              {fileError && <div style={{ marginTop: 6, fontSize: 14, color: 'var(--danger)' }}>{fileError}</div>}
             </FormField>
 
             <button onClick={() => void handleSubmit()} disabled={!canSubmit}
@@ -284,7 +284,7 @@ function StatsUploadModal({ onClose }: { onClose: () => void }) {
                 width: '100%', padding: '12px 20px',
                 background: canSubmit ? 'var(--accent)' : 'var(--bg-raised)',
                 color: canSubmit ? '#fff' : 'var(--text-muted)',
-                border: 'none', borderRadius: 'var(--radius)', fontSize: 15, fontWeight: 600,
+                border: 'none', borderRadius: 'var(--radius)', fontSize: 14, fontWeight: 600,
                 cursor: canSubmit ? 'pointer' : 'not-allowed',
                 display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
               }}>
@@ -301,10 +301,10 @@ function FormField({ label, hint, required, children }: { label: string; hint?: 
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginBottom: 8 }}>
-        <label style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>
+        <label style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)' }}>
           {label}{required && <span style={{ color: 'var(--danger)', marginLeft: 3 }}>*</span>}
         </label>
-        {hint && <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{hint}</span>}
+        {hint && <span style={{ fontSize: 14, color: 'var(--text-muted)' }}>{hint}</span>}
       </div>
       {children}
     </div>

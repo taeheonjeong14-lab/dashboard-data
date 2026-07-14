@@ -5,7 +5,7 @@ import AdminDataUpload from '@/components/admin-data-upload';
 // 탭 전환·좌측 패널 구성은 클라이언트 컴포넌트(AdminDataUpload)가 담당한다.
 export default function AdminDataUploadPage() {
   return (
-    <Suspense fallback={<p style={{ padding: 16, color: '#64748b', fontSize: 13 }}>불러오는 중…</p>}>
+    <Suspense fallback={<p style={{ padding: 16, color: '#64748b', fontSize: 14 }}>불러오는 중…</p>}>
       <AdminDataUpload />
     </Suspense>
   );

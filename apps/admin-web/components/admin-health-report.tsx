@@ -267,7 +267,7 @@ export default function AdminHealthReport() {
               borderRadius: 0,
               outline: 'none',
               font: 'inherit',
-              fontSize: 13,
+              fontSize: 14,
             }}
             disabled={runsLoading}
           />
@@ -321,15 +321,15 @@ export default function AdminHealthReport() {
         </div>
         <div style={{ maxHeight: 'min(66vh, calc(100vh - 260px))', overflow: 'auto' }}>
           {runsLoading ? (
-            <p style={{ margin: '10px 10px', fontSize: 13, color: 'var(--text-muted)' }}>불러오는 중…</p>
+            <p style={{ margin: '10px 10px', fontSize: 14, color: 'var(--text-muted)' }}>불러오는 중…</p>
           ) : runsError ? (
-            <p style={{ margin: '10px 10px', fontSize: 13, color: 'var(--danger)' }}>{runsError}</p>
+            <p style={{ margin: '10px 10px', fontSize: 14, color: 'var(--danger)' }}>{runsError}</p>
           ) : runs.length === 0 ? (
-            <p style={{ margin: '10px 10px', fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.5 }}>
+            <p style={{ margin: '10px 10px', fontSize: 14, color: 'var(--text-muted)', lineHeight: 1.5 }}>
               아직 저장된 건강검진 컨텐츠가 없습니다. chart-api에서 생성·저장된 뒤 여기 목록에 나타납니다.
             </p>
           ) : filteredRuns.length === 0 ? (
-            <p style={{ margin: '10px 10px', fontSize: 13, color: 'var(--text-muted)' }}>검색 결과 없음</p>
+            <p style={{ margin: '10px 10px', fontSize: 14, color: 'var(--text-muted)' }}>검색 결과 없음</p>
           ) : (
             filteredRuns.map((r) => (
               <button
@@ -360,7 +360,7 @@ export default function AdminHealthReport() {
           <button
             type="button"
             className="adminLegacyPrimaryBtn"
-            style={{ width: '100%', fontSize: 13 }}
+            style={{ width: '100%', fontSize: 14 }}
             onClick={() => setCreateModalOpen(true)}
           >
             + 건강검진 리포트 만들기
@@ -380,7 +380,7 @@ export default function AdminHealthReport() {
                       : ''}
                   </span>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    {deleteError && <span style={{ fontSize: 13, color: 'var(--danger)' }}>{deleteError}</span>}
+                    {deleteError && <span style={{ fontSize: 14, color: 'var(--danger)' }}>{deleteError}</span>}
                     <button
                       type="button"
                       className="adminLegacySmallBtn"
@@ -402,7 +402,7 @@ export default function AdminHealthReport() {
               />
             </div>
           ) : (
-            <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>목록에서 항목을 선택해 주세요.</p>
+            <p style={{ fontSize: 14, color: 'var(--text-muted)' }}>목록에서 항목을 선택해 주세요.</p>
           )}
         </div>
       </div>
@@ -426,7 +426,7 @@ export default function AdminHealthReport() {
         <div style={{ display: 'flex', flexDirection: 'column', height: '88vh', maxHeight: '88vh', background: '#fff' }}>
           {/* 헤더 */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderBottom: `1px solid ${divider}`, flexShrink: 0 }}>
-            <span style={{ fontWeight: 700, fontSize: 18 }}>차트 기록에서 선택</span>
+            <span style={{ fontWeight: 700, fontSize: 20 }}>차트 기록에서 선택</span>
             <button type="button" className="adminLegacySmallBtn" onClick={() => setCreateModalOpen(false)}>닫기</button>
           </div>
 
@@ -437,12 +437,12 @@ export default function AdminHealthReport() {
               placeholder="병원·환자·기록번호 검색"
               value={chartSearch}
               onChange={(e) => setChartSearch(e.target.value)}
-              style={{ flex: '1 1 180px', minWidth: 0, padding: '6px 10px', border: '1px solid var(--border)', borderRadius: 4, fontSize: 13, outline: 'none' }}
+              style={{ flex: '1 1 180px', minWidth: 0, padding: '6px 10px', border: '1px solid var(--border)', borderRadius: 4, fontSize: 14, outline: 'none' }}
             />
             <select
               value={chartFilterHospital}
               onChange={(e) => setChartFilterHospital(e.target.value)}
-              style={{ flex: '1 1 140px', padding: '6px 8px', border: '1px solid var(--border)', borderRadius: 4, fontSize: 13 }}
+              style={{ flex: '1 1 140px', padding: '6px 8px', border: '1px solid var(--border)', borderRadius: 4, fontSize: 14 }}
             >
               <option value="">병원 전체</option>
               {chartHospitalOptions.map((h) => <option key={h} value={h}>{h}</option>)}
@@ -450,7 +450,7 @@ export default function AdminHealthReport() {
             <select
               value={chartFilterMonth}
               onChange={(e) => setChartFilterMonth(e.target.value)}
-              style={{ flex: '1 1 120px', padding: '6px 8px', border: '1px solid var(--border)', borderRadius: 4, fontSize: 13 }}
+              style={{ flex: '1 1 120px', padding: '6px 8px', border: '1px solid var(--border)', borderRadius: 4, fontSize: 14 }}
             >
               <option value="">추출월 전체</option>
               {chartMonthOptions.map((m) => (
@@ -462,11 +462,11 @@ export default function AdminHealthReport() {
           {/* 목록 */}
           <div style={{ flex: 1, overflowY: 'auto' }}>
             {chartRunsLoading ? (
-              <p style={{ margin: '16px', fontSize: 13, color: 'var(--text-muted)' }}>불러오는 중…</p>
+              <p style={{ margin: '16px', fontSize: 14, color: 'var(--text-muted)' }}>불러오는 중…</p>
             ) : chartRunsError ? (
-              <p style={{ margin: '16px', fontSize: 13, color: 'var(--danger)' }}>{chartRunsError}</p>
+              <p style={{ margin: '16px', fontSize: 14, color: 'var(--danger)' }}>{chartRunsError}</p>
             ) : filteredChartRuns.length === 0 ? (
-              <p style={{ margin: '16px', fontSize: 13, color: 'var(--text-muted)' }}>
+              <p style={{ margin: '16px', fontSize: 14, color: 'var(--text-muted)' }}>
                 {chartRuns.length === 0 ? '차트 기록이 없습니다.' : '검색 결과가 없습니다.'}
               </p>
             ) : (
@@ -505,11 +505,11 @@ export default function AdminHealthReport() {
                   >
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, flexWrap: 'wrap' }}>
-                        <span style={{ fontWeight: 700, fontSize: 13, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        <span style={{ fontWeight: 700, fontSize: 14, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                           {hospitalGroupKey(item.hospitalName) || '병원명 없음'}
                         </span>
                         {item.patientName && (
-                          <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{item.patientName}</span>
+                          <span style={{ fontSize: 14, color: 'var(--text-secondary)' }}>{item.patientName}</span>
                         )}
                         {item.friendlyId && (
                           <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{item.friendlyId}</span>

@@ -81,7 +81,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
           <h1
             style={{
               margin: '0 0 12px',
-              fontSize: '17px',
+              fontSize: '20px',
               fontWeight: 700,
               color: 'var(--text)',
             }}
@@ -101,7 +101,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
           <a
             href="/auth/signout"
             style={{
-              fontSize: '13px',
+              fontSize: '14px',
               color: 'var(--text-muted)',
               textDecoration: 'underline',
             }}

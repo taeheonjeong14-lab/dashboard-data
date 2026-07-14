@@ -129,7 +129,7 @@ export default function SettingsPage() {
       <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
         <SectionTitle>기본 정보</SectionTitle>
         {loadingProfile ? (
-          <p style={{ margin: 0, fontSize: 13, color: 'var(--text-muted)' }}>불러오는 중…</p>
+          <p style={{ margin: 0, fontSize: 14, color: 'var(--text-muted)' }}>불러오는 중…</p>
         ) : (
           <form onSubmit={(e) => void handleProfileSubmit(e)} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             <Field label="이메일" hint="변경 불가">
@@ -231,7 +231,7 @@ function Field({ label, hint, required, children }: { label: string; hint?: stri
 function Msg({ type, text }: { type: 'success' | 'error'; text: string }) {
   return (
     <p style={{
-      margin: 0, fontSize: 13, padding: '8px 12px', borderRadius: 'var(--radius)',
+      margin: 0, fontSize: 14, padding: '8px 12px', borderRadius: 'var(--radius)',
       background: type === 'success' ? 'var(--success-subtle)' : 'var(--danger-subtle)',
       color: type === 'success' ? 'var(--success)' : 'var(--danger)',
       border: `1px solid ${type === 'success' ? 'var(--success)' : 'var(--danger)'}`,
