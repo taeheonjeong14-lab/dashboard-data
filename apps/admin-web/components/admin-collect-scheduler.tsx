@@ -139,13 +139,13 @@ export default function AdminCollectScheduler({
 
   const body = (
     <div style={{ padding: 16, display: 'grid', gap: 12, overflowY: 'auto' }}>
-          {error && <div style={{ fontSize: 12.5, color: 'var(--danger)' }}>{error}</div>}
+          {error && <div style={{ fontSize: 13, color: 'var(--danger)' }}>{error}</div>}
 
           {/* 목록 */}
           {loading ? (
-            <p style={{ margin: 0, fontSize: 12.5, color: 'var(--text-muted)' }}>불러오는 중…</p>
+            <p style={{ margin: 0, fontSize: 13, color: 'var(--text-muted)' }}>불러오는 중…</p>
           ) : schedules.length === 0 ? (
-            <p style={{ margin: 0, fontSize: 12.5, color: 'var(--text-muted)' }}>등록된 스케줄이 없습니다.</p>
+            <p style={{ margin: 0, fontSize: 13, color: 'var(--text-muted)' }}>등록된 스케줄이 없습니다.</p>
           ) : (
             <div style={{ border: '1px solid var(--border)', borderRadius: 6, overflow: 'hidden' }}>
               {schedules.map((s, i) => (
@@ -153,7 +153,7 @@ export default function AdminCollectScheduler({
                   <input type="checkbox" checked={s.enabled} onChange={() => void toggleEnabled(s)} title="활성/비활성" />
                   <div style={{ minWidth: 0, flex: 1 }}>
                     <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>{s.label || '(이름 없음)'}</div>
-                    <div style={{ fontSize: 11.5, color: 'var(--text-muted)' }}>{scheduleSummary(s, hospitals)}</div>
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{scheduleSummary(s, hospitals)}</div>
                   </div>
                   <button type="button" onClick={() => startEdit(s)} style={miniBtn}>수정</button>
                   <button type="button" onClick={() => void remove(s)} style={{ ...miniBtn, color: 'var(--danger)', borderColor: 'var(--danger-subtle)' }}>삭제</button>
@@ -189,7 +189,7 @@ export default function AdminCollectScheduler({
                 {draft.scope === 'hospitals' && (
                   <div style={{ maxHeight: 160, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 6, padding: 6, display: 'grid', gap: 2 }}>
                     {hospitals.map((h) => (
-                      <label key={h.id} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, padding: '2px 4px', cursor: 'pointer' }}>
+                      <label key={h.id} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, padding: '2px 4px', cursor: 'pointer' }}>
                         <input type="checkbox" checked={draft.hospitalIds.includes(h.id)} onChange={() => toggleHospital(h.id)} />
                         {h.name_ko ?? h.id}
                       </label>
@@ -234,7 +234,7 @@ export default function AdminCollectScheduler({
             </div>
           )}
 
-          <p style={{ margin: 0, fontSize: 11.5, color: 'var(--text-muted)', lineHeight: 1.5 }}>
+          <p style={{ margin: 0, fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.5 }}>
             매시 정각에 해당 시각의 스케줄이 수집 잡으로 자동 생성되고, 워커가 실행합니다. (전체 병원은 배치 1건)
           </p>
         </div>
@@ -243,10 +243,10 @@ export default function AdminCollectScheduler({
   if (inline) {
     return (
       <div style={{ maxWidth: 640 }}>
-        <h2 style={{ margin: '0 0 4px', fontSize: 16, fontWeight: 700, color: 'var(--text)' }}>
+        <h2 style={{ margin: '0 0 4px', fontSize: 18, fontWeight: 700, color: 'var(--text)' }}>
           자동 수집 스케줄 {schedules.length > 0 ? `(${schedules.length})` : ''}
         </h2>
-        <p style={{ margin: '0 0 6px', fontSize: 12.5, color: 'var(--text-muted)' }}>
+        <p style={{ margin: '0 0 6px', fontSize: 13, color: 'var(--text-muted)' }}>
           지정한 시각마다 자동으로 데이터를 수집합니다. 결과는 &lsquo;수집 내역&rsquo; 탭에서 확인할 수 있어요.
         </p>
         {body}
@@ -258,8 +258,8 @@ export default function AdminCollectScheduler({
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
       <div onClick={(e) => e.stopPropagation()} style={{ width: 'min(92vw, 560px)', maxHeight: '88vh', display: 'flex', flexDirection: 'column', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 12, boxShadow: '0 12px 40px rgba(0,0,0,0.18)', overflow: 'hidden' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 18px', borderBottom: '1px solid var(--border)' }}>
-          <h2 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: 'var(--text)' }}>⏱ 자동 수집 스케줄 {schedules.length > 0 ? `(${schedules.length})` : ''}</h2>
-          <button type="button" onClick={onClose} aria-label="닫기" style={{ border: 0, background: 'transparent', fontSize: 20, lineHeight: 1, cursor: 'pointer', color: 'var(--text-muted)' }}>×</button>
+          <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: 'var(--text)' }}>⏱ 자동 수집 스케줄 {schedules.length > 0 ? `(${schedules.length})` : ''}</h2>
+          <button type="button" onClick={onClose} aria-label="닫기" style={{ border: 0, background: 'transparent', fontSize: 18, lineHeight: 1, cursor: 'pointer', color: 'var(--text-muted)' }}>×</button>
         </div>
         {body}
       </div>
@@ -267,9 +267,9 @@ export default function AdminCollectScheduler({
   );
 }
 
-const lbl: CSSProperties = { fontSize: 11.5, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 5 };
+const lbl: CSSProperties = { fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 5 };
 const field: CSSProperties = { padding: '7px 9px', fontSize: 13, border: '1px solid var(--border-strong)', borderRadius: 6, background: 'var(--bg)', color: 'var(--text)', outline: 'none', width: '100%', boxSizing: 'border-box' };
-const miniBtn: CSSProperties = { flexShrink: 0, padding: '5px 11px', fontSize: 12, fontWeight: 700, borderRadius: 6, cursor: 'pointer', border: '1px solid var(--border-strong)', background: '#fff', color: 'var(--text-secondary)' };
+const miniBtn: CSSProperties = { flexShrink: 0, padding: '5px 11px', fontSize: 13, fontWeight: 700, borderRadius: 6, cursor: 'pointer', border: '1px solid var(--border-strong)', background: '#fff', color: 'var(--text-secondary)' };
 function chip(on: boolean): CSSProperties {
-  return { padding: '5px 11px', fontSize: 12, fontWeight: 700, borderRadius: 999, cursor: 'pointer', border: `1px solid ${on ? 'var(--accent)' : 'var(--border-strong)'}`, background: on ? 'var(--accent-subtle)' : '#fff', color: on ? 'var(--accent)' : 'var(--text-secondary)' };
+  return { padding: '5px 11px', fontSize: 13, fontWeight: 700, borderRadius: 999, cursor: 'pointer', border: `1px solid ${on ? 'var(--accent)' : 'var(--border-strong)'}`, background: on ? 'var(--accent-subtle)' : '#fff', color: on ? 'var(--accent)' : 'var(--text-secondary)' };
 }

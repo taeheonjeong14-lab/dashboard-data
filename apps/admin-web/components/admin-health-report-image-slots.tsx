@@ -278,7 +278,7 @@ export function AdminHealthReportImageSlots({
               key={`${label}-${blockIndex}`}
               style={{ border: `1px solid ${divider}`, borderRadius: 8, padding: 12, background: 'var(--bg-raised)' }}
             >
-              <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 8 }}>
+              <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 8 }}>
                 {sectionTitle} · 이미지 ({n}장)
               </div>
               <div style={{ display: 'grid', gap: 10, gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))' }}>
@@ -335,7 +335,7 @@ export function AdminHealthReportImageSlots({
                         <button
                           type="button"
                           className="adminLegacySmallBtn"
-                          style={{ marginTop: 6, fontSize: 10 }}
+                          style={{ marginTop: 6, fontSize: 11 }}
                           onClick={() => onChange(updateSlot(blocks, blockIndex, slotIndex, { src: undefined, caption: '' }))}
                         >
                           슬롯 비우기
@@ -373,14 +373,14 @@ export function AdminHealthReportImageSlots({
         </p>
       ) : null}
       {!loading && !loadErr && candidates.some((c) => c.examType === '페이로드') && (
-        <p style={{ margin: 0, fontSize: 12, color: 'var(--text-muted)' }}>
+        <p style={{ margin: 0, fontSize: 13, color: 'var(--text-muted)' }}>
           일부 후보는 DB가 아니라 <strong>보고서 JSON 슬롯의 src</strong>에서만 가져왔습니다(생성 시 자동 배치 등). DB에 행을 쌓으려면
           이미지 분석 업로드 API를 쓰면 됩니다.
         </p>
       )}
       {unplacedCandidates.length > 0 ? (
         <div style={{ border: `1px solid ${divider}`, borderRadius: 8, padding: 12, background: 'var(--bg-subtle)' }}>
-          <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 8 }}>후보 (드래그하여 슬롯에 놓기)</div>
+          <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>후보 (드래그하여 슬롯에 놓기)</div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
             {unplacedCandidates.map((c) => (
               <div
@@ -400,9 +400,9 @@ export function AdminHealthReportImageSlots({
                   // eslint-disable-next-line @next/next/no-img-element
                   <img alt="" src={c.previewUrl} style={{ width: '100%', height: 64, objectFit: 'cover' }} />
                 ) : (
-                  <div style={{ height: 64, fontSize: 10, padding: 4, color: 'var(--text-muted)' }}>URL 없음</div>
+                  <div style={{ height: 64, fontSize: 11, padding: 4, color: 'var(--text-muted)' }}>URL 없음</div>
                 )}
-                <div style={{ fontSize: 9, padding: 4, color: 'var(--text-muted)', wordBreak: 'break-all' }}>{c.fileName ?? c.id}</div>
+                <div style={{ fontSize: 11, padding: 4, color: 'var(--text-muted)', wordBreak: 'break-all' }}>{c.fileName ?? c.id}</div>
               </div>
             ))}
           </div>

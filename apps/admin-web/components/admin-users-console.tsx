@@ -35,7 +35,7 @@ const fieldLabelStyle: CSSProperties = {
 const fieldStyle: CSSProperties = {
   width: '100%',
   padding: '5px 0',
-  fontSize: 12,
+  fontSize: 13,
   lineHeight: 1.45,
   background: 'transparent',
   border: 0,
@@ -51,7 +51,7 @@ function LabeledField({ label, hint, children }: { label: string; hint?: string;
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 3, minWidth: 0 }}>
       <span style={fieldLabelStyle}>{label}</span>
-      {hint ? <span style={{ fontSize: 10.5, color: 'var(--text-muted)', lineHeight: 1.35, opacity: 0.8 }}>{hint}</span> : null}
+      {hint ? <span style={{ fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.35, opacity: 0.8 }}>{hint}</span> : null}
       {children}
     </div>
   );
@@ -61,7 +61,7 @@ function DataCard({ title, desc, children, padding }: { title?: string; desc?: s
   const hasHeader = !!(title || desc);
   return (
     <div style={{ background: '#ffffff', border: '1px solid var(--border)', borderRadius: 10, padding: padding ?? '14px 16px' }}>
-      {title ? <div style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text)' }}>{title}</div> : null}
+      {title ? <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>{title}</div> : null}
       {desc ? <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{desc}</div> : null}
       <div style={{ display: 'grid', gap: 12, marginTop: hasHeader ? 12 : 0 }}>{children}</div>
     </div>
@@ -71,7 +71,7 @@ function DataCard({ title, desc, children, padding }: { title?: string; desc?: s
 // Buttons
 const btnBase: CSSProperties = {
   padding: '5px 10px',
-  fontSize: 12,
+  fontSize: 13,
   fontWeight: 600,
   borderRadius: 6,
   cursor: 'pointer',
@@ -326,13 +326,13 @@ export default function AdminUsersConsole() {
       {/* 페이지 헤더 */}
       <div style={{ marginBottom: 16, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
         <div style={{ minWidth: 0 }}>
-          <h1 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: 'var(--text)' }}>사용자 관리</h1>
+          <h1 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: 'var(--text)' }}>사용자 관리</h1>
           <p style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--text-secondary)' }}>
             전체 {totalCount}명{pendingCount > 0 ? ` · 승인 대기 ${pendingCount}명` : ''} — 사용자 정보·소속 병원·토큰·승인 상태를 관리합니다.
           </p>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
-          <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{loading ? '처리 중…' : message}</span>
+          <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>{loading ? '처리 중…' : message}</span>
           <button type="button" style={btnSecondary} onClick={() => void refresh()} disabled={loading}>
             새로고침
           </button>
@@ -375,7 +375,7 @@ export default function AdminUsersConsole() {
                     <span style={{ fontWeight: 600, fontSize: 13, color: active ? 'var(--accent)' : 'var(--text)' }}>{u.name || '(이름 없음)'}</span>
                     <StatusBadge user={u} />
                   </span>
-                  <span style={{ display: 'block', marginTop: 3, fontSize: 11.5, color: 'var(--text-muted)' }}>{u.email ?? '—'}</span>
+                  <span style={{ display: 'block', marginTop: 3, fontSize: 11, color: 'var(--text-muted)' }}>{u.email ?? '—'}</span>
                 </button>
               );
             })}
@@ -391,8 +391,8 @@ export default function AdminUsersConsole() {
             <div style={{ display: 'grid', gap: 12 }}>
               {/* 선택 사용자 헤더 */}
               <div>
-                <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)' }}>{selectedUser.name || '(이름 없음)'}</div>
-                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
+                <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--text)' }}>{selectedUser.name || '(이름 없음)'}</div>
+                <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 2 }}>
                   {selectedUser.email ?? '이메일 없음'} · 가입 {formatDate(selectedUser.createdAt)}
                 </div>
               </div>
@@ -438,7 +438,7 @@ export default function AdminUsersConsole() {
                     <input value={editForm.phone} onChange={(e) => setEditForm((f) => ({ ...f, phone: formatPhone(e.target.value) }))} inputMode="numeric" placeholder="01012345678" style={fieldStyle} />
                   </LabeledField>
                 </div>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--text-secondary)', cursor: 'pointer' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--text-secondary)', cursor: 'pointer' }}>
                   <input
                     type="checkbox"
                     checked={editForm.active}
@@ -483,7 +483,7 @@ export default function AdminUsersConsole() {
           ) : (
             <div style={{ padding: '64px 18px', textAlign: 'center', color: 'var(--text-muted)' }}>
               <div style={{ fontSize: 28, marginBottom: 8 }}>👤</div>
-              <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)', marginBottom: 4 }}>선택된 사용자가 없습니다</div>
+              <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', marginBottom: 4 }}>선택된 사용자가 없습니다</div>
               <div style={{ fontSize: 13 }}>좌측 목록에서 사용자를 선택하세요.</div>
             </div>
           )}

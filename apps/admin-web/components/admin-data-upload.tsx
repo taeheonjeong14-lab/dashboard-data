@@ -182,9 +182,9 @@ function SearchadCoverage({ jobId }: { jobId: string }) {
     return () => { cancelled = true; };
   }, [jobId]);
 
-  if (loading) return <p style={{ margin: '8px 0 0', fontSize: 12, color: 'var(--text-muted)' }}>날짜별 수집 확인 중…</p>;
+  if (loading) return <p style={{ margin: '8px 0 0', fontSize: 13, color: 'var(--text-muted)' }}>날짜별 수집 확인 중…</p>;
   if (!data || !data.applicable || !data.days) {
-    return <p style={{ margin: '8px 0 0', fontSize: 12, color: 'var(--text-muted)' }}>기간 지정 수집이 아니라 날짜별 표시가 불가합니다.</p>;
+    return <p style={{ margin: '8px 0 0', fontSize: 13, color: 'var(--text-muted)' }}>기간 지정 수집이 아니라 날짜별 표시가 불가합니다.</p>;
   }
   return (
     <div style={{ marginTop: 10 }}>
@@ -214,7 +214,7 @@ function SearchadCoverage({ jobId }: { jobId: string }) {
         ))}
       </div>
       {data.lastCollected && (
-        <p style={{ margin: '8px 0 0', fontSize: 12, color: 'var(--text-muted)' }}>
+        <p style={{ margin: '8px 0 0', fontSize: 13, color: 'var(--text-muted)' }}>
           마지막 수집일 {data.lastCollected}. 다시 수집할 때 시작일을 그 다음날로 잡으면 이어집니다.
         </p>
       )}
@@ -679,7 +679,7 @@ export default function AdminDataUpload({ variant = 'data' }: { variant?: 'data'
     const cfgSelect: CSSProperties = {
       width: '100%', padding: '9px 11px', borderRadius: 'var(--radius)',
       border: '1px solid var(--border-strong)', background: 'var(--bg)',
-      color: 'var(--text)', font: 'inherit', fontSize: 14, cursor: 'pointer',
+      color: 'var(--text)', font: 'inherit', fontSize: 13, cursor: 'pointer',
     };
     const secLabel: CSSProperties = { fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 8 };
     return (
@@ -691,7 +691,7 @@ export default function AdminDataUpload({ variant = 'data' }: { variant?: 'data'
             {STALE_DAYS}일 넘게 수집 안 된 항목{staleAlerts.length > 0 ? ` (${staleAlerts.length})` : ''}
           </div>
           {staleAlerts.length === 0 ? (
-            <div style={{ padding: '24px 14px', textAlign: 'center', border: '1px dashed var(--border)', borderRadius: 'var(--radius)', color: 'var(--text-muted)', fontSize: 12.5, lineHeight: 1.6 }}>
+            <div style={{ padding: '24px 14px', textAlign: 'center', border: '1px dashed var(--border)', borderRadius: 'var(--radius)', color: 'var(--text-muted)', fontSize: 13, lineHeight: 1.6 }}>
               {collectLastSuccess ? '모든 항목이 최근에 수집되었습니다.' : '수집 기록을 불러오는 중…'}
             </div>
           ) : (
@@ -699,7 +699,7 @@ export default function AdminDataUpload({ variant = 'data' }: { variant?: 'data'
               {staleAlerts.map((a) => {
                 const inCart = cart.get(a.hospitalId)?.has(a.step) ?? false;
                 return (
-                  <div key={`${a.hospitalId}-${a.step}`} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, padding: '9px 11px', borderRadius: 'var(--radius)', border: '1px solid rgba(217,119,6,0.3)', background: 'var(--warning-subtle)' }}>
+                  <div key={`${a.hospitalId}-${a.step}`} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, padding: '9px 11px', borderRadius: 'var(--radius)', border: '1px solid rgba(217,119,6,0.3)', background: 'var(--warning-subtle)' }}>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontWeight: 700, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.hospitalName}</div>
                       <div style={{ color: 'var(--text-secondary)' }}>{a.stepLabel} · <span style={{ color: 'var(--warning)', fontWeight: 600 }}>{a.daysAgo}일 전</span></div>
@@ -708,7 +708,7 @@ export default function AdminDataUpload({ variant = 'data' }: { variant?: 'data'
                       type="button"
                       disabled={inCart}
                       onClick={() => addToCart(a.hospitalId, [a.step])}
-                      style={{ flexShrink: 0, fontSize: 11.5, fontWeight: 600, color: inCart ? 'var(--text-muted)' : 'var(--accent)', background: 'var(--bg)', border: `1px solid ${inCart ? 'var(--border)' : 'var(--accent)'}`, borderRadius: 6, padding: '4px 10px', cursor: inCart ? 'default' : 'pointer' }}
+                      style={{ flexShrink: 0, fontSize: 11, fontWeight: 600, color: inCart ? 'var(--text-muted)' : 'var(--accent)', background: 'var(--bg)', border: `1px solid ${inCart ? 'var(--border)' : 'var(--accent)'}`, borderRadius: 6, padding: '4px 10px', cursor: inCart ? 'default' : 'pointer' }}
                     >
                       {inCart ? '담김' : '담기'}
                     </button>
@@ -740,7 +740,7 @@ export default function AdminDataUpload({ variant = 'data' }: { variant?: 'data'
                 {configHospitalId && (
                   <div style={{ marginTop: 18 }}>
                     <div style={secLabel}>
-                      수집할 데이터 <span style={{ fontWeight: 400, color: 'var(--text-muted)', fontSize: 12 }}>· 항목별 마지막 수집일</span>
+                      수집할 데이터 <span style={{ fontWeight: 400, color: 'var(--text-muted)', fontSize: 13 }}>· 항목별 마지막 수집일</span>
                     </div>
                     <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius)', overflow: 'hidden' }}>
                       {COLLECT_STEPS.map((step, i) => {
@@ -757,12 +757,12 @@ export default function AdminDataUpload({ variant = 'data' }: { variant?: 'data'
                               <span style={{ flex: 1, fontSize: 13, color: 'var(--text)' }}>{step.label}</span>
                               {inCart && <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--accent)' }}>담김</span>}
                               {last ? (
-                                <span title={`마지막 수집 ${last.date}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, color: stale ? 'var(--warning)' : 'var(--text-muted)', whiteSpace: 'nowrap' }}>
+                                <span title={`마지막 수집 ${last.date}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 13, color: stale ? 'var(--warning)' : 'var(--text-muted)', whiteSpace: 'nowrap' }}>
                                   {stale && <AlertTriangle size={12} />}
                                   {last.text}
                                 </span>
                               ) : (
-                                <span style={{ fontSize: 12, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>수집 이력 없음</span>
+                                <span style={{ fontSize: 13, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>수집 이력 없음</span>
                               )}
                             </label>
 
@@ -770,15 +770,15 @@ export default function AdminDataUpload({ variant = 'data' }: { variant?: 'data'
                             {step.key === 'searchad' && checked && (
                               <div style={{ borderTop: '1px solid var(--border)', background: 'var(--bg-subtle)', padding: '10px 12px 12px 40px' }}>
                                 {/* 수집 기간 */}
-                                <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 6 }}>
+                                <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 6 }}>
                                   수집 기간 <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>(선택)</span>
                                 </div>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                                  <input type="date" value={searchadStart} max={searchadEnd || undefined} onChange={(e) => setSearchadStart(e.target.value)} style={{ fontSize: 12.5, padding: '5px 7px', border: '1px solid var(--border-strong)', borderRadius: 6, color: 'var(--text)' }} />
-                                  <span style={{ fontSize: 12.5, color: 'var(--text-muted)' }}>~</span>
-                                  <input type="date" value={searchadEnd} min={searchadStart || undefined} onChange={(e) => setSearchadEnd(e.target.value)} style={{ fontSize: 12.5, padding: '5px 7px', border: '1px solid var(--border-strong)', borderRadius: 6, color: 'var(--text)' }} />
+                                  <input type="date" value={searchadStart} max={searchadEnd || undefined} onChange={(e) => setSearchadStart(e.target.value)} style={{ fontSize: 13, padding: '5px 7px', border: '1px solid var(--border-strong)', borderRadius: 6, color: 'var(--text)' }} />
+                                  <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>~</span>
+                                  <input type="date" value={searchadEnd} min={searchadStart || undefined} onChange={(e) => setSearchadEnd(e.target.value)} style={{ fontSize: 13, padding: '5px 7px', border: '1px solid var(--border-strong)', borderRadius: 6, color: 'var(--text)' }} />
                                   {(searchadStart || searchadEnd) && (
-                                    <button type="button" onClick={() => { setSearchadStart(''); setSearchadEnd(''); }} style={{ fontSize: 12, color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 4px' }}>지우기</button>
+                                    <button type="button" onClick={() => { setSearchadStart(''); setSearchadEnd(''); }} style={{ fontSize: 13, color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 4px' }}>지우기</button>
                                   )}
                                 </div>
                                 <p style={{ margin: '6px 0 12px', fontSize: 11, color: (!!searchadStart && !!searchadEnd && searchadStart > searchadEnd) ? 'var(--danger)' : 'var(--text-muted)', lineHeight: 1.5 }}>
@@ -790,27 +790,27 @@ export default function AdminDataUpload({ variant = 'data' }: { variant?: 'data'
                                 </p>
 
                                 {/* 캠페인 */}
-                                <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 6 }}>
+                                <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 6 }}>
                                   캠페인 선택{' '}
                                   <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>
                                     · {(campaignSel.get(configHospitalId)?.size ?? 0) > 0 ? `${campaignSel.get(configHospitalId)!.size}개 선택` : '전체'}
                                   </span>
                                 </div>
                                 {campaignLoading[configHospitalId] ? (
-                                  <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>캠페인 불러오는 중…</span>
+                                  <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>캠페인 불러오는 중…</span>
                                 ) : campaignError[configHospitalId] ? (
-                                  <span style={{ fontSize: 12, color: 'var(--danger)' }}>{campaignError[configHospitalId]}</span>
+                                  <span style={{ fontSize: 13, color: 'var(--danger)' }}>{campaignError[configHospitalId]}</span>
                                 ) : (campaignLists[configHospitalId] ?? []).length === 0 ? (
-                                  <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>캠페인이 없습니다.</span>
+                                  <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>캠페인이 없습니다.</span>
                                 ) : (
                                   <>
                                     <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>아무것도 선택하지 않으면 전체 캠페인을 수집합니다.</div>
                                     <div style={{ maxHeight: 170, overflowY: 'auto', display: 'grid', gap: 2 }}>
                                       {campaignLists[configHospitalId].map((c) => (
-                                        <label key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--text-secondary)', padding: '3px 0', cursor: 'pointer' }}>
+                                        <label key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: 'var(--text-secondary)', padding: '3px 0', cursor: 'pointer' }}>
                                           <input type="checkbox" checked={campaignSel.get(configHospitalId)?.has(c.id) ?? false} onChange={(e) => toggleCampaign(configHospitalId, c.id, e.target.checked)} />
                                           <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.name || c.id}</span>
-                                          {c.type && <span style={{ fontSize: 10, color: 'var(--text-muted)', flexShrink: 0 }}>{c.type}</span>}
+                                          {c.type && <span style={{ fontSize: 11, color: 'var(--text-muted)', flexShrink: 0 }}>{c.type}</span>}
                                         </label>
                                       ))}
                                     </div>
@@ -839,7 +839,7 @@ export default function AdminDataUpload({ variant = 'data' }: { variant?: 'data'
                 <ShoppingCart size={15} /> 수집 대기열{cartItemCount > 0 ? ` (${cartItemCount})` : ''}
               </span>
               {!isCartEmpty && (
-                <button type="button" onClick={() => setCart(new Map())} style={{ fontSize: 12, color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>비우기</button>
+                <button type="button" onClick={() => setCart(new Map())} style={{ fontSize: 13, color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>비우기</button>
               )}
             </div>
 
@@ -856,7 +856,7 @@ export default function AdminDataUpload({ variant = 'data' }: { variant?: 'data'
                       <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 7 }}>{hName}</div>
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
                         {COLLECT_STEPS.filter((s) => steps.has(s.key)).map((s) => (
-                          <span key={s.key} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 6px 3px 9px', borderRadius: 999, background: 'var(--accent-subtle)', color: 'var(--accent)', fontSize: 12, fontWeight: 600 }}>
+                          <span key={s.key} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 6px 3px 9px', borderRadius: 999, background: 'var(--accent-subtle)', color: 'var(--accent)', fontSize: 13, fontWeight: 600 }}>
                             {s.short}
                             <button type="button" onClick={() => removeCartStep(hid, s.key)} aria-label="제거" style={{ display: 'inline-flex', border: 'none', background: 'none', cursor: 'pointer', color: 'var(--accent)', padding: 0 }}>
                               <X size={13} />
@@ -876,14 +876,14 @@ export default function AdminDataUpload({ variant = 'data' }: { variant?: 'data'
                 {collectSubmitting ? '요청 중…' : `전체 수집 시작 (병원 ${cartHospitalCount} · 항목 ${cartItemCount})`}
               </button>
               {collectError && (
-                <p style={{ margin: '8px 0 0', fontSize: 12.5, color: 'var(--danger)', lineHeight: 1.5 }}>{collectError}</p>
+                <p style={{ margin: '8px 0 0', fontSize: 13, color: 'var(--danger)', lineHeight: 1.5 }}>{collectError}</p>
               )}
               {(searchadDateIncomplete || searchadDateInvalid) && (
-                <p style={{ margin: '8px 0 0', fontSize: 12, color: 'var(--danger)', lineHeight: 1.5 }}>
+                <p style={{ margin: '8px 0 0', fontSize: 13, color: 'var(--danger)', lineHeight: 1.5 }}>
                   {searchadDateInvalid ? 'SearchAd 시작일이 종료일보다 늦습니다.' : 'SearchAd 시작·종료일을 모두 선택해 주세요.'}
                 </p>
               )}
-              <p style={{ margin: '10px 0 0', fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.5 }}>
+              <p style={{ margin: '10px 0 0', fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.5 }}>
                 시작하면 <strong>수집 내역</strong> 탭에서 진행 상황을 확인할 수 있어요.
               </p>
             </div>
@@ -902,7 +902,7 @@ export default function AdminDataUpload({ variant = 'data' }: { variant?: 'data'
                     {/* 병원 + 차트 종류 */}
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                       <div style={{ display: 'grid', gap: 4 }}>
-                        <label htmlFor="hospitalId" style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)' }}>
+                        <label htmlFor="hospitalId" style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-muted)' }}>
                           병원
                         </label>
                         {hospitalsLoading ? (
@@ -912,7 +912,7 @@ export default function AdminDataUpload({ variant = 'data' }: { variant?: 'data'
                         ) : hospitals.length === 0 ? (
                           <p style={{ margin: 0, fontSize: 13, color: 'var(--text-secondary)' }}>
                             등록된 병원이 없습니다.{' '}
-                            <Link href="/admin/users/hospitals" style={{ fontWeight: 700, color: 'var(--text)' }}>병원 관리</Link>에서 추가해 주세요.
+                            <Link href="/admin/hospitals" style={{ fontWeight: 700, color: 'var(--text)' }}>병원 관리</Link>에서 추가해 주세요.
                           </p>
                         ) : (
                           <select id="hospitalId" name="hospitalId" required defaultValue="" style={selectLineStyle}>
@@ -924,7 +924,7 @@ export default function AdminDataUpload({ variant = 'data' }: { variant?: 'data'
                         )}
                       </div>
                       <div style={{ display: 'grid', gap: 4 }}>
-                        <label htmlFor="chartType" style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)' }}>
+                        <label htmlFor="chartType" style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-muted)' }}>
                           차트 종류
                         </label>
                         <select id="chartType" name="chartType" value={chartType} onChange={(e) => setChartType(e.target.value)} style={selectLineStyle}>
@@ -956,13 +956,13 @@ export default function AdminDataUpload({ variant = 'data' }: { variant?: 'data'
                       <Upload size={26} style={{ color: isDragOver ? 'var(--accent)' : selectedFile ? 'var(--success)' : 'var(--text-muted)' }} />
                       {selectedFile ? (
                         <div>
-                          <p style={{ margin: 0, fontSize: 14, fontWeight: 600, color: 'var(--success)' }}>{selectedFile.name}</p>
-                          <p style={{ margin: '2px 0 0', fontSize: 12, color: 'var(--text-muted)' }}>{(selectedFile.size / 1024 / 1024).toFixed(1)} MB · 클릭해서 다시 선택</p>
+                          <p style={{ margin: 0, fontSize: 13, fontWeight: 600, color: 'var(--success)' }}>{selectedFile.name}</p>
+                          <p style={{ margin: '2px 0 0', fontSize: 13, color: 'var(--text-muted)' }}>{(selectedFile.size / 1024 / 1024).toFixed(1)} MB · 클릭해서 다시 선택</p>
                         </div>
                       ) : (
                         <div>
-                          <p style={{ margin: 0, fontSize: 14, fontWeight: 600, color: 'var(--text-secondary)' }}>PDF 드래그 또는 클릭해서 선택</p>
-                          <p style={{ margin: '2px 0 0', fontSize: 12, color: 'var(--text-muted)' }}>최대 30MB · 텍스트 기반 PDF</p>
+                          <p style={{ margin: 0, fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)' }}>PDF 드래그 또는 클릭해서 선택</p>
+                          <p style={{ margin: '2px 0 0', fontSize: 13, color: 'var(--text-muted)' }}>최대 30MB · 텍스트 기반 PDF</p>
                         </div>
                       )}
                     </div>
@@ -976,7 +976,7 @@ export default function AdminDataUpload({ variant = 'data' }: { variant?: 'data'
 
                     {/* 이미지 업로드 */}
                     <div style={{ marginTop: 4 }}>
-                      <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 6 }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 6 }}>
                         관련 이미지 (선택) — 추출 완료 후 AI가 자동 분류·분석합니다
                       </div>
                       <div
@@ -991,8 +991,8 @@ export default function AdminDataUpload({ variant = 'data' }: { variant?: 'data'
                       >
                         <Upload size={26} style={{ color: 'var(--text-muted)' }} />
                         <div>
-                          <p style={{ margin: 0, fontSize: 14, fontWeight: 600, color: 'var(--text-secondary)' }}>이미지 드래그 또는 클릭해서 선택</p>
-                          <p style={{ margin: '2px 0 0', fontSize: 12, color: 'var(--text-muted)' }}>JPEG / PNG / WebP · 최대 {MAX_IMAGES}장 · 장당 8MB · 자동 압축 후 분석</p>
+                          <p style={{ margin: 0, fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)' }}>이미지 드래그 또는 클릭해서 선택</p>
+                          <p style={{ margin: '2px 0 0', fontSize: 13, color: 'var(--text-muted)' }}>JPEG / PNG / WebP · 최대 {MAX_IMAGES}장 · 장당 8MB · 자동 압축 후 분석</p>
                         </div>
                       </div>
                       <input
@@ -1103,7 +1103,7 @@ export default function AdminDataUpload({ variant = 'data' }: { variant?: 'data'
     <div>
       <div className="adminDataHubHeader">
         <div style={{ marginBottom: 16 }}>
-          <h1 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: 'var(--text)' }}>데이터 수집</h1>
+          <h1 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: 'var(--text)' }}>데이터 수집</h1>
           <p style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--text-secondary)' }}>
             경영통계 업로드와 자동 수집·스케줄·수집 내역을 한 곳에서 관리합니다.
           </p>

@@ -127,7 +127,7 @@ const fieldLabelStyle: React.CSSProperties = {
 
 // 필드별 "어디에 쓰이는지" 한 줄 설명
 const fieldHintStyle: React.CSSProperties = {
-  fontSize: 10.5,
+  fontSize: 11,
   color: 'var(--text-muted)',
   lineHeight: 1.35,
   opacity: 0.8,
@@ -196,7 +196,7 @@ function DataCard({ title, desc, children }: { title?: string; desc?: string; ch
         padding: '14px 16px',
       }}
     >
-      {title ? <div style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text)' }}>{title}</div> : null}
+      {title ? <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>{title}</div> : null}
       {desc ? <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{desc}</div> : null}
       <div style={{ display: 'grid', gap: 12, marginTop: hasHeader ? 12 : 0 }}>{children}</div>
     </div>
@@ -206,7 +206,7 @@ function DataCard({ title, desc, children }: { title?: string; desc?: string; ch
 const fieldStyle: React.CSSProperties = {
   width: '100%',
   padding: '5px 0',
-  fontSize: 12,
+  fontSize: 13,
   lineHeight: 1.45,
   background: 'transparent',
   border: 0,
@@ -306,8 +306,8 @@ function AssetDropzone({
         </>
       ) : (
         <>
-          <span style={{ fontSize: 22, lineHeight: 1 }}>🖼️</span>
-          <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>이미지를 끌어다 놓거나 클릭하여 선택</span>
+          <span style={{ fontSize: 18, lineHeight: 1 }}>🖼️</span>
+          <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>이미지를 끌어다 놓거나 클릭하여 선택</span>
           <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>PNG·JPG·WEBP·SVG</span>
         </>
       )}
@@ -336,7 +336,7 @@ function VolumeBadge({ vol }: { vol?: KeywordVolumeView }) {
   return (
     <span
       title={`네이버 월간 검색량 · PC ${vol.pcCount.toLocaleString()} · 모바일 ${vol.mobileCount.toLocaleString()} · ${vol.yearMonth} 기준 · 갱신 ${fmtChecked(vol.checkedAt)}`}
-      style={{ flexShrink: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'flex-end', gap: 4, fontSize: 11.5, fontWeight: 700, color: 'var(--text)', whiteSpace: 'nowrap', minWidth: 64 }}
+      style={{ flexShrink: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'flex-end', gap: 4, fontSize: 11, fontWeight: 700, color: 'var(--text)', whiteSpace: 'nowrap', minWidth: 64 }}
     >
       <NaverMark />
       {text}
@@ -389,7 +389,16 @@ function KeywordList({ value, onChange, volumes }: { value: KeywordItem[]; onCha
   );
 }
 
-export default function AdminHospitalsManager() {
+/**
+ * embedded: 병원 관리 콘솔의 '정보·설정' 탭에서 쓰는 모드.
+ *  좌측 병원 목록은 콘솔이 소유하므로 여기선 그리지 않는다.
+ *  hospitalId: 콘솔이 고른 병원(빈 문자열이면 신규 병원 폼).
+ */
+export default function AdminHospitalsManager({
+  hospitalId,
+  embedded = false,
+  onHospitalsChanged,
+}: { hospitalId?: string; embedded?: boolean; onHospitalsChanged?: () => void } = {}) {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
   const [hospitals, setHospitals] = useState<HospitalListRow[]>([]);
@@ -420,6 +429,17 @@ export default function AdminHospitalsManager() {
     void refreshHospitals();
   }, []);
 
+  // 임베드 모드: 콘솔이 고른 병원을 따라간다(빈 문자열이면 신규 병원 폼).
+  useEffect(() => {
+    if (!embedded || hospitalId === undefined) return;
+    if (!hospitalId) {
+      openNewHospital();
+      return;
+    }
+    if (hospitalId !== selectedId) void loadHospital(hospitalId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [embedded, hospitalId]);
+
   async function refreshHospitals() {
     setLoading(true);
     setMessage('');
@@ -429,7 +449,8 @@ export default function AdminHospitalsManager() {
       if (!res.ok) throw new Error(data.error || '병원 조회 실패');
       const rows = (data.hospitals || []) as HospitalListRow[];
       setHospitals(rows);
-      if (!selectedId && rows[0]?.id) {
+      // 임베드에선 콘솔이 선택을 소유하므로 자동 선택하지 않는다.
+      if (!embedded && !selectedId && rows[0]?.id) {
         await loadHospital(rows[0].id);
       }
     } catch (e) {
@@ -548,6 +569,7 @@ export default function AdminHospitalsManager() {
       if (!res.ok) throw new Error(data.error || '저장 실패');
       setMessage('저장 완료');
       await refreshHospitals();
+      onHospitalsChanged?.(); // 콘솔 좌측 목록도 갱신
       if (!selectedId) {
         const newId = String(form.id || '');
         if (newId) await loadHospital(newId);
@@ -677,7 +699,9 @@ export default function AdminHospitalsManager() {
   }
 
   return (
-    <div className="adminLayout2WithMain">
+    <div className={embedded ? undefined : 'adminLayout2WithMain'}>
+      {/* 임베드(병원 관리 콘솔)에선 좌측 목록을 콘솔이 소유한다. */}
+      {embedded ? null : (
       <aside className="adminLayoutSecondaryRail" aria-label="병원 목록">
         <div className="adminRailToolbar">
           <input
@@ -694,7 +718,7 @@ export default function AdminHospitalsManager() {
               borderRadius: 0,
               outline: 'none',
               font: 'inherit',
-              fontSize: 12,
+              fontSize: 13,
             }}
             disabled={loading}
           />
@@ -726,7 +750,7 @@ export default function AdminHospitalsManager() {
               padding: '11px 14px',
               borderRadius: 0,
               fontWeight: 700,
-              fontSize: 12,
+              fontSize: 13,
               cursor: loading ? 'not-allowed' : 'pointer',
             }}
           >
@@ -734,13 +758,15 @@ export default function AdminHospitalsManager() {
           </button>
         </div>
       </aside>
+      )}
 
-      <div className="adminLayoutMainPane">
-        <div className="adminLayoutMainColumnInset">
-        {/* 페이지 헤더 — 선택한 병원 이름·주소 + (우측) 토큰 잔액·지급 */}
-        <div style={{ paddingTop: 16, marginBottom: 16, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
+      <div className={embedded ? undefined : 'adminLayoutMainPane'}>
+        <div className={embedded ? undefined : 'adminLayoutMainColumnInset'}>
+        {/* 페이지 헤더 — 선택한 병원 이름·주소 + (우측) 토큰 잔액·지급.
+            임베드에선 콘솔 헤더가 같은 정보를 보여주므로 감춘다. */}
+        <div style={{ display: embedded ? 'none' : 'flex', paddingTop: 16, marginBottom: 16, alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
           <div style={{ minWidth: 0 }}>
-            <h1 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: 'var(--text)' }}>
+            <h1 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: 'var(--text)' }}>
               {form.name.trim() || (selectedId ? '(이름 없음)' : '신규 병원')}
             </h1>
             <p style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--text-secondary)' }}>
@@ -749,7 +775,7 @@ export default function AdminHospitalsManager() {
           </div>
           {selectedId ? (
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0, padding: '8px 12px', borderRadius: 8, background: 'var(--bg-raised)', border: '1px solid var(--border)' }}>
-              <span style={{ fontSize: 12.5, color: 'var(--text-secondary)' }}>
+              <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
                 토큰 잔액 <b style={{ color: 'var(--text)' }}>{Math.round(selectedBalance).toLocaleString()}</b> 토큰
               </span>
               <button type="button" onClick={() => void grantTokens()} disabled={loading}
@@ -760,7 +786,7 @@ export default function AdminHospitalsManager() {
           ) : null}
         </div>
         {loading || message ? (
-          <div className="adminLegacyStatus" style={{ marginBottom: 10, fontSize: 12 }}>
+          <div className="adminLegacyStatus" style={{ marginBottom: 10, fontSize: 13 }}>
             {loading ? '처리 중...' : message}
           </div>
         ) : null}
@@ -783,7 +809,7 @@ export default function AdminHospitalsManager() {
           })}
         </div>
 
-        <form onSubmit={saveHospital} className="adminLegacyModalForm" style={{ gap: 6, fontSize: 12 }}>
+        <form onSubmit={saveHospital} className="adminLegacyModalForm" style={{ gap: 6, fontSize: 13 }}>
           {/* 🏥 병원 기본 정보 */}
           <TabPanel active={activeTab === 'identity'}>
             <DataCard>
@@ -873,12 +899,12 @@ export default function AdminHospitalsManager() {
           {/* 키워드 — 블로그·플레이스 검색 순위 모니터링 키워드 모음 (흰 박스 2열) */}
           <TabPanel active={activeTab === 'keyword'}>
             {form.wish_keywords.length > 0 && (
-              <div style={{ marginBottom: 12, padding: '10px 12px', background: 'var(--accent-subtle)', borderRadius: 8, fontSize: 12.5, color: 'var(--text-secondary)' }}>
+              <div style={{ marginBottom: 12, padding: '10px 12px', background: 'var(--accent-subtle)', borderRadius: 8, fontSize: 13, color: 'var(--text-secondary)' }}>
                 <b style={{ color: 'var(--accent)' }}>마스터 희망 키워드</b>: {form.wish_keywords.join(', ')}
               </div>
             )}
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10, flexWrap: 'wrap' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11.5, color: 'var(--text-secondary)', flex: 1, minWidth: 200 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: 'var(--text-secondary)', flex: 1, minWidth: 200 }}>
                 <NaverMark size={13} />
                 {lastVolumeChecked ? `마지막 갱신: ${fmtChecked(lastVolumeChecked)}` : '아직 갱신 이력 없음'}
               </div>
@@ -886,13 +912,13 @@ export default function AdminHospitalsManager() {
                 type="button"
                 onClick={() => void refreshKeywordVolumes()}
                 disabled={volumeBusy}
-                style={{ flexShrink: 0, padding: '7px 14px', fontSize: 12.5, fontWeight: 700, borderRadius: 6, border: 'none', cursor: volumeBusy ? 'default' : 'pointer', background: volumeBusy ? 'var(--text-muted)' : 'var(--accent)', color: '#fff' }}
+                style={{ flexShrink: 0, padding: '7px 14px', fontSize: 13, fontWeight: 700, borderRadius: 6, border: 'none', cursor: volumeBusy ? 'default' : 'pointer', background: volumeBusy ? 'var(--text-muted)' : 'var(--accent)', color: '#fff' }}
               >
                 {volumeBusy ? '검색량 갱신 중…' : '검색량 지금 갱신'}
               </button>
             </div>
             {volumeMsg && (
-              <div style={{ marginBottom: 10, fontSize: 12, color: 'var(--text-secondary)' }}>{volumeMsg}</div>
+              <div style={{ marginBottom: 10, fontSize: 13, color: 'var(--text-secondary)' }}>{volumeMsg}</div>
             )}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, alignItems: 'start' }}>
               <DataCard title="플레이스 키워드" desc="플레이스 검색 순위 모니터링 대상 키워드">
@@ -984,7 +1010,7 @@ export default function AdminHospitalsManager() {
           {/* ⚔️ 경쟁병원 분석 — 경쟁병원별 흰 박스 (최대 3) */}
           <TabPanel active={activeTab === 'competitor'}>
             {form.wish_competitors.length > 0 && (
-              <div style={{ marginBottom: 12, padding: '10px 12px', background: 'var(--accent-subtle)', borderRadius: 8, fontSize: 12.5, color: 'var(--text-secondary)' }}>
+              <div style={{ marginBottom: 12, padding: '10px 12px', background: 'var(--accent-subtle)', borderRadius: 8, fontSize: 13, color: 'var(--text-secondary)' }}>
                 <b style={{ color: 'var(--accent)' }}>마스터 희망 경쟁병원</b>: {form.wish_competitors.join(', ')}
               </div>
             )}
@@ -1047,7 +1073,7 @@ export default function AdminHospitalsManager() {
               <input value={form.code} onChange={(e) => setForm((f) => ({ ...f, code: e.target.value }))} style={fieldStyle} />
             </LabeledField>
 
-            <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--text-secondary)', cursor: 'pointer', marginTop: 14 }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--text-secondary)', cursor: 'pointer', marginTop: 14 }}>
               <input
                 type="checkbox"
                 checked={form.barun_plan_enabled}

@@ -51,7 +51,7 @@ const summaryStyle: CSSProperties = {
   cursor: 'pointer',
   listStyle: 'none',
   padding: '9px 14px',
-  fontSize: 12.5,
+  fontSize: 13,
   fontWeight: 700,
   color: 'var(--text-secondary)',
   display: 'flex',
@@ -118,7 +118,7 @@ export function BucketDebugPanel({ runId }: { runId: string }) {
           <>
             {/* 차트 종류 배지 */}
             {isPlusVet && (
-              <div style={{ marginBottom: 10, fontSize: 12, color: 'var(--accent)', background: 'var(--accent-subtle)', border: '1px solid var(--accent-subtle)', borderRadius: 6, padding: '5px 10px' }}>
+              <div style={{ marginBottom: 10, fontSize: 13, color: 'var(--accent)', background: 'var(--accent-subtle)', border: '1px solid var(--accent-subtle)', borderRadius: 6, padding: '5px 10px' }}>
                 PlusVet — Subjective → bodyText (파란색) · Plan → planText (초록색) · Objective 버려짐
               </div>
             )}
@@ -130,11 +130,11 @@ export function BucketDebugPanel({ runId }: { runId: string }) {
                   key={key}
                   type="button"
                   onClick={() => setActiveTab(key)}
-                  style={{ padding: '6px 14px', border: 'none', borderBottom: activeTab === key ? '2px solid var(--accent)' : '2px solid transparent', marginBottom: -2, background: 'none', cursor: 'pointer', fontSize: 12, fontFamily: 'sans-serif', fontWeight: activeTab === key ? 700 : 400, color: activeTab === key ? 'var(--accent)' : 'var(--text-secondary)' }}
+                  style={{ padding: '6px 14px', border: 'none', borderBottom: activeTab === key ? '2px solid var(--accent)' : '2px solid transparent', marginBottom: -2, background: 'none', cursor: 'pointer', fontSize: 13, fontFamily: 'sans-serif', fontWeight: activeTab === key ? 700 : 400, color: activeTab === key ? 'var(--accent)' : 'var(--text-secondary)' }}
                 >
                   {label}
                   {count !== undefined && (
-                    <span style={{ marginLeft: 4, background: 'var(--border)', borderRadius: 10, padding: '1px 5px', fontSize: 10 }}>{count}</span>
+                    <span style={{ marginLeft: 4, background: 'var(--border)', borderRadius: 10, padding: '1px 5px', fontSize: 11 }}>{count}</span>
                   )}
                 </button>
               ))}
@@ -151,22 +151,22 @@ export function BucketDebugPanel({ runId }: { runId: string }) {
                   const planLines = g.planText ? g.planText.split('\n').filter(Boolean) : [];
                   return (
                     <details key={g.dateTime} style={{ border: '1px solid var(--border)', borderRadius: 4, overflow: 'hidden' }}>
-                      <summary style={{ padding: '6px 10px', fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', cursor: 'pointer', listStyle: 'none', background: 'var(--bg-subtle)', display: 'flex', gap: 8, alignItems: 'center' }}>
+                      <summary style={{ padding: '6px 10px', fontSize: 13, fontWeight: 700, color: 'var(--text-secondary)', cursor: 'pointer', listStyle: 'none', background: 'var(--bg-subtle)', display: 'flex', gap: 8, alignItems: 'center' }}>
                         <span>{g.dateTime}</span>
                         <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>{g.lineCount}줄</span>
-                        {g.planDetected && <span style={{ fontSize: 10, background: 'var(--success-subtle)', color: 'var(--success)', border: '1px solid var(--success-subtle)', borderRadius: 10, padding: '1px 6px' }}>Plan 감지</span>}
-                        {!g.planDetected && isPlusVet && <span style={{ fontSize: 10, background: 'var(--warning-subtle)', color: 'var(--warning)', border: '1px solid var(--warning-subtle)', borderRadius: 10, padding: '1px 6px' }}>Plan 없음</span>}
+                        {g.planDetected && <span style={{ fontSize: 11, background: 'var(--success-subtle)', color: 'var(--success)', border: '1px solid var(--success-subtle)', borderRadius: 10, padding: '1px 6px' }}>Plan 감지</span>}
+                        {!g.planDetected && isPlusVet && <span style={{ fontSize: 11, background: 'var(--warning-subtle)', color: 'var(--warning)', border: '1px solid var(--warning-subtle)', borderRadius: 10, padding: '1px 6px' }}>Plan 없음</span>}
                       </summary>
                       <div style={{ padding: '8px 10px', display: 'grid', gridTemplateColumns: planLines.length > 0 ? '1fr 1fr' : '1fr', gap: 8 }}>
                         <div>
-                          {isPlusVet && <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--accent)', marginBottom: 4 }}>Subjective (bodyText)</div>}
+                          {isPlusVet && <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--accent)', marginBottom: 4 }}>Subjective (bodyText)</div>}
                           <pre style={{ margin: 0, fontSize: 11, lineHeight: 1.6, whiteSpace: 'pre-wrap', wordBreak: 'break-all', background: isPlusVet ? 'var(--accent-subtle)' : 'var(--bg-subtle)', padding: '6px 8px', borderRadius: 4, maxHeight: 300, overflowY: 'auto' }}>
                             {bodyLines.join('\n') || '(비어 있음)'}
                           </pre>
                         </div>
                         {planLines.length > 0 && (
                           <div>
-                            {isPlusVet && <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--success)', marginBottom: 4 }}>Plan (planText)</div>}
+                            {isPlusVet && <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--success)', marginBottom: 4 }}>Plan (planText)</div>}
                             <pre style={{ margin: 0, fontSize: 11, lineHeight: 1.6, whiteSpace: 'pre-wrap', wordBreak: 'break-all', background: 'var(--success-subtle)', padding: '6px 8px', borderRadius: 4, maxHeight: 300, overflowY: 'auto' }}>
                               {planLines.join('\n')}
                             </pre>
@@ -231,7 +231,7 @@ export function BucketDebugPanel({ runId }: { runId: string }) {
                   <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: 0 }}>추출된 검사항목 없음</p>
                 ) : (
                   <div style={{ overflowX: 'auto' }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
                       <thead>
                         <tr style={{ background: 'var(--bg-subtle)' }}>
                           {['항목명', '결과값', '단위', '참고치', '플래그', 'p'].map((h) => (
@@ -247,7 +247,7 @@ export function BucketDebugPanel({ runId }: { runId: string }) {
                             <td style={{ padding: '4px 8px', color: 'var(--text-muted)' }}>{item.unit ?? '—'}</td>
                             <td style={{ padding: '4px 8px', color: 'var(--text-muted)' }}>{item.referenceRange ?? '—'}</td>
                             <td style={{ padding: '4px 8px' }}>
-                              <span style={{ padding: '1px 6px', borderRadius: 10, fontSize: 10, fontWeight: 700, fontFamily: 'sans-serif', background: FLAG_BG[item.flag] ?? 'var(--bg-subtle)', color: FLAG_COLOR[item.flag] ?? 'var(--text-muted)' }}>
+                              <span style={{ padding: '1px 6px', borderRadius: 10, fontSize: 11, fontWeight: 700, fontFamily: 'sans-serif', background: FLAG_BG[item.flag] ?? 'var(--bg-subtle)', color: FLAG_COLOR[item.flag] ?? 'var(--text-muted)' }}>
                                 {item.flag}
                               </span>
                             </td>

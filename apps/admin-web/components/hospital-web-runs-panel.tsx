@@ -91,7 +91,7 @@ export function HospitalWebRunsPanel() {
           <span style={{ fontWeight: 700, fontSize: 13 }}>
             병원 접수
             {!loading && items.length > 0 && (
-              <span style={{ marginLeft: 6, fontWeight: 400, fontSize: 12, color: 'var(--text-muted)' }}>
+              <span style={{ marginLeft: 6, fontWeight: 400, fontSize: 13, color: 'var(--text-muted)' }}>
                 {filteredItems.length !== items.length
                   ? `${filteredItems.length} / ${items.length}건`
                   : `${items.length}건`}
@@ -159,11 +159,11 @@ export function HospitalWebRunsPanel() {
       {/* 목록 */}
       <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
         {loading ? (
-          <p style={{ margin: '12px 14px', fontSize: 12, color: 'var(--text-muted)' }}>불러오는 중…</p>
+          <p style={{ margin: '12px 14px', fontSize: 13, color: 'var(--text-muted)' }}>불러오는 중…</p>
         ) : error ? (
-          <p style={{ margin: '12px 14px', fontSize: 12, color: 'var(--danger)' }}>{error}</p>
+          <p style={{ margin: '12px 14px', fontSize: 13, color: 'var(--danger)' }}>{error}</p>
         ) : filteredItems.length === 0 ? (
-          <p style={{ margin: '12px 14px', fontSize: 12, color: 'var(--text-muted)' }}>
+          <p style={{ margin: '12px 14px', fontSize: 13, color: 'var(--text-muted)' }}>
             {items.length === 0 ? '접수된 차트가 없습니다.' : '필터 결과가 없습니다.'}
           </p>
         ) : (
@@ -194,7 +194,7 @@ export function HospitalWebRunsPanel() {
               >
                 <span
                   style={{
-                    fontSize: 12,
+                    fontSize: 13,
                     fontWeight: 700,
                     color: 'var(--text)',
                     flex: 1,
@@ -206,7 +206,7 @@ export function HospitalWebRunsPanel() {
                 >
                   {item.hospitalName?.trim() || item.hospitalId || '—'}
                 </span>
-                <span style={{ fontSize: 10.5, color: 'var(--text-muted)', flexShrink: 0 }}>
+                <span style={{ fontSize: 11, color: 'var(--text-muted)', flexShrink: 0 }}>
                   {formatDateShort(item.createdAt)}
                 </span>
               </div>
@@ -232,7 +232,7 @@ export function HospitalWebRunsPanel() {
                       color: 'var(--accent)',
                       borderRadius: 3,
                       padding: '1px 5px',
-                      fontSize: 10,
+                      fontSize: 11,
                       fontWeight: 600,
                     }}
                   >
@@ -246,7 +246,7 @@ export function HospitalWebRunsPanel() {
                       color: 'var(--warning)',
                       borderRadius: 3,
                       padding: '1px 5px',
-                      fontSize: 10,
+                      fontSize: 11,
                       fontWeight: 600,
                     }}
                   >
@@ -267,10 +267,10 @@ export function HospitalWebRunsPanel() {
             padding: '12px 14px',
             background: 'var(--bg-subtle)',
             flexShrink: 0,
-            fontSize: 12,
+            fontSize: 13,
           }}
         >
-          <div style={{ fontWeight: 700, fontSize: 12, marginBottom: 6, color: 'var(--text)' }}>
+          <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 6, color: 'var(--text)' }}>
             {selected.hospitalName?.trim() || selected.hospitalId || '—'}
           </div>
           {selected.patientName && (
@@ -310,7 +310,7 @@ export function HospitalWebRunsPanel() {
               차트 목록에서 보기 →
             </a>
             <span style={{ color: 'var(--border-strong)' }}>|</span>
-            <span style={{ color: 'var(--text-muted)', fontSize: 10.5, fontFamily: 'monospace' }}>
+            <span style={{ color: 'var(--text-muted)', fontSize: 11, fontFamily: 'monospace' }}>
               {selected.id.slice(0, 8)}…
             </span>
           </div>

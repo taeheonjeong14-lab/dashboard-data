@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Filter } from 'lucide-react';
+import { RailFilterMenu, RailFilterOptions } from '@/components/rail-filter-menu';
 import { AdminHealthCheckupWorkspace } from '@/components/admin-health-checkup-workspace';
 import type { GeneratedContentListItem } from '@/lib/health-report-admin/types';
 import {
@@ -13,6 +13,11 @@ import {
 } from '@/lib/chart-history-normalize';
 
 const divider = 'var(--border)';
+
+// '2026-07' → '26년 7월'
+function monthLabel(m: string): string {
+  return `${m.slice(2, 4)}년 ${String(Number(m.slice(5, 7)))}월`;
+}
 
 // 건강검진 리포트 ID — 차트 고유 ID(friendly_id)와 구분되게 끝에 R 을 붙인다. (병원코드-날짜-순번R)
 function reportId(friendlyId: string | null | undefined): string {
@@ -41,21 +46,7 @@ export default function AdminHealthReport() {
   const [filterHospital, setFilterHospital] = useState('');
   const [filterCheckupMonth, setFilterCheckupMonth] = useState('');
   const [filterReportMonth, setFilterReportMonth] = useState('');
-  // 필터 패널: draft 로 고르고 '적용' 눌러야 목록에 반영.
-  const [filtersOpen, setFiltersOpen] = useState(false);
-  const [draftHospital, setDraftHospital] = useState('');
-  const [draftCheckupMonth, setDraftCheckupMonth] = useState('');
-  const [draftReportMonth, setDraftReportMonth] = useState('');
   const activeFilterCount = (filterHospital ? 1 : 0) + (filterCheckupMonth ? 1 : 0) + (filterReportMonth ? 1 : 0);
-  const openFilters = () => {
-    setDraftHospital(filterHospital); setDraftCheckupMonth(filterCheckupMonth); setDraftReportMonth(filterReportMonth);
-    setFiltersOpen(true);
-  };
-  const applyFilters = () => {
-    setFilterHospital(draftHospital); setFilterCheckupMonth(draftCheckupMonth); setFilterReportMonth(draftReportMonth);
-    setFiltersOpen(false);
-  };
-  const clearDraft = () => { setDraftHospital(''); setDraftCheckupMonth(''); setDraftReportMonth(''); };
 
   // 차트 기록에서 리포트 만들기 모달
   const [createModalOpen, setCreateModalOpen] = useState(false);
@@ -280,70 +271,65 @@ export default function AdminHealthReport() {
             }}
             disabled={runsLoading}
           />
-          {!runsLoading && runs.length > 0 && (
-            <button
-              type="button"
-              onClick={() => (filtersOpen ? setFiltersOpen(false) : openFilters())}
-              aria-label="필터"
-              title="필터"
-              style={{
-                position: 'relative', flexShrink: 0, border: 0, background: 'transparent', cursor: 'pointer',
-                padding: '2px 4px', display: 'inline-flex', alignItems: 'center',
-                color: activeFilterCount > 0 || filtersOpen ? 'var(--accent)' : 'var(--text-muted)',
-              }}
-            >
-              <Filter size={16} fill={activeFilterCount > 0 ? 'currentColor' : 'none'} />
-              {activeFilterCount > 0 && (
-                <span style={{ position: 'absolute', top: -3, right: -3, minWidth: 14, height: 14, padding: '0 3px', borderRadius: 999, background: 'var(--accent)', color: '#fff', fontSize: 9, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1 }}>
-                  {activeFilterCount}
-                </span>
-              )}
-            </button>
-          )}
         </div>
-        {!runsLoading && runs.length > 0 && filtersOpen && (
-          <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 20, padding: '4px 10px 8px' }}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: 10, border: '1px solid var(--border)', borderRadius: 8, background: 'var(--bg)', boxShadow: '0 8px 24px rgba(0,0,0,0.16)' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)' }}>필터</span>
-                <button type="button" onClick={clearDraft} style={{ border: 0, background: 'transparent', fontSize: 11.5, color: 'var(--text-muted)', cursor: 'pointer', padding: '2px 4px' }}>
-                  초기화
-                </button>
-              </div>
-              <select className="adminRailFilterSelect" value={draftHospital} onChange={(e) => setDraftHospital(e.target.value)} aria-label="병원 필터" style={{ width: '100%' }}>
-                <option value="">병원 전체</option>
-                {hospitalOptions.map((h) => (<option key={h} value={h}>{h}</option>))}
-              </select>
-              <select className="adminRailFilterSelect" value={draftCheckupMonth} onChange={(e) => setDraftCheckupMonth(e.target.value)} aria-label="검진 날짜 필터" style={{ width: '100%' }}>
-                <option value="">검진월 전체</option>
-                {checkupMonthOptions.map((m) => (<option key={m} value={m}>{`${m.slice(2, 4)}년 ${String(Number(m.slice(5, 7)))}월`}</option>))}
-              </select>
-              <select className="adminRailFilterSelect" value={draftReportMonth} onChange={(e) => setDraftReportMonth(e.target.value)} aria-label="리포트 생성 날짜 필터" style={{ width: '100%' }}>
-                <option value="">생성월 전체</option>
-                {reportMonthOptions.map((m) => (<option key={m} value={m}>{`${m.slice(2, 4)}년 ${String(Number(m.slice(5, 7)))}월`}</option>))}
-              </select>
+
+        {/* 검색창 아래 액션 띠 — 필터별 아이콘, 각자 드롭다운(고르면 즉시 반영) */}
+        {!runsLoading && runs.length > 0 && (
+          <div className="adminRailActionBar">
+            {activeFilterCount > 0 ? (
               <button
                 type="button"
-                onClick={applyFilters}
-                style={{ marginTop: 2, padding: '8px 0', width: '100%', border: 'none', borderRadius: 8, background: 'var(--accent)', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
+                className="adminBtnFree"
+                onClick={() => { setFilterHospital(''); setFilterCheckupMonth(''); setFilterReportMonth(''); }}
+                title="필터 초기화"
+                style={{ marginRight: 'auto', padding: '3px 6px', border: 0, background: 'transparent', color: 'var(--text-muted)', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}
               >
-                적용
+                초기화
               </button>
-            </div>
+            ) : null}
+            <RailFilterMenu label="병원 선택" active={!!filterHospital} selectedText={filterHospital || undefined}>
+              <RailFilterOptions value={filterHospital} options={hospitalOptions} allLabel="병원 전체" onChange={setFilterHospital} />
+            </RailFilterMenu>
+            <RailFilterMenu
+              label="검진월"
+              active={!!filterCheckupMonth}
+              selectedText={filterCheckupMonth ? monthLabel(filterCheckupMonth) : undefined}
+            >
+              <RailFilterOptions
+                value={filterCheckupMonth}
+                options={checkupMonthOptions}
+                allLabel="검진월 전체"
+                onChange={setFilterCheckupMonth}
+                format={monthLabel}
+              />
+            </RailFilterMenu>
+            <RailFilterMenu
+              label="생성월"
+              active={!!filterReportMonth}
+              selectedText={filterReportMonth ? monthLabel(filterReportMonth) : undefined}
+            >
+              <RailFilterOptions
+                value={filterReportMonth}
+                options={reportMonthOptions}
+                allLabel="생성월 전체"
+                onChange={setFilterReportMonth}
+                format={monthLabel}
+              />
+            </RailFilterMenu>
           </div>
         )}
         </div>
         <div style={{ maxHeight: 'min(66vh, calc(100vh - 260px))', overflow: 'auto' }}>
           {runsLoading ? (
-            <p style={{ margin: '10px 10px', fontSize: 12, color: 'var(--text-muted)' }}>불러오는 중…</p>
+            <p style={{ margin: '10px 10px', fontSize: 13, color: 'var(--text-muted)' }}>불러오는 중…</p>
           ) : runsError ? (
-            <p style={{ margin: '10px 10px', fontSize: 12, color: 'var(--danger)' }}>{runsError}</p>
+            <p style={{ margin: '10px 10px', fontSize: 13, color: 'var(--danger)' }}>{runsError}</p>
           ) : runs.length === 0 ? (
-            <p style={{ margin: '10px 10px', fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.5 }}>
+            <p style={{ margin: '10px 10px', fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.5 }}>
               아직 저장된 건강검진 컨텐츠가 없습니다. chart-api에서 생성·저장된 뒤 여기 목록에 나타납니다.
             </p>
           ) : filteredRuns.length === 0 ? (
-            <p style={{ margin: '10px 10px', fontSize: 12, color: 'var(--text-muted)' }}>검색 결과 없음</p>
+            <p style={{ margin: '10px 10px', fontSize: 13, color: 'var(--text-muted)' }}>검색 결과 없음</p>
           ) : (
             filteredRuns.map((r) => (
               <button
@@ -388,13 +374,13 @@ export default function AdminHealthReport() {
             <div style={{ borderTop: `1px solid ${divider}`, paddingTop: 12 }}>
               {runs.some((r) => r.parseRunId === selectedId) && (
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                  <span style={{ fontSize: 11.5, color: 'var(--text-muted)', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace' }}>
+                  <span style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace' }}>
                     {reportId(runs.find((r) => r.parseRunId === selectedId)?.friendlyId)
                       ? `리포트 ID · ${reportId(runs.find((r) => r.parseRunId === selectedId)?.friendlyId)}`
                       : ''}
                   </span>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    {deleteError && <span style={{ fontSize: 12, color: 'var(--danger)' }}>{deleteError}</span>}
+                    {deleteError && <span style={{ fontSize: 13, color: 'var(--danger)' }}>{deleteError}</span>}
                     <button
                       type="button"
                       className="adminLegacySmallBtn"
@@ -416,7 +402,7 @@ export default function AdminHealthReport() {
               />
             </div>
           ) : (
-            <p style={{ fontSize: 14, color: 'var(--text-muted)' }}>목록에서 항목을 선택해 주세요.</p>
+            <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>목록에서 항목을 선택해 주세요.</p>
           )}
         </div>
       </div>
@@ -440,7 +426,7 @@ export default function AdminHealthReport() {
         <div style={{ display: 'flex', flexDirection: 'column', height: '88vh', maxHeight: '88vh', background: '#fff' }}>
           {/* 헤더 */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderBottom: `1px solid ${divider}`, flexShrink: 0 }}>
-            <span style={{ fontWeight: 700, fontSize: 15 }}>차트 기록에서 선택</span>
+            <span style={{ fontWeight: 700, fontSize: 18 }}>차트 기록에서 선택</span>
             <button type="button" className="adminLegacySmallBtn" onClick={() => setCreateModalOpen(false)}>닫기</button>
           </div>
 
@@ -523,7 +509,7 @@ export default function AdminHealthReport() {
                           {hospitalGroupKey(item.hospitalName) || '병원명 없음'}
                         </span>
                         {item.patientName && (
-                          <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{item.patientName}</span>
+                          <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{item.patientName}</span>
                         )}
                         {item.friendlyId && (
                           <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{item.friendlyId}</span>

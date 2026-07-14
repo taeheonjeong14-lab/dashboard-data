@@ -16,7 +16,7 @@ type Group = { title: string; items: Feature[] };
 
 // 카드 설명 — 길이와 무관하게 항상 2줄 높이를 차지(짧으면 빈 줄 확보, 길면 2줄로 자름) → 카드 높이 고정.
 const cardDesc: React.CSSProperties = {
-  margin: '4px 0 0', fontSize: 12.5, color: 'var(--text-secondary)', lineHeight: 1.5,
+  margin: '4px 0 0', fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.5,
   minHeight: 'calc(12.5px * 1.5 * 2)',
   display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden',
 };
@@ -48,10 +48,8 @@ const GROUPS: Group[] = [
   {
     title: '관리',
     items: [
-      { href: '/admin/registrations', label: '병원 심사', desc: '신규 병원·마스터 가입을 심사합니다.', icon: ClipboardCheck },
+      { href: '/admin/hospitals', label: '병원 관리', desc: '병원 심사·정보·토큰을 한 화면에서 관리합니다.', icon: Building2 },
       { href: '/admin/users/users', label: '사용자 관리', desc: '사용자 계정과 권한을 관리합니다.', icon: Users },
-      { href: '/admin/users/hospitals', label: '병원 관리', desc: '병원 정보와 연결을 관리합니다.', icon: Building2 },
-      { href: '/admin/usage', label: '토큰 관리', desc: '병원별 토큰 사용·지급 내역과 충전 주문을 봅니다.', icon: Gauge },
     ],
   },
 ];
@@ -82,8 +80,8 @@ export default async function AdminHomePage() {
     { label: '진료케이스', sub: '요청', n: pending.caseRequested, href: '/admin/chart-data?type=블로그&stage=요청' },
     { label: '진료케이스', sub: '작업 중', n: pending.caseInProgress, href: '/admin/case-blog?stage=writing' },
     { label: '진료케이스', sub: '저장 대기', n: pending.caseDrafted, href: '/admin/case-blog?stage=drafted' },
-    { label: '병원 심사', sub: '대기', n: pending.registrations, href: '/admin/registrations' },
-    { label: '토큰 충전', sub: '입금 확인', n: pending.tokenOrders, href: '/admin/usage' },
+    { label: '병원 심사', sub: '대기', n: pending.registrations, href: '/admin/hospitals' },
+    { label: '토큰 충전', sub: '입금 확인', n: pending.tokenOrders, href: '/admin/hospitals' },
   ].filter((t) => t.n > 0);
   const todoTotal = todos.reduce((s, t) => s + t.n, 0);
 
@@ -93,15 +91,15 @@ export default async function AdminHomePage() {
       <div className="homeRise" style={{ position: 'relative', overflow: 'hidden', borderRadius: 'var(--radius-lg)', padding: '34px 30px', marginBottom: 26, background: 'linear-gradient(135deg, var(--accent-subtle) 0%, var(--bg) 62%)', border: '1px solid var(--border)' }}>
         <div aria-hidden style={{ position: 'absolute', top: -70, right: -50, width: 220, height: 220, borderRadius: '50%', background: 'radial-gradient(circle, var(--accent-subtle) 0%, transparent 70%)', opacity: 0.7, pointerEvents: 'none' }} />
         <div style={{ position: 'relative' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, fontWeight: 600, color: 'var(--text-muted)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 600, color: 'var(--text-muted)' }}>
             <span style={{ display: 'inline-flex', width: 6, height: 6, borderRadius: '50%', background: 'var(--accent)' }} />
             {dateStr}
           </div>
-          <div style={{ marginTop: 14, fontSize: 13.5, fontWeight: 600, color: 'var(--accent)' }}>{greet}</div>
+          <div style={{ marginTop: 14, fontSize: 13, fontWeight: 600, color: 'var(--accent)' }}>{greet}</div>
           <h1 style={{ margin: '6px 0 0', fontSize: 28, fontWeight: 800, color: 'var(--text)', letterSpacing: '-0.02em' }}>
             {name || '관리자'}님, 반가워요 👋
           </h1>
-          <p style={{ margin: '10px 0 0', fontSize: 15, color: 'var(--text-secondary)' }}>
+          <p style={{ margin: '10px 0 0', fontSize: 18, color: 'var(--text-secondary)' }}>
             관리자 콘솔이에요. 아래에서 원하는 작업을 선택하세요.
           </p>
         </div>
@@ -111,7 +109,7 @@ export default async function AdminHomePage() {
       <section className="homeRise" style={{ marginBottom: 26, borderRadius: 'var(--radius-lg)', border: '1px solid var(--border)', background: 'var(--bg)', overflow: 'hidden', animationDelay: '0.04s' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '14px 18px', borderBottom: todoTotal > 0 ? '1px solid var(--border)' : 'none' }}>
           <ListTodo size={16} style={{ color: 'var(--accent)' }} />
-          <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>처리할 작업</span>
+          <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>처리할 작업</span>
           {todoTotal > 0 && (
             <span style={{ minWidth: 18, height: 18, padding: '0 5px', borderRadius: 999, background: 'var(--danger)', color: '#fff', fontSize: 11, fontWeight: 700, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1 }}>
               {todoTotal > 99 ? '99+' : todoTotal}
@@ -156,7 +154,7 @@ export default async function AdminHomePage() {
                     <Icon size={21} style={{ color: 'var(--accent)' }} />
                   </span>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <span style={{ fontSize: 15.5, fontWeight: 700, color: 'var(--text)' }}>{f.label}</span>
+                    <span style={{ fontSize: 18, fontWeight: 700, color: 'var(--text)' }}>{f.label}</span>
                     <p style={cardDesc}>{f.desc}</p>
                   </div>
                   <ChevronRight size={18} className="homeArrow" style={{ flexShrink: 0 }} />

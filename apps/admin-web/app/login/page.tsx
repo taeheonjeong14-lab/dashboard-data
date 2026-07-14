@@ -42,7 +42,7 @@ export default async function AdminLoginPage({
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/logo.png" alt="Vet Solution" style={{ height: 52, width: 'auto' }} />
           <div style={{ textAlign: 'center' }}>
-            <h1 style={{ fontSize: 20, fontWeight: 700, letterSpacing: '-0.01em', margin: 0 }}>
+            <h1 style={{ fontSize: 18, fontWeight: 700, letterSpacing: '-0.01em', margin: 0 }}>
               관리자 로그인
             </h1>
             <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: '6px 0 0' }}>

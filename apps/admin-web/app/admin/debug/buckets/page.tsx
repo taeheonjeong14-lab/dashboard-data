@@ -82,15 +82,15 @@ function ChartBodyGroup({ group, isPlusVet }: { group: ChartGroup; isPlusVet: bo
     <div style={{ border: '1px solid #e2e8f0', borderRadius: 6, overflow: 'hidden', marginBottom: 6 }}>
       <button
         onClick={() => setOpen(!open)}
-        style={{ width: '100%', textAlign: 'left', background: '#f8fafc', padding: '8px 12px', border: 'none', cursor: 'pointer', display: 'flex', gap: 10, alignItems: 'center', fontSize: 12, fontFamily: 'monospace' }}
+        style={{ width: '100%', textAlign: 'left', background: '#f8fafc', padding: '8px 12px', border: 'none', cursor: 'pointer', display: 'flex', gap: 10, alignItems: 'center', fontSize: 13, fontFamily: 'monospace' }}
       >
         <span style={{ fontWeight: 700, color: '#0f172a' }}>{group.dateTime}</span>
         <span style={{ color: '#64748b' }}>{group.lineCount}줄</span>
         {group.planDetected && (
-          <span style={{ background: '#f0fdf4', color: '#15803d', border: '1px solid #86efac', borderRadius: 4, padding: '1px 6px', fontSize: 10, fontWeight: 700 }}>Plan 감지</span>
+          <span style={{ background: '#f0fdf4', color: '#15803d', border: '1px solid #86efac', borderRadius: 4, padding: '1px 6px', fontSize: 11, fontWeight: 700 }}>Plan 감지</span>
         )}
         {!group.planDetected && isPlusVet && (
-          <span style={{ background: '#fef3c7', color: '#92400e', border: '1px solid #fde68a', borderRadius: 4, padding: '1px 6px', fontSize: 10 }}>Plan 없음</span>
+          <span style={{ background: '#fef3c7', color: '#92400e', border: '1px solid #fde68a', borderRadius: 4, padding: '1px 6px', fontSize: 11 }}>Plan 없음</span>
         )}
         <span style={{ marginLeft: 'auto', color: '#94a3b8' }}>{open ? '▲' : '▼'}</span>
       </button>
@@ -101,7 +101,7 @@ function ChartBodyGroup({ group, isPlusVet }: { group: ChartGroup; isPlusVet: bo
             <div style={{ display: 'grid', gridTemplateColumns: planLines.length > 0 ? '1fr 1fr' : '1fr', gap: 10 }}>
               {/* bodyText */}
               <div>
-                <div style={{ fontSize: 10, fontWeight: 700, color: '#1d4ed8', marginBottom: 4, fontFamily: 'sans-serif' }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: '#1d4ed8', marginBottom: 4, fontFamily: 'sans-serif' }}>
                   Subjective (bodyText) — {bodyLines.length}줄
                 </div>
                 <pre style={{ margin: 0, fontSize: 11, lineHeight: 1.6, whiteSpace: 'pre-wrap', wordBreak: 'break-all', background: '#eff6ff', padding: '6px 8px', borderRadius: 4, maxHeight: 400, overflowY: 'auto' }}>
@@ -111,7 +111,7 @@ function ChartBodyGroup({ group, isPlusVet }: { group: ChartGroup; isPlusVet: bo
               {/* planText */}
               {planLines.length > 0 && (
                 <div>
-                  <div style={{ fontSize: 10, fontWeight: 700, color: '#15803d', marginBottom: 4, fontFamily: 'sans-serif' }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: '#15803d', marginBottom: 4, fontFamily: 'sans-serif' }}>
                     Plan (planText) — {planLines.length}줄
                   </div>
                   <pre style={{ margin: 0, fontSize: 11, lineHeight: 1.6, whiteSpace: 'pre-wrap', wordBreak: 'break-all', background: '#f0fdf4', padding: '6px 8px', borderRadius: 4, maxHeight: 400, overflowY: 'auto' }}>
@@ -122,13 +122,13 @@ function ChartBodyGroup({ group, isPlusVet }: { group: ChartGroup; isPlusVet: bo
             </div>
           ) : (
             <div>
-              <div style={{ fontSize: 10, fontWeight: 700, color: '#64748b', marginBottom: 4, fontFamily: 'sans-serif' }}>bodyText — {bodyLines.length}줄</div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', marginBottom: 4, fontFamily: 'sans-serif' }}>bodyText — {bodyLines.length}줄</div>
               <pre style={{ margin: 0, fontSize: 11, lineHeight: 1.6, whiteSpace: 'pre-wrap', wordBreak: 'break-all', background: '#f8fafc', padding: '6px 8px', borderRadius: 4, maxHeight: 300, overflowY: 'auto' }}>
                 {bodyLines.join('\n') || '(비어 있음)'}
               </pre>
               {planLines.length > 0 && (
                 <>
-                  <div style={{ fontSize: 10, fontWeight: 700, color: '#15803d', margin: '8px 0 4px', fontFamily: 'sans-serif' }}>planText — {planLines.length}줄</div>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: '#15803d', margin: '8px 0 4px', fontFamily: 'sans-serif' }}>planText — {planLines.length}줄</div>
                   <pre style={{ margin: 0, fontSize: 11, lineHeight: 1.6, whiteSpace: 'pre-wrap', wordBreak: 'break-all', background: '#f0fdf4', padding: '6px 8px', borderRadius: 4, maxHeight: 200, overflowY: 'auto' }}>
                     {planLines.join('\n')}
                   </pre>
@@ -148,7 +148,7 @@ function RawBucketView({ lines, label }: { lines: string[]; label: string }) {
     <div style={{ border: '1px solid #e2e8f0', borderRadius: 6, overflow: 'hidden', marginBottom: 8 }}>
       <button
         onClick={() => setOpen(!open)}
-        style={{ width: '100%', textAlign: 'left', background: '#f8fafc', padding: '8px 12px', border: 'none', cursor: 'pointer', display: 'flex', gap: 10, alignItems: 'center', fontSize: 12, fontFamily: 'sans-serif', fontWeight: 700 }}
+        style={{ width: '100%', textAlign: 'left', background: '#f8fafc', padding: '8px 12px', border: 'none', cursor: 'pointer', display: 'flex', gap: 10, alignItems: 'center', fontSize: 13, fontFamily: 'sans-serif', fontWeight: 700 }}
       >
         <span>{label}</span>
         <span style={{ color: '#64748b', fontWeight: 400 }}>{lines.length}줄</span>
@@ -211,7 +211,7 @@ export default function BucketDebugPage() {
   return (
     <div style={{ padding: '24px 32px', maxWidth: 1100, fontFamily: 'monospace' }}>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, marginBottom: 6 }}>
-        <h1 style={{ fontSize: 20, fontWeight: 700, margin: 0, fontFamily: 'sans-serif' }}>버킷 디버그</h1>
+        <h1 style={{ fontSize: 18, fontWeight: 700, margin: 0, fontFamily: 'sans-serif' }}>버킷 디버그</h1>
         <span style={{ fontSize: 13, color: '#64748b', fontFamily: 'sans-serif' }}>추출 과정 상세 보기</span>
       </div>
 
@@ -221,7 +221,7 @@ export default function BucketDebugPage() {
           value={runIdInput}
           onChange={(e) => setRunIdInput(e.target.value)}
           placeholder="runId (비워두면 최신 run)"
-          style={{ flex: 1, maxWidth: 360, padding: '6px 10px', border: '1px solid #cbd5e1', borderRadius: 6, fontSize: 12, fontFamily: 'monospace' }}
+          style={{ flex: 1, maxWidth: 360, padding: '6px 10px', border: '1px solid #cbd5e1', borderRadius: 6, fontSize: 13, fontFamily: 'monospace' }}
         />
         <button
           onClick={() => void load(runIdInput.trim() || undefined)}
@@ -243,7 +243,7 @@ export default function BucketDebugPage() {
       {run && (
         <>
           {/* run 헤더 */}
-          <div style={{ border: '1px solid #e2e8f0', borderRadius: 8, padding: '10px 14px', background: '#f8fafc', marginBottom: 16, fontSize: 12, fontFamily: 'sans-serif', display: 'flex', flexWrap: 'wrap', gap: 14, alignItems: 'center' }}>
+          <div style={{ border: '1px solid #e2e8f0', borderRadius: 8, padding: '10px 14px', background: '#f8fafc', marginBottom: 16, fontSize: 13, fontFamily: 'sans-serif', display: 'flex', flexWrap: 'wrap', gap: 14, alignItems: 'center' }}>
             <span><strong>ID:</strong> {run.friendlyId ?? run.id}</span>
             <span><strong>시각:</strong> {new Date(run.createdAt).toLocaleString('ko-KR')}</span>
             <span><strong>파일:</strong> {run.fileName ?? '?'}</span>
@@ -282,7 +282,7 @@ export default function BucketDebugPage() {
           {activeTab === 'chartBody' && (
             <div>
               {isPlusVet && (
-                <div style={{ marginBottom: 10, padding: '6px 12px', background: '#eff6ff', borderRadius: 6, fontSize: 12, fontFamily: 'sans-serif', color: '#1d4ed8' }}>
+                <div style={{ marginBottom: 10, padding: '6px 12px', background: '#eff6ff', borderRadius: 6, fontSize: 13, fontFamily: 'sans-serif', color: '#1d4ed8' }}>
                   PlusVet: Subjective → bodyText (파란색), Plan → planText (초록색), Objective는 버려짐
                 </div>
               )}
@@ -299,7 +299,7 @@ export default function BucketDebugPage() {
           {/* 검사 버킷 탭 */}
           {activeTab === 'lab' && (
             <div>
-              <div style={{ marginBottom: 10, fontSize: 12, color: '#64748b', fontFamily: 'sans-serif' }}>
+              <div style={{ marginBottom: 10, fontSize: 13, color: '#64748b', fontFamily: 'sans-serif' }}>
                 lab 버킷에 할당된 raw 줄 — 이 줄들로 검사항목을 파싱합니다.
                 {isPlusVet && ' PlusVet은 "진단 검사 결과" 섹션 이후 + 검사기기 패널 헤더로 구분됩니다.'}
               </div>
@@ -322,9 +322,9 @@ export default function BucketDebugPage() {
                 <p style={{ color: '#94a3b8', fontSize: 13, fontFamily: 'sans-serif' }}>추출된 검사항목이 없습니다.</p>
               ) : (
                 <>
-                  <div style={{ marginBottom: 8, fontSize: 12, color: '#64748b', fontFamily: 'sans-serif' }}>총 {data.labItems.length}개 항목</div>
+                  <div style={{ marginBottom: 8, fontSize: 13, color: '#64748b', fontFamily: 'sans-serif' }}>총 {data.labItems.length}개 항목</div>
                   <div style={{ overflowX: 'auto' }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
                       <thead>
                         <tr style={{ background: '#f1f5f9' }}>
                           {['항목명', '결과값', '단위', '참고치', '플래그', '페이지'].map((h) => (
@@ -340,7 +340,7 @@ export default function BucketDebugPage() {
                             <td style={{ padding: '5px 10px', color: '#64748b' }}>{item.unit ?? '-'}</td>
                             <td style={{ padding: '5px 10px', color: '#64748b' }}>{item.referenceRange ?? '-'}</td>
                             <td style={{ padding: '5px 10px' }}>
-                              <span style={{ padding: '1px 7px', borderRadius: 10, fontSize: 10, fontWeight: 700, fontFamily: 'sans-serif', background: item.flag === 'high' ? '#fee2e2' : item.flag === 'low' ? '#dbeafe' : item.flag === 'normal' ? '#dcfce7' : '#f1f5f9', color: FLAG_COLOR[item.flag] ?? '#64748b' }}>
+                              <span style={{ padding: '1px 7px', borderRadius: 10, fontSize: 11, fontWeight: 700, fontFamily: 'sans-serif', background: item.flag === 'high' ? '#fee2e2' : item.flag === 'low' ? '#dbeafe' : item.flag === 'normal' ? '#dcfce7' : '#f1f5f9', color: FLAG_COLOR[item.flag] ?? '#64748b' }}>
                                 {item.flag}
                               </span>
                             </td>
@@ -356,7 +356,7 @@ export default function BucketDebugPage() {
                       <div style={{ fontWeight: 700, fontSize: 13, fontFamily: 'sans-serif', marginBottom: 8 }}>날짜별 그룹</div>
                       {data.labItemsByDate.map((g) => (
                         <div key={g.dateTime} style={{ marginBottom: 10, border: '1px solid #e2e8f0', borderRadius: 6, overflow: 'hidden' }}>
-                          <div style={{ padding: '6px 12px', background: '#f8fafc', fontWeight: 700, fontSize: 12, borderBottom: '1px solid #e2e8f0' }}>{g.dateTime} ({g.items.length}건)</div>
+                          <div style={{ padding: '6px 12px', background: '#f8fafc', fontWeight: 700, fontSize: 13, borderBottom: '1px solid #e2e8f0' }}>{g.dateTime} ({g.items.length}건)</div>
                           <div style={{ padding: '6px 12px', display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                             {g.items.map((item, j) => (
                               <span key={j} style={{ fontSize: 11, padding: '2px 8px', borderRadius: 10, background: '#f1f5f9', color: FLAG_COLOR[item.flag] ?? '#475569', border: '1px solid #e2e8f0' }}>

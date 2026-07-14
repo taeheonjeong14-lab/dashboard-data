@@ -107,7 +107,7 @@ export default function AdminRegistrations() {
         <div className="adminRailToolbar" style={{ gap: 4 }}>
           {STATUS_TABS.map((t) => (
             <button key={t.key} type="button" onClick={() => setTab(t.key)}
-              style={{ flex: 1, padding: '7px 0', fontSize: 12.5, fontWeight: 700, borderRadius: 6, cursor: 'pointer',
+              style={{ flex: 1, padding: '7px 0', fontSize: 13, fontWeight: 700, borderRadius: 6, cursor: 'pointer',
                 border: `1px solid ${tab === t.key ? 'var(--accent)' : 'var(--border-strong)'}`,
                 background: tab === t.key ? 'var(--accent-subtle)' : '#fff', color: tab === t.key ? 'var(--accent)' : 'var(--text-secondary)' }}>
               {t.label}
@@ -116,11 +116,11 @@ export default function AdminRegistrations() {
         </div>
         <div style={{ maxHeight: 'calc(100vh - var(--topbar-height) - 60px)', overflowY: 'auto' }}>
           {loading ? (
-            <p style={{ margin: 10, fontSize: 12.5, color: 'var(--text-muted)' }}>불러오는 중…</p>
+            <p style={{ margin: 10, fontSize: 13, color: 'var(--text-muted)' }}>불러오는 중…</p>
           ) : error ? (
-            <p style={{ margin: 10, fontSize: 12.5, color: 'var(--danger)' }}>{error}</p>
+            <p style={{ margin: 10, fontSize: 13, color: 'var(--danger)' }}>{error}</p>
           ) : list.length === 0 ? (
-            <p style={{ margin: 10, fontSize: 12.5, color: 'var(--text-muted)' }}>신청이 없습니다.</p>
+            <p style={{ margin: 10, fontSize: 13, color: 'var(--text-muted)' }}>신청이 없습니다.</p>
           ) : (
             list.map((r) => (
               <div key={r.id} onClick={() => setSelectedId(r.id)}
@@ -143,7 +143,7 @@ export default function AdminRegistrations() {
       <div className="adminLayoutMainPane">
         <div className="adminLayoutMainColumnInset">
           {!selectedId ? (
-            <p style={{ fontSize: 14, color: 'var(--text-muted)' }}>좌측에서 신청을 선택하세요.</p>
+            <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>좌측에서 신청을 선택하세요.</p>
           ) : detailLoading || !detail ? (
             <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>불러오는 중…</p>
           ) : (
@@ -183,12 +183,124 @@ export default function AdminRegistrations() {
                   </div>
                 </>
               ) : (
-                <p style={{ margin: 0, fontSize: 12.5, color: 'var(--text-muted)' }}>처리됨 · {fmt(detail.registration.reviewed_at)}</p>
+                <p style={{ margin: 0, fontSize: 13, color: 'var(--text-muted)' }}>처리됨 · {fmt(detail.registration.reviewed_at)}</p>
               )}
             </div>
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+/**
+ * 심사 상세 패널 — 병원 관리 콘솔에서 '심사 대기' 신청서를 고르면 우측에 이걸 띄운다.
+ * (신청서는 아직 병원 레코드가 아니라 병원 탭 안에 넣을 수 없다)
+ */
+export function RegistrationDetailPanel({
+  registrationId,
+  onProcessed,
+}: {
+  registrationId: string;
+  onProcessed?: () => void;
+}) {
+  const [detail, setDetail] = useState<Detail | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [acting, setActing] = useState(false);
+  const [note, setNote] = useState('');
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/admin/registrations/${encodeURIComponent(registrationId)}`, { credentials: 'include' });
+      const data = (await res.json()) as Detail & { error?: string };
+      if (!res.ok) throw new Error(data.error ?? '불러오기 실패');
+      setDetail(data);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '불러오기 실패');
+      setDetail(null);
+    } finally {
+      setLoading(false);
+    }
+  }, [registrationId]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const act = async (action: 'approve' | 'reject') => {
+    if (action === 'approve' && !window.confirm('이 병원을 승인하고 생성할까요?')) return;
+    if (action === 'reject' && !note.trim() && !window.confirm('사유 없이 거절할까요?')) return;
+    setActing(true);
+    try {
+      const res = await fetch(`/api/admin/registrations/${encodeURIComponent(registrationId)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ action, note: note.trim() || undefined }),
+      });
+      const data = (await res.json()) as { ok?: boolean; error?: string };
+      if (!res.ok || !data.ok) throw new Error(data.error ?? '처리 실패');
+      setNote('');
+      await load();
+      onProcessed?.();
+    } catch (e) {
+      window.alert(e instanceof Error ? e.message : '처리 실패');
+    } finally {
+      setActing(false);
+    }
+  };
+
+  if (loading) return <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>불러오는 중…</p>;
+  if (error) return <p style={{ fontSize: 13, color: 'var(--danger)' }}>{error}</p>;
+  if (!detail) return null;
+
+  const reg = detail.registration;
+  return (
+    <div style={{ display: 'grid', gap: 14, maxWidth: 640 }}>
+      {reg.di_conflict && (
+        <div style={banner('var(--danger-subtle)', 'var(--danger)')}>
+          ⚠ 대표(마스터) 본인인증 DI가 기존 계정과 중복됩니다
+          {reg.di_conflict_hospital ? ` — 기존: ${reg.di_conflict_hospital}` : ''}. 신청자에게 확인 후 처리하세요.
+        </div>
+      )}
+      <dl style={{ display: 'grid', gridTemplateColumns: '120px 1fr', gap: '8px 12px', margin: 0, fontSize: 13 }}>
+        <Row k="병원 전화" v={reg.phone} />
+        <Row k="병원 이메일" v={reg.email} />
+        <Row k="주소" v={[reg.address, reg.address_detail].filter(Boolean).join(' ')} />
+        <Row k="대표원장" v={reg.director_name} />
+        <Row k="대표원장 연락처" v={reg.director_phone} />
+        <Row k="과거 마케팅" v={(reg.marketing_channels ?? []).join(', ')} />
+        <Row k="상태" v={reg.status} />
+        <Row k="신청일" v={fmt(reg.created_at)} />
+      </dl>
+
+      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+        <FileLink label="사업자등록증" url={detail.files.bizCertUrl} />
+        <FileLink label="수의사신고필증" url={detail.files.vetLicenseUrl} />
+      </div>
+
+      {reg.status === 'pending' ? (
+        <>
+          <textarea
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            placeholder="심사 메모(거절 사유 등)"
+            rows={3}
+            style={{ width: '100%', padding: '8px 10px', border: '1px solid var(--border-strong)', borderRadius: 8, fontSize: 13, outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit', resize: 'vertical' }}
+          />
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+            <button type="button" onClick={() => void act('reject')} disabled={acting}
+              style={{ padding: '9px 18px', borderRadius: 8, border: '1px solid var(--danger)', background: '#fff', color: 'var(--danger)', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>거절</button>
+            <button type="button" onClick={() => void act('approve')} disabled={acting}
+              style={{ padding: '9px 20px', borderRadius: 8, border: 'none', background: 'var(--accent)', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>{acting ? '처리 중…' : '승인'}</button>
+          </div>
+        </>
+      ) : (
+        <p style={{ margin: 0, fontSize: 13, color: 'var(--text-muted)' }}>처리됨 · {fmt(reg.reviewed_at)}</p>
+      )}
     </div>
   );
 }
@@ -202,14 +314,14 @@ function Row({ k, v }: { k: string; v: string | null }) {
   );
 }
 function FileLink({ label, url }: { label: string; url: string | null }) {
-  if (!url) return <span style={{ fontSize: 12.5, color: 'var(--text-muted)' }}>{label}: 없음</span>;
+  if (!url) return <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>{label}: 없음</span>;
   return (
     <a href={url} target="_blank" rel="noreferrer"
-      style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--accent)', border: '1px solid var(--accent)', borderRadius: 6, padding: '6px 12px', textDecoration: 'none' }}>
+      style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent)', border: '1px solid var(--accent)', borderRadius: 6, padding: '6px 12px', textDecoration: 'none' }}>
       {label} 열기 ↗
     </a>
   );
 }
 function banner(bg: string, color: string): CSSProperties {
-  return { padding: 12, fontSize: 12.5, background: bg, borderRadius: 8, color };
+  return { padding: 12, fontSize: 13, background: bg, borderRadius: 8, color };
 }

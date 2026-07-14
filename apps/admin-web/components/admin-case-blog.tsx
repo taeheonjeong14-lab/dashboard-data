@@ -2,9 +2,15 @@
 
 import { useCallback, useEffect, useMemo, useState, type CSSProperties } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { Filter, X } from 'lucide-react';
 import { CaseBlogButton } from './admin-case-blog-modal';
+import { RailFilterChips, RailFilterIconMenu, RailFilterMenu, RailFilterOptions } from '@/components/rail-filter-menu';
 import { StatusBadge } from '@/components/status-badge';
+
+const STAGE_FILTER_LABELS = [
+  { value: 'writing', label: '작성 중' },
+  { value: 'drafted', label: '작성완료' },
+  { value: 'saved', label: '저장완료' },
+] as const;
 
 type CaseBlogItem = {
   runId: string;
@@ -27,7 +33,7 @@ function StageSticker({ stage }: { stage: 'writing' | 'drafted' | 'saved' }) {
 
 const btnSecondary: CSSProperties = {
   padding: '5px 10px',
-  fontSize: 12,
+  fontSize: 13,
   fontWeight: 600,
   borderRadius: 6,
   background: '#fff',
@@ -37,7 +43,7 @@ const btnSecondary: CSSProperties = {
 };
 const ctaBtnStyle: CSSProperties = {
   padding: '10px 22px',
-  fontSize: 14,
+  fontSize: 13,
   fontWeight: 700,
   borderRadius: 8,
   background: 'var(--accent)',
@@ -48,7 +54,7 @@ const ctaBtnStyle: CSSProperties = {
 const editBtnStyle: CSSProperties = {
   flexShrink: 0,
   padding: '3px 9px',
-  fontSize: 11.5,
+  fontSize: 11,
   fontWeight: 600,
   borderRadius: 6,
   background: '#fff',
@@ -60,7 +66,7 @@ const editBtnStyle: CSSProperties = {
 const saveDoneBtnStyle: CSSProperties = {
   flexShrink: 0,
   padding: '3px 11px',
-  fontSize: 11.5,
+  fontSize: 11,
   fontWeight: 700,
   borderRadius: 6,
   background: '#fff',
@@ -118,20 +124,7 @@ export default function AdminCaseBlog() {
   const [query, setQuery] = useState('');
   const [filterHospital, setFilterHospital] = useState('');
   const [filterMonth, setFilterMonth] = useState('');
-  // 필터 패널: draft 로 고르고 '적용' 눌러야 목록에 반영.
-  const [filtersOpen, setFiltersOpen] = useState(false);
-  const [draftHospital, setDraftHospital] = useState('');
-  const [draftMonth, setDraftMonth] = useState('');
   const activeFilterCount = (filterHospital ? 1 : 0) + (filterMonth ? 1 : 0) + (stageFilter ? 1 : 0);
-  const openFilters = () => {
-    setDraftHospital(filterHospital); setDraftMonth(filterMonth);
-    setFiltersOpen(true);
-  };
-  const applyFilters = () => {
-    setFilterHospital(draftHospital); setFilterMonth(draftMonth);
-    setFiltersOpen(false);
-  };
-  const clearDraft = () => { setDraftHospital(''); setDraftMonth(''); };
   const [selectedId, setSelectedId] = useState('');
   const [pseudoOpen, setPseudoOpen] = useState(false);
   const [saveOpen, setSaveOpen] = useState(false); // '저장 완료' 확인 모달
@@ -360,85 +353,60 @@ export default function AdminCaseBlog() {
             disabled={loading}
             style={{ flex: 1, minWidth: 0, padding: '8px 0', background: 'transparent', border: 0, borderRadius: 0, outline: 'none', font: 'inherit', fontSize: 13 }}
           />
-          {!loading && items.length > 0 && (
-            <button
-              type="button"
-              onClick={() => (filtersOpen ? setFiltersOpen(false) : openFilters())}
-              aria-label="필터"
-              title="필터"
-              style={{
-                position: 'relative', flexShrink: 0, border: 0, background: 'transparent', cursor: 'pointer',
-                padding: '2px 4px', display: 'inline-flex', alignItems: 'center',
-                color: activeFilterCount > 0 || filtersOpen ? 'var(--accent)' : 'var(--text-muted)',
-              }}
-            >
-              <Filter size={16} fill={activeFilterCount > 0 ? 'currentColor' : 'none'} />
-              {activeFilterCount > 0 && (
-                <span style={{ position: 'absolute', top: -3, right: -3, minWidth: 14, height: 14, padding: '0 3px', borderRadius: 999, background: 'var(--accent)', color: '#fff', fontSize: 9, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1 }}>
-                  {activeFilterCount}
-                </span>
-              )}
-            </button>
-          )}
-          <button
-            type="button"
-            onClick={() => void load()}
-            disabled={loading}
-            aria-label="새로고침"
-            title="새로고침"
-            style={{ flexShrink: 0, border: 0, background: 'transparent', cursor: loading ? 'default' : 'pointer', fontSize: 15, color: 'var(--text-muted)', padding: '0 2px' }}
-          >
-            ↻
-          </button>
-          {stageFilter && (
-            <button
-              type="button"
-              onClick={() => setStageFilter('')}
-              title="필터 해제"
-              style={{ flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: 4, padding: '4px 8px', borderRadius: 999, border: '1px solid var(--border)', background: 'var(--accent-subtle)', color: 'var(--accent)', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
-            >
-              {stageFilter === 'writing' ? '작성 중' : stageFilter === 'drafted' ? '작성완료' : '저장완료'}만
-              <X size={12} />
-            </button>
-          )}
         </div>
-        {!loading && items.length > 0 && filtersOpen && (
-          <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 20, padding: '4px 10px 8px' }}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: 10, border: '1px solid var(--border)', borderRadius: 8, background: 'var(--bg)', boxShadow: '0 8px 24px rgba(0,0,0,0.16)' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)' }}>필터</span>
-                <button type="button" onClick={clearDraft} style={{ border: 0, background: 'transparent', fontSize: 11.5, color: 'var(--text-muted)', cursor: 'pointer', padding: '2px 4px' }}>
-                  초기화
-                </button>
-              </div>
-              <select className="adminRailFilterSelect" value={draftHospital} onChange={(e) => setDraftHospital(e.target.value)} aria-label="병원 필터" style={{ width: '100%' }}>
-                <option value="">병원 전체</option>
-                {hospitalOptions.map((h) => (<option key={h} value={h}>{h}</option>))}
-              </select>
-              <select className="adminRailFilterSelect" value={draftMonth} onChange={(e) => setDraftMonth(e.target.value)} aria-label="작성월 필터" style={{ width: '100%' }}>
-                <option value="">작성월 전체</option>
-                {monthOptions.map((m) => (<option key={m} value={m}>{`${m.slice(2, 4)}년 ${String(Number(m.slice(5, 7)))}월`}</option>))}
-              </select>
-              <button
-                type="button"
-                onClick={applyFilters}
-                style={{ marginTop: 2, padding: '8px 0', width: '100%', border: 'none', borderRadius: 8, background: 'var(--accent)', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
-              >
-                적용
-              </button>
-            </div>
-          </div>
-        )}
+
+        {/* 검색창 아래 액션 띠 — 병원·작성월 드롭다운 + 필터(진행 단계) */}
+        <div className="adminRailActionBar">
+          {activeFilterCount > 0 ? (
+            <button
+              type="button"
+              className="adminBtnFree"
+              onClick={() => { setFilterHospital(''); setFilterMonth(''); setStageFilter(''); }}
+              title="필터 초기화"
+              style={{ marginRight: 'auto', padding: '3px 6px', border: 0, background: 'transparent', color: 'var(--text-muted)', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}
+            >
+              초기화
+            </button>
+          ) : null}
+          <RailFilterMenu label="병원 선택" active={!!filterHospital} selectedText={filterHospital || undefined}>
+            <RailFilterOptions value={filterHospital} options={hospitalOptions} allLabel="병원 전체" onChange={setFilterHospital} />
+          </RailFilterMenu>
+          <RailFilterMenu
+            label="작성월"
+            active={!!filterMonth}
+            selectedText={filterMonth ? `${filterMonth.slice(2, 4)}년 ${String(Number(filterMonth.slice(5, 7)))}월` : undefined}
+          >
+            <RailFilterOptions
+              value={filterMonth}
+              options={monthOptions}
+              allLabel="작성월 전체"
+              onChange={setFilterMonth}
+              format={(m) => `${m.slice(2, 4)}년 ${String(Number(m.slice(5, 7)))}월`}
+            />
+          </RailFilterMenu>
+          <RailFilterIconMenu label="필터" active={!!stageFilter} count={stageFilter ? 1 : 0}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 5 }}>진행 단계</div>
+            <RailFilterChips
+              values={stageFilter ? [stageFilter] : []}
+              options={STAGE_FILTER_LABELS.map((s) => s.label)}
+              onToggle={(label) => {
+                const hit = STAGE_FILTER_LABELS.find((s) => s.label === label);
+                if (!hit) return;
+                setStageFilter((prev) => (prev === hit.value ? '' : hit.value));
+              }}
+            />
+          </RailFilterIconMenu>
+        </div>
         </div>
         <div style={{ maxHeight: 'min(72vh, calc(100vh - 200px))', overflow: 'auto' }}>
           {loading ? (
-            <p style={{ margin: '10px 10px', fontSize: 12, color: 'var(--text-muted)' }}>불러오는 중…</p>
+            <p style={{ margin: '10px 10px', fontSize: 13, color: 'var(--text-muted)' }}>불러오는 중…</p>
           ) : error ? (
-            <p style={{ margin: '10px 10px', fontSize: 12, color: 'var(--danger)' }}>{error}</p>
+            <p style={{ margin: '10px 10px', fontSize: 13, color: 'var(--danger)' }}>{error}</p>
           ) : items.length === 0 ? (
-            <p style={{ margin: '10px 10px', fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.5 }}>작성된 진료케이스가 없습니다.</p>
+            <p style={{ margin: '10px 10px', fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.5 }}>작성된 진료케이스가 없습니다.</p>
           ) : filtered.length === 0 ? (
-            <p style={{ margin: '10px 10px', fontSize: 12, color: 'var(--text-muted)' }}>검색 결과 없음</p>
+            <p style={{ margin: '10px 10px', fontSize: 13, color: 'var(--text-muted)' }}>검색 결과 없음</p>
           ) : (
             filtered.map((it) => (
               <button
@@ -469,10 +437,10 @@ export default function AdminCaseBlog() {
         <div className="adminLayoutMainColumnInset">
           {selected && selected.stage === 'writing' ? (
             <div style={{ padding: '64px 18px', textAlign: 'center', color: 'var(--text-muted)' }}>
-              <div style={{ fontSize: 11.5, color: 'var(--text-muted)', marginBottom: 8, fontFamily: 'ui-monospace, monospace' }}>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 8, fontFamily: 'ui-monospace, monospace' }}>
                 {selected.friendlyId ? `진료케이스 ID · ${caseId(selected.friendlyId)}` : ''}
               </div>
-              <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)', marginBottom: 4 }}>
+              <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--text)', marginBottom: 4 }}>
                 {[selected.hospitalName, selected.patientName].filter(Boolean).join(' · ') || '진료케이스'}
               </div>
               <div style={{ fontSize: 13, marginBottom: 20 }}>아직 작성 중인 진료케이스입니다.</div>
@@ -481,7 +449,7 @@ export default function AdminCaseBlog() {
           ) : selected ? (
             <article>
               <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: 6 }}>
-                <div style={{ minWidth: 0, fontSize: 11.5, color: 'var(--text-muted)', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace' }}>
+                <div style={{ minWidth: 0, fontSize: 11, color: 'var(--text-muted)', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace' }}>
                   {selected.friendlyId ? `진료케이스 ID · ${caseId(selected.friendlyId)}` : ''}
                 </div>
                 <div style={{ display: 'flex', flexShrink: 0, gap: 6, alignItems: 'center' }}>
@@ -490,7 +458,7 @@ export default function AdminCaseBlog() {
                       저장 완료
                     </button>
                   ) : selected.stage === 'saved' ? (
-                    <span style={{ fontSize: 11.5, fontWeight: 700, color: '#16a34a', padding: '3px 4px' }}>저장완료 ✓</span>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: '#16a34a', padding: '3px 4px' }}>저장완료 ✓</span>
                   ) : null}
                   {selected.patientName ? (
                     <button type="button" style={editBtnStyle} onClick={() => setPseudoOpen(true)}>
@@ -500,8 +468,8 @@ export default function AdminCaseBlog() {
                   <CaseBlogButton runId={selected.runId} label="수정" triggerStyle={editBtnStyle} onClose={() => void load()} />
                 </div>
               </div>
-              <h2 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: 'var(--text)', lineHeight: 1.35 }}>{selected.title}</h2>
-              <div style={{ marginTop: 6, fontSize: 12, color: 'var(--text-muted)' }}>
+              <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: 'var(--text)', lineHeight: 1.35 }}>{selected.title}</h2>
+              <div style={{ marginTop: 6, fontSize: 13, color: 'var(--text-muted)' }}>
                 {[selected.hospitalName, selected.patientName ? `${selected.patientName}${selected.ownerName ? ` (${selected.ownerName})` : ''}` : '', selected.finalDiagnosis, `작성 ${formatDate(selected.createdAt)}`]
                   .filter(Boolean)
                   .join(' · ')}
@@ -518,7 +486,7 @@ export default function AdminCaseBlog() {
               <div
                 style={{
                   marginTop: 16,
-                  fontSize: 14,
+                  fontSize: 13,
                   lineHeight: 1.8,
                   color: 'var(--text)',
                   whiteSpace: 'pre-wrap',
@@ -536,7 +504,7 @@ export default function AdminCaseBlog() {
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
                     <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>
                       사진 {caseImages.length}장
-                      <span style={{ fontSize: 11.5, fontWeight: 500, color: 'var(--text-muted)', marginLeft: 6 }}>
+                      <span style={{ fontSize: 11, fontWeight: 500, color: 'var(--text-muted)', marginLeft: 6 }}>
                         · AI 추천 {caseImages.filter((i) => i.aiPicked).length}장
                       </span>
                     </div>
@@ -556,7 +524,7 @@ export default function AdminCaseBlog() {
                         onClick={() => void downloadSelectedImages()}
                         disabled={checked.size === 0 || downloading}
                         style={{
-                          padding: '5px 12px', fontSize: 12, fontWeight: 600, borderRadius: 6,
+                          padding: '5px 12px', fontSize: 13, fontWeight: 600, borderRadius: 6,
                           background: checked.size === 0 || downloading ? 'var(--bg-raised)' : 'var(--accent)',
                           color: checked.size === 0 || downloading ? 'var(--text-muted)' : '#fff',
                           border: 'none', cursor: checked.size === 0 || downloading ? 'not-allowed' : 'pointer',
@@ -571,11 +539,11 @@ export default function AdminCaseBlog() {
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                     {groupedImages.map(({ date, images: dateImages }, gi) => (
                     <div key={date ?? 'no-date'} style={gi > 0 ? { borderTop: '1px solid var(--border)', paddingTop: 16 } : undefined}>
-                      <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--accent)', marginBottom: 8, letterSpacing: '0.03em' }}>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent)', marginBottom: 8, letterSpacing: '0.03em' }}>
                         {date ? date.replace(/-/g, '.') : '날짜 미지정'}
                         <span style={{ fontWeight: 400, color: 'var(--text-muted)', marginLeft: 6 }}>{dateImages.length}장</span>
                         {date && (phasesByDate.get(date)?.length ?? 0) > 0 ? (
-                          <span style={{ fontWeight: 600, color: 'var(--text-secondary)', marginLeft: 8, fontSize: 11.5, letterSpacing: 0 }}>
+                          <span style={{ fontWeight: 600, color: 'var(--text-secondary)', marginLeft: 8, fontSize: 11, letterSpacing: 0 }}>
                             · {phasesByDate.get(date)!.join(' · ')}
                           </span>
                         ) : null}
@@ -594,7 +562,7 @@ export default function AdminCaseBlog() {
                               // eslint-disable-next-line @next/next/no-img-element
                               <img src={im.url} alt={im.fileName} title={im.fileName} style={{ width: 150, height: 110, objectFit: 'cover', borderRadius: 8, border: isChecked ? '2px solid var(--accent)' : '1px solid var(--border)', display: 'block' }} />
                             ) : (
-                              <div style={{ width: 150, height: 110, borderRadius: 8, border: '1px dashed var(--border-strong)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, color: 'var(--text-muted)', textAlign: 'center', padding: 6, wordBreak: 'break-all' }}>{im.fileName}</div>
+                              <div style={{ width: 150, height: 110, borderRadius: 8, border: '1px dashed var(--border-strong)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, color: 'var(--text-muted)', textAlign: 'center', padding: 6, wordBreak: 'break-all' }}>{im.fileName}</div>
                             )}
                             {im.url ? (
                               <input
@@ -607,7 +575,7 @@ export default function AdminCaseBlog() {
                               />
                             ) : null}
                             {im.aiPicked ? (
-                              <span style={{ position: 'absolute', top: 6, right: 6, fontSize: 10, fontWeight: 700, color: '#fff', background: 'var(--accent)', padding: '1px 6px', borderRadius: 999 }}>
+                              <span style={{ position: 'absolute', top: 6, right: 6, fontSize: 11, fontWeight: 700, color: '#fff', background: 'var(--accent)', padding: '1px 6px', borderRadius: 999 }}>
                                 AI 추천
                               </span>
                             ) : null}
@@ -623,14 +591,14 @@ export default function AdminCaseBlog() {
                     ))}
                   </div>
                   ) : (
-                    <div style={{ fontSize: 12.5, color: 'var(--text-muted)', padding: '8px 0' }}>등록된 사진이 없습니다.</div>
+                    <div style={{ fontSize: 13, color: 'var(--text-muted)', padding: '8px 0' }}>등록된 사진이 없습니다.</div>
                   )}
                 </div>
             </article>
           ) : (
             <div style={{ padding: '64px 18px', textAlign: 'center', color: 'var(--text-muted)' }}>
               <div style={{ fontSize: 28, marginBottom: 8 }}>📝</div>
-              <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)', marginBottom: 4 }}>선택된 진료케이스가 없습니다</div>
+              <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', marginBottom: 4 }}>선택된 진료케이스가 없습니다</div>
               <div style={{ fontSize: 13 }}>좌측 목록에서 글을 선택하세요.</div>
             </div>
           )}
@@ -654,7 +622,7 @@ export default function AdminCaseBlog() {
             style={{ width: 'min(92vw, 420px)', background: '#fff', borderRadius: 12, border: '1px solid var(--border)', overflow: 'hidden', boxShadow: '0 12px 40px rgba(0,0,0,0.18)' }}
           >
             <div style={{ padding: '20px 22px 16px' }}>
-              <h2 style={{ margin: '0 0 8px', fontSize: 16, fontWeight: 700, color: 'var(--text)' }}>네이버 블로그에 임시저장까지 완료되었나요?</h2>
+              <h2 style={{ margin: '0 0 8px', fontSize: 18, fontWeight: 700, color: 'var(--text)' }}>네이버 블로그에 임시저장까지 완료되었나요?</h2>
               <p style={{ margin: 0, fontSize: 13, lineHeight: 1.6, color: 'var(--text-secondary)' }}>
                 확인을 누르면 이 진료케이스 상태가 <b style={{ color: '#2563eb' }}>저장완료</b>로 변경됩니다.
               </p>
@@ -782,14 +750,14 @@ function PostProcessModal({ runId, patientName, body, onClose }: { runId: string
         style={{ width: 'min(92vw, 760px)', maxHeight: '90vh', display: 'flex', flexDirection: 'column', background: '#fff', borderRadius: 12, border: '1px solid var(--border)', overflow: 'hidden', boxShadow: '0 12px 40px rgba(0,0,0,0.18)' }}
       >
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 18px', borderBottom: '1px solid var(--border)' }}>
-          <h2 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: 'var(--text)' }}>후처리 및 복사</h2>
-          <button type="button" onClick={onClose} aria-label="닫기" style={{ border: 0, background: 'transparent', fontSize: 20, lineHeight: 1, cursor: 'pointer', color: 'var(--text-muted)' }}>
+          <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: 'var(--text)' }}>후처리 및 복사</h2>
+          <button type="button" onClick={onClose} aria-label="닫기" style={{ border: 0, background: 'transparent', fontSize: 18, lineHeight: 1, cursor: 'pointer', color: 'var(--text-muted)' }}>
             ×
           </button>
         </div>
 
         <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--border)' }}>
-          <div style={{ fontSize: 12.5, color: 'var(--text-secondary)', marginBottom: 8 }}>
+          <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 8 }}>
             실제 환자명 <b style={{ color: 'var(--text)' }}>{patientName || '—'}</b> 을(를) 본문에서{' '}
             <b style={{ color: 'var(--text)' }}>{occurrences}곳</b> 찾았습니다. 가명을 입력하면 치환되고(선택),
             아래 미리보기처럼 <b style={{ color: 'var(--text)' }}>서식 포함</b>으로 복사되어 네이버에 그대로 붙여넣을 수 있습니다.
@@ -799,19 +767,19 @@ function PostProcessModal({ runId, patientName, body, onClose }: { runId: string
             value={pseudo}
             onChange={(e) => onPseudoChange(e.target.value)}
             placeholder="가명 입력 (예: OO)"
-            style={{ width: '100%', padding: '9px 12px', fontSize: 14, border: '1px solid var(--border-strong)', borderRadius: 8, outline: 'none', boxSizing: 'border-box' }}
+            style={{ width: '100%', padding: '9px 12px', fontSize: 13, border: '1px solid var(--border-strong)', borderRadius: 8, outline: 'none', boxSizing: 'border-box' }}
           />
           {formatError ? (
-            <div style={{ marginTop: 8, fontSize: 12, color: 'var(--danger)' }}>{formatError}</div>
+            <div style={{ marginTop: 8, fontSize: 13, color: 'var(--danger)' }}>{formatError}</div>
           ) : null}
         </div>
 
         <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '14px 18px' }}>
-          <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 8 }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 8 }}>
             미리보기 {formattedMd ? '· 서식 적용됨' : '· 평문 ("서식 적용"을 누르면 AI가 꾸밈)'} (복사되는 그대로)
           </div>
           <div
-            style={{ fontSize: 14, lineHeight: 1.8, color: 'var(--text)', wordBreak: 'break-word' }}
+            style={{ fontSize: 13, lineHeight: 1.8, color: 'var(--text)', wordBreak: 'break-word' }}
             dangerouslySetInnerHTML={{ __html: previewHtml }}
           />
         </div>

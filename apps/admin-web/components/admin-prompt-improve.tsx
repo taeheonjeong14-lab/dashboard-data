@@ -53,7 +53,7 @@ const STATUS_LABEL: Record<string, string> = {
 const card: CSSProperties = { background: '#fff', border: '1px solid var(--border)', borderRadius: 10, padding: '14px 16px' };
 const tabBtn = (active: boolean): CSSProperties => ({
   padding: '9px 16px',
-  fontSize: 13.5,
+  fontSize: 13,
   fontWeight: 700,
   border: 'none',
   background: 'none',
@@ -63,7 +63,7 @@ const tabBtn = (active: boolean): CSSProperties => ({
 });
 
 function badge(color: string): CSSProperties {
-  return { fontSize: 10.5, fontWeight: 700, padding: '1px 7px', borderRadius: 999, border: `1px solid ${color}`, color, whiteSpace: 'nowrap' };
+  return { fontSize: 11, fontWeight: 700, padding: '1px 7px', borderRadius: 999, border: `1px solid ${color}`, color, whiteSpace: 'nowrap' };
 }
 
 function fmt(iso: string | null): string {
@@ -82,26 +82,26 @@ function DiffCard({ item }: { item: Item }) {
   return (
     <div style={{ ...card, display: 'grid', gap: 10 }}>
       <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-        <b style={{ fontSize: 13.5 }}>{item.hospitalName ?? '병원 미상'}</b>
+        <b style={{ fontSize: 13 }}>{item.hospitalName ?? '병원 미상'}</b>
         <code style={{ fontSize: 11, color: 'var(--text-muted)' }}>{item.friendlyId ?? item.runId.slice(0, 8)}</code>
         <span style={badge(item.status === 'error' ? '#e5484d' : 'var(--text-muted)')}>
           {STATUS_LABEL[item.status] ?? item.status}
         </span>
         {item.triggeredBy ? (
-          <span style={{ fontSize: 11.5, color: 'var(--text-muted)' }}>
+          <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
             트리거: {item.triggeredBy === 'kakao' ? '카카오 발송' : 'PDF 다운로드'}
           </span>
         ) : null}
-        <span style={{ marginLeft: 'auto', fontSize: 11.5, color: 'var(--text-muted)' }}>
+        <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--text-muted)' }}>
           선택 {fmt(item.createdAt)} · 분석 {fmt(item.analyzedAt)}
         </span>
       </div>
 
-      {item.error ? <div style={{ fontSize: 12.5, color: 'var(--danger)' }}>{item.error}</div> : null}
+      {item.error ? <div style={{ fontSize: 13, color: 'var(--danger)' }}>{item.error}</div> : null}
       {r?.summary ? <div style={{ fontSize: 13, color: 'var(--text)' }}>{r.summary}</div> : null}
 
       {r?.noEdits ? (
-        <div style={{ fontSize: 12.5, color: 'var(--success)', fontWeight: 600 }}>
+        <div style={{ fontSize: 13, color: 'var(--success)', fontWeight: 600 }}>
           병원이 초안을 그대로 발송 — 이 건은 프롬프트가 잘 맞았습니다.
         </div>
       ) : null}
@@ -112,11 +112,11 @@ function DiffCard({ item }: { item: Item }) {
             <div key={i} style={{ display: 'grid', gap: 3, paddingLeft: 10, borderLeft: `3px solid ${KIND_COLOR[c.kind ?? ''] ?? 'var(--border)'}` }}>
               <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
                 <span style={badge(KIND_COLOR[c.kind ?? ''] ?? 'var(--text-muted)')}>{KIND_LABEL[c.kind ?? ''] ?? c.kind ?? '기타'}</span>
-                <span style={{ fontSize: 12.5, fontWeight: 700 }}>{c.what}</span>
-                <code style={{ fontSize: 10.5, color: 'var(--text-muted)' }}>{c.field}</code>
+                <span style={{ fontSize: 13, fontWeight: 700 }}>{c.what}</span>
+                <code style={{ fontSize: 11, color: 'var(--text-muted)' }}>{c.field}</code>
               </div>
-              {c.reason ? <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>왜: {c.reason}</div> : null}
-              {c.promptFix ? <div style={{ fontSize: 12, color: 'var(--accent)', fontWeight: 600 }}>프롬프트: {c.promptFix}</div> : null}
+              {c.reason ? <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>왜: {c.reason}</div> : null}
+              {c.promptFix ? <div style={{ fontSize: 13, color: 'var(--accent)', fontWeight: 600 }}>프롬프트: {c.promptFix}</div> : null}
             </div>
           ))}
         </div>
@@ -124,10 +124,10 @@ function DiffCard({ item }: { item: Item }) {
 
       {suggestions.length ? (
         <div style={{ background: 'var(--bg-subtle)', borderRadius: 8, padding: '9px 12px' }}>
-          <div style={{ fontSize: 11.5, fontWeight: 800, color: 'var(--text-muted)', marginBottom: 5 }}>프롬프트 개선 제안</div>
+          <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--text-muted)', marginBottom: 5 }}>프롬프트 개선 제안</div>
           <ul style={{ margin: 0, paddingLeft: 16, listStyleType: 'disc', display: 'grid', gap: 4 }}>
             {suggestions.map((s, i) => (
-              <li key={i} style={{ fontSize: 12.5, lineHeight: 1.5 }}>{s}</li>
+              <li key={i} style={{ fontSize: 13, lineHeight: 1.5 }}>{s}</li>
             ))}
           </ul>
         </div>
@@ -135,19 +135,19 @@ function DiffCard({ item }: { item: Item }) {
 
       {raw.length ? (
         <div>
-          <button type="button" onClick={() => setOpen((v) => !v)} style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 0' }}>
+          <button type="button" onClick={() => setOpen((v) => !v)} style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 0' }}>
             원문 대조 {open ? '▾' : '▸'} ({raw.length}개 필드)
           </button>
           {open ? (
             <div style={{ display: 'grid', gap: 10, marginTop: 6 }}>
               {raw.map((d, i) => (
                 <div key={i} style={{ display: 'grid', gap: 4 }}>
-                  <div style={{ fontSize: 11.5, fontWeight: 800, color: 'var(--text-secondary)' }}>{d.label}</div>
+                  <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--text-secondary)' }}>{d.label}</div>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 8 }}>
-                    <div style={{ fontSize: 12, whiteSpace: 'pre-wrap', background: '#fff5f5', borderRadius: 6, padding: '7px 9px', color: 'var(--text-secondary)' }}>
+                    <div style={{ fontSize: 13, whiteSpace: 'pre-wrap', background: '#fff5f5', borderRadius: 6, padding: '7px 9px', color: 'var(--text-secondary)' }}>
                       {d.before || '(없음)'}
                     </div>
-                    <div style={{ fontSize: 12, whiteSpace: 'pre-wrap', background: '#f2fbf6', borderRadius: 6, padding: '7px 9px', color: 'var(--text)' }}>
+                    <div style={{ fontSize: 13, whiteSpace: 'pre-wrap', background: '#f2fbf6', borderRadius: 6, padding: '7px 9px', color: 'var(--text)' }}>
                       {d.after || '(삭제됨)'}
                     </div>
                   </div>
@@ -207,8 +207,8 @@ export default function AdminPromptImprove() {
   return (
     <div style={{ display: 'grid', gap: 16, paddingBottom: 32 }}>
       <div>
-        <h1 style={{ fontSize: 20, fontWeight: 800, margin: 0 }}>프롬프트 개선</h1>
-        <p style={{ fontSize: 12.5, color: 'var(--text-muted)', margin: '5px 0 0' }}>
+        <h1 style={{ fontSize: 18, fontWeight: 800, margin: 0 }}>프롬프트 개선</h1>
+        <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: '5px 0 0' }}>
           AI 초안이 사람 손을 거치며 어떻게 바뀌었는지 모아 보고, 초안 생성 프롬프트를 다듬습니다.
         </p>
       </div>

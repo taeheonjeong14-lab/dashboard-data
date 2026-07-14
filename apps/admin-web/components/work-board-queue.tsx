@@ -213,9 +213,9 @@ export function WorkBoardQueue({ blogItems }: { blogItems: QueueItem[] }) {
           <section key={b.key} style={{ flex: '1 1 360px', minWidth: 320, maxWidth: '100%' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
               <StatusBadge category="blog" stage={badgeStage} />
-              <span style={{ fontSize: 15, fontWeight: 800, color: 'var(--text)' }}>{b.title}</span>
-              <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)' }}>{b.flow}</span>
-              <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>· 진행 중 {activeCount}건</span>
+              <span style={{ fontSize: 18, fontWeight: 800, color: 'var(--text)' }}>{b.title}</span>
+              <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-muted)' }}>{b.flow}</span>
+              <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>· 진행 중 {activeCount}건</span>
               <button type="button" onClick={() => openAssign(b.key)}
                 style={{ marginLeft: 'auto', padding: '7px 14px', fontSize: 13, fontWeight: 700, borderRadius: 8, border: '1px solid var(--accent)', background: 'var(--accent)', color: '#fff', cursor: 'pointer' }}>
                 + 작업 배정
@@ -235,8 +235,8 @@ export function WorkBoardQueue({ blogItems }: { blogItems: QueueItem[] }) {
                   return (
                   <div key={dk || 'none'}>
                     <button type="button" onClick={() => toggleGroup(gkey, open)}
-                      style={{ display: 'flex', alignItems: 'center', gap: 5, width: '100%', textAlign: 'left', border: 0, background: 'transparent', cursor: 'pointer', padding: 0, marginBottom: 8, fontSize: 12.5, fontWeight: 700, color: hdr.color, letterSpacing: '0.02em' }}>
-                      <span style={{ display: 'inline-block', transition: 'transform .12s', transform: open ? 'rotate(90deg)' : 'none', fontSize: 10 }}>▶</span>
+                      style={{ display: 'flex', alignItems: 'center', gap: 5, width: '100%', textAlign: 'left', border: 0, background: 'transparent', cursor: 'pointer', padding: 0, marginBottom: 8, fontSize: 13, fontWeight: 700, color: hdr.color, letterSpacing: '0.02em' }}>
+                      <span style={{ display: 'inline-block', transition: 'transform .12s', transform: open ? 'rotate(90deg)' : 'none', fontSize: 11 }}>▶</span>
                       {hdr.text}
                       <span style={{ fontWeight: 500, color: 'var(--text-muted)' }}>{byDate.get(dk)!.length}건</span>
                     </button>
@@ -250,21 +250,21 @@ export function WorkBoardQueue({ blogItems }: { blogItems: QueueItem[] }) {
                           <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 12px', borderRadius: 8, border: '1px solid var(--border)', background: isDone ? 'var(--bg-subtle)' : 'var(--bg-raised)', opacity: isDone ? 0.72 : 1 }}>
                             {it ? <StatusBadge category="blog" stage={stage} /> : null}
                             <div style={{ flex: 1, minWidth: 0 }}>
-                              <div style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                              <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                                 {it?.patientName || '—'}{it?.ownerName ? <span style={{ fontWeight: 400, color: 'var(--text-secondary)' }}> · {it.ownerName}</span> : null}
-                                {isDone ? <span style={{ marginLeft: 6, fontSize: 11.5, fontWeight: 700, color: '#16a34a' }}>✓ 완료</span> : null}
+                                {isDone ? <span style={{ marginLeft: 6, fontSize: 11, fontWeight: 700, color: '#16a34a' }}>✓ 완료</span> : null}
                               </div>
-                              <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                              <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                                 {it?.hospitalName || '병원 미상'}{it?.friendlyId ? ` · #${it.friendlyId}` : ''}
                               </div>
-                              <div style={{ marginTop: 4, display: 'flex', flexWrap: 'wrap', gap: 8, fontSize: 11.5 }}>
+                              <div style={{ marginTop: 4, display: 'flex', flexWrap: 'wrap', gap: 8, fontSize: 11 }}>
                                 {r.keyword ? <span style={{ padding: '1px 7px', borderRadius: 999, background: 'var(--accent-subtle)', color: 'var(--accent)', fontWeight: 700 }}># {r.keyword}</span> : null}
                                 {r.requester ? <span style={{ color: 'var(--text-secondary)' }}>요청자 <b style={{ color: 'var(--text)' }}>{r.requester}</b></span> : null}
                                 <span style={{ color: 'var(--text-muted)' }}>요청 {fmtDate(r.createdAt)}</span>
                               </div>
                             </div>
                             <button type="button" onClick={() => void removeReq(r.id)} title="목록에서 제거"
-                              style={{ flexShrink: 0, border: 0, background: 'transparent', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 16, lineHeight: 1, padding: 2 }}>×</button>
+                              style={{ flexShrink: 0, border: 0, background: 'transparent', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 18, lineHeight: 1, padding: 2 }}>×</button>
                           </div>
                         );
                       })}
@@ -287,10 +287,10 @@ export function WorkBoardQueue({ blogItems }: { blogItems: QueueItem[] }) {
           <div onClick={(e) => e.stopPropagation()}
             style={{ width: assignBoard === 'blog_save' ? 'min(96vw, 705px)' : 'min(94vw, 560px)', maxHeight: '88vh', display: 'flex', flexDirection: 'column', background: '#fff', borderRadius: 12, border: '1px solid var(--border)', overflow: 'hidden', boxShadow: '0 12px 40px rgba(0,0,0,0.18)' }}>
             <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)' }}>
-              <h2 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: 'var(--text)' }}>
+              <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: 'var(--text)' }}>
                 {BOARDS.find((x) => x.key === assignBoard)!.title} 작업 배정
               </h2>
-              <p style={{ margin: '4px 0 0', fontSize: 12.5, color: 'var(--text-muted)' }}>
+              <p style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--text-muted)' }}>
                 {BOARDS.find((x) => x.key === assignBoard)!.flow} · 처리할 항목을 선택하세요.
               </p>
             </div>
@@ -301,9 +301,9 @@ export function WorkBoardQueue({ blogItems }: { blogItems: QueueItem[] }) {
               ) : (
                 <div style={{ display: 'grid', gap: 14 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 }}>
-                    <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)' }}>대기 {assignPool.length}건 · {poolByHospital.length}개 병원</span>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)' }}>대기 {assignPool.length}건 · {poolByHospital.length}개 병원</span>
                     <button type="button" onClick={() => setSelected((s) => s.size === assignPool.length ? new Set() : new Set(assignPool.map((i) => i.runId)))}
-                      style={{ border: 0, background: 'transparent', fontSize: 12, fontWeight: 600, color: 'var(--accent)', cursor: 'pointer' }}>
+                      style={{ border: 0, background: 'transparent', fontSize: 13, fontWeight: 600, color: 'var(--accent)', cursor: 'pointer' }}>
                       {selected.size === assignPool.length ? '전체 해제' : '전체 선택'}
                     </button>
                   </div>
@@ -313,11 +313,11 @@ export function WorkBoardQueue({ blogItems }: { blogItems: QueueItem[] }) {
                     return (
                     <div key={hospital} style={{ display: 'grid', gap: 6 }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: 2, borderTop: '1px solid var(--border)', marginTop: 2 }}>
-                        <span style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text)' }}>
+                        <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>
                           {hospital} <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}>{items.length}건</span>
                         </span>
                         <button type="button" onClick={() => setSelected((s) => { const n = new Set(s); if (allOn) runIds.forEach((id) => n.delete(id)); else runIds.forEach((id) => n.add(id)); return n; })}
-                          style={{ border: 0, background: 'transparent', fontSize: 11.5, fontWeight: 600, color: 'var(--accent)', cursor: 'pointer' }}>
+                          style={{ border: 0, background: 'transparent', fontSize: 11, fontWeight: 600, color: 'var(--accent)', cursor: 'pointer' }}>
                           {allOn ? '해제' : '전체 선택'}
                         </button>
                       </div>
@@ -334,7 +334,7 @@ export function WorkBoardQueue({ blogItems }: { blogItems: QueueItem[] }) {
                               {it.patientName || '—'}{it.ownerName ? <span style={{ fontWeight: 400, color: 'var(--text-secondary)' }}> · {it.ownerName}</span> : null}
                             </div>
                             {it.friendlyId ? (
-                              <div style={{ fontSize: 11.5, color: 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                              <div style={{ fontSize: 11, color: 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                                 #{it.friendlyId}
                               </div>
                             ) : null}
@@ -372,10 +372,10 @@ export function WorkBoardQueue({ blogItems }: { blogItems: QueueItem[] }) {
             <div style={{ borderTop: '1px solid var(--border)', padding: '12px 20px', display: 'grid', gap: 10 }}>
               {assignPool.length > 0 ? (
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center', maxHeight: 84, overflowY: 'auto' }}>
-                  <span style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text-secondary)' }}>병원별 선택</span>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)' }}>병원별 선택</span>
                   {hospitalCounts.map((c) => (
                     <span key={c.h} title={`${c.h} — 선택 ${c.sel} / 가능 ${c.avail}`}
-                      style={{ fontSize: 11.5, padding: '3px 9px', borderRadius: 999, border: `1px solid ${c.sel > 0 ? 'var(--accent)' : 'var(--border)'}`, background: c.sel > 0 ? 'var(--accent-subtle)' : 'var(--bg)', color: c.sel > 0 ? 'var(--accent)' : 'var(--text-muted)', whiteSpace: 'nowrap' }}>
+                      style={{ fontSize: 11, padding: '3px 9px', borderRadius: 999, border: `1px solid ${c.sel > 0 ? 'var(--accent)' : 'var(--border)'}`, background: c.sel > 0 ? 'var(--accent-subtle)' : 'var(--bg)', color: c.sel > 0 ? 'var(--accent)' : 'var(--text-muted)', whiteSpace: 'nowrap' }}>
                       {c.h} <b style={{ fontWeight: 800 }}>{c.sel}</b><span style={{ opacity: 0.7 }}>/{c.avail}</span>
                     </span>
                   ))}
@@ -383,11 +383,11 @@ export function WorkBoardQueue({ blogItems }: { blogItems: QueueItem[] }) {
               ) : null}
               <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
                 <label style={{ display: 'grid', gap: 4, flex: '1 1 200px' }}>
-                  <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)' }}>요청자 <span style={{ color: '#dc2626' }}>*</span></span>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)' }}>요청자 <span style={{ color: '#dc2626' }}>*</span></span>
                   <input value={requester} onChange={(e) => setRequester(e.target.value)} placeholder="이름 입력(필수)" style={{ ...inputStyle, borderColor: selected.size > 0 && !requester.trim() ? '#dc2626' : 'var(--border-strong)' }} />
                 </label>
                 <label style={{ display: 'grid', gap: 4, flex: '1 1 160px' }}>
-                  <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)' }}>마감일 <span style={{ color: '#dc2626' }}>*</span></span>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)' }}>마감일 <span style={{ color: '#dc2626' }}>*</span></span>
                   <input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} style={{ ...inputStyle, borderColor: selected.size > 0 && !dueDate ? '#dc2626' : 'var(--border-strong)' }} />
                 </label>
               </div>
@@ -398,7 +398,7 @@ export function WorkBoardQueue({ blogItems }: { blogItems: QueueItem[] }) {
                   if (selected.size > 0 && !dueDate) msgs.push('마감일');
                   if (missingKeywordCount > 0) msgs.push(`키워드 ${missingKeywordCount}건`);
                   return msgs.length > 0 ? (
-                    <span style={{ marginRight: 'auto', fontSize: 11.5, fontWeight: 600, color: '#dc2626' }}>{msgs.join(' · ')} 입력 필요</span>
+                    <span style={{ marginRight: 'auto', fontSize: 11, fontWeight: 600, color: '#dc2626' }}>{msgs.join(' · ')} 입력 필요</span>
                   ) : null;
                 })()}
                 <button type="button" onClick={() => setAssignBoard(null)} disabled={saving}
@@ -418,7 +418,7 @@ export function WorkBoardQueue({ blogItems }: { blogItems: QueueItem[] }) {
   );
 }
 
-const inputStyle: React.CSSProperties = { width: '100%', padding: '9px 11px', fontSize: 14, border: '1px solid var(--border-strong)', borderRadius: 8, outline: 'none', boxSizing: 'border-box' };
+const inputStyle: React.CSSProperties = { width: '100%', padding: '9px 11px', fontSize: 13, border: '1px solid var(--border-strong)', borderRadius: 8, outline: 'none', boxSizing: 'border-box' };
 
 // 키워드 커스텀 드롭다운 — 네이티브 select 로는 옵션 안에서 날짜 우측정렬·italic 이 불가해 직접 구현.
 //  옵션/선택 표시 모두 [키워드 …왼쪽] [마지막 사용 날짜 — 우측정렬·진회색·italic] 레이아웃.
@@ -461,12 +461,12 @@ function KeywordSelect({ options, value, invalid, onChange }: {
   return (
     <>
       <button ref={btnRef} type="button" onClick={() => setOpen((o) => !o)}
-        style={{ width: '100%', minWidth: 0, display: 'flex', alignItems: 'center', gap: 8, padding: '6px 9px', fontSize: 12.5, border: `1px solid ${invalid ? '#dc2626' : 'var(--border-strong)'}`, borderRadius: 6, background: '#fff', cursor: 'pointer', textAlign: 'left', boxSizing: 'border-box' }}>
+        style={{ width: '100%', minWidth: 0, display: 'flex', alignItems: 'center', gap: 8, padding: '6px 9px', fontSize: 13, border: `1px solid ${invalid ? '#dc2626' : 'var(--border-strong)'}`, borderRadius: 6, background: '#fff', cursor: 'pointer', textAlign: 'left', boxSizing: 'border-box' }}>
         <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: value ? 'var(--text)' : 'var(--text-muted)' }}>
           {value || '키워드 선택 *'}
         </span>
-        {value ? <span style={{ flexShrink: 0, fontStyle: 'italic', fontWeight: 600, color: '#4b5563', fontSize: 11.5 }}>{selDate}</span> : null}
-        <span style={{ flexShrink: 0, fontSize: 8, color: 'var(--text-muted)' }}>▼</span>
+        {value ? <span style={{ flexShrink: 0, fontStyle: 'italic', fontWeight: 600, color: '#4b5563', fontSize: 11 }}>{selDate}</span> : null}
+        <span style={{ flexShrink: 0, fontSize: 11, color: 'var(--text-muted)' }}>▼</span>
       </button>
       {open && rect
         ? createPortal(
@@ -475,7 +475,7 @@ function KeywordSelect({ options, value, invalid, onChange }: {
               {options.map((o) => (
                 <button key={o.keyword} type="button" onClick={() => { onChange(o.keyword); setOpen(false); }}
                   style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 8, padding: '7px 8px', border: 0, background: o.keyword === value ? 'var(--accent-subtle)' : 'transparent', borderRadius: 4, cursor: 'pointer', textAlign: 'left' }}>
-                  <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 12.5, color: 'var(--text)' }}>{o.keyword}</span>
+                  <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 13, color: 'var(--text)' }}>{o.keyword}</span>
                   <span style={{ flexShrink: 0, fontStyle: 'italic', fontWeight: 600, color: '#4b5563', fontSize: 11 }}>{dateText(o.lastUsedAt)}</span>
                 </button>
               ))}

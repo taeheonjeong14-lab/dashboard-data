@@ -7,7 +7,7 @@ export function StatusBadge({ category, stage, style }: { category: BadgeCategor
   return (
     <span
       style={{
-        display: 'inline-block', padding: '1px 6px', borderRadius: 4, fontSize: 10, fontWeight: 700,
+        display: 'inline-block', padding: '1px 6px', borderRadius: 4, fontSize: 11, fontWeight: 700,
         verticalAlign: 'middle', color: 'var(--text-secondary)', background: CATEGORY_BADGE_BG[category],
         ...style,
       }}

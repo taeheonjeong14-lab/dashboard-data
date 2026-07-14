@@ -92,7 +92,7 @@ export default function AdminFeatureUsage() {
       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10, marginBottom: 14 }}>
         <div>
           <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--text)' }}>사용 현황</div>
-          <div style={{ fontSize: 12.5, color: 'var(--text-muted)', marginTop: 3 }}>
+          <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 3 }}>
             병원별 진료케이스·건강검진·초진 접수·사전문진 사용 건수
           </div>
         </div>
@@ -104,7 +104,7 @@ export default function AdminFeatureUsage() {
               onClick={() => setPeriod(p.key)}
               style={{
                 padding: '6px 12px',
-                fontSize: 12.5,
+                fontSize: 13,
                 fontWeight: 700,
                 borderRadius: 8,
                 cursor: 'pointer',
@@ -125,9 +125,9 @@ export default function AdminFeatureUsage() {
           <div key={f.key} style={tile}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <span style={{ width: 8, height: 8, borderRadius: 2, background: f.color, flexShrink: 0 }} />
-              <span style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 600 }}>{f.label}</span>
+              <span style={{ fontSize: 13, color: 'var(--text-secondary)', fontWeight: 600 }}>{f.label}</span>
             </div>
-            <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--text)', marginTop: 6 }}>
+            <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--text)', marginTop: 6 }}>
               {loading ? '—' : num(totals?.[f.key] ?? 0)}
             </div>
           </div>
@@ -135,9 +135,9 @@ export default function AdminFeatureUsage() {
         {/* 사용 토큰 합계 — 강조 타일 */}
         <div style={{ ...tile, borderColor: 'var(--accent)', background: 'var(--accent-subtle)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <span style={{ fontSize: 12, color: 'var(--accent)', fontWeight: 700 }}>사용 토큰</span>
+            <span style={{ fontSize: 13, color: 'var(--accent)', fontWeight: 700 }}>사용 토큰</span>
           </div>
-          <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--accent)', marginTop: 6 }}>
+          <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--accent)', marginTop: 6 }}>
             {loading ? '—' : num(totals?.tokensUsed ?? 0)}
           </div>
         </div>
@@ -155,7 +155,7 @@ export default function AdminFeatureUsage() {
           disabled={loading}
         />
         {zeroCount > 0 ? (
-          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, color: 'var(--text-secondary)', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: 'var(--text-secondary)', cursor: 'pointer', whiteSpace: 'nowrap' }}>
             <input type="checkbox" checked={showZero} onChange={(e) => setShowZero(e.target.checked)} />
             사용 없는 병원 {zeroCount}곳 보기
           </label>
@@ -192,7 +192,7 @@ export default function AdminFeatureUsage() {
                 <td style={{ ...td, textAlign: 'right' }}>{cell(h.intake)}</td>
                 <td style={{ ...td, textAlign: 'right' }}>{cell(h.preConsult)}</td>
                 <td style={{ ...td, textAlign: 'right', fontWeight: 800, color: h.tokensUsed > 0 ? 'var(--accent)' : 'var(--text-muted)' }}>{num(h.tokensUsed)}</td>
-                <td style={{ ...td, textAlign: 'right', color: 'var(--text-muted)', fontSize: 11.5, whiteSpace: 'nowrap' }}>{fmtDate(h.lastUsed)}</td>
+                <td style={{ ...td, textAlign: 'right', color: 'var(--text-muted)', fontSize: 11, whiteSpace: 'nowrap' }}>{fmtDate(h.lastUsed)}</td>
               </tr>
             ))}
           </tbody>
@@ -227,7 +227,7 @@ const tile: React.CSSProperties = {
 };
 const th: React.CSSProperties = {
   padding: '10px 10px',
-  fontSize: 12,
+  fontSize: 13,
   fontWeight: 700,
   color: 'var(--text-secondary)',
   whiteSpace: 'nowrap',
@@ -238,5 +238,5 @@ const td: React.CSSProperties = {
 };
 
 function banner(bg: string, color: string): React.CSSProperties {
-  return { padding: 12, marginBottom: 12, fontSize: 12.5, background: bg, borderRadius: 8, color };
+  return { padding: 12, marginBottom: 12, fontSize: 13, background: bg, borderRadius: 8, color };
 }

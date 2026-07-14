@@ -30,7 +30,8 @@ export function AdminShell({
 
   return (
     <ChartExtractionProvider>
-      <div style={{ display: 'flex', minHeight: '100vh' }}>
+      {/* adminApp: 버튼 높이·타이포 공통 규칙의 스코프(admin-legacy.css). */}
+      <div className="adminApp" style={{ display: 'flex', minHeight: '100vh' }}>
         <TopBar userName={userName} userEmail={userEmail} />
         {!isHome && <Sidebar />}
         <div

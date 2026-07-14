@@ -232,8 +232,8 @@ export default function AdminStatsUpload({
             <>
               <FileSpreadsheet size={30} style={{ color: 'var(--success)' }} />
               <div style={{ textAlign: 'center' }}>
-                <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: 'var(--success)' }}>{snapshot.name}</p>
-                <p style={{ margin: '3px 0 0', fontSize: 12, color: 'var(--text-muted)' }}>
+                <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: 'var(--success)' }}>{snapshot.name}</p>
+                <p style={{ margin: '3px 0 0', fontSize: 13, color: 'var(--text-muted)' }}>
                   {(snapshot.size / 1024).toFixed(0)} KB · 클릭 또는 드래그해서 다시 선택
                 </p>
               </div>
@@ -249,10 +249,10 @@ export default function AdminStatsUpload({
             <>
               <Upload size={30} style={{ color: isDragOver ? 'var(--accent)' : 'var(--text-muted)' }} />
               <div style={{ textAlign: 'center' }}>
-                <p style={{ margin: 0, fontSize: 15, fontWeight: 700, color: 'var(--text-secondary)' }}>
+                <p style={{ margin: 0, fontSize: 18, fontWeight: 700, color: 'var(--text-secondary)' }}>
                   엑셀 파일을 드래그하거나 클릭해서 선택
                 </p>
-                <p style={{ margin: '4px 0 0', fontSize: 12.5, color: 'var(--text-muted)' }}>
+                <p style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--text-muted)' }}>
                   XLSX · XLS · CSV
                 </p>
               </div>
@@ -333,7 +333,7 @@ const fieldGrid: CSSProperties = {
   gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
   gap: 12,
 };
-const fieldLabel: CSSProperties = { fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)' };
+const fieldLabel: CSSProperties = { fontSize: 13, fontWeight: 700, color: 'var(--text-secondary)' };
 const hint: CSSProperties = { margin: 0, fontSize: 13, color: 'var(--text-muted)' };
 const selectStyle: CSSProperties = {
   width: '100%',
@@ -343,7 +343,7 @@ const selectStyle: CSSProperties = {
   background: 'var(--bg)',
   color: 'var(--text)',
   font: 'inherit',
-  fontSize: 13.5,
+  fontSize: 13,
   cursor: 'pointer',
 };
 const dropzone: CSSProperties = {
@@ -363,7 +363,7 @@ const clearFileBtn: CSSProperties = {
   display: 'inline-flex',
   alignItems: 'center',
   gap: 4,
-  fontSize: 12,
+  fontSize: 13,
   fontWeight: 600,
   color: 'var(--text-muted)',
   background: 'var(--bg)',

@@ -247,7 +247,7 @@ export default function AdminIntake() {
           <div style={{ padding: '0 0 12px' }}>
             <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>접수 상세</div>
             {selected && (
-              <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>{fmtDateTime(selected.created_at)} 접수</div>
+              <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 2 }}>{fmtDateTime(selected.created_at)} 접수</div>
             )}
           </div>
           {selected ? <Detail s={selected} /> : (
@@ -278,9 +278,9 @@ function Detail({ s }: { s: Submission }) {
           <div style={{ display: 'grid', gap: 16 }}>
             {s.pets.map((p, i) => (
               <div key={i}>
-                <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', marginBottom: 8 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 8 }}>
                   {p.name || `반려동물 ${i + 1}`}
-                  <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--text-muted)', marginLeft: 8 }}>
+                  <span style={{ fontSize: 13, fontWeight: 400, color: 'var(--text-muted)', marginLeft: 8 }}>
                     {SPECIES[p.species ?? ''] ?? p.species ?? ''} · {petBreed(p)}
                   </span>
                 </div>

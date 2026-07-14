@@ -42,7 +42,7 @@ export function TopBar({ userName, userEmail }: TopBarProps) {
           alignItems: 'center',
           gap: 8,
           textDecoration: 'none',
-          fontSize: 16,
+          fontSize: 18,
           fontWeight: 800,
           letterSpacing: '-0.01em',
           color: 'var(--text)',
@@ -99,6 +99,7 @@ export function TopBar({ userName, userEmail }: TopBarProps) {
         <button
           onClick={() => setSettingsOpen(true)}
           title="설정"
+          className="adminBtnFree" /* 30x30 아이콘 버튼 — 공통 버튼 높이 규칙 제외 */
           style={{
             display: 'flex',
             alignItems: 'center',
@@ -123,7 +124,7 @@ export function TopBar({ userName, userEmail }: TopBarProps) {
             alignItems: 'center',
             gap: 6,
             padding: '6px 10px',
-            fontSize: 12,
+            fontSize: 13,
             color: 'var(--text-secondary)',
             background: 'transparent',
             border: '1px solid var(--border)',

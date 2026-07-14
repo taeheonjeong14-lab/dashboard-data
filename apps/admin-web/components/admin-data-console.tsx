@@ -391,7 +391,7 @@ export default function AdminDataConsole({ mode = 'all' }: { mode?: AdminDataCon
               </select>
             </label>
           )}
-          <div style={{ gridColumn: '1 / -1', fontSize: 12, opacity: 0.85, lineHeight: 1.4 }}>
+          <div style={{ gridColumn: '1 / -1', fontSize: 13, opacity: 0.85, lineHeight: 1.4 }}>
             <div>
               <strong>차트별 기준 안내</strong>
             </div>
@@ -460,7 +460,7 @@ export default function AdminDataConsole({ mode = 'all' }: { mode?: AdminDataCon
                 dedupe 후 DB raw 예상 행 수: <strong>{String(preview.estimatedDbRowsAfterDedupe)}</strong>
               </div>
             )}
-            <div style={{ marginTop: 6, fontSize: 12, opacity: 0.85 }}>
+            <div style={{ marginTop: 6, fontSize: 13, opacity: 0.85 }}>
               <strong>방문 집계 기준</strong>: {chartHelp[0] || '차트별 안내를 확인하세요.'}
             </div>
             {previewErrors.length > 0 && (
@@ -581,7 +581,7 @@ export default function AdminDataConsole({ mode = 'all' }: { mode?: AdminDataCon
                 readOnly
                 disabled
               />
-              <label style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+              <label style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
                 로고 파일 업로드 (png/jpg/jpeg/webp/svg)
                 <input
                   type="file"
@@ -609,7 +609,7 @@ export default function AdminDataConsole({ mode = 'all' }: { mode?: AdminDataCon
                 readOnly
                 disabled
               />
-              <label style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+              <label style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
                 도장 파일 업로드 (png/jpg/jpeg/webp/svg)
                 <input
                   type="file"

@@ -80,7 +80,7 @@ export default function AdminNaverKeyword() {
     <div style={{ maxWidth: 1200, margin: '0 auto' }}>
       <div style={{ marginBottom: 16 }}>
         <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--text)' }}>네이버 검색량</div>
-        <div style={{ fontSize: 12.5, color: 'var(--text-muted)', marginTop: 3 }}>
+        <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 3 }}>
           키워드의 월간 PC·모바일 검색수를 네이버 검색광고 키워드도구로 조회합니다. 연관 키워드도 함께 나옵니다.
         </div>
       </div>
@@ -119,7 +119,7 @@ export default function AdminNaverKeyword() {
               width: '100%',
               marginTop: 8,
               padding: '11px 20px',
-              fontSize: 13.5,
+              fontSize: 13,
               fontWeight: 700,
               borderRadius: 8,
               cursor: loading || !input.trim() ? 'default' : 'pointer',
@@ -131,7 +131,7 @@ export default function AdminNaverKeyword() {
           >
             {loading ? '조회 중…' : '검색량 조회'}
           </button>
-          <div style={{ fontSize: 11.5, color: 'var(--text-muted)', marginTop: 8 }}>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 8 }}>
             키워드 내부 공백은 자동 제거됩니다. ⌘/Ctrl+Enter 로도 조회.
           </div>
 
@@ -155,7 +155,7 @@ export default function AdminNaverKeyword() {
                   placeholder="결과 내 키워드 필터"
                   style={{ flex: 1, minWidth: 180, padding: '8px 12px', border: '1px solid var(--border-strong)', borderRadius: 8, outline: 'none', font: 'inherit', fontSize: 13, background: '#fff', color: '#111' }}
                 />
-                <span style={{ fontSize: 11.5, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
+                <span style={{ fontSize: 11, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
                   {rows.length} / {data?.count}개 · 조회 계정 {data?.account}
                 </span>
               </div>
@@ -179,7 +179,7 @@ export default function AdminNaverKeyword() {
                         <tr key={r.keyword} style={{ borderBottom: '1px solid var(--border)', background: r.isHint ? 'var(--accent-subtle)' : 'transparent' }}>
                           <td style={{ ...td, textAlign: 'left', fontWeight: r.isHint ? 700 : 500, color: 'var(--text)' }}>
                             {r.keyword}
-                            {r.isHint ? <span style={{ marginLeft: 6, fontSize: 10, fontWeight: 700, color: 'var(--accent)' }}>입력</span> : null}
+                            {r.isHint ? <span style={{ marginLeft: 6, fontSize: 11, fontWeight: 700, color: 'var(--accent)' }}>입력</span> : null}
                           </td>
                           <td style={{ ...td, textAlign: 'right' }}>{fmtCount(r.pcCount, r.pcUnder10)}</td>
                           <td style={{ ...td, textAlign: 'right' }}>{fmtCount(r.mobileCount, r.mobileUnder10)}</td>
@@ -227,8 +227,8 @@ const emptyPanel: React.CSSProperties = {
   border: '1px dashed var(--border)',
   borderRadius: 10,
 };
-const th: React.CSSProperties = { padding: '10px 10px', fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', whiteSpace: 'nowrap' };
+const th: React.CSSProperties = { padding: '10px 10px', fontSize: 13, fontWeight: 700, color: 'var(--text-secondary)', whiteSpace: 'nowrap' };
 const td: React.CSSProperties = { padding: '9px 10px', verticalAlign: 'middle' };
 function banner(bg: string, color: string): React.CSSProperties {
-  return { padding: 12, marginBottom: 12, fontSize: 12.5, background: bg, borderRadius: 8, color };
+  return { padding: 12, marginBottom: 12, fontSize: 13, background: bg, borderRadius: 8, color };
 }

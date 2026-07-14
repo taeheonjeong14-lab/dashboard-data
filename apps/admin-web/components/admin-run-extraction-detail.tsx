@@ -292,7 +292,7 @@ function CaseImageCard({ img, numbers = [], confidence, editMode = false, onDele
               style={{ width: '100%', height: 160, objectFit: 'contain', display: 'block' }}
             />
           ) : (
-            <div style={{ height: 120, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)', fontSize: 12 }}>
+            <div style={{ height: 120, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)', fontSize: 13 }}>
               이미지 없음
             </div>
           )}
@@ -307,7 +307,7 @@ function CaseImageCard({ img, numbers = [], confidence, editMode = false, onDele
                     borderRadius: '50%',
                     background: '#a3ff00',
                     color: '#1a2e05',
-                    fontSize: 12,
+                    fontSize: 13,
                     fontWeight: 800,
                     display: 'flex',
                     alignItems: 'center',
@@ -773,7 +773,7 @@ function SourcePdfMenu({ pdfs }: { pdfs: { name: string; url: string }[] }) {
               style={{
                 display: 'block',
                 padding: '7px 10px',
-                fontSize: 12,
+                fontSize: 13,
                 color: 'var(--text)',
                 textDecoration: 'none',
                 borderRadius: 6,
@@ -909,8 +909,8 @@ function ReExtractButton({ runId, onReloaded }: { runId: string; onReloaded?: ()
           <div style={{ height: '100%', width: `${pct}%`, background: phase === 'done' ? '#16a34a' : '#2563eb', transition: 'width 0.5s ease' }} />
         </div>
       )}
-      {phase === 'done' && <span style={{ fontSize: 12, color: '#16a34a' }}>재추출 완료 — 결과를 갱신했습니다.</span>}
-      {phase === 'error' && <span style={{ fontSize: 12, color: '#dc2626' }}>{errMsg}</span>}
+      {phase === 'done' && <span style={{ fontSize: 13, color: '#16a34a' }}>재추출 완료 — 결과를 갱신했습니다.</span>}
+      {phase === 'error' && <span style={{ fontSize: 13, color: '#dc2626' }}>{errMsg}</span>}
     </div>
   );
 }
@@ -1392,7 +1392,7 @@ export function AdminRunExtractionDetail({
   }
 
   if (loading && !result) {
-    return <p style={{ fontSize: 14, color: 'var(--text-muted)' }}>상세 불러오는 중…</p>;
+    return <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>상세 불러오는 중…</p>;
   }
   if (error || !result) {
     return (
@@ -1402,7 +1402,7 @@ export function AdminRunExtractionDetail({
           border: `1px solid ${divider}`,
           background: 'var(--danger-subtle)',
           color: 'var(--danger)',
-          fontSize: 14,
+          fontSize: 13,
         }}
       >
         {error ?? '데이터가 없습니다.'}
@@ -1444,14 +1444,14 @@ export function AdminRunExtractionDetail({
     <div style={{ paddingBottom: 24 }}>
       {!embedded ? (
         <header style={{ marginBottom: 16, display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center' }}>
-          <h1 style={{ margin: 0, fontSize: 20, fontWeight: 800 }}>추출 결과</h1>
+          <h1 style={{ margin: 0, fontSize: 18, fontWeight: 800 }}>추출 결과</h1>
           {result.run.chartType && (
-            <span style={{ fontSize: 12, color: 'var(--text-muted)', background: 'var(--bg-subtle)', padding: '3px 8px', borderRadius: 4 }}>
+            <span style={{ fontSize: 13, color: 'var(--text-muted)', background: 'var(--bg-subtle)', padding: '3px 8px', borderRadius: 4 }}>
               {result.run.chartType}
             </span>
           )}
-          {result.run.healthStage !== 'none' && <StatusBadge category="health" stage={result.run.healthStage} style={{ fontSize: 12, padding: '3px 8px' }} />}
-          {result.run.blogStage !== 'none' && <StatusBadge category="blog" stage={result.run.blogStage} style={{ fontSize: 12, padding: '3px 8px' }} />}
+          {result.run.healthStage !== 'none' && <StatusBadge category="health" stage={result.run.healthStage} style={{ fontSize: 13, padding: '3px 8px' }} />}
+          {result.run.blogStage !== 'none' && <StatusBadge category="blog" stage={result.run.blogStage} style={{ fontSize: 13, padding: '3px 8px' }} />}
           {sourcePdfs.length > 0 ? (
             <span style={{ marginLeft: 'auto', display: 'inline-flex', gap: 6, alignItems: 'center' }}>
               <SourcePdfMenu pdfs={sourcePdfs} />
@@ -1477,7 +1477,7 @@ export function AdminRunExtractionDetail({
       ) : (
         <div style={{ marginBottom: 14, display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
           {result.basicInfo?.hospitalName && (
-            <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>
+            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>
               {result.basicInfo.hospitalName}
             </span>
           )}
@@ -1487,7 +1487,7 @@ export function AdminRunExtractionDetail({
             </span>
           )}
           {result.basicInfo?.ownerName && (
-            <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+            <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>
               ({result.basicInfo.ownerName})
             </span>
           )}
@@ -1533,7 +1533,7 @@ export function AdminRunExtractionDetail({
       )}
 
       {result.run.extractedAt && (
-        <div style={{ marginTop: -6, marginBottom: 14, fontSize: 12, color: 'var(--text-muted)' }}>
+        <div style={{ marginTop: -6, marginBottom: 14, fontSize: 13, color: 'var(--text-muted)' }}>
           마지막 추출: {formatExtractedAt(result.run.extractedAt)}
         </div>
       )}
@@ -1623,7 +1623,7 @@ export function AdminRunExtractionDetail({
             additionalDocs.map((d, i) => (
               <div key={`${d.path ?? ''}-${i}`} style={{ display: 'grid', gap: 6 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <span style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text)', wordBreak: 'break-all' }}>{d.filename || `파일 ${i + 1}`}</span>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', wordBreak: 'break-all' }}>{d.filename || `파일 ${i + 1}`}</span>
                   {d.path && d.bucket ? (
                     <button
                       type="button"
@@ -1642,14 +1642,14 @@ export function AdminRunExtractionDetail({
                           alert('파일을 열 수 없습니다.');
                         }
                       }}
-                      style={{ flexShrink: 0, padding: '3px 10px', fontSize: 11.5, fontWeight: 600, color: 'var(--accent)', background: 'var(--accent-subtle)', border: '1px solid var(--accent)', borderRadius: 6, cursor: 'pointer' }}
+                      style={{ flexShrink: 0, padding: '3px 10px', fontSize: 11, fontWeight: 600, color: 'var(--accent)', background: 'var(--accent-subtle)', border: '1px solid var(--accent)', borderRadius: 6, cursor: 'pointer' }}
                     >
                       원본 열기
                     </button>
                   ) : null}
                 </div>
                 {d.error ? (
-                  <span style={{ fontSize: 12.5, color: 'var(--danger)' }}>추출 실패: {d.error}</span>
+                  <span style={{ fontSize: 13, color: 'var(--danger)' }}>추출 실패: {d.error}</span>
                 ) : (
                   <>
                     {(d.summary ?? '').trim() ? (
@@ -2014,7 +2014,7 @@ export function AdminRunExtractionDetail({
               </summary>
               <div style={{ marginTop: 4 }}>
               {!g.planRowsFromDb && g.rows.length > 0 ? (
-                <p style={{ fontSize: 12, color: 'var(--warning)', margin: '0 0 6px' }}>DB 행 없음 — plan_text 파싱 미리보기. 저장 시 DB에 반영됩니다.</p>
+                <p style={{ fontSize: 13, color: 'var(--warning)', margin: '0 0 6px' }}>DB 행 없음 — plan_text 파싱 미리보기. 저장 시 DB에 반영됩니다.</p>
               ) : null}
               <table className="adminDetailTable">
                 <thead>
@@ -2566,12 +2566,12 @@ export function AdminRunExtractionDetail({
       >
         <div style={{ background: '#fff', borderRadius: 8 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderBottom: '1px solid rgba(15,23,42,0.1)' }}>
-            <span style={{ fontWeight: 700, fontSize: 15 }}>건강검진 리포트 생성</span>
+            <span style={{ fontWeight: 700, fontSize: 18 }}>건강검진 리포트 생성</span>
             <button type="button" className="adminLegacySmallBtn" onClick={() => setGenModalOpen(false)}>닫기</button>
           </div>
           {genSuccess ? (
             <div style={{ padding: '28px 16px', textAlign: 'center' }}>
-              <p style={{ fontSize: 14, color: 'var(--success)', fontWeight: 600, marginBottom: 12 }}>생성이 완료되었습니다.</p>
+              <p style={{ fontSize: 13, color: 'var(--success)', fontWeight: 600, marginBottom: 12 }}>생성이 완료되었습니다.</p>
               <a href="/admin/health-report" style={{ fontSize: 13, color: 'var(--accent)', textDecoration: 'underline' }}>
                 건강검진 리포트 메뉴에서 확인하기 →
               </a>
@@ -2583,7 +2583,7 @@ export function AdminRunExtractionDetail({
                   <span style={{ fontSize: 13, color: 'var(--warning)' }}>이 차트로 생성된 건강검진 리포트가 이미 있습니다.</span>
                   <a
                     href="/admin/health-report"
-                    style={{ fontSize: 12, fontWeight: 700, color: 'var(--accent)', textDecoration: 'underline', whiteSpace: 'nowrap', flexShrink: 0 }}
+                    style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent)', textDecoration: 'underline', whiteSpace: 'nowrap', flexShrink: 0 }}
                   >
                     리포트 확인하기 →
                   </a>
@@ -2664,15 +2664,15 @@ export function AdminRunExtractionDetail({
       >
         <div style={{ background: '#fff', borderRadius: 8 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderBottom: '1px solid rgba(15,23,42,0.1)' }}>
-            <span style={{ fontWeight: 700, fontSize: 15 }}>이미지 추가 분석</span>
+            <span style={{ fontWeight: 700, fontSize: 18 }}>이미지 추가 분석</span>
             <button type="button" className="adminLegacySmallBtn" onClick={closeImgModal} disabled={imgModalStatus === 'uploading'}>닫기</button>
           </div>
 
           {imgModalStatus === 'done' ? (
             <div style={{ padding: '28px 16px', textAlign: 'center' }}>
-              <p style={{ fontSize: 14, color: 'var(--success)', fontWeight: 600, marginBottom: 8 }}>분석이 완료되었습니다.</p>
+              <p style={{ fontSize: 13, color: 'var(--success)', fontWeight: 600, marginBottom: 8 }}>분석이 완료되었습니다.</p>
               {imgModalError && (
-                <p style={{ fontSize: 12, color: 'var(--warning)', background: 'var(--warning-subtle)', border: '1px solid var(--warning-subtle)', borderRadius: 6, padding: '6px 10px', marginBottom: 12 }}>
+                <p style={{ fontSize: 13, color: 'var(--warning)', background: 'var(--warning-subtle)', border: '1px solid var(--warning-subtle)', borderRadius: 6, padding: '6px 10px', marginBottom: 12 }}>
                   {imgModalError}
                 </p>
               )}
@@ -2686,7 +2686,7 @@ export function AdminRunExtractionDetail({
 
               {/* 날짜 선택 */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)' }}>분석 날짜</label>
+                <label style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>분석 날짜</label>
                 {imgModalDates.length > 0 && (
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                     {imgModalDates.map((d) => (
@@ -2764,7 +2764,7 @@ export function AdminRunExtractionDetail({
                       <button
                         type="button"
                         onClick={(e) => { e.stopPropagation(); setImgModalFiles((prev) => prev.filter((_, ii) => ii !== i)); }}
-                        style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 0, fontSize: 14, lineHeight: 1 }}
+                        style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 0, fontSize: 13, lineHeight: 1 }}
                         disabled={imgModalStatus === 'uploading'}
                       >×</button>
                     </div>

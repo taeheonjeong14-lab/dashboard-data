@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { Filter } from 'lucide-react';
+import { RailFilterChips, RailFilterIconMenu, RailFilterMenu, RailFilterOptions } from '@/components/rail-filter-menu';
 import { useChartExtraction } from '@/components/chart-extraction-provider';
 import { AdminRunExtractionDetail } from '@/components/admin-run-extraction-detail';
 import AdminDataUpload from '@/components/admin-data-upload';
@@ -66,25 +66,9 @@ export default function AdminChartData() {
   const [filterStages, setFilterStages] = useState<string[]>(initStage); // 요청 / 작성중 / 완료 (다중)
   const toggleIn = (arr: string[], set: (v: string[]) => void, v: string) =>
     set(arr.includes(v) ? arr.filter((x) => x !== v) : [...arr, v]);
-  const [filtersOpen, setFiltersOpen] = useState(false);
-  // 패널 안에서는 draft 로 고르고, '적용' 눌러야 실제 필터에 반영(목록 갱신).
-  const [draftHospital, setDraftHospital] = useState('');
-  const [draftMonth, setDraftMonth] = useState('');
-  const [draftTypes, setDraftTypes] = useState<string[]>([]);
-  const [draftStages, setDraftStages] = useState<string[]>([]);
+  // 필터는 레일 띠의 개별 드롭다운에서 고르면 즉시 반영된다(draft/적용 없음).
   const activeFilterCount =
     (filterHospital ? 1 : 0) + (filterMonth ? 1 : 0) + filterTypes.length + filterStages.length;
-  const openFilters = () => {
-    setDraftHospital(filterHospital); setDraftMonth(filterMonth);
-    setDraftTypes(filterTypes); setDraftStages(filterStages);
-    setFiltersOpen(true);
-  };
-  const applyFilters = () => {
-    setFilterHospital(draftHospital); setFilterMonth(draftMonth);
-    setFilterTypes(draftTypes); setFilterStages(draftStages);
-    setFiltersOpen(false);
-  };
-  const clearDraft = () => { setDraftHospital(''); setDraftMonth(''); setDraftTypes([]); setDraftStages([]); };
   const [serverMeta, setServerMeta] = useState<{ totalParseRuns: number; limit: number } | null>(null);
   const [selectedId, setSelectedId] = useState('');
 
@@ -305,85 +289,61 @@ export default function AdminChartData() {
             }}
             disabled={historyLoading}
           />
-          {!historyLoading && history.length > 0 && (
-            <span style={{ fontSize: 11.5, color: 'var(--text-muted)', flexShrink: 0 }}>
-              {search.trim() || filterHospital || filterMonth || filterTypes.length || filterStages.length
-                ? `${filteredHistory.length} / ${history.length}`
-                : history.length}건
-            </span>
-          )}
-          {!historyLoading && history.length > 0 && (
-            <button
-              type="button"
-              onClick={() => (filtersOpen ? setFiltersOpen(false) : openFilters())}
-              aria-label="필터"
-              title="필터"
-              style={{
-                position: 'relative', flexShrink: 0, border: 0, background: 'transparent', cursor: 'pointer',
-                padding: '2px 4px', display: 'inline-flex', alignItems: 'center',
-                color: activeFilterCount > 0 || filtersOpen ? 'var(--accent)' : 'var(--text-muted)',
-              }}
-            >
-              <Filter size={16} fill={activeFilterCount > 0 ? 'currentColor' : 'none'} />
-              {activeFilterCount > 0 && (
-                <span style={{ position: 'absolute', top: -3, right: -3, minWidth: 14, height: 14, padding: '0 3px', borderRadius: 999, background: 'var(--accent)', color: '#fff', fontSize: 9, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1 }}>
-                  {activeFilterCount}
-                </span>
-              )}
-            </button>
-          )}
         </div>
-        {!historyLoading && history.length > 0 && filtersOpen && (
-          <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 20, padding: '4px 10px 8px' }}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: 10, border: '1px solid var(--border)', borderRadius: 8, background: 'var(--bg)', boxShadow: '0 8px 24px rgba(0,0,0,0.16)' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)' }}>필터</span>
-                <button type="button" onClick={clearDraft} style={{ border: 0, background: 'transparent', fontSize: 11.5, color: 'var(--text-muted)', cursor: 'pointer', padding: '2px 4px' }}>
-                  초기화
-                </button>
-              </div>
-              <select className="adminRailFilterSelect" value={draftHospital} onChange={(e) => setDraftHospital(e.target.value)} aria-label="병원 필터" style={{ width: '100%' }}>
-                <option value="">병원 전체</option>
-                {hospitalOptions.map((h) => (<option key={h} value={h}>{h}</option>))}
-              </select>
-              <select className="adminRailFilterSelect" value={draftMonth} onChange={(e) => setDraftMonth(e.target.value)} aria-label="추출 날짜 필터" style={{ width: '100%' }}>
-                <option value="">추출월 전체</option>
-                {monthOptions.map((m) => (<option key={m} value={m}>{`${m.slice(2, 4)}년 ${String(Number(m.slice(5, 7)))}월`}</option>))}
-              </select>
-              <div>
-                <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 5 }}>종류</div>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                  {TYPE_FILTERS.map((t) => (
-                    <button key={t} type="button" onClick={() => toggleIn(draftTypes, setDraftTypes, t)} style={chipStyle(draftTypes.includes(t))}>{t}</button>
-                  ))}
-                </div>
-              </div>
-              <div>
-                <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 5 }}>진행 단계</div>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                  {STAGE_FILTERS.map((s) => (
-                    <button key={s} type="button" onClick={() => toggleIn(draftStages, setDraftStages, s)} style={chipStyle(draftStages.includes(s))}>{s}</button>
-                  ))}
-                </div>
-              </div>
+
+        {/* 검색창 아래 액션 띠 — 필터별 아이콘, 각자 드롭다운(고르면 즉시 반영) */}
+        {!historyLoading && history.length > 0 && (
+          <div className="adminRailActionBar">
+            {activeFilterCount > 0 ? (
               <button
                 type="button"
-                onClick={applyFilters}
-                style={{ marginTop: 2, padding: '8px 0', width: '100%', border: 'none', borderRadius: 8, background: 'var(--accent)', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
+                className="adminBtnFree"
+                onClick={() => { setFilterHospital(''); setFilterMonth(''); setFilterTypes([]); setFilterStages([]); }}
+                title="필터 초기화"
+                style={{ marginRight: 'auto', padding: '3px 6px', border: 0, background: 'transparent', color: 'var(--text-muted)', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}
               >
-                적용
+                초기화
               </button>
-            </div>
+            ) : null}
+            <RailFilterMenu label="병원 선택" active={!!filterHospital} selectedText={filterHospital || undefined}>
+              <RailFilterOptions value={filterHospital} options={hospitalOptions} allLabel="병원 전체" onChange={setFilterHospital} />
+            </RailFilterMenu>
+            <RailFilterMenu
+              label="추출월"
+              active={!!filterMonth}
+              selectedText={filterMonth ? `${filterMonth.slice(2, 4)}년 ${String(Number(filterMonth.slice(5, 7)))}월` : undefined}
+            >
+              <RailFilterOptions
+                value={filterMonth}
+                options={monthOptions}
+                allLabel="추출월 전체"
+                onChange={setFilterMonth}
+                format={(m) => `${m.slice(2, 4)}년 ${String(Number(m.slice(5, 7)))}월`}
+              />
+            </RailFilterMenu>
+            {/* 종류·진행 단계는 필터 아이콘 하나 안에 */}
+            <RailFilterIconMenu label="필터" active={filterTypes.length + filterStages.length > 0} count={filterTypes.length + filterStages.length}>
+              <div style={{ display: 'grid', gap: 10 }}>
+                <div>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 5 }}>종류</div>
+                  <RailFilterChips values={filterTypes} options={TYPE_FILTERS} onToggle={(v) => toggleIn(filterTypes, setFilterTypes, v)} />
+                </div>
+                <div>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 5 }}>진행 단계</div>
+                  <RailFilterChips values={filterStages} options={STAGE_FILTERS} onToggle={(v) => toggleIn(filterStages, setFilterStages, v)} />
+                </div>
+              </div>
+            </RailFilterIconMenu>
           </div>
         )}
         </div>
         <div style={{ maxHeight: 'min(66vh, calc(100vh - 260px))', overflow: 'auto' }}>
           {historyLoading ? (
-            <p style={{ margin: '10px 10px', fontSize: 12, color: 'var(--text-muted)' }}>불러오는 중…</p>
+            <p style={{ margin: '10px 10px', fontSize: 13, color: 'var(--text-muted)' }}>불러오는 중…</p>
           ) : listError ? (
-            <p style={{ margin: '10px 10px', fontSize: 12, color: 'var(--danger)' }}>{listError}</p>
+            <p style={{ margin: '10px 10px', fontSize: 13, color: 'var(--danger)' }}>{listError}</p>
           ) : filteredHistory.length === 0 ? (
-            <p style={{ margin: '10px 10px', fontSize: 12, color: 'var(--text-muted)' }}>
+            <p style={{ margin: '10px 10px', fontSize: 13, color: 'var(--text-muted)' }}>
               {history.length === 0 ? '이력 없음' : '검색 결과 없음'}
             </p>
           ) : (
@@ -428,21 +388,21 @@ export default function AdminChartData() {
       <div className="adminLayoutMainPane">
         <div className="adminLayoutMainColumnInset">
           {listError && !historyLoading ? (
-            <p style={{ margin: '0 0 12px', fontSize: 14, color: 'var(--danger)' }}>{listError}</p>
+            <p style={{ margin: '0 0 12px', fontSize: 13, color: 'var(--danger)' }}>{listError}</p>
           ) : null}
           {deleteError ? (
-            <p style={{ margin: '0 0 12px', fontSize: 14, color: 'var(--danger)' }}>{deleteError}</p>
+            <p style={{ margin: '0 0 12px', fontSize: 13, color: 'var(--danger)' }}>{deleteError}</p>
           ) : null}
 
           {historyLoading ? (
-            <p style={{ fontSize: 14, color: 'var(--text-muted)' }}>이력 불러오는 중…</p>
+            <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>이력 불러오는 중…</p>
           ) : history.length === 0 ? (
             <div
               style={{
                 padding: 18,
                 border: `1px solid ${divider}`,
                 background: 'var(--bg-subtle)',
-                fontSize: 14,
+                fontSize: 13,
                 color: 'var(--text-secondary)',
                 lineHeight: 1.55,
               }}
@@ -452,13 +412,13 @@ export default function AdminChartData() {
               ) : null}
               {serverMeta ? (
                 <p style={{ margin: '0 0 10px', fontSize: 13, color: 'var(--text-muted)' }}>
-                  서버가 조회한 DB 기준: <code style={{ fontSize: 12 }}>chart_pdf.parse_runs</code> 전체{' '}
+                  서버가 조회한 DB 기준: <code style={{ fontSize: 13 }}>chart_pdf.parse_runs</code> 전체{' '}
                   <strong>{serverMeta.totalParseRuns}</strong>건 · 이번 응답 목록 최대 <strong>{serverMeta.limit}</strong>
                   건
                 </p>
               ) : null}
               저장된 이력이 없습니다. Supabase 프로젝트에 데이터가 있는지,{' '}
-              <code style={{ fontSize: 12 }}>NEXT_PUBLIC_SUPABASE_URL</code>·서비스 롤 키가 맞는지 확인해 주세요.{' '}
+              <code style={{ fontSize: 13 }}>NEXT_PUBLIC_SUPABASE_URL</code>·서비스 롤 키가 맞는지 확인해 주세요.{' '}
               <button
                 type="button"
                 onClick={() => setUploadModalOpen(true)}
@@ -478,7 +438,7 @@ export default function AdminChartData() {
               에서 PDF를 올려 보세요.
             </div>
           ) : filteredHistory.length === 0 ? (
-            <p style={{ fontSize: 14, color: 'var(--text-muted)' }}>검색 조건에 맞는 이력이 없습니다. 왼쪽 검색어를 바꿔 보세요.</p>
+            <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>검색 조건에 맞는 이력이 없습니다. 왼쪽 검색어를 바꿔 보세요.</p>
           ) : selected ? (
             <div style={{ maxHeight: 'calc(100vh - 140px)', overflowY: 'auto', minHeight: 0 }}>
               <AdminRunExtractionDetail
@@ -490,7 +450,7 @@ export default function AdminChartData() {
               />
             </div>
           ) : (
-            <p style={{ fontSize: 14, color: 'var(--text-muted)' }}>왼쪽에서 항목을 선택해 주세요.</p>
+            <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>왼쪽에서 항목을 선택해 주세요.</p>
           )}
         </div>
       </div>
@@ -514,7 +474,7 @@ export default function AdminChartData() {
       >
         <div style={{ display: 'flex', flexDirection: 'column', maxHeight: '88vh', background: '#fff' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderBottom: `1px solid ${divider}`, flexShrink: 0 }}>
-            <span style={{ fontWeight: 700, fontSize: 15 }}>차트 데이터 수집</span>
+            <span style={{ fontWeight: 700, fontSize: 18 }}>차트 데이터 수집</span>
             <button type="button" className="adminLegacySmallBtn" onClick={() => setUploadModalOpen(false)}>닫기</button>
           </div>
           <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>

@@ -184,7 +184,7 @@ export default function SummaryDualWeekCompareChart({
               content={renderTooltip}
             />
             <Legend
-              wrapperStyle={{ fontSize: "12px", paddingTop: "8px" }}
+              wrapperStyle={{ fontSize: "13px", paddingTop: "8px" }}
               formatter={(value) => (
                 <span style={{ color: "#475569" }}>{value}</span>
               )}

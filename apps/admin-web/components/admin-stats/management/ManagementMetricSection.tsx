@@ -322,7 +322,7 @@ export default function ManagementMetricSection({
                     }}
                   />
                   <Legend
-                    wrapperStyle={{ fontSize: "12px", paddingTop: "8px" }}
+                    wrapperStyle={{ fontSize: "13px", paddingTop: "8px" }}
                     formatter={(value) => <span style={{ color: "#475569" }}>{value}</span>}
                   />
                   <Line
@@ -405,7 +405,7 @@ export default function ManagementMetricSection({
                       }}
                     />
                     <Legend
-                      wrapperStyle={{ fontSize: "12px", paddingTop: "8px" }}
+                      wrapperStyle={{ fontSize: "13px", paddingTop: "8px" }}
                       formatter={(value) => <span style={{ color: "#475569" }}>{value}</span>}
                     />
                     <Bar
@@ -479,7 +479,7 @@ export default function ManagementMetricSection({
                       }}
                     />
                     <Legend
-                      wrapperStyle={{ fontSize: "12px", paddingTop: "8px" }}
+                      wrapperStyle={{ fontSize: "13px", paddingTop: "8px" }}
                       formatter={(value) => <span style={{ color: "#475569" }}>{value}</span>}
                     />
                     <Bar

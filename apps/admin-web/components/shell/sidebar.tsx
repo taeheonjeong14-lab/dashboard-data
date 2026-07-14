@@ -74,11 +74,10 @@ const NAV_GROUPS: NavGroup[] = [
   {
     title: '관리',
     items: [
-      { href: '/admin/registrations', label: '병원 심사', icon: ClipboardCheck, matchPrefix: '/admin/registrations' },
+      // 병원 심사·병원 정보·토큰을 하나로 합친 콘솔(/admin/hospitals).
+      { href: '/admin/hospitals', label: '병원 관리', icon: Building2, matchPrefix: '/admin/hospitals' },
       { href: '/admin/users/users', label: '사용자 관리', icon: Users, matchPrefix: '/admin/users/users' },
-      { href: '/admin/users/hospitals', label: '병원 관리', icon: Building2, matchPrefix: '/admin/users/hospitals' },
       { href: '/admin/feature-usage', label: '사용 현황', icon: Activity, matchPrefix: '/admin/feature-usage' },
-      { href: '/admin/usage', label: '토큰 관리', icon: Gauge, matchPrefix: '/admin/usage' },
       { href: '/admin/error-logs', label: '에러 로그', icon: AlertTriangle, matchPrefix: '/admin/error-logs' },
     ],
   },
@@ -173,7 +172,7 @@ const styles: Record<string, React.CSSProperties> = {
     gap: '10px',
     padding: '10px 12px',
     borderRadius: 'var(--radius)',
-    fontSize: '13.5px',
+    fontSize: '13px',
     fontWeight: 500,
     textDecoration: 'none',
     color: 'var(--text-secondary)',

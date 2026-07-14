@@ -241,7 +241,7 @@ export default function AdminPreConsultation() {
           <div style={{ padding: '0 0 12px' }}>
             <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>문진 상세</div>
             {selectedSession && (
-              <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>{fmtDateTime(selectedSession.createdAt)} 발송</div>
+              <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 2 }}>{fmtDateTime(selectedSession.createdAt)} 발송</div>
             )}
           </div>
           {detailLoading && !detail ? (

@@ -135,9 +135,9 @@ export default function AdminPerformanceHospitalLayout({ children }: { children:
           </div>
           <div style={{ maxHeight: 'min(66vh, calc(100vh - 220px))', overflow: 'auto' }}>
             {listError ? (
-              <p style={{ margin: '10px 10px', fontSize: 12, color: 'var(--danger)' }}>{listError}</p>
+              <p style={{ margin: '10px 10px', fontSize: 13, color: 'var(--danger)' }}>{listError}</p>
             ) : filteredHospitals.length === 0 ? (
-              <p style={{ margin: '10px 10px', fontSize: 12, color: 'var(--text-muted)' }}>
+              <p style={{ margin: '10px 10px', fontSize: 13, color: 'var(--text-muted)' }}>
                 {hospitals.length === 0 ? '등록된 병원이 없습니다.' : '검색 결과 없음'}
               </p>
             ) : (
@@ -195,9 +195,9 @@ export default function AdminPerformanceHospitalLayout({ children }: { children:
           </div>
           <div style={{ maxHeight: 'min(66vh, calc(100vh - 220px))', overflow: 'auto' }}>
             {listError ? (
-              <p style={{ margin: '10px 10px', fontSize: 12, color: 'var(--danger)' }}>{listError}</p>
+              <p style={{ margin: '10px 10px', fontSize: 13, color: 'var(--danger)' }}>{listError}</p>
             ) : filteredHospitals.length === 0 ? (
-              <p style={{ margin: '10px 10px', fontSize: 12, color: 'var(--text-muted)' }}>
+              <p style={{ margin: '10px 10px', fontSize: 13, color: 'var(--text-muted)' }}>
                 {hospitals.length === 0 ? '등록된 병원이 없습니다.' : '검색 결과 없음'}
               </p>
             ) : (

@@ -93,9 +93,18 @@ const num = (v: number) => Math.round(v).toLocaleString();
 const shortAddress = (addr: string | null) =>
   (addr ?? '').trim().split(/\s+/).filter(Boolean).slice(0, 2).join(' ');
 
-export default function AdminUsageDashboard() {
+/**
+ * embedded: 병원 관리 콘솔의 '토큰' 탭에서 쓰는 모드.
+ *  좌측 병원 목록은 콘솔이 소유하므로 여기선 그리지 않고, 선택 병원은 prop 으로 받는다.
+ */
+export default function AdminUsageDashboard({
+  hospitalId = null,
+  embedded = false,
+}: { hospitalId?: string | null; embedded?: boolean } = {}) {
   const [days, setDays] = useState(30);
-  const [selected, setSelected] = useState<string | null>(null);
+  const [selected, setSelected] = useState<string | null>(hospitalId);
+
+  // 콘솔이 병원을 바꾸면 따라간다.
   const [data, setData] = useState<UsageResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -112,8 +121,8 @@ export default function AdminUsageDashboard() {
       const json = (await res.json()) as UsageResponse;
       if (!res.ok) throw new Error(json.error || '불러오기 실패');
       setData(json);
-      // 선택이 없으면 비용 1위 병원 자동 선택
-      if (!hospitalId && json.hospitals.length > 0) {
+      // 선택이 없으면 비용 1위 병원 자동 선택(임베드 모드는 콘솔이 선택을 소유하므로 하지 않는다).
+      if (!embedded && !hospitalId && json.hospitals.length > 0) {
         setSelected(json.hospitals[0].hospitalId);
       }
     } catch (e) {
@@ -121,7 +130,12 @@ export default function AdminUsageDashboard() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [embedded]);
+
+  // 콘솔(임베드)이 병원을 바꾸면 선택을 따라간다.
+  useEffect(() => {
+    if (embedded) setSelected(hospitalId);
+  }, [embedded, hospitalId]);
 
   useEffect(() => {
     void load(days, selected);
@@ -301,8 +315,9 @@ export default function AdminUsageDashboard() {
   }, [data]);
 
   return (
-    <div className="adminLayout2WithMain">
-      {/* 좌측 레일: 병원 목록 (full-bleed, 라인 구분) */}
+    <div className={embedded ? undefined : 'adminLayout2WithMain'}>
+      {/* 좌측 레일: 병원 목록 (full-bleed, 라인 구분). 임베드(병원 관리 콘솔)에선 콘솔이 목록을 소유한다. */}
+      {embedded ? null : (
       <aside className="adminLayoutSecondaryRail" aria-label="병원 목록">
         <div className="adminRailToolbar">
           <input
@@ -315,7 +330,7 @@ export default function AdminUsageDashboard() {
             disabled={loading}
           />
           {(data?.hospitals.length ?? 0) > 0 ? (
-            <span style={{ flexShrink: 0, fontSize: 11.5, color: 'var(--text-muted)' }}>
+            <span style={{ flexShrink: 0, fontSize: 11, color: 'var(--text-muted)' }}>
               {hospitalQuery.trim() ? `${hospitalsFiltered.length} / ${data?.hospitals.length}` : `${data?.hospitals.length}`}곳
             </span>
           ) : null}
@@ -339,11 +354,11 @@ export default function AdminUsageDashboard() {
                     {h.hospitalName}
                   </span>
                   {h.hospitalId && (pendingByHospital.get(h.hospitalId) ?? 0) > 0 ? (
-                    <span style={{ flexShrink: 0, fontSize: 10, fontWeight: 800, color: '#b45309', background: '#fef3c7', padding: '1px 6px', borderRadius: 999 }}>
+                    <span style={{ flexShrink: 0, fontSize: 11, fontWeight: 800, color: '#b45309', background: '#fef3c7', padding: '1px 6px', borderRadius: 999 }}>
                       입금대기 {pendingByHospital.get(h.hospitalId)}
                     </span>
                   ) : null}
-                  <span style={{ flexShrink: 0, fontSize: 11.5, fontWeight: 700, color: h.tokenBalance <= 0 ? 'var(--danger)' : 'var(--text-secondary)' }}>
+                  <span style={{ flexShrink: 0, fontSize: 11, fontWeight: 700, color: h.tokenBalance <= 0 ? 'var(--danger)' : 'var(--text-secondary)' }}>
                     {num(h.tokenBalance)}
                   </span>
                 </div>
@@ -362,21 +377,22 @@ export default function AdminUsageDashboard() {
           ) : null}
         </div>
       </aside>
+      )}
 
       {/* 우측 메인: 선택 병원 사용 내역 */}
-      <div className="adminLayoutMainPane">
-        <div className="adminLayoutMainColumnInset">
+      <div className={embedded ? undefined : 'adminLayoutMainPane'}>
+        <div className={embedded ? undefined : 'adminLayoutMainColumnInset'}>
           {/* 헤더 + 기간 선택 */}
           <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10, marginBottom: 12 }}>
             <div style={{ minWidth: 0 }}>
-              <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--text)' }}>{selectedHospital?.hospitalName ?? '사용량'}</div>
+              <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--text)' }}>{selectedHospital?.hospitalName ?? '사용량'}</div>
               {selectedHospital ? (
-                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 3 }}>
+                <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 3 }}>
                   잔액 <b style={{ color: selectedHospital.tokenBalance <= 0 ? 'var(--danger)' : 'var(--text)' }}>{num(selectedHospital.tokenBalance)}</b> 토큰
                   {' · '}최근 {days}일 {usd(selectedHospital.costUsd)} (≈{krw(selectedHospital.costUsd)})
                 </div>
               ) : (
-                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 3 }}>
+                <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 3 }}>
                   병원을 고르면 작업(건)별 토큰 사용 내역을 봅니다. 각 건을 누르면 세부 항목이 펼쳐집니다.
                 </div>
               )}
@@ -389,7 +405,7 @@ export default function AdminUsageDashboard() {
                   onClick={() => setDays(d)}
                   style={{
                     padding: '6px 12px',
-                    fontSize: 12.5,
+                    fontSize: 13,
                     fontWeight: 700,
                     borderRadius: 8,
                     cursor: 'pointer',
@@ -405,7 +421,7 @@ export default function AdminUsageDashboard() {
                 <button
                   type="button"
                   onClick={() => void grant(selectedHospital.hospitalId as string, selectedHospital.hospitalName, selectedHospital.tokenBalance)}
-                  style={{ padding: '6px 14px', fontSize: 12.5, fontWeight: 700, borderRadius: 8, cursor: 'pointer', border: '1px solid var(--accent)', background: 'var(--accent)', color: '#fff' }}
+                  style={{ padding: '6px 14px', fontSize: 13, fontWeight: 700, borderRadius: 8, cursor: 'pointer', border: '1px solid var(--accent)', background: 'var(--accent)', color: '#fff' }}
                 >
                   토큰 지급
                 </button>
@@ -446,7 +462,7 @@ export default function AdminUsageDashboard() {
                         </div>
                       </div>
                       <button type="button" onClick={() => void confirmOrder(o)} disabled={confirmingId === o.id}
-                        style={{ flexShrink: 0, padding: '7px 13px', fontSize: 12.5, fontWeight: 700, color: '#fff', background: confirmingId === o.id ? 'var(--text-muted)' : 'var(--accent)', border: 'none', borderRadius: 8, cursor: confirmingId === o.id ? 'default' : 'pointer' }}>
+                        style={{ flexShrink: 0, padding: '7px 13px', fontSize: 13, fontWeight: 700, color: '#fff', background: confirmingId === o.id ? 'var(--text-muted)' : 'var(--accent)', border: 'none', borderRadius: 8, cursor: confirmingId === o.id ? 'default' : 'pointer' }}>
                         {confirmingId === o.id ? '처리 중…' : '입금 확인'}
                       </button>
                     </div>
@@ -496,14 +512,14 @@ export default function AdminUsageDashboard() {
                           if (items.length === 0 && refund === 0) {
                             return (
                               <div style={{ padding: '4px 2px 10px 24px', background: 'var(--bg-subtle, #f8fafc)' }}>
-                                <div style={{ fontSize: 12, color: 'var(--text-muted)', padding: '4px 0' }}>세부 항목이 없습니다.</div>
+                                <div style={{ fontSize: 13, color: 'var(--text-muted)', padding: '4px 0' }}>세부 항목이 없습니다.</div>
                               </div>
                             );
                           }
                           return (
                             <div style={{ padding: '4px 2px 10px 24px', background: 'var(--bg-subtle, #f8fafc)' }}>
                               {items.map((it, ii) => (
-                                <div key={ii} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '4px 0', fontSize: 12.5, borderTop: ii ? '1px dashed var(--border)' : 'none' }}>
+                                <div key={ii} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '4px 0', fontSize: 13, borderTop: ii ? '1px dashed var(--border)' : 'none' }}>
                                   <div style={{ color: 'var(--text-secondary)' }}>
                                     {itemLabel(it.feature)}
                                     <span style={{ color: 'var(--text-muted)' }}>
@@ -516,13 +532,13 @@ export default function AdminUsageDashboard() {
                                 </div>
                               ))}
                               {refund !== 0 ? (
-                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '4px 0', fontSize: 12.5, borderTop: items.length ? '1px dashed var(--border)' : 'none' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '4px 0', fontSize: 13, borderTop: items.length ? '1px dashed var(--border)' : 'none' }}>
                                   <div style={{ color: 'var(--success)' }}>바른플랜 환불 <span style={{ color: 'var(--text-muted)' }}>(조정)</span></div>
                                   <div style={{ whiteSpace: 'nowrap', color: 'var(--success)' }}>+{fmtTok(refund)} 토큰</div>
                                 </div>
                               ) : null}
                               {refund !== 0 ? (
-                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '6px 0 2px', fontSize: 12.5, fontWeight: 700, borderTop: '1px solid var(--border)' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '6px 0 2px', fontSize: 13, fontWeight: 700, borderTop: '1px solid var(--border)' }}>
                                   <div style={{ color: 'var(--text)' }}>합계 (net)</div>
                                   <div style={{ whiteSpace: 'nowrap', color: isZeroCharge(g.kind, g.tokens) ? 'var(--danger)' : (g.tokens < 0 ? 'var(--danger)' : 'var(--text)') }}>{fmtGroupTokens(g.kind, g.tokens)} 토큰</div>
                                 </div>
@@ -532,7 +548,7 @@ export default function AdminUsageDashboard() {
                         })() : (
                           <div style={{ padding: '4px 2px 10px 24px', background: 'var(--bg-subtle, #f8fafc)' }}>
                             {featRows.slice().sort((a, b) => (a.kind === 'charge' ? 0 : 1) - (b.kind === 'charge' ? 0 : 1)).map((r, ii) => (
-                              <div key={ii} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '4px 0', fontSize: 12.5, borderTop: ii ? '1px dashed var(--border)' : 'none' }}>
+                              <div key={ii} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '4px 0', fontSize: 13, borderTop: ii ? '1px dashed var(--border)' : 'none' }}>
                                 <div style={{ color: r.kind === 'adjust' ? 'var(--success)' : 'var(--text-secondary)' }}>
                                   {r.kind === 'adjust' ? (r.note || '환불') : (r.note || '차감')}
                                   {r.kind === 'adjust' ? <span style={{ color: 'var(--text-muted)' }}> (조정)</span> : null}
@@ -542,7 +558,7 @@ export default function AdminUsageDashboard() {
                                 </div>
                               </div>
                             ))}
-                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '6px 0 2px', fontSize: 12.5, fontWeight: 700, borderTop: '1px solid var(--border)' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '6px 0 2px', fontSize: 13, fontWeight: 700, borderTop: '1px solid var(--border)' }}>
                               <div style={{ color: 'var(--text)' }}>합계 (net)</div>
                               <div style={{ whiteSpace: 'nowrap', color: isZeroCharge(g.kind, g.tokens) ? 'var(--danger)' : (g.tokens < 0 ? 'var(--danger)' : 'var(--text)') }}>{fmtGroupTokens(g.kind, g.tokens)} 토큰</div>
                             </div>
@@ -562,5 +578,5 @@ export default function AdminUsageDashboard() {
 }
 
 function banner(bg: string, color: string): React.CSSProperties {
-  return { padding: 12, marginBottom: 12, fontSize: 12.5, background: bg, borderRadius: 8, color };
+  return { padding: 12, marginBottom: 12, fontSize: 13, background: bg, borderRadius: 8, color };
 }

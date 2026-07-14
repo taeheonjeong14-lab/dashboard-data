@@ -30,7 +30,7 @@ export function PageHeader({
       }}
     >
       <div>
-        <h1 style={{ margin: 0, fontSize: 20, fontWeight: 700, letterSpacing: '-0.01em', color: 'var(--text)' }}>
+        <h1 style={{ margin: 0, fontSize: 18, fontWeight: 700, letterSpacing: '-0.01em', color: 'var(--text)' }}>
           {title}
         </h1>
         {description ? (
@@ -132,7 +132,7 @@ export function Empty({ title, text }: { title?: string; text: string }) {
       {title ? (
         <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', marginBottom: 4 }}>{title}</div>
       ) : null}
-      <div style={{ fontSize: 12.5, color: 'var(--text-muted)' }}>{text}</div>
+      <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>{text}</div>
     </div>
   );
 }
@@ -197,11 +197,11 @@ export function Modal({
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-          <h2 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: 'var(--text)' }}>{title}</h2>
+          <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: 'var(--text)' }}>{title}</h2>
           <button
             type="button"
             onClick={onClose}
-            style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 20, color: 'var(--text-muted)', lineHeight: 1 }}
+            style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 18, color: 'var(--text-muted)', lineHeight: 1 }}
           >
             ×
           </button>

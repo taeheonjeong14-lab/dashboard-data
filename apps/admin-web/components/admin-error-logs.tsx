@@ -40,7 +40,7 @@ const codeBoxStyle: React.CSSProperties = {
   color: '#e2e8f0',
   padding: 12,
   borderRadius: 6,
-  fontSize: 12,
+  fontSize: 13,
   fontFamily: 'ui-monospace, monospace',
   overflowX: 'auto',
   whiteSpace: 'pre-wrap',
@@ -90,7 +90,7 @@ export default function AdminErrorLogs() {
 
   return (
     <div style={{ padding: 24, maxWidth: 1200 }}>
-      <h1 style={{ fontSize: 22, fontWeight: 700, marginBottom: 4 }}>에러 로그</h1>
+      <h1 style={{ fontSize: 18, fontWeight: 700, marginBottom: 4 }}>에러 로그</h1>
       <p style={{ color: '#6b7280', fontSize: 13, marginBottom: 20 }}>
         hospital-web 에서 발생한 서버·브라우저 오류. 요청 본문은 민감정보 마스킹 후 저장됩니다.
       </p>
@@ -198,22 +198,22 @@ export default function AdminErrorLogs() {
                   {log.source === 'client' ? '브라우저' : '서버'}
                 </span>
                 {log.status_code ? (
-                  <span style={{ fontSize: 12, color: '#6b7280', fontFamily: 'ui-monospace, monospace' }}>
+                  <span style={{ fontSize: 13, color: '#6b7280', fontFamily: 'ui-monospace, monospace' }}>
                     {log.method} {log.status_code}
                   </span>
                 ) : null}
                 <span style={{ display: 'flex', flexDirection: 'column', gap: 2, flex: '1 1 320px', minWidth: 0 }}>
                   <span style={{ fontSize: 13, fontWeight: 600 }}>{log.message}</span>
-                  <span style={{ fontSize: 12, color: '#4b5563', fontWeight: 400 }}>{explainError(log)}</span>
+                  <span style={{ fontSize: 13, color: '#4b5563', fontWeight: 400 }}>{explainError(log)}</span>
                 </span>
-                <span style={{ fontSize: 12, color: '#6b7280' }}>{log.feature ?? log.route ?? '-'}</span>
-                <span style={{ fontSize: 12, color: '#9ca3af' }}>{log.hospital_name ?? '병원 미상'}</span>
-                <span style={{ fontSize: 12, color: '#9ca3af' }}>{formatTime(log.occurred_at)}</span>
+                <span style={{ fontSize: 13, color: '#6b7280' }}>{log.feature ?? log.route ?? '-'}</span>
+                <span style={{ fontSize: 13, color: '#9ca3af' }}>{log.hospital_name ?? '병원 미상'}</span>
+                <span style={{ fontSize: 13, color: '#9ca3af' }}>{formatTime(log.occurred_at)}</span>
               </button>
 
               {open ? (
                 <div style={{ padding: '0 14px 14px', borderTop: '1px solid #f3f4f6' }}>
-                  <dl style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '4px 16px', fontSize: 12, margin: '12px 0' }}>
+                  <dl style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '4px 16px', fontSize: 13, margin: '12px 0' }}>
                     <dt style={{ color: '#6b7280' }}>경로</dt>
                     <dd style={{ fontFamily: 'ui-monospace, monospace', margin: 0 }}>{log.route ?? '-'}</dd>
                     <dt style={{ color: '#6b7280' }}>지문</dt>
@@ -226,21 +226,21 @@ export default function AdminErrorLogs() {
 
                   {log.stack ? (
                     <>
-                      <strong style={{ fontSize: 12 }}>스택</strong>
+                      <strong style={{ fontSize: 13 }}>스택</strong>
                       <pre style={codeBoxStyle}>{log.stack}</pre>
                     </>
                   ) : null}
 
                   {log.request_body ? (
                     <>
-                      <strong style={{ fontSize: 12 }}>요청 본문 (마스킹됨)</strong>
+                      <strong style={{ fontSize: 13 }}>요청 본문 (마스킹됨)</strong>
                       <pre style={codeBoxStyle}>{JSON.stringify(log.request_body, null, 2)}</pre>
                     </>
                   ) : null}
 
                   {log.context && Object.keys(log.context).length > 0 ? (
                     <>
-                      <strong style={{ fontSize: 12 }}>컨텍스트</strong>
+                      <strong style={{ fontSize: 13 }}>컨텍스트</strong>
                       <pre style={codeBoxStyle}>{JSON.stringify(log.context, null, 2)}</pre>
                     </>
                   ) : null}

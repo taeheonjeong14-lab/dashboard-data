@@ -37,25 +37,25 @@ function ItemRow({ it, mode, compactLink, showBadge = true }: { it: WorkItem; mo
     <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-raised)' }}>
       {showBadge && <StatusBadge category={it.type} stage={it.stage} />}
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
           {it.patientName || '—'}
           {it.ownerName ? <span style={{ fontWeight: 400, color: 'var(--text-secondary)' }}> · {it.ownerName}</span> : null}
         </div>
-        <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+        <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
           {it.hospitalName || '병원 미상'}
           {it.friendlyId ? ` · #${it.friendlyId}` : ''}
         </div>
       </div>
       <div style={{ textAlign: 'right', flexShrink: 0 }}>
-        <div style={{ fontSize: 11.5, color: 'var(--text-muted)' }}>{timeLabel}</div>
-        <div style={{ fontSize: 12, color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
+        <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{timeLabel}</div>
+        <div style={{ fontSize: 13, color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
           {fmt(timeValue)}
         </div>
       </div>
       {mode === 'pending' && (
         <Link
           href={`/admin/chart-data?q=${encodeURIComponent(it.friendlyId || it.patientName || '')}&type=${it.type === 'health' ? '검진리포트' : '블로그'}`}
-          style={{ flexShrink: 0, padding: '6px 10px', fontSize: 12, fontWeight: 600, color: 'var(--accent)', background: 'var(--accent-subtle)', border: '1px solid var(--accent)', borderRadius: 6, textDecoration: 'none', whiteSpace: 'nowrap' }}
+          style={{ flexShrink: 0, padding: '6px 10px', fontSize: 13, fontWeight: 600, color: 'var(--accent)', background: 'var(--accent-subtle)', border: '1px solid var(--accent)', borderRadius: 6, textDecoration: 'none', whiteSpace: 'nowrap' }}
         >
           {compactLink ? '열기 →' : '차트 목록에서 열기 →'}
         </Link>
@@ -146,18 +146,18 @@ export default function WorkBoardPage() {
   const pendingBlog = useMemo(() => listFiltered.filter((i) => i.type === 'blog'), [listFiltered]);
 
   const tabBtn = (key: 'board' | 'list' | 'queue'): React.CSSProperties => ({
-    padding: '9px 14px', fontSize: 14, fontWeight: tab === key ? 700 : 500,
+    padding: '9px 14px', fontSize: 13, fontWeight: tab === key ? 700 : 500,
     color: tab === key ? 'var(--accent)' : 'var(--text-muted)', background: 'none', border: 'none',
     borderBottom: `2px solid ${tab === key ? 'var(--accent)' : 'transparent'}`, marginBottom: -1, cursor: 'pointer', whiteSpace: 'nowrap',
   });
 
   const colHeader: React.CSSProperties = {
-    display: 'flex', alignItems: 'center', gap: 7, marginBottom: 10, fontSize: 13.5, fontWeight: 700, color: 'var(--text)',
+    display: 'flex', alignItems: 'center', gap: 7, marginBottom: 10, fontSize: 13, fontWeight: 700, color: 'var(--text)',
   };
 
   return (
     <div style={{ paddingBottom: 40 }}>
-      <h1 style={{ fontSize: 22, fontWeight: 800, color: 'var(--text)', margin: '0 0 4px' }}>작업 현황</h1>
+      <h1 style={{ fontSize: 18, fontWeight: 800, color: 'var(--text)', margin: '0 0 4px' }}>작업 현황</h1>
       <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: '0 0 18px' }}>병원이 요청한 검진리포트·진료케이스(블로그) 작업의 현황과 잔여 목록입니다.</p>
 
       {/* 탭 */}
@@ -181,13 +181,13 @@ export default function WorkBoardPage() {
             <div style={colHeader}>
               <span style={{ display: 'inline-flex', width: 4, height: 14, borderRadius: 2, background: '#dc2626' }} />
               <span>병원별 잔여 수량</span>
-              <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)' }}>{pending.length}건</span>
+              <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-muted)' }}>{pending.length}건</span>
             </div>
             {pendingSummary.length > 0 ? (
               <div style={{ border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
                   <thead>
-                    <tr style={{ color: 'var(--text-muted)', fontSize: 11.5 }}>
+                    <tr style={{ color: 'var(--text-muted)', fontSize: 11 }}>
                       <th style={{ textAlign: 'left', padding: '6px 12px', fontWeight: 600 }}>병원</th>
                       <th style={{ textAlign: 'center', padding: '6px 6px', fontWeight: 600, width: 76 }}>검진리포트<br />요청</th>
                       <th style={{ textAlign: 'center', padding: '6px 6px', fontWeight: 600, width: 70 }}>블로그<br />요청</th>
@@ -221,7 +221,7 @@ export default function WorkBoardPage() {
             <div style={colHeader}>
               <StatusBadge category="health" stage="done" />
               <span>최근 1주일 검진 리포트 완료</span>
-              <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)' }}>{recentHealthDone.length}건</span>
+              <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-muted)' }}>{recentHealthDone.length}건</span>
             </div>
             {recentHealthDone.length === 0 ? (
               <p style={{ fontSize: 13, color: 'var(--text-muted)', padding: '24px 0', textAlign: 'center' }}>최근 1주일간 완료된 검진 리포트가 없습니다.</p>
@@ -237,7 +237,7 @@ export default function WorkBoardPage() {
             <div style={colHeader}>
               <StatusBadge category="blog" stage="drafted" />
               <span>최근 1주일 블로그 작성완료</span>
-              <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)' }}>{recentDrafted.length}건</span>
+              <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-muted)' }}>{recentDrafted.length}건</span>
             </div>
             {recentDrafted.length === 0 ? (
               <p style={{ fontSize: 13, color: 'var(--text-muted)', padding: '24px 0', textAlign: 'center' }}>최근 1주일간 작성완료된 블로그가 없습니다.</p>
@@ -253,7 +253,7 @@ export default function WorkBoardPage() {
             <div style={colHeader}>
               <StatusBadge category="blog" stage="saved" />
               <span>최근 1주일 블로그 저장완료</span>
-              <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)' }}>{recentSaved.length}건</span>
+              <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-muted)' }}>{recentSaved.length}건</span>
             </div>
             {recentSaved.length === 0 ? (
               <p style={{ fontSize: 13, color: 'var(--text-muted)', padding: '24px 0', textAlign: 'center' }}>최근 1주일간 저장완료된 블로그가 없습니다.</p>
@@ -276,7 +276,7 @@ export default function WorkBoardPage() {
             </select>
             {hospital && (
               <button type="button" onClick={() => setHospital('')}
-                style={{ padding: '6px 10px', fontSize: 12, fontWeight: 500, borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text-secondary)', cursor: 'pointer' }}>
+                style={{ padding: '6px 10px', fontSize: 13, fontWeight: 500, borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text-secondary)', cursor: 'pointer' }}>
                 필터 해제 ✕
               </button>
             )}
@@ -288,7 +288,7 @@ export default function WorkBoardPage() {
               <div style={colHeader}>
                 <span style={{ display: 'inline-flex', width: 4, height: 14, borderRadius: 2, background: '#2563eb' }} />
                 <span>건강검진 리포트</span>
-                <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)' }}>{pendingHealth.length}건</span>
+                <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-muted)' }}>{pendingHealth.length}건</span>
               </div>
               {pendingHealth.length === 0 ? (
                 <p style={{ fontSize: 13, color: 'var(--text-muted)', padding: '30px 0', textAlign: 'center' }}>잔여 검진 리포트가 없습니다.</p>
@@ -304,7 +304,7 @@ export default function WorkBoardPage() {
               <div style={colHeader}>
                 <span style={{ display: 'inline-flex', width: 4, height: 14, borderRadius: 2, background: '#dc2626' }} />
                 <span>블로그</span>
-                <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)' }}>{pendingBlog.length}건</span>
+                <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-muted)' }}>{pendingBlog.length}건</span>
               </div>
               {pendingBlog.length === 0 ? (
                 <p style={{ fontSize: 13, color: 'var(--text-muted)', padding: '30px 0', textAlign: 'center' }}>잔여 블로그가 없습니다.</p>
