@@ -17,7 +17,9 @@ type ProcStep = { step: string; note: string };
 // procedure: #수술 카드의 시술 절차(단계별 {절차, 설명}). detail: #내과 치료 카드의 처방 약 종류(문자열). 그 외 태그면 둘 다 비움.
 // scope: 이 행위가 어느 질환의 것인지(주질환/동반질환/기타질환). 2단계가 이 값으로 글의 비중을 8:1.5:0.5 로 잡는다.
 type Action = { what: string; why: string; result: string; types: string[]; scope: string; detail: string; procedure: ProcStep[] };
-type Phase = { id: string; name: string; period: string; actions: Action[]; nextStep: string[] };
+// dateEstimated: 자료에 날짜가 없어 '시점만' 추정한 단계. 그 아래 액션 박스마다 '날짜 추측 · 확인 필요' 스티커가 붙는다.
+// (추정한 것은 시점뿐 — 내용은 자료에 있는 사실이다. 담당자가 반드시 확인·수정해야 한다.)
+type Phase = { id: string; name: string; period: string; dateEstimated: boolean; actions: Action[]; nextStep: string[] };
 // caseType: 케이스 종류. AI가 1단계에서 주질환명·동반질환명 기준으로 판정, 직원이 흐름 요약에서 수정 가능.
 // '' = 미판정(구버전 데이터). 태그 허용 범위를 제한한다(internal/surgical/both).
 // chronicManagement: 장기 관리 케이스(심장병·만성 신장질환 등) — true 면 진단 확정 이후의 검사는 exam_dx 가 아니라 medical.
@@ -110,6 +112,11 @@ function hashChip(on: boolean): CSSProperties {
 const procBox: CSSProperties = { borderRadius: 6, padding: '8px 10px', background: 'var(--bg)' };
 const procNumBadge: CSSProperties = { flexShrink: 0, width: 18, height: 18, borderRadius: 999, background: 'var(--text-muted)', color: '#fff', fontSize: 11, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center' };
 // 읽기 모드 — 행위 제목 우측 성격 태그 스티커(회색, 차분하게).
+/** 날짜를 자료로 확정하지 못하고 시점만 추정한 단계 — 그 아래 액션 박스마다 붙는다(담당자 확인용). */
+const estimatedSticker: CSSProperties = {
+  fontSize: 11, fontWeight: 700, padding: '1px 7px', borderRadius: 999,
+  border: '1px solid #f59e0b', background: '#fef3c7', color: '#b45309', whiteSpace: 'nowrap',
+};
 const tagSticker: CSSProperties = {
   fontSize: 11, fontWeight: 700, lineHeight: 1.5, whiteSpace: 'nowrap',
   padding: '1px 7px', borderRadius: 999,
@@ -174,6 +181,7 @@ function asPhase(raw: unknown): Phase {
   return {
     id: str(x.id) || `phase_${uid()}`,
     name: str(x.name), period: str(x.period),
+    dateEstimated: x.dateEstimated === true,
     ...asActionsAndNext(x),
   };
 }
@@ -845,7 +853,7 @@ export function CaseBlogButton({
     }); dirty();
   }
   function addPhase() {
-    setCausal((c) => (c ? { ...c, phases: [...c.phases, { id: `phase_${uid()}`, name: '', period: '', actions: [], nextStep: [] }] } : c)); dirty();
+    setCausal((c) => (c ? { ...c, phases: [...c.phases, { id: `phase_${uid()}`, name: '', period: '', dateEstimated: false, actions: [], nextStep: [] }] } : c)); dirty();
   }
   function removePhase(i: number) {
     setCausal((c) => (c ? { ...c, phases: c.phases.filter((_, j) => j !== i) } : c)); dirty();
@@ -858,7 +866,7 @@ export function CaseBlogButton({
       const g = await callGenerate({ contentType: 'blog_causal_phase', causalFlow: causal, phaseIndex: i, feedback });
       const np = asPhase(g.phase);
       // id 는 기존 유지(참조 안정).
-      updatePhase(i, { name: np.name, period: np.period, actions: np.actions, nextStep: np.nextStep });
+      updatePhase(i, { name: np.name, period: np.period, dateEstimated: np.dateEstimated, actions: np.actions, nextStep: np.nextStep });
     } catch (e) {
       setError(e instanceof Error ? e.message : '이 날짜 다시 생성 실패');
     } finally {
@@ -1122,15 +1130,25 @@ function PhaseCard({ p, caseType, isLast, busy, regenBusy, onUp, onDown, onRemov
       {/* 헤더: 날짜(제목) + 우측 버튼(다시 생성 / 수기 수정 / [편집 시 순서 이동] / 삭제) */}
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: editMode ? 8 : 10 }}>
         {editMode ? (
-          <input
-            value={p.period}
-            onChange={(e) => update({ period: e.target.value })}
-            placeholder="날짜 (예: 2026년 02월 17일 (최초 진단일))"
-            style={{ ...inputStyle, flex: 1, fontWeight: 700, fontSize: 14 }}
-          />
+          <div style={{ flex: 1, display: 'grid', gap: 5 }}>
+            <input
+              value={p.period}
+              onChange={(e) => update({ period: e.target.value })}
+              placeholder="날짜 (예: 2026년 02월 17일 (최초 진단일))"
+              style={{ ...inputStyle, fontWeight: 700, fontSize: 14 }}
+            />
+            {/* 자료에 날짜가 없어 시점만 추정한 단계 — 확인 후 실제 날짜를 넣고 체크를 해제한다. */}
+            <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'var(--text-secondary)', cursor: 'pointer' }}>
+              <input type="checkbox" checked={p.dateEstimated} onChange={(e) => update({ dateEstimated: e.target.checked })} />
+              날짜 추측 (자료로 확정 못 함 — 확인 필요)
+            </label>
+          </div>
         ) : (
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--text)' }}>{p.period || '날짜 미입력'}</div>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
+              <span style={{ fontSize: 20, fontWeight: 800, color: 'var(--text)' }}>{p.period || '날짜 미입력'}</span>
+              {p.dateEstimated ? <span style={estimatedSticker}>날짜 추측 · 확인 필요</span> : null}
+            </div>
             {p.name ? <div style={{ fontSize: 14, color: 'var(--text-muted)', marginTop: 2 }}>{p.name}</div> : null}
           </div>
         )}
@@ -1300,6 +1318,8 @@ function PhaseCard({ p, caseType, isLast, busy, regenBusy, onUp, onDown, onRemov
                     {ACTION_TYPE_ORDER.filter((t) => (a.types ?? []).includes(t)).map((t) => (
                       <span key={t} style={tagSticker}>#{ACTION_TYPE_LABEL[t]}</span>
                     ))}
+                    {/* 이 단계의 날짜가 추정이면 액션마다 표시 — 담당자가 반드시 확인·수정해야 한다. */}
+                    {p.dateEstimated ? <span style={estimatedSticker}>날짜 추측 · 확인 필요</span> : null}
                     {(mismatchedTags(caseType, a.types ?? []).length > 0 || (!isLast && (a.types ?? []).includes('aftercare'))) ? (
                       <span title={`‘${CASE_TYPE_LABEL[caseType] ?? caseType}’ 케이스에 안 맞는 태그 또는 중간 날짜 사후 관리 안내가 있습니다`} style={{ fontSize: 11, color: 'var(--danger)', fontWeight: 700 }}>⚠️ 태그 확인</span>
                     ) : null}
