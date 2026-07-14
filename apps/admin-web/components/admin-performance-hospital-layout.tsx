@@ -33,19 +33,28 @@ export function usePerformanceHospitalContext() {
   return useContext(PerformanceHospitalContext);
 }
 
+// hospital 경영 대시보드(hospital-web components/dashboard/dashboard-chrome.tsx)와 같은 탭 구성.
+// 병원 데이터는 '병원이 보는 화면을 관리자도 똑같이 본다'가 목적이라 hospital 쪽을 기준으로 맞춘다.
 const TABS = [
-  { suffix: 'hospital', label: '경영 통계' },
-  { suffix: 'blog', label: '네이버 블로그 통계' },
-  { suffix: 'place', label: '네이버 플레이스 통계' },
-  { suffix: 'ads', label: '네이버 광고 통계' },
+  { suffix: 'sales', label: '매출' },
+  { suffix: 'visits', label: '진료건수' },
+  { suffix: 'patients', label: '신규환자' },
+  { suffix: 'blog', label: '블로그' },
+  { suffix: 'place', label: '플레이스' },
+  { suffix: 'powerlink-ads', label: '파워링크광고' },
+  { suffix: 'place-ads', label: '플레이스광고' },
+  { suffix: 'instagram-ads', label: '인스타광고' },
+  { suffix: 'google-ads', label: '구글광고' },
 ] as const;
 
 function hospitalHref(id: string, suffix: string) {
-  return `/admin/performance/${id}/${suffix || 'hospital'}`;
+  return `/admin/performance/${id}/${suffix || 'sales'}`;
 }
 
 function tabActive(pathname: string, hospitalId: string, suffix: string): boolean {
-  return pathname.startsWith(`/admin/performance/${hospitalId}/${suffix}`);
+  const href = `/admin/performance/${hospitalId}/${suffix}`;
+  // 정확히 일치하거나 하위 경로일 때만 — startsWith 만 쓰면 /place 가 /place-ads 까지 활성으로 만든다.
+  return pathname === href || pathname.startsWith(`${href}/`);
 }
 
 function formatHospitalAddress(h: PerformanceHospitalRow): string {

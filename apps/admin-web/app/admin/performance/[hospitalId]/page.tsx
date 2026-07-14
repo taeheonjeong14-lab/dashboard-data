@@ -1,9 +1,10 @@
 import { redirect } from 'next/navigation';
 
-export default function AdminPerformanceHospitalRoot({
+export default async function AdminPerformanceHospitalRoot({
   params,
 }: {
-  params: { hospitalId: string };
+  params: Promise<{ hospitalId: string }>;
 }) {
-  redirect(`/admin/performance/${params.hospitalId}/hospital`);
+  const { hospitalId } = await params;
+  redirect(`/admin/performance/${hospitalId}/sales`);
 }

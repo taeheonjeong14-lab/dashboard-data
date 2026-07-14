@@ -1,136 +1,273 @@
-'use client';
+"use client";
 
-import { useEffect, useState } from 'react';
-import { useParams } from 'next/navigation';
-import PlaceInflowSection from '@/components/admin-stats/place/PlaceInflowSection';
-import { adminStatsGetJson } from '@/lib/admin-stats/client-api';
-import type { PlacePeriodDayRow, PlaceRankSummaryRow } from '@/lib/admin-stats/queries-server';
+import { useEffect, useState } from "react";
+import { useHospital } from "@/components/hospital-dashboard/context";
+import { CenteredSpinner } from "@/components/hospital-dashboard/spinner";
+import {
+  fetchPlacePeriodKpis,
+  fetchSummaryPlaceRanks,
+  fetchPlaceReviewStats,
+  type PlacePeriodDayRow,
+  type PlaceRankSummaryRow,
+  type PlaceReviewStats,
+} from "@/lib/hospital-dashboard/queries";
+import PlaceInflowSection from "@/components/hospital-dashboard/PlaceInflowSection";
+import PlaceReviewStatsSection from "@/components/hospital-dashboard/PlaceReviewStatsSection";
 
-function formatRank(value: number | null) {
-  if (value == null) return '-';
-  return `${new Intl.NumberFormat('ko-KR').format(value)}위`;
+type LoadState = "loading" | "error" | "done";
+
+/** "YYYY-MM-DD" → "YYYY년 MM월 DD일" */
+function formatCollectedDate(dateKey: string): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(dateKey);
+  if (!m) return dateKey;
+  return `${m[1]}년 ${m[2]}월 ${m[3]}일`;
 }
 
-export default function AdminPerformancePlacePage() {
-  const params = useParams();
-  const hospitalId = typeof params.hospitalId === 'string' ? params.hospitalId : '';
+/** 순위 변동 화살표 (블로그 탭과 동일: 상승=초록↑, 하락=빨강↓, 동일/비교불가=회색—) */
+function TrendArrow({ trend }: { trend: -1 | 0 | 1 }) {
+  if (trend > 0) {
+    return (
+      <span style={{ fontSize: 14, fontWeight: 600, color: "var(--success)" }} title="상승">
+        ↑
+      </span>
+    );
+  }
+  if (trend < 0) {
+    return (
+      <span style={{ fontSize: 14, fontWeight: 600, color: "var(--danger)" }} title="하락">
+        ↓
+      </span>
+    );
+  }
+  return (
+    <span style={{ fontSize: 14, fontWeight: 600, color: "var(--text-secondary)" }} title="변동 없음">
+      —
+    </span>
+  );
+}
 
-  const [ready, setReady] = useState(false);
-  const [loading, setLoading] = useState(true);
+export default function PlaceDashboardPage() {
+  const [loadState, setLoadState] = useState<LoadState>("loading");
   const [error, setError] = useState<string | null>(null);
-  const [placeRanks, setPlaceRanks] = useState<PlaceRankSummaryRow[]>([]);
-  const [inflowRows, setInflowRows] = useState<PlacePeriodDayRow[]>([]);
-  const [inflowError, setInflowError] = useState<string | null>(null);
+  const [hospitalId, setHospitalId] = useState<string | null>(null);
+  const [placeRows, setPlaceRows] = useState<PlacePeriodDayRow[]>([]);
+  const [rankRows, setRankRows] = useState<PlaceRankSummaryRow[]>([]);
+  const [reviewStats, setReviewStats] = useState<PlaceReviewStats | null>(null);
+
+  const { hospitalId: ctxHospitalId } = useHospital();
 
   useEffect(() => {
-    if (!hospitalId) return;
-    let active = true;
-    setReady(false);
-    setLoading(true);
-    setPlaceRanks([]);
-    setInflowRows([]);
-    setInflowError(null);
-    setError(null);
-    (async () => {
+    let cancelled = false;
+
+    async function load() {
       try {
-        const [rankResult, inflowResult] = await Promise.allSettled([
-          adminStatsGetJson<{ rows: PlaceRankSummaryRow[] }>('place-ranks', hospitalId),
-          adminStatsGetJson<{ rows: PlacePeriodDayRow[] }>('place-period', hospitalId),
+        const hid = ctxHospitalId;
+        if (!hid) {
+          if (!cancelled) {
+            setHospitalId(null);
+            setLoadState("done");
+          }
+          return;
+        }
+
+        const [placeData, ranksData, reviewData] = await Promise.all([
+          fetchPlacePeriodKpis(hid),
+          fetchSummaryPlaceRanks(hid),
+          fetchPlaceReviewStats(hid),
         ]);
-        if (!active) return;
 
-        if (rankResult.status === 'fulfilled') {
-          setPlaceRanks(rankResult.value.rows ?? []);
-        } else {
-          setPlaceRanks([]);
+        if (!cancelled) {
+          setHospitalId(hid);
+          setPlaceRows(placeData);
+          setRankRows(ranksData);
+          setReviewStats(reviewData);
+          setLoadState("done");
         }
-
-        if (inflowResult.status === 'fulfilled') {
-          setInflowRows(inflowResult.value.rows ?? []);
-          setInflowError(null);
-        } else {
-          setInflowRows([]);
-          setInflowError(
-            inflowResult.reason instanceof Error
-              ? `플레이스 유입수 조회 오류: ${inflowResult.reason.message}`
-              : '플레이스 유입수 조회 중 오류가 발생했습니다.',
+      } catch (err) {
+        if (!cancelled) {
+          setError(
+            err instanceof Error
+              ? err.message
+              : "데이터를 불러오는 중 오류가 발생했습니다."
           );
+          setLoadState("error");
         }
-
-        if (rankResult.status === 'rejected' && inflowResult.status === 'rejected') {
-          setError('플레이스 통계 데이터를 불러오지 못했습니다.');
-        } else {
-          setError(null);
-        }
-      } catch (e) {
-        if (!active) return;
-        setError(e instanceof Error ? e.message : '데이터를 불러오지 못했습니다.');
-      } finally {
-        if (!active) return;
-        setLoading(false);
-        setReady(true);
       }
-    })();
+    }
 
+    load();
     return () => {
-      active = false;
+      cancelled = true;
     };
-  }, [hospitalId]);
+  }, [ctxHospitalId]);
 
-  if (!ready) {
+  if (loadState === "loading") {
+    return <CenteredSpinner minHeight="60vh" />;
+  }
+
+  if (loadState === "error") {
     return (
-      <main className="flex min-h-[40vh] items-center justify-center px-4">
-        <p className="text-sm text-slate-600">데이터 준비 중…</p>
-      </main>
+      <div
+        style={{
+          margin: "24px",
+          padding: "16px",
+          border: "1px solid var(--danger)",
+          borderRadius: "var(--radius)",
+          background: "var(--danger-subtle)",
+          color: "var(--danger)",
+          fontSize: "14px",
+        }}
+      >
+        {error ?? "알 수 없는 오류"}
+      </div>
+    );
+  }
+
+  if (!hospitalId) {
+    return (
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          minHeight: "300px",
+          color: "var(--text-muted)",
+          fontSize: "14px",
+        }}
+      >
+        병원 정보가 없습니다. 관리자에게 문의하세요.
+      </div>
     );
   }
 
   return (
-    <main className="w-full max-w-none px-4 pb-4 pt-0 sm:px-5 sm:pb-5 sm:pt-0 lg:px-6">
-      {loading && <p className="text-sm text-slate-500">불러오는 중…</p>}
-
-      <div className="grid grid-cols-1 lg:grid-cols-3">
-        <section aria-labelledby="place-ranks" className="border-b border-slate-200 bg-white p-4 sm:p-5">
-          <h2 id="place-ranks" className="mb-2 text-base font-semibold text-slate-900 sm:text-lg">
-            주요 키워드 · 스마트플레이스 노출 순위
-          </h2>
-          <p className="mb-3 text-sm text-slate-500">
-            가장 최신 수집 기준, 주요 키워드별 스마트플레이스 노출 순위입니다.
-          </p>
-          {loading && <p className="text-sm text-slate-500">불러오는 중…</p>}
-          {!loading && placeRanks.length === 0 && (
-            <p className="border border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">
-              표시할 데이터가 없습니다.
-            </p>
-          )}
-          {!loading && placeRanks.length > 0 && (
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[320px] border-collapse text-left text-sm">
-                <thead>
-                  <tr className="border-b border-slate-200 text-slate-600">
-                    <th className="px-3 py-2 font-medium">검색어</th>
-                    <th className="px-3 py-2 font-medium">순위</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {placeRanks.map((row) => (
-                    <tr key={row.keyword} className="border-b border-slate-200 text-slate-800">
-                      <td className="px-3 py-2">{row.keyword}</td>
-                      <td className="px-3 py-2">{formatRank(row.rank_value)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+    <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+      <div style={{ display: "flex", flexWrap: "wrap", alignItems: "flex-start", gap: 24 }}>
+      {/* 좌측: 플레이스 키워드 순위 (3) — 흰 배경 카드로 우측 그래프와 구분 */}
+      <section style={{ flex: "3 1 300px", minWidth: 0, background: "var(--bg)", borderRadius: "var(--radius-lg)", padding: 20 }}>
+        <h2
+          style={{
+            fontSize: "16px",
+            fontWeight: 600,
+            color: "var(--text)",
+            marginBottom: "4px",
+          }}
+        >
+          플레이스 키워드 순위
+        </h2>
+        {(() => {
+          const latestText = rankRows[0]?.latestDateKey
+            ? formatCollectedDate(rankRows[0].latestDateKey)
+            : null;
+          const baselineText = rankRows[0]?.baselineDateKey
+            ? formatCollectedDate(rankRows[0].baselineDateKey)
+            : null;
+          if (!latestText && !baselineText) return null;
+          return (
+            <div style={{ marginBottom: 12, display: "flex", flexDirection: "column", gap: 2 }}>
+              {latestText && (
+                <p style={{ margin: 0, fontSize: 14, color: "var(--text-muted)" }}>
+                  최신 수집 날짜: {latestText}
+                </p>
+              )}
+              {baselineText && (
+                <p style={{ margin: 0, fontSize: 14, color: "var(--text-muted)" }}>
+                  순위 비교 날짜: {baselineText}
+                </p>
+              )}
             </div>
-          )}
-        </section>
+          );
+        })()}
+        {rankRows.length === 0 ? (
+          <p
+            style={{
+              padding: "16px",
+              border: "1px solid var(--border)",
+              borderRadius: "var(--radius)",
+              color: "var(--text-muted)",
+              fontSize: "13px",
+            }}
+          >
+            데이터 없음
+          </p>
+        ) : (
+          <div
+            style={{
+              overflowX: "auto",
+              border: "1px solid var(--border)",
+              borderRadius: "var(--radius)",
+            }}
+          >
+            <table
+              style={{
+                width: "100%",
+                borderCollapse: "collapse",
+                fontSize: "13px",
+              }}
+            >
+              <thead>
+                <tr
+                  style={{
+                    borderBottom: "1px solid var(--border)",
+                    color: "var(--text-secondary)",
+                  }}
+                >
+                  <th
+                    style={{
+                      padding: "8px 12px",
+                      textAlign: "left",
+                      fontWeight: 500,
+                    }}
+                  >
+                    검색어
+                  </th>
+                  <th
+                    style={{
+                      padding: "8px 12px",
+                      textAlign: "left",
+                      fontWeight: 500,
+                    }}
+                  >
+                    순위
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {rankRows.map((row) => (
+                  <tr
+                    key={row.keyword}
+                    style={{
+                      borderBottom: "1px solid var(--border)",
+                      color: "var(--text)",
+                    }}
+                  >
+                    <td style={{ padding: "8px 12px" }}>{row.keyword}</td>
+                    <td style={{ padding: "8px 12px" }}>
+                      {row.rank_value != null ? (
+                        <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                          {`${new Intl.NumberFormat("ko-KR").format(row.rank_value)}위`}
+                          <TrendArrow trend={row.rank_value_trend} />
+                        </span>
+                      ) : (
+                        <span style={{ color: "var(--text-muted)" }}>-</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
 
-        <PlaceInflowSection rows={inflowRows} loading={loading} errorMessage={inflowError} />
+      {/* 우측: 플레이스 유입수 그래프 (7) */}
+      <div style={{ flex: "7 1 360px", minWidth: 0 }}>
+        <PlaceInflowSection rows={placeRows} />
+      </div>
       </div>
 
-      {error && (
-        <p className="mt-3 border border-red-200 bg-red-50 p-3 text-sm text-red-800">{error}</p>
-      )}
-    </main>
+      {/* 플레이스 리뷰 통계 (플레이스 키워드 순위 아래) */}
+      {reviewStats ? <PlaceReviewStatsSection stats={reviewStats} /> : null}
+    </div>
   );
 }

@@ -3,23 +3,23 @@
 import { useEffect, useState } from "react";
 import { useHospital } from "@/components/hospital-dashboard/context";
 import { CenteredSpinner } from "@/components/hospital-dashboard/spinner";
-import {
-  fetchBlogPeriodKpis,
-  fetchSummaryBlogRanks,
-  type BlogPeriodDayRow,
-  type BlogRankSummaryRow,
-} from "@/lib/hospital-dashboard/queries";
-import BlogMetricSection from "@/components/hospital-dashboard/BlogMetricSection";
-import BlogRanksSection from "@/components/hospital-dashboard/BlogRanksSection";
+import type { SearchAdRow } from "@/lib/hospital-dashboard/types";
+import { fetchSearchAdMetrics } from "@/lib/hospital-dashboard/queries";
+import SearchAdSection from "@/components/hospital-dashboard/SearchAdSection";
 
 type LoadState = "loading" | "error" | "done";
 
-export default function BlogDashboardPage() {
+export default function SearchAdTab({
+  lockedType,
+  mode = "full",
+}: {
+  lockedType?: string;
+  mode?: "full" | "summary";
+}) {
   const [loadState, setLoadState] = useState<LoadState>("loading");
   const [error, setError] = useState<string | null>(null);
   const [hospitalId, setHospitalId] = useState<string | null>(null);
-  const [blogRows, setBlogRows] = useState<BlogPeriodDayRow[]>([]);
-  const [rankRows, setRankRows] = useState<BlogRankSummaryRow[]>([]);
+  const [rows, setRows] = useState<SearchAdRow[]>([]);
 
   const { hospitalId: ctxHospitalId } = useHospital();
 
@@ -37,15 +37,11 @@ export default function BlogDashboardPage() {
           return;
         }
 
-        const [blogData, ranksData] = await Promise.all([
-          fetchBlogPeriodKpis(hid),
-          fetchSummaryBlogRanks(hid),
-        ]);
+        const data = await fetchSearchAdMetrics(hid, lockedType);
 
         if (!cancelled) {
           setHospitalId(hid);
-          setBlogRows(blogData);
-          setRankRows(ranksData);
+          setRows(data);
           setLoadState("done");
         }
       } catch (err) {
@@ -64,7 +60,7 @@ export default function BlogDashboardPage() {
     return () => {
       cancelled = true;
     };
-  }, [ctxHospitalId]);
+  }, [ctxHospitalId, lockedType]);
 
   if (loadState === "loading") {
     return <CenteredSpinner minHeight="60vh" />;
@@ -105,35 +101,5 @@ export default function BlogDashboardPage() {
     );
   }
 
-  return (
-    <div style={{ display: "flex", flexWrap: "wrap", alignItems: "flex-start", gap: 24 }}>
-      {/* 좌측: 주요 키워드 · 블로그 노출 순위 (3) */}
-      <div style={{ flex: "3 1 300px", minWidth: 0 }}>
-        <BlogRanksSection
-          rows={rankRows}
-          hospitalId={hospitalId}
-          variant="detailed"
-          singleColumn
-          title="주요 키워드 · 블로그 노출 순위"
-          headingId="blog-ranks-heading"
-        />
-      </div>
-
-      {/* 우측: 조회수 · 순 방문자 수 그래프 (7) */}
-      <div style={{ flex: "7 1 360px", minWidth: 0, display: "flex", flexDirection: "column", gap: 24 }}>
-        <BlogMetricSection
-          title="블로그 조회수"
-          rows={blogRows}
-          metric="views"
-          valueSuffix="회"
-        />
-        <BlogMetricSection
-          title="순 방문자 수"
-          rows={blogRows}
-          metric="uniqueVisitors"
-          valueSuffix="명"
-        />
-      </div>
-    </div>
-  );
+  return <SearchAdSection rows={rows} hospitalId={hospitalId} lockedType={lockedType} mode={mode} />;
 }

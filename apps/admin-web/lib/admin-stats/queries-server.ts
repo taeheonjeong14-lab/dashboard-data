@@ -1,5 +1,8 @@
 import { createServiceRoleClient } from '@/lib/supabase/service-role';
 
+import type { SearchAdRow, PlaceReviewStats, BlogRankSummaryRow as HdBlogRankSummaryRow, PlaceRankSummaryRow as HdPlaceRankSummaryRow, KeywordImportance } from "@/lib/hospital-dashboard/types";
+import type { KeywordPerf } from "@/lib/hospital-dashboard/searchad-aggregates";
+
 /** 서버 전용 — analytics 조회는 관리자 API에서만 호출 (RLS 우회 service_role). */
 function getSupabaseClient() {
   return createServiceRoleClient();
@@ -478,7 +481,7 @@ export async function fetchBlogRanksDaily(hospitalId: string): Promise<BlogRankD
     .filter((r): r is BlogRankDailyRow => r !== null);
 }
 
-export async function fetchSummaryBlogRanks(hospitalId: string): Promise<BlogRankSummaryRow[]> {
+async function fetchSummaryBlogRanksLegacy(hospitalId: string): Promise<BlogRankSummaryRow[]> {
   const supabase = getSupabaseClient();
   const rows = await fetchAllPages((from, to) =>
     supabase
@@ -655,7 +658,7 @@ export async function fetchBlogKeywordRankTrend(
   return Array.from(byDate.values()).sort((a, b) => a.dateKey.localeCompare(b.dateKey));
 }
 
-export async function fetchSummaryPlaceRanks(hospitalId: string): Promise<PlaceRankSummaryRow[]> {
+async function fetchSummaryPlaceRanksLegacy(hospitalId: string): Promise<PlaceRankSummaryRow[]> {
   const supabase = getSupabaseClient();
   const data = await fetchAllPages((from, to) =>
     supabase
@@ -953,4 +956,483 @@ export async function fetchSearchAdDailyMetrics(
       if (a.dateKey !== b.dateKey) return a.dateKey.localeCompare(b.dateKey);
       return a.campaignId.localeCompare(b.campaignId);
     });
+}
+
+// ── 아래는 hospital 경영 대시보드와 같은 화면을 admin 에서 그리기 위해 옮겨온 쿼리다.
+//    (hospital-web lib/queries.ts 의 같은 이름 함수와 짝 — 한쪽을 고치면 다른 쪽도 맞춰야 화면이 어긋나지 않는다)
+
+const SEARCHAD_SELECT =
+  "metric_date,campaign_id,campaign_name,campaign_type,adgroup_id,adgroup_name,keyword_id,keyword_name,impressions,clicks,cost";
+
+export function searchAdSinceDate(): string {
+  const [y, m] = todayDateKeySeoul().split("-").map(Number);
+  const monthsZeroBased = y * 12 + (m - 1) - 6; // 6개월 전 달
+  const ty = Math.floor(monthsZeroBased / 12);
+  const tm = (monthsZeroBased % 12) + 1;
+  return `${ty}-${String(tm).padStart(2, "0")}-01`;
+}
+
+function mapSearchAdRow(r: Record<string, unknown>): SearchAdRow {
+  return {
+    dateKey: String(r.metric_date ?? "").slice(0, 10),
+    campaignId: asStringOrNull(r.campaign_id) ?? "",
+    campaignName: asStringOrNull(r.campaign_name),
+    campaignType: asStringOrNull(r.campaign_type),
+    adgroupId: asStringOrNull(r.adgroup_id) ?? "",
+    adgroupName: asStringOrNull(r.adgroup_name),
+    keywordId: asStringOrNull(r.keyword_id) ?? "",
+    keywordName: asStringOrNull(r.keyword_name),
+    impressions: asNumberOrNull(r.impressions) ?? 0,
+    clicks: asNumberOrNull(r.clicks) ?? 0,
+    cost: asNumberOrNull(r.cost) ?? 0,
+  };
+}
+
+export async function fetchSearchAdMetrics(
+  hospitalId: string,
+  campaignType?: string,
+): Promise<SearchAdRow[]> {
+  const supabase = getSupabaseClient();
+  const since = searchAdSinceDate();
+  const rows = await fetchAllPages((from, to) => {
+    let q = supabase
+      .schema("analytics")
+      .from("analytics_searchad_daily_metrics")
+      .select(SEARCHAD_SELECT)
+      .eq("hospital_id", hospitalId)
+      .eq("keyword_id", "")
+      .gte("metric_date", since);
+    if (campaignType) q = q.eq("campaign_type", campaignType);
+    return q.order("metric_date", { ascending: false }).range(from, to);
+  });
+  return rows.map(mapSearchAdRow);
+}
+
+export async function fetchSearchAdTopKeywords(
+  hospitalId: string,
+  campaignType: string | undefined,
+  startDate: string,
+  endDate: string,
+  limit = 10,
+): Promise<KeywordPerf[]> {
+  const supabase = getSupabaseClient();
+  // 6개월 하한을 한 번 더 보장(어떤 경우에도 6개월 초과 집계 금지).
+  const since = searchAdSinceDate();
+  const effStart = startDate > since ? startDate : since;
+  const { data, error } = await supabase.schema("analytics").rpc("searchad_top_keywords", {
+    p_hospital_id: hospitalId,
+    p_campaign_type: campaignType ?? null,
+    p_start: effStart,
+    p_end: endDate,
+    p_limit: limit,
+  });
+  if (error) throw error;
+  const rows = (data ?? []) as Record<string, unknown>[];
+  return rows.map((r) => ({
+    keywordId: asStringOrNull(r.keyword_id) ?? "",
+    keywordName: asStringOrNull(r.keyword_name) ?? asStringOrNull(r.keyword_id) ?? "",
+    totals: {
+      impressions: asNumberOrNull(r.impressions) ?? 0,
+      clicks: asNumberOrNull(r.clicks) ?? 0,
+      cost: asNumberOrNull(r.cost) ?? 0,
+    },
+  }));
+}
+
+export async function fetchPlaceReviewStats(
+  hospitalId: string
+): Promise<PlaceReviewStats> {
+  // 최근 6개월 월 버킷(현재월 포함, 오래된→최신)
+  const todayKey = todayDateKeySeoul();
+  const [ty, tm] = todayKey.split("-").map(Number);
+  const monthly: PlaceReviewStats["monthly"] = [];
+  for (let i = 11; i >= 0; i--) {
+    const d = new Date(Date.UTC(ty, tm - 1 - i, 1));
+    const y = d.getUTCFullYear();
+    const m = d.getUTCMonth() + 1;
+    monthly.push({ monthKey: `${y}-${String(m).padStart(2, "0")}`, monthLabel: `${m}월`, count: 0 });
+  }
+  const startDate = `${monthly[0]!.monthKey}-01`; // 추이(차트): 최근 12개월
+  const sentimentStart = `${monthly[6]!.monthKey}-01`; // 긍정/부정 집계: 최근 6개월
+  const empty: PlaceReviewStats = {
+    monthly,
+    strongPositiveCount: 0,
+    positiveCount: 0,
+    neutralCount: 0,
+    negativeCount: 0,
+    strongNegativeCount: 0,
+    negativeReviews: [],
+  };
+
+  try {
+    const supabase = getSupabaseClient();
+    const rows = await fetchAllPages((from, to) =>
+      supabase
+        .schema("analytics")
+        .from("analytics_place_reviews")
+        // UI 는 방문일(visit_date) 기준. 예전 행(visit_date null) 대비 review_date 도 폴백으로 함께 조회.
+        .select("visit_date, review_date, author_id, content, sentiment")
+        .eq("hospital_id", hospitalId)
+        .gte("visit_date", startDate)
+        .order("visit_date", { ascending: false })
+        .range(from, to),
+    );
+
+    const monthIndex = new Map(monthly.map((m, i) => [m.monthKey, i] as const));
+    let strongPositiveCount = 0;
+    let positiveCount = 0;
+    let neutralCount = 0;
+    let negativeCount = 0;
+    let strongNegativeCount = 0;
+    const negativeReviews: PlaceReviewStats["negativeReviews"] = [];
+
+    for (const row of rows) {
+      const dateKey = asStringOrNull(row.visit_date) ?? asStringOrNull(row.review_date);
+      const sentiment = asStringOrNull(row.sentiment);
+      if (dateKey) {
+        const idx = monthIndex.get(dateKey.slice(0, 7));
+        if (idx != null) monthly[idx]!.count += 1;
+      }
+      // 긍정/부정 집계·부정 목록은 최근 6개월만 (추이 차트만 12개월)
+      if (!dateKey || dateKey < sentimentStart) continue;
+      if (sentiment === "strong_positive") strongPositiveCount += 1;
+      else if (sentiment === "positive") positiveCount += 1;
+      else if (sentiment === "neutral") neutralCount += 1;
+      else if (sentiment === "negative" || sentiment === "strong_negative") {
+        const strong = sentiment === "strong_negative";
+        if (strong) strongNegativeCount += 1;
+        else negativeCount += 1;
+        negativeReviews.push({
+          reviewDate: dateKey ?? "",
+          authorId: asStringOrNull(row.author_id),
+          content: asStringOrNull(row.content),
+          strong,
+        });
+      }
+    }
+
+    // 강한 부정을 먼저(목록 상단). 같은 그룹 내에서는 방문일 최신순(쿼리 정렬) 유지.
+    negativeReviews.sort((a, b) => (b.strong ? 1 : 0) - (a.strong ? 1 : 0));
+
+    return {
+      monthly,
+      strongPositiveCount,
+      positiveCount,
+      neutralCount,
+      negativeCount,
+      strongNegativeCount,
+      negativeReviews,
+    };
+  } catch {
+    // 테이블 미생성/권한 등 — 빈 통계로 폴백(다른 위젯은 정상 동작).
+    return empty;
+  }
+}
+
+// ── 순위 요약(블로그·플레이스) — hospital 경영 대시보드와 같은 형태로 내려주기 위해 옮겨온 쿼리.
+//    admin 자체 구현은 중요도(상/중/하)·기준일이 빠져 있어 같은 화면을 그릴 수 없었다.
+
+const IMPORTANCE_ORDER: Record<string, number> = { high: 0, medium: 1, low: 2 };
+/** 순위 화살표 비교 기준: 정확히 14일 전, 없으면 폴백(블로그·플레이스 공통) — hospital 과 동일. */
+const RANK_BASELINE_OFFSET_PRIORITY = [14, 15, 13, 16, 12, 17, 11, 18, 10, 19, 20];
+function importanceRank(v: string | null | undefined): number {
+  const s = String(v ?? "").toLowerCase();
+  return IMPORTANCE_ORDER[s] ?? 1; // 미지정은 '중' 취급
+}
+
+function normalizeImportance(v: unknown): KeywordImportance {
+  const s = String(v ?? "").toLowerCase();
+  return s === "high" || s === "low" ? s : "medium";
+}
+
+async function fetchKeywordImportanceMap(
+  supabase: ReturnType<typeof getSupabaseClient>,
+  table: "analytics_blog_keyword_targets" | "analytics_place_keyword_targets",
+  hospitalId: string,
+): Promise<Map<string, KeywordImportance>> {
+  const map = new Map<string, KeywordImportance>();
+  const { data, error } = await supabase
+    .schema("analytics")
+    .from(table)
+    .select("keyword, importance")
+    .eq("hospital_id", hospitalId)
+    .eq("is_active", true);
+  if (error || !data) return map;
+  for (const row of data as Record<string, unknown>[]) {
+    const kw = String(row.keyword ?? "").trim();
+    if (kw) map.set(kw, normalizeImportance(row.importance));
+  }
+  return map;
+}
+
+function blogBestRank(r: {
+  blog_rank_tab: number | null;
+  blog_rank_general: number | null;
+  blog_rank_integrated: number | null;
+  blog_rank_pet_popular: number | null;
+}): number {
+  const vals = [r.blog_rank_tab, r.blog_rank_general, r.blog_rank_integrated, r.blog_rank_pet_popular].filter(
+    (v): v is number => typeof v === "number",
+  );
+  return vals.length ? Math.min(...vals) : Number.POSITIVE_INFINITY;
+}
+
+function compareByImportanceThenRank(
+  a: { importance: KeywordImportance; keyword: string },
+  aRank: number,
+  b: { importance: KeywordImportance; keyword: string },
+  bRank: number,
+): number {
+  const d = importanceRank(a.importance) - importanceRank(b.importance);
+  if (d !== 0) return d;
+  if (aRank !== bRank) return aRank - bRank;
+  return a.keyword.localeCompare(b.keyword, "ko");
+}
+
+export async function fetchSummaryBlogRanks(hospitalId: string): Promise<HdBlogRankSummaryRow[]> {
+  const supabase = getSupabaseClient();
+  const importanceMap = await fetchKeywordImportanceMap(supabase, "analytics_blog_keyword_targets", hospitalId);
+  const impOf = (keyword: string): KeywordImportance => importanceMap.get(keyword.trim()) ?? "medium";
+  const rows = await fetchAllPages((from, to) =>
+    supabase
+      .schema("analytics")
+      .from("analytics_blog_keyword_ranks_daily_view")
+      .select("*")
+      .eq("hospital_id", hospitalId)
+      .order("metric_date", { ascending: true })
+      .range(from, to),
+  );
+  const stamped = rows
+    .map((row) => {
+      const date = parseDateValue(row);
+      if (!date) return null;
+      return { row, dateKey: toSeoulDateKey(date) };
+    })
+    .filter(
+      (item): item is { row: Record<string, unknown>; dateKey: string } => item !== null
+    );
+
+  const toTrend = (current: number | null, previous: number | null): -1 | 0 | 1 => {
+    if (current == null || previous == null) return 0;
+    if (current < previous) return 1;
+    if (current > previous) return -1;
+    return 0;
+  };
+
+  type RankKeywordSnapshot = {
+    keyword: string;
+    blog_rank_tab: number | null;
+    blog_rank_general: number | null;
+    blog_rank_integrated: number | null;
+    blog_rank_pet_popular: number | null;
+    blog_rank_tab_url: string | null;
+    blog_rank_general_url: string | null;
+    blog_rank_integrated_url: string | null;
+    blog_rank_pet_popular_url: string | null;
+  };
+
+  const mergeRowsByKeyword = (input: Record<string, unknown>[]) => {
+    const byKeyword = new Map<string, RankKeywordSnapshot>();
+    for (const row of input) {
+      const keyword = asStringOrNull(row.keyword) ?? "-";
+      const prev = byKeyword.get(keyword) ?? {
+        keyword,
+        blog_rank_tab: null,
+        blog_rank_general: null,
+        blog_rank_integrated: null,
+        blog_rank_pet_popular: null,
+        blog_rank_tab_url: null,
+        blog_rank_general_url: null,
+        blog_rank_integrated_url: null,
+        blog_rank_pet_popular_url: null,
+      };
+      byKeyword.set(keyword, {
+        keyword,
+        blog_rank_tab: asNumberOrNull(row.blog_rank_tab) ?? prev.blog_rank_tab,
+        blog_rank_general: asNumberOrNull(row.blog_rank_general) ?? prev.blog_rank_general,
+        blog_rank_integrated:
+          asNumberOrNull(row.blog_rank_integrated) ?? prev.blog_rank_integrated,
+        blog_rank_pet_popular:
+          asNumberOrNull(row.blog_rank_pet_popular) ?? prev.blog_rank_pet_popular,
+        blog_rank_tab_url: asStringOrNull(row.blog_rank_tab_url) ?? prev.blog_rank_tab_url,
+        blog_rank_general_url:
+          asStringOrNull(row.blog_rank_general_url) ?? prev.blog_rank_general_url,
+        blog_rank_integrated_url:
+          asStringOrNull(row.blog_rank_integrated_url) ?? prev.blog_rank_integrated_url,
+        blog_rank_pet_popular_url:
+          asStringOrNull(row.blog_rank_popular_url) ??
+          asStringOrNull(row.blog_rank_pet_popular_url) ??
+          prev.blog_rank_pet_popular_url,
+      });
+    }
+    return byKeyword;
+  };
+
+  if (stamped.length === 0) {
+    return latestSnapshotRows(rows)
+      .map((row) => {
+        const keyword = asStringOrNull(row.keyword) ?? "-";
+        return {
+          keyword,
+          importance: impOf(keyword),
+          blog_rank_tab: asNumberOrNull(row.blog_rank_tab),
+          blog_rank_general: asNumberOrNull(row.blog_rank_general),
+          blog_rank_integrated: asNumberOrNull(row.blog_rank_integrated),
+          blog_rank_pet_popular: asNumberOrNull(row.blog_rank_pet_popular),
+          blog_rank_tab_trend: 0 as const,
+          blog_rank_general_trend: 0 as const,
+          blog_rank_integrated_trend: 0 as const,
+          blog_rank_pet_popular_trend: 0 as const,
+          blog_rank_tab_url: asStringOrNull(row.blog_rank_tab_url),
+          blog_rank_general_url: asStringOrNull(row.blog_rank_general_url),
+          blog_rank_integrated_url: asStringOrNull(row.blog_rank_integrated_url),
+          blog_rank_pet_popular_url:
+            asStringOrNull(row.blog_rank_popular_url) ??
+            asStringOrNull(row.blog_rank_pet_popular_url),
+          latestDateKey: null,
+          baselineDateKey: null,
+        };
+      })
+      .sort((a, b) => compareByImportanceThenRank(a, blogBestRank(a), b, blogBestRank(b)));
+  }
+
+  const dateKeys = Array.from(new Set(stamped.map((item) => item.dateKey))).sort();
+  const dateKeySet = new Set(dateKeys);
+  const latestDateKey = dateKeys.at(-1) as string;
+  // 화살표 비교 기준: 정확히 14일 전. 그 날짜에 수집이 없으면 아래 우선순위로 폴백.
+  const BASELINE_OFFSET_PRIORITY = [14, 15, 13, 16, 12, 17, 11, 18, 10, 19, 20];
+  const baselineDateKey =
+    BASELINE_OFFSET_PRIORITY.map((offset) => addCalendarDaysUtc(latestDateKey, -offset)).find(
+      (key) => dateKeySet.has(key),
+    ) ?? null;
+
+  const latestRows = stamped
+    .filter((item) => item.dateKey === latestDateKey)
+    .map((item) => item.row);
+  const latestByKeyword = mergeRowsByKeyword(latestRows);
+  const baselineByKeyword = baselineDateKey
+    ? mergeRowsByKeyword(
+        stamped.filter((item) => item.dateKey === baselineDateKey).map((item) => item.row)
+      )
+    : new Map<string, RankKeywordSnapshot>();
+
+  return Array.from(latestByKeyword.values())
+    .map((current) => {
+      const previous = baselineByKeyword.get(current.keyword) ?? null;
+      return {
+        ...current,
+        importance: impOf(current.keyword),
+        blog_rank_tab_trend: toTrend(current.blog_rank_tab, previous?.blog_rank_tab ?? null),
+        blog_rank_general_trend: toTrend(
+          current.blog_rank_general,
+          previous?.blog_rank_general ?? null
+        ),
+        blog_rank_integrated_trend: toTrend(
+          current.blog_rank_integrated,
+          previous?.blog_rank_integrated ?? null
+        ),
+        blog_rank_pet_popular_trend: toTrend(
+          current.blog_rank_pet_popular,
+          previous?.blog_rank_pet_popular ?? null
+        ),
+        latestDateKey,
+        baselineDateKey,
+      } as HdBlogRankSummaryRow;
+    })
+    .sort((a, b) => compareByImportanceThenRank(a, blogBestRank(a), b, blogBestRank(b)));
+}
+
+function pickBaselineDateKey(latestDateKey: string, dateKeySet: Set<string>): string | null {
+  return (
+    RANK_BASELINE_OFFSET_PRIORITY.map((offset) => addCalendarDaysUtc(latestDateKey, -offset)).find(
+      (key) => dateKeySet.has(key),
+    ) ?? null
+  );
+}
+
+function rankTrend(current: number | null, previous: number | null): -1 | 0 | 1 {
+  if (current == null || previous == null) return 0;
+  if (current < previous) return 1;
+  if (current > previous) return -1;
+  return 0;
+}
+
+export async function fetchSummaryPlaceRanks(
+  hospitalId: string
+): Promise<HdPlaceRankSummaryRow[]> {
+  const supabase = getSupabaseClient();
+  const importanceMap = await fetchKeywordImportanceMap(supabase, "analytics_place_keyword_targets", hospitalId);
+  const impOf = (keyword: string): KeywordImportance => importanceMap.get(keyword.trim()) ?? "medium";
+  const data = await fetchAllPages((from, to) =>
+    supabase
+      .schema("analytics")
+      .from("analytics_place_keyword_ranks")
+      .select("*")
+      .eq("hospital_id", hospitalId)
+      .order("metric_date", { ascending: true })
+      .range(from, to),
+  );
+
+  const stamped = data
+    .map((row) => {
+      const date = parseDateValue(row);
+      if (!date) return null;
+      return { row, dateKey: toSeoulDateKey(date) };
+    })
+    .filter(
+      (item): item is { row: Record<string, unknown>; dateKey: string } => item !== null
+    );
+
+  if (stamped.length === 0) {
+    return latestSnapshotRows(data)
+      .map((row) => {
+        const keyword = asStringOrNull(row.keyword) ?? "-";
+        return {
+          keyword,
+          importance: impOf(keyword),
+          rank_value: asNumberOrNull(row.rank_value),
+          rank_value_trend: 0 as const,
+          latestDateKey: null,
+          baselineDateKey: null,
+        };
+      })
+      .sort((a, b) =>
+        compareByImportanceThenRank(a, a.rank_value ?? Number.POSITIVE_INFINITY, b, b.rank_value ?? Number.POSITIVE_INFINITY),
+      );
+  }
+
+  const dateKeys = Array.from(new Set(stamped.map((item) => item.dateKey))).sort();
+  const dateKeySet = new Set(dateKeys);
+  const latestDateKey = dateKeys.at(-1) as string;
+  const baselineDateKey = pickBaselineDateKey(latestDateKey, dateKeySet);
+
+  // 특정 수집일의 keyword→rank_value 맵 (같은 날 중복 행은 마지막 non-null 유지)
+  const snapshotByKeyword = (dk: string) => {
+    const map = new Map<string, number | null>();
+    for (const item of stamped) {
+      if (item.dateKey !== dk) continue;
+      const keyword = asStringOrNull(item.row.keyword) ?? "-";
+      const rv = asNumberOrNull(item.row.rank_value);
+      map.set(keyword, rv ?? map.get(keyword) ?? null);
+    }
+    return map;
+  };
+
+  const latestMap = snapshotByKeyword(latestDateKey);
+  const baselineMap = baselineDateKey
+    ? snapshotByKeyword(baselineDateKey)
+    : new Map<string, number | null>();
+
+  return Array.from(latestMap.entries())
+    .map(([keyword, rank_value]) => ({
+      keyword,
+      importance: impOf(keyword),
+      rank_value,
+      rank_value_trend: rankTrend(rank_value, baselineMap.get(keyword) ?? null),
+      latestDateKey,
+      baselineDateKey,
+    }))
+    .sort((a, b) =>
+      compareByImportanceThenRank(a, a.rank_value ?? Number.POSITIVE_INFINITY, b, b.rank_value ?? Number.POSITIVE_INFINITY),
+    );
 }
