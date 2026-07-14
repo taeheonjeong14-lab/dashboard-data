@@ -821,6 +821,7 @@ function ReExtractButton({ runId, onReloaded }: { runId: string; onReloaded?: ()
   const [jobStatus, setJobStatus] = useState<string | null>(null);
   const [pct, setPct] = useState(0);
   const [errMsg, setErrMsg] = useState<string | null>(null);
+  const [nowTs, setNowTs] = useState(0); // 경과 시간 표시용(진행 틱에서 갱신)
   const startRef = useRef(0);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const tickRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -851,6 +852,7 @@ function ReExtractButton({ runId, onReloaded }: { runId: string; onReloaded?: ()
       const elapsed = Date.now() - startRef.current;
       const target = Math.min(92, (elapsed / EXPECTED_MS) * 92);
       setPct((prev) => (prev < target ? target : prev));
+      setNowTs(Date.now());
     }, 600);
     // status 폴링
     pollRef.current = setInterval(() => {
@@ -898,7 +900,14 @@ function ReExtractButton({ runId, onReloaded }: { runId: string; onReloaded?: ()
   };
 
   const running = phase === 'running';
+  // 워커 함수가 죽으면 잡이 processing 인 채로 남고, 안전망 크론이 15분 뒤 재시도한다(최대 3회).
+  // 진행바만 92% 에서 무한히 돌면 사용자는 무슨 일인지 알 수 없다 → 경과 시간에 따라 상태를 말해 준다.
+  const elapsedMs = running && startRef.current ? nowTs - startRef.current : 0;
+  const delayed = running && elapsedMs > 3 * 60_000;   // 3분 넘게 안 끝남
+  const stalled = running && elapsedMs > 16 * 60_000;  // 크론 재시도 주기(15분)를 넘김
   const statusLabel =
+    stalled ? '지연 — 재시도 중' :
+    delayed ? '지연 중…' :
     jobStatus === 'processing' ? '추출 중…' :
     jobStatus === 'queued' ? '대기 중…' :
     jobStatus === 'done' ? '완료' : '준비 중…';
@@ -912,6 +921,13 @@ function ReExtractButton({ runId, onReloaded }: { runId: string; onReloaded?: ()
         <div aria-hidden style={{ height: 6, borderRadius: 4, background: '#e5e7eb', overflow: 'hidden' }}>
           <div style={{ height: '100%', width: `${pct}%`, background: phase === 'done' ? '#16a34a' : '#2563eb', transition: 'width 0.5s ease' }} />
         </div>
+      )}
+      {running && delayed && (
+        <span style={{ fontSize: 11, color: '#b45309', lineHeight: 1.5 }}>
+          {stalled
+            ? '추출이 오래 걸리고 있습니다. 워커가 중단됐다면 자동으로 재시도되며(최대 3회), 모두 실패하면 실패로 표시됩니다.'
+            : `예상보다 오래 걸립니다(${Math.round(elapsedMs / 1000)}초 경과). 창을 닫아도 추출은 계속됩니다.`}
+        </span>
       )}
       {phase === 'done' && <span style={{ fontSize: 14, color: '#16a34a' }}>재추출 완료 — 결과를 갱신했습니다.</span>}
       {phase === 'error' && <span style={{ fontSize: 14, color: '#dc2626' }}>{errMsg}</span>}
@@ -2216,8 +2232,9 @@ export function AdminRunExtractionDetail({
             />
             <button
               type="button"
-              className="adminLegacySecondaryBtn"
-              style={{ fontSize: 11, padding: '3px 8px' }}
+              /* 같은 줄의 아이콘 버튼(26x26)과 높이를 맞춘다 — 공통 버튼 규칙(33px)을 받으면 혼자만 커진다. */
+              className="adminLegacySecondaryBtn adminBtnFree"
+              style={{ ...iconBtnStyle, width: 'auto', padding: '0 8px', fontSize: 11, fontWeight: 700 }}
               title="값과 참고범위를 비교해, 미판정(unknown) 항목의 플래그를 계산해 채웁니다. 참고범위 없는 항목은 제외."
               onClick={() => computeLabFlags()}
             >
