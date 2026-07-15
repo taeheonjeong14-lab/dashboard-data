@@ -29,11 +29,13 @@ export async function GET(request: NextRequest): Promise<Response> {
   try {
     const pool = getChartPgPool();
     const { rows } = await pool.query<Row>(
+      // parse_run_id·hospital_id 는 text 컬럼이라 uuid 컬럼(r.id·h.id)과 직접 비교하면
+      // "operator does not exist: text = uuid" 가 난다 → 양쪽을 uuid 로 캐스팅해 맞춘다.
       `SELECT d.parse_run_id, d.status, d.triggered_by, d.result, d.error, d.created_at, d.analyzed_at,
               r.friendly_id, h.name AS hospital_name
          FROM health_report.report_draft_diffs d
-         LEFT JOIN chart_pdf.parse_runs r ON r.id = d.parse_run_id
-         LEFT JOIN core.hospitals h ON h.id = d.hospital_id
+         LEFT JOIN chart_pdf.parse_runs r ON r.id = d.parse_run_id::uuid
+         LEFT JOIN core.hospitals h ON h.id = d.hospital_id::uuid
         ORDER BY d.created_at DESC
         LIMIT $1`,
       [limit],
