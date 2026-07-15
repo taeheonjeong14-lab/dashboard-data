@@ -29,13 +29,14 @@ export async function GET(request: NextRequest): Promise<Response> {
   try {
     const pool = getChartPgPool();
     const { rows } = await pool.query<Row>(
-      // parse_run_id·hospital_id 는 text 컬럼이라 uuid 컬럼(r.id·h.id)과 직접 비교하면
-      // "operator does not exist: text = uuid" 가 난다 → 양쪽을 uuid 로 캐스팅해 맞춘다.
+      // diff 테이블의 parse_run_id·hospital_id 와 상대 테이블의 id 중 한쪽은 text, 한쪽은 uuid 라
+      // 직접 비교하면 "operator does not exist: text = uuid" 가 난다.
+      // 어느 쪽이 어느 타입인지에 의존하지 않도록 **양쪽을 text 로 통일**해 비교한다(값이 uuid 문자열이라 안전).
       `SELECT d.parse_run_id, d.status, d.triggered_by, d.result, d.error, d.created_at, d.analyzed_at,
               r.friendly_id, h.name AS hospital_name
          FROM health_report.report_draft_diffs d
-         LEFT JOIN chart_pdf.parse_runs r ON r.id = d.parse_run_id::uuid
-         LEFT JOIN core.hospitals h ON h.id = d.hospital_id::uuid
+         LEFT JOIN chart_pdf.parse_runs r ON r.id::text = d.parse_run_id::text
+         LEFT JOIN core.hospitals h ON h.id::text = d.hospital_id::text
         ORDER BY d.created_at DESC
         LIMIT $1`,
       [limit],
