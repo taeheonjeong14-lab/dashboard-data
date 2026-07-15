@@ -71,31 +71,115 @@ function fmt(iso: string | null): string {
   return new Date(iso).toLocaleString('ko-KR', { dateStyle: 'short', timeStyle: 'short' });
 }
 
-/** 한 건의 분석 결과 — 변경 목록 + 프롬프트 제안 + 원문 대조(접힘). */
-function DiffCard({ item }: { item: Item }) {
+/** 카테고리 표시 순서 — 중요도 높은 것 먼저(사실 정정 → … → 사소). */
+const KIND_ORDER = ['factual', 'detail', 'format', 'tone', 'trivial'];
+
+/** 변경 항목 하나 — 겉엔 한 줄(what)만, 클릭/호버 시 '왜·프롬프트'가 펼쳐진다. */
+function ChangeRow({ c }: { c: Change }) {
   const [open, setOpen] = useState(false);
+  const hasDetail = Boolean(c.reason || c.promptFix);
+  return (
+    <div
+      onMouseEnter={() => setOpen(true)}
+      onMouseLeave={() => setOpen(false)}
+      style={{ borderBottom: '1px solid var(--border)' }}
+    >
+      <button
+        type="button"
+        className="adminBtnFree"
+        onClick={() => setOpen((v) => !v)}
+        style={{
+          width: '100%', textAlign: 'left', display: 'flex', gap: 6, alignItems: 'center',
+          padding: '7px 2px', background: 'none', border: 'none', cursor: hasDetail ? 'pointer' : 'default',
+        }}
+      >
+        <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)', flex: 1, minWidth: 0 }}>{c.what || '(내용 없음)'}</span>
+        {c.field ? <code style={{ fontSize: 11, color: 'var(--text-muted)', flexShrink: 0 }}>{c.field}</code> : null}
+        {hasDetail ? <span style={{ fontSize: 11, color: 'var(--text-muted)', flexShrink: 0 }}>{open ? '▾' : '▸'}</span> : null}
+      </button>
+      {open && hasDetail ? (
+        <div style={{ display: 'grid', gap: 4, padding: '0 2px 9px 2px' }}>
+          {c.reason ? <div style={{ fontSize: 14, color: 'var(--text-secondary)', lineHeight: 1.5 }}>왜: {c.reason}</div> : null}
+          {c.promptFix ? <div style={{ fontSize: 14, color: 'var(--accent)', fontWeight: 600, lineHeight: 1.5 }}>프롬프트: {c.promptFix}</div> : null}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+/** 한 카테고리(사실 정정 등) 박스 — 그 카테고리 항목들을 담는다. */
+function KindGroup({ kind, items }: { kind: string; items: Change[] }) {
+  const color = KIND_COLOR[kind] ?? 'var(--text-muted)';
+  return (
+    <div style={{ border: `1px solid ${color}33`, borderLeft: `3px solid ${color}`, borderRadius: 8, background: `${color}0a`, overflow: 'hidden' }}>
+      <div style={{ display: 'flex', gap: 6, alignItems: 'center', padding: '7px 12px', borderBottom: '1px solid var(--border)' }}>
+        <span style={{ ...badge(color), background: color, color: '#fff', borderColor: color }}>{KIND_LABEL[kind] || '기타'}</span>
+        <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{items.length}건</span>
+      </div>
+      <div style={{ padding: '0 12px' }}>
+        {items.map((c, i) => <ChangeRow key={i} c={c} />)}
+      </div>
+    </div>
+  );
+}
+
+/** 한 건의 분석 결과 — 변경 목록 + 프롬프트 제안 + 원문 대조(접힘). */
+function DiffCard({ item, expandKey }: { item: Item; expandKey: number }) {
+  const [open, setOpen] = useState(false); // 원문 대조 접힘
+  const [cardOpen, setCardOpen] = useState(false); // 케이스 카드 전체 접힘(기본 접힘 — 여러 건 쌓이므로)
+  // 상단 '모두 펼치기/접기'가 눌릴 때(expandKey 변화) 이 카드 상태를 그에 맞춘다.
+  useEffect(() => {
+    if (expandKey === 0) return;
+    setCardOpen(expandKey > 0);
+  }, [expandKey]);
   const r = item.result;
   const changes = r?.changes ?? [];
   const suggestions = r?.promptSuggestions ?? [];
   const raw = r?.changed ?? [];
 
+  // 변경 항목을 카테고리(kind)별로 묶는다. 알 수 없는 kind 는 '기타'(빈 문자열)로.
+  const byKind = new Map<string, Change[]>();
+  for (const c of changes) {
+    const k = c.kind && KIND_LABEL[c.kind] ? c.kind : '';
+    byKind.set(k, [...(byKind.get(k) ?? []), c]);
+  }
+  const kinds = [...byKind.keys()].sort((a, b) => {
+    const ia = KIND_ORDER.indexOf(a); const ib = KIND_ORDER.indexOf(b);
+    return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
+  });
+
   return (
-    <div style={{ ...card, display: 'grid', gap: 10 }}>
-      <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+    <div style={{ ...card, display: 'grid', gap: cardOpen ? 10 : 0, padding: cardOpen ? '14px 16px' : '10px 16px' }}>
+      {/* 헤더 = 접기/펼치기 토글. 접힌 상태에선 병원·요약만 보인다. */}
+      <button
+        type="button"
+        className="adminBtnFree"
+        onClick={() => setCardOpen((v) => !v)}
+        style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', width: '100%', textAlign: 'left', background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
+      >
+        <span style={{ fontSize: 11, color: 'var(--text-muted)', flexShrink: 0 }}>{cardOpen ? '▾' : '▸'}</span>
         <b style={{ fontSize: 14 }}>{item.hospitalName ?? '병원 미상'}</b>
         <code style={{ fontSize: 11, color: 'var(--text-muted)' }}>{item.friendlyId ?? item.runId.slice(0, 8)}</code>
         <span style={badge(item.status === 'error' ? '#e5484d' : 'var(--text-muted)')}>
           {STATUS_LABEL[item.status] ?? item.status}
         </span>
-        {item.triggeredBy ? (
+        {/* 접힌 상태에서 한눈에: 변경 건수(또는 초안 그대로) */}
+        {r?.noEdits ? (
+          <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--success)' }}>초안 그대로</span>
+        ) : changes.length ? (
+          <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)' }}>변경 {changes.length}건</span>
+        ) : null}
+        {item.triggeredBy && cardOpen ? (
           <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
             트리거: {item.triggeredBy === 'kakao' ? '카카오 발송' : 'PDF 다운로드'}
           </span>
         ) : null}
         <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--text-muted)' }}>
-          선택 {fmt(item.createdAt)} · 분석 {fmt(item.analyzedAt)}
+          {cardOpen ? `선택 ${fmt(item.createdAt)} · 분석 ${fmt(item.analyzedAt)}` : fmt(item.analyzedAt)}
         </span>
-      </div>
+      </button>
+
+      {!cardOpen ? null : (<>
 
       {item.error ? <div style={{ fontSize: 14, color: 'var(--danger)' }}>{item.error}</div> : null}
       {r?.summary ? <div style={{ fontSize: 14, color: 'var(--text)' }}>{r.summary}</div> : null}
@@ -107,18 +191,9 @@ function DiffCard({ item }: { item: Item }) {
       ) : null}
 
       {changes.length ? (
-        <div style={{ display: 'grid', gap: 7 }}>
-          {changes.map((c, i) => (
-            <div key={i} style={{ display: 'grid', gap: 3, paddingLeft: 10, borderLeft: `3px solid ${KIND_COLOR[c.kind ?? ''] ?? 'var(--border)'}` }}>
-              <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
-                <span style={badge(KIND_COLOR[c.kind ?? ''] ?? 'var(--text-muted)')}>{KIND_LABEL[c.kind ?? ''] ?? c.kind ?? '기타'}</span>
-                <span style={{ fontSize: 14, fontWeight: 700 }}>{c.what}</span>
-                <code style={{ fontSize: 11, color: 'var(--text-muted)' }}>{c.field}</code>
-              </div>
-              {c.reason ? <div style={{ fontSize: 14, color: 'var(--text-secondary)' }}>왜: {c.reason}</div> : null}
-              {c.promptFix ? <div style={{ fontSize: 14, color: 'var(--accent)', fontWeight: 600 }}>프롬프트: {c.promptFix}</div> : null}
-            </div>
-          ))}
+        <div style={{ display: 'grid', gap: 8 }}>
+          {kinds.map((k) => <KindGroup key={k || 'etc'} kind={k} items={byKind.get(k)!} />)}
+          <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>항목을 누르거나 커서를 올리면 상세가 열립니다.</div>
         </div>
       ) : null}
 
@@ -157,6 +232,8 @@ function DiffCard({ item }: { item: Item }) {
           ) : null}
         </div>
       ) : null}
+
+      </>)}
     </div>
   );
 }
@@ -165,6 +242,8 @@ function HealthReportTab() {
   const [items, setItems] = useState<Item[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  // 양수 = 모두 펼침, 음수 = 모두 접힘, 0 = 개별 제어. 값이 바뀔 때마다 카드가 반응하도록 타임스탬프를 쓴다.
+  const [expandKey, setExpandKey] = useState(0);
 
   useEffect(() => {
     void (async () => {
@@ -194,8 +273,15 @@ function HealthReportTab() {
 
   return (
     <div style={{ display: 'grid', gap: 12 }}>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{items.length}건</span>
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
+          <button type="button" className="adminLegacySmallBtn" onClick={() => setExpandKey(Date.now())}>모두 펼치기</button>
+          <button type="button" className="adminLegacySmallBtn" onClick={() => setExpandKey(-Date.now())}>모두 접기</button>
+        </div>
+      </div>
       {items.map((it) => (
-        <DiffCard key={it.runId} item={it} />
+        <DiffCard key={it.runId} item={it} expandKey={expandKey} />
       ))}
     </div>
   );
