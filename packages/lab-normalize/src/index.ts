@@ -45,6 +45,12 @@ const PRIORITY_RULES: CanonicalRule[] = [
   { canonical: 'HCO3(std)', pattern: /HC[O0]3.*\bs?td\b/i },
   { canonical: 'HCO3(std)', pattern: /HC[O0]3.*standard/i },
   { canonical: 'HCO3(std)', pattern: /\b(?:s?td|standard)\b.*HC[O0]3/i },
+  // 혈액가스 파생 항목 — plain pO2/pCO2/pH 와 다른 별개 값이라 괄호가 지워지기 전에 구분한다.
+  //  (T)=체온 보정값, (A-a)=폐포-동맥 산소분압차(계산값). OCR 의 O→0 오독(p02, pc02)도 흡수.
+  { canonical: 'pO2(A-a)', pattern: /P[O0]2\s*\(\s*A\s*-?\s*a\s*\)/i },
+  { canonical: 'pO2(T)', pattern: /P[O0]2\s*\(\s*T\s*\)/i },
+  { canonical: 'pCO2(T)', pattern: /PC[O0]2\s*\(\s*T\s*\)/i },
+  { canonical: 'pH(T)', pattern: /\bPH\s*\(\s*T\s*\)/i },
 ];
 
 const DIRECT_ALIASES: Record<string, string> = {
@@ -410,7 +416,7 @@ const RECOGNIZED_LAB_ITEMS: ReadonlySet<string> = new Set(
     'FELV', 'FIV', 'FeLV Ag', 'FIV Ab', 'FPV', 'CPV', 'CDV', 'HWAG', 'HW Ag', 'Coronavirus', 'FCoV Ab',
     'FIP PCR', 'Ehrlichia', 'Anaplasma', 'Babesia', 'Lyme', 'Lepto', 'Toxo', 'PCR',
     // Blood gas
-    'pH', 'pCO2', 'pO2', 'BE', 'HCO3', 'HCO3(std)', 'tCO2', 'SO2', 'Lactate', 'tHb',
+    'pH', 'pH(T)', 'pCO2', 'pCO2(T)', 'pO2', 'pO2(T)', 'pO2(A-a)', 'BE', 'HCO3', 'HCO3(std)', 'tCO2', 'SO2', 'Lactate', 'tHb',
     // Immunologic
     'B12', 'Folate', 'ANA', 'RF', 'Coombs', 'IgG', 'IgM', 'IgA',
     // Tumor marker
@@ -798,6 +804,10 @@ const ITEM_TO_CATEGORY: Record<string, string> = {
   BE: 'blood_gas',
   HCO3: 'blood_gas',
   'HCO3(std)': 'blood_gas',
+  'pH(T)': 'blood_gas',
+  'pCO2(T)': 'blood_gas',
+  'pO2(T)': 'blood_gas',
+  'pO2(A-a)': 'blood_gas',
   TCO2: 'blood_gas',
   tCO2: 'blood_gas',
   SO2: 'blood_gas',
