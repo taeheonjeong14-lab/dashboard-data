@@ -76,7 +76,9 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  /* 아이콘 버튼은 우측 정렬 */
+  /* 아이콘 버튼은 우측 정렬. 병원 선택 등으로 버튼이 길어져 한 줄에 안 들어가면
+     '초기화' 글자가 세로로 쪼개지지 않도록 다음 줄로 넘긴다. */
+  flex-wrap: wrap;
   justify-content: flex-end;
   /* 레일 좌우를 꽉 채우는 띠(full-bleed) — 모서리 둥글림·바깥 여백 없음 */
   margin: 0;
@@ -98,6 +100,9 @@
   color: var(--text-secondary);
   font-size: var(--fs-sub);
   font-weight: 600;
+  /* 좁은 레일에서도 버튼 글자가 세로로 쪼개지지 않게 */
+  white-space: nowrap;
+  flex-shrink: 0;
   cursor: pointer;
 }
 
