@@ -467,6 +467,28 @@ function parseWoorienPmsBasicInfoFromText(block: string): ParsedBasicInfo {
   const ALL_LABELS = ["보호자번호","보호자이름","전화번호","동물번호","동물이름","종류","품종","성별","생일","생년월일","색상","RFID","현재체중","주소","동물명","종"];
   const nextRe = new RegExp(`\\s+(?:${ALL_LABELS.join("|")})\\s*[:：]`);
   const labelLineRe = new RegExp(`^(?:${ALL_LABELS.join("|")})\\s*[:：]`);
+  const labelNameRe = new RegExp(`^(${ALL_LABELS.join("|")})\\s*[:：]\\s*$`);
+
+  // 세로 스크램블 대응: 2열 표를 전사가 "라벨 전부 → 값 전부" 순으로 읽는 PDF가 있다.
+  //   예) "성별:" "생일:" 다음에 "중성화 Female" "2018-02-23".
+  //   이때 라벨과 값의 순서가 어긋나거나(생일이 성별 값을 먹음) 아예 뒤바뀌기도(동물번호↔동물이름) 한다.
+  //   → 순서(인덱스) 대신 **값의 내용**으로 필드를 판별한다(날짜=생일, 중성화/Female=성별, 개/고양이=종류…).
+  //   라벨만 있는 줄이 2개 이상 연속될 때만(스크램블 신호) 발동. 평범한 레이아웃은 아래 pick 이 처리.
+  const labelBlockDetected = (() => {
+    let run = 0;
+    for (const l of lines) {
+      if (labelLineRe.test(l) && l.replace(labelLineRe, "").trim() === "") { run += 1; if (run >= 2) return true; }
+      else run = 0;
+    }
+    return false;
+  })();
+  const valuePool = lines.filter((l) => !labelLineRe.test(l) && !labelNameRe.test(l));
+  const isDateVal = (v: string) => /^\d{4}[-.]\d{1,2}[-.]\d{1,2}\b/.test(v);
+  const isSexVal = (v: string) => /(중성화|거세|암컷|수컷|암\b|수\b|male|female|\bm\/n\b|\bf\/n\b)/i.test(v) && !isDateVal(v);
+  // ※ \b(단어경계)는 한글 뒤에서 안 먹으므로("개\b" 매칭 실패) 공백/끝으로 경계를 잡는다.
+  const isSpeciesVal = (v: string) => /^(개|고양이|강아지|dog|cat|feline|canine)(?:\s|$)/i.test(v.trim());
+  const byContent = (test: (v: string) => boolean): string | null => (labelBlockDetected ? (valuePool.find(test) ?? null) : null);
+
   const pick = (labels: string[]): string | null => {
     for (let i = 0; i < lines.length; i += 1) {
       const line = lines[i];
@@ -509,17 +531,31 @@ function parseWoorienPmsBasicInfoFromText(block: string): ParsedBasicInfo {
     /((?:[가-힣A-Za-z]+\s*){0,3}동물(?:메디컬(?:\s*센터)?|의료(?:원|센터)?|병원|클리닉))/;
   const hospitalName =
     lines.map((l) => l.match(HOSPITAL_NAME_RE)?.[1]?.trim()).find((v): v is string => Boolean(v)) ?? null;
-  const birthRaw = pick(["생일", "생년월일"]);
+  // 스크램블일 땐 라벨 인접값이 어긋나므로, 내용으로 판별되는 필드(생일/성별/종류)는 값 풀에서 직접 고른다.
+  const birthRaw = byContent(isDateVal) ?? pick(["생일", "생년월일"]);
   const birth = birthRaw ? (birthRaw.match(/\d{4}[-.]\d{1,2}[-.]\d{1,2}/)?.[0] ?? null) : null;
+  const sexRaw = byContent(isSexVal) ?? pick(["성별"]);
+  const speciesRaw = byContent(isSpeciesVal) ?? pick(["종류", "종"]);
+
+  // 스크램블에서 품종은 라벨 인접값이 없어 pick 으로 못 잡는다(품종:/종류: 라벨이 붙어 나옴).
+  // 값 순서상 품종 값은 항상 종류 값 바로 앞에 온다(예: "토이 푸들" "개") → 종류 값 앞 항목을 품종으로.
+  let breedRaw = pick(["품종"]);
+  if (!breedRaw && labelBlockDetected && speciesRaw) {
+    const si = valuePool.indexOf(speciesRaw);
+    const cand = si > 0 ? valuePool[si - 1].trim() : "";
+    if (cand && !isDateVal(cand) && !isSexVal(cand) && !isSpeciesVal(cand) && !/^\d[\d-]*$/.test(cand)) {
+      breedRaw = cand;
+    }
+  }
 
   return {
     hospitalName,
     ownerName: stripTrail(pick(["보호자이름"])),
     patientName: stripTrail(pick(["동물이름", "동물명"])),
-    species: stripTrail(pick(["종류", "종"])),
-    breed: stripTrail(pick(["품종"])),
+    species: stripTrail(speciesRaw),
+    breed: stripTrail(breedRaw),
     birth,
-    sex: normalizeBasicInfoSex(stripTrail(pick(["성별"]))),
+    sex: normalizeBasicInfoSex(stripTrail(sexRaw)),
   };
 }
 
