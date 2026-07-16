@@ -39,6 +39,12 @@ const PRIORITY_RULES: CanonicalRule[] = [
   //  normalizeToken 이 "f.NT-proBNP" → "FNTPROBNP" 로 만들어 별칭 매칭이 안 되므로 raw 단계에서 잡는다.
   { canonical: 'proBNP', pattern: /\bNT[\s.-]*pro[\s-]*BNP\b/i },
   { canonical: 'proBNP', pattern: /\bpro[\s-]*BNP\b/i },
+  // 표준중탄산염(standard bicarbonate)은 실제 중탄산염(HCO3)과 다른 항목(호흡 성분 보정) →
+  //  normalizeToken 이 "(std)" 괄호를 지우기 전에 raw 에서 먼저 구분해 HCO3(std) 로 잡는다.
+  //  OCR 이 O 를 0 으로 읽는 경우(HC03)도 함께 흡수. 단독 HCO3 는 여기서 안 잡히고 아래 별칭으로.
+  { canonical: 'HCO3(std)', pattern: /HC[O0]3.*\bs?td\b/i },
+  { canonical: 'HCO3(std)', pattern: /HC[O0]3.*standard/i },
+  { canonical: 'HCO3(std)', pattern: /\b(?:s?td|standard)\b.*HC[O0]3/i },
 ];
 
 const DIRECT_ALIASES: Record<string, string> = {
@@ -227,6 +233,8 @@ const DIRECT_ALIASES: Record<string, string> = {
   S02: 'SO2',
   PC02: 'pCO2',
   TC02: 'tCO2',
+  HCO3: 'HCO3',
+  HC03: 'HCO3', // OCR 이 O 를 0 으로 읽은 실제 중탄산염(표준중탄산염은 PRIORITY_RULES 가 먼저 분리)
   LACTATE: 'Lactate',
   LAC: 'Lactate',
   COOMBS: 'Coombs',
@@ -402,7 +410,7 @@ const RECOGNIZED_LAB_ITEMS: ReadonlySet<string> = new Set(
     'FELV', 'FIV', 'FeLV Ag', 'FIV Ab', 'FPV', 'CPV', 'CDV', 'HWAG', 'HW Ag', 'Coronavirus', 'FCoV Ab',
     'FIP PCR', 'Ehrlichia', 'Anaplasma', 'Babesia', 'Lyme', 'Lepto', 'Toxo', 'PCR',
     // Blood gas
-    'pH', 'pCO2', 'pO2', 'BE', 'HCO3', 'tCO2', 'SO2', 'Lactate', 'tHb',
+    'pH', 'pCO2', 'pO2', 'BE', 'HCO3', 'HCO3(std)', 'tCO2', 'SO2', 'Lactate', 'tHb',
     // Immunologic
     'B12', 'Folate', 'ANA', 'RF', 'Coombs', 'IgG', 'IgM', 'IgA',
     // Tumor marker
@@ -789,6 +797,7 @@ const ITEM_TO_CATEGORY: Record<string, string> = {
   pO2: 'blood_gas',
   BE: 'blood_gas',
   HCO3: 'blood_gas',
+  'HCO3(std)': 'blood_gas',
   TCO2: 'blood_gas',
   tCO2: 'blood_gas',
   SO2: 'blood_gas',
