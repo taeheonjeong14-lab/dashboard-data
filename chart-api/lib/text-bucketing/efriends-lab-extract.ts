@@ -192,12 +192,21 @@ function normalizeEfriendsLabValueTextForDb(raw: string): string {
   return s;
 }
 
+// 임상적으로 의미 있는 끝 괄호 접미사 — 서로 다른 항목이므로 이름에서 떼면 안 된다.
+//  예: BE(B)≠BE(ecf), HCO3(std)≠HCO3, pO2(T)/pO2(A-a)≠pO2, iCA(7.4)≠iCA.
+//  (이걸 떼면 dedup 키가 같아져 뒤 항목이 통째로 사라진다 → 검사결과 탭에서 누락)
+const EFRIENDS_MEANINGFUL_NAME_SUFFIX = /\(\s*(?:B|ecf|std|T|A-?a|\d+(?:\.\d+)?)\s*\)\s*$/i;
+
 function normalizeEfriendsAnalyteName(raw: string): string {
-  return raw
+  let s = raw
     // 이상표시(*)가 이름 뒤에 따라붙는 행이 있다("%NEU(idexx) * 81.6 %").
     // 먼저 떼지 않으면 괄호가 끝이 아니라서 벤더 표기(idexx)가 안 씻긴다.
-    .replace(/[\s*]+$/g, "")
-    .replace(/\s*\([^)]*\)\s*$/g, "")
+    .replace(/[\s*]+$/g, "");
+  // 벤더/방법 태그(idexx, PT10, V200 …)만 제거하고, 임상 접미사는 보존한다.
+  if (!EFRIENDS_MEANINGFUL_NAME_SUFFIX.test(s)) {
+    s = s.replace(/\s*\([^)]*\)\s*$/g, "");
+  }
+  return s
     .replace(/[\s*]+$/g, "")
     .replace(/\s+/g, " ")
     .trim();
@@ -215,7 +224,7 @@ function isKoreanNonAnalyteName(name: string): boolean {
  */
 function splitEfriendsTrailingRefRange(rawName: string): { name: string; ref: string | null } {
   const s = rawName.trim();
-  const m = s.match(/^(.*?\S)\s+(\d+(?:[.,]\d+)?\s*[-~–]\s*\d+(?:[.,]\d+)?)\s*$/);
+  const m = s.match(/^(.*?\S)\s+(-?\d+(?:[.,]\d+)?\s*[-~–]\s*-?\d+(?:[.,]\d+)?)\s*$/);
   if (!m) return { name: s, ref: null };
   const head = m[1].trim();
   // 괄호를 떼고도 글자가 남아야 진짜 "이름 + 범위" (값/단위 행 오인 방지)
@@ -271,7 +280,7 @@ function parseEfriendsNumericReferenceBounds(ref: string): { min: number; max: n
   const t = ref.trim();
   if (!t || isEfriendsEmptyCell(t)) return null;
   if (/^20\d{2}[-/.]\d{1,2}[-/.]\d{1,2}$/.test(t)) return null;
-  const m = t.match(/(\d+(?:[.,]\d+)?)\s*[-~]\s*(\d+(?:[.,]\d+)?)/);
+  const m = t.match(/(-?\d+(?:[.,]\d+)?)\s*[-~]\s*(-?\d+(?:[.,]\d+)?)/);
   if (!m) return null;
   const min = Number.parseFloat(m[1].replace(",", "."));
   const max = Number.parseFloat(m[2].replace(",", "."));
@@ -284,8 +293,9 @@ function looksLikeEfriendsReferenceLine(s: string): boolean {
   if (/^20\d{2}[-/.]\d{1,2}[-/.]\d{1,2}$/.test(t)) return false;
   if (t === "—" || t === "-" || /^n\/?a$/i.test(t)) return true;
   if (/^<\s*\d+[.,]?\d*$/.test(t)) return true;
-  if (/^\d+[.,]?\d*\s*[-~]\s*\d+[.,]?\d*/.test(t)) return true;
-  if (/^\d+[.,]?\d*\s*[-~]\s*</i.test(t)) return true;
+  // Base Excess 등은 Min 이 음수라 참고구간이 "-7-2.9"/"-2-3" 처럼 마이너스로 시작한다 → 선행 `-` 허용.
+  if (/^-?\d+[.,]?\d*\s*[-~]\s*-?\d+[.,]?\d*/.test(t)) return true;
+  if (/^-?\d+[.,]?\d*\s*[-~]\s*</i.test(t)) return true;
   return false;
 }
 
@@ -308,14 +318,14 @@ function parseValueUnitCombinedLine(line: string): { valueText: string; unit: st
   const qual = t.match(/^(음성|양성|NEG|POS|Normal|Abnormal|TRACE)\/?$/i);
   if (qual) return { valueText: qual[1] ?? t, unit: "—" };
 
-  const m = t.match(/^(\*?\s*<?[\d.,]+(?:\/[\d.,]+)?(?:[!A-Za-z]+)?)\s+(.+)$/);
+  const m = t.match(/^(\*?\s*<?-?[\d.,]+(?:\/[\d.,]+)?(?:[!A-Za-z]+)?)\s+(.+)$/);
   if (m) {
     const vt = m[1].trim();
     const u = m[2].trim();
     if (u.length >= 1) return { valueText: vt, unit: u };
   }
 
-  if (/^[\d.,]+(?:[!A-Za-z]+)?$/.test(t)) return { valueText: t, unit: "—" };
+  if (/^-?[\d.,]+(?:[!A-Za-z]+)?$/.test(t)) return { valueText: t, unit: "—" };
 
   return null;
 }
@@ -358,7 +368,7 @@ function tryParseVerticalFourLines(
   if (!looksLikeEfriendsReferenceLine(refLine)) return null;
 
   const value = valueLine.trim();
-  if (!value || !/^\*?\s*<?[\d.,]+(?:\/[\d.,]+)?(?:[!A-Za-z]+)?$/.test(value)) {
+  if (!value || !/^\*?\s*<?-?[\d.,]+(?:\/[\d.,]+)?(?:[!A-Za-z]+)?$/.test(value)) {
     return null;
   }
   if (!looksLikeEfriendsUnitCell(unitLine)) return null;
@@ -516,8 +526,8 @@ function collapseRangeTriplets(tokens: string[]): string[] {
     const b = tokens[i + 2] ?? "";
     if (
       (op === "-" || op === "~" || op === "–") &&
-      /^\d+(?:[.,]\d+)?$/.test(a) &&
-      /^\d+(?:[.,]\d+)?$/.test(b)
+      /^-?\d+(?:[.,]\d+)?$/.test(a) &&
+      /^-?\d+(?:[.,]\d+)?$/.test(b)
     ) {
       out.push(`${a} ${op} ${b}`);
       i += 3;
