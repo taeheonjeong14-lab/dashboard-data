@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireAdminApi } from '@/lib/assert-admin-api';
 import { createServiceRoleClient } from '@/lib/supabase/service-role';
-import { readLatestVolumes } from '@/lib/searchad/keyword-tool';
+import { readLatestVolumes, normalizeKeyword } from '@/lib/searchad/keyword-tool';
 
 export const dynamic = 'force-dynamic';
 
@@ -139,7 +139,9 @@ export async function GET() {
           readLatestVolumes(allKeywords),
           new Promise<never>((_, reject) => setTimeout(() => reject(new Error('volume timeout')), 4000)),
         ]);
-        for (const [kw, v] of volumes) volumeByKeyword.set(kw, v.totalCount);
+        // 검색량은 공백을 뗀 정규화 키로 저장/조회된다("동화 동물병원"→"동화동물병원").
+        // 타겟 키워드는 공백을 포함하므로, 조회도 정규화 키로 맞춰야 매칭된다(안 그러면 항상 null).
+        for (const [kw, v] of volumes) volumeByKeyword.set(normalizeKeyword(kw), v.totalCount);
       } catch { /* 검색량 조회 실패/지연은 무시 — 순위·날짜는 정상 반환 */ }
     }
 
@@ -152,7 +154,7 @@ export async function GET() {
           lastUsedAt: lastUsed.get(`${hid} ${kw}`) ?? null,
           rank: best?.rank ?? null,
           rankSection: best?.section ?? null,
-          searchVolume: volumeByKeyword.get(kw) ?? null,
+          searchVolume: volumeByKeyword.get(normalizeKeyword(kw)) ?? null,
         };
       });
     }

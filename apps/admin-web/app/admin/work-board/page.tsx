@@ -174,10 +174,11 @@ export default function WorkBoardPage() {
       ) : error ? (
         <p style={{ fontSize: 14, color: 'var(--danger)' }}>{error}</p>
       ) : tab === 'board' ? (
-        /* ── 현황판: 좌 병원별 잔여 수량 표 / 우 최근 1주일 완료 ── */
-        <div style={{ display: 'flex', gap: 20, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+        /* ── 현황판: 좌 병원별 잔여 수량 표 / 우 최근 1주일 완료 ──
+             auto-fit 그리드로 컬럼을 균등하게(화면이 좁으면 자동으로 줄바꿈, 겹치지 않음). */
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 20, alignItems: 'flex-start' }}>
           {/* 1: 병원별 잔여 수량 */}
-          <div style={{ flex: '1 1 300px', minWidth: 290, maxWidth: '100%' }}>
+          <div style={{ minWidth: 0 }}>
             <div style={colHeader}>
               <span style={{ display: 'inline-flex', width: 4, height: 14, borderRadius: 2, background: '#dc2626' }} />
               <span>병원별 잔여 수량</span>
@@ -217,7 +218,7 @@ export default function WorkBoardPage() {
           </div>
 
           {/* 2: 검진 리포트 최근 1주일 완료 */}
-          <div style={{ flex: '1 1 260px', minWidth: 250, maxWidth: '100%' }}>
+          <div style={{ minWidth: 0 }}>
             <div style={colHeader}>
               <StatusBadge category="health" stage="done" />
               <span>최근 1주일 검진 리포트 완료</span>
@@ -233,7 +234,7 @@ export default function WorkBoardPage() {
           </div>
 
           {/* 3: 블로그 최근 1주일 작성완료 */}
-          <div style={{ flex: '1 1 260px', minWidth: 250, maxWidth: '100%' }}>
+          <div style={{ minWidth: 0 }}>
             <div style={colHeader}>
               <StatusBadge category="blog" stage="drafted" />
               <span>최근 1주일 블로그 작성완료</span>
@@ -249,7 +250,7 @@ export default function WorkBoardPage() {
           </div>
 
           {/* 4: 블로그 최근 1주일 저장완료 */}
-          <div style={{ flex: '1 1 260px', minWidth: 250, maxWidth: '100%' }}>
+          <div style={{ minWidth: 0 }}>
             <div style={colHeader}>
               <StatusBadge category="blog" stage="saved" />
               <span>최근 1주일 블로그 저장완료</span>
