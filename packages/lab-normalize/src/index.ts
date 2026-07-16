@@ -222,6 +222,11 @@ const DIRECT_ALIASES: Record<string, string> = {
   PCO2: 'pCO2',
   PO2: 'pO2',
   TCO2: 'tCO2',
+  // OCR이 산소분압 계열의 대문자 O 를 숫자 0 으로 잘못 읽는 경우(pO2→p02, sO2→s02 등) 흡수.
+  P02: 'pO2',
+  S02: 'SO2',
+  PC02: 'pCO2',
+  TC02: 'tCO2',
   LACTATE: 'Lactate',
   LAC: 'Lactate',
   COOMBS: 'Coombs',
