@@ -189,7 +189,10 @@ function stripTrailingRefRange(head: string): { head: string; ref: string | null
     return { head: doubleNeg[1].trim(), ref: `${doubleNeg[2]}--${doubleNeg[3]}` };
   }
 
-  const simple = h.match(/^(.+?)\s+(\d+(?:\.\d+)?)\s*-\s*(\d+(?:\.\d+)?)\s*$/);
+  // Base Excess 등은 Min 이 음수라 참고구간이 "-7-2.9"/"-2-3" 처럼 마이너스로 시작한다.
+  //  (화살표가 붙는 값은 lastArrowSplit 이 참고를 먼저 떼지만, 정상범위 안이라 화살표 없는
+  //   BE(ecf) 같은 행은 여기로 와서 양수-only 매칭에 걸려 통째로 드롭됐다) → 선행 `-` 허용.
+  const simple = h.match(/^(.+?)\s+(-?\d+(?:\.\d+)?)\s*-\s*(-?\d+(?:\.\d+)?)\s*$/);
   if (simple) {
     return { head: simple[1].trim(), ref: `${simple[2]}-${simple[3]}` };
   }
