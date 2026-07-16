@@ -1881,11 +1881,15 @@ function parseWoorienLabItemsFromGroupLines(lines: BucketedLine[]): LabItem[] {
     const toks = t.split(/\s+/).filter(Boolean);
 
     // (A) 가로형: "검사명 값 [단위] [MIN] [MAX]" 한 줄에 다.
-    if (toks.length >= 2 && looksName(toks[0]!) && looksValue(toks[1]!)) {
+    //   ★검사명이 여러 토큰일 수 있다: "NEU %", "RET %", "Canine CRP" 등(공백 포함).
+    //     예전엔 name=toks[0]·value=toks[1] 로 고정해, 둘째 토큰이 숫자가 아니면(%/CRP) 행을 통째로 버렸다.
+    //     → 첫 '값(숫자로 시작)' 토큰을 찾아, 그 전까지를 이름으로 본다.
+    const firstValIdx = toks.findIndex((tk, idx) => idx >= 1 && looksValue(tk));
+    if (looksName(toks[0]!) && firstValIdx >= 1) {
       flushVertical("unknown"); // 직전 세로형 누적이 있으면 마무리
-      const name = toks[0]!;
-      const valueRaw = toks[1]!;
-      const rest = toks.slice(2);
+      const name = toks.slice(0, firstValIdx).join(" ");
+      const valueRaw = toks[firstValIdx]!;
+      const rest = toks.slice(firstValIdx + 1);
       let unit = "";
       // 값 다음의 비숫자 토큰(들) = 단위. 예: "10^9/L", "g/dL", "mmol/L", "%"
       //  단, 단독 대시("-")는 단위·범위 사이의 플래그/구분 칸이므로 단위에 넣지 않고 건너뛴다.
