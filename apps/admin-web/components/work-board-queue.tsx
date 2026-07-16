@@ -21,7 +21,7 @@ export type QueueItem = {
 
 type ReqDto = {
   id: string; runId: string; board: 'blog_write' | 'blog_save';
-  requester: string; dueDate: string | null; keyword: string; sortOrder: number; createdAt: string;
+  requester: string; dueDate: string | null; keyword: string; keyword2?: string | null; sortOrder: number; createdAt: string;
 };
 
 type Board = 'blog_write' | 'blog_save';
@@ -116,7 +116,15 @@ export function WorkBoardQueue({ blogItems }: { blogItems: QueueItem[] }) {
   // 배정 모달
   const [assignBoard, setAssignBoard] = useState<Board | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [keywords, setKeywords] = useState<Map<string, string>>(new Map());  // runId → 키워드(blog_save 전용)
+  // runId → { kw1(필수), kw2(선택) } (blog_save 전용). 케이스 하나에 키워드 두 개까지 배정한다.
+  const [keywords, setKeywords] = useState<Map<string, { kw1: string; kw2: string }>>(new Map());
+  const setKw = (runId: string, which: 'kw1' | 'kw2', v: string) =>
+    setKeywords((m) => {
+      const n = new Map(m);
+      const cur = n.get(runId) ?? { kw1: '', kw2: '' };
+      n.set(runId, { ...cur, [which]: v });
+      return n;
+    });
   const [requester, setRequester] = useState('');
   const [dueDate, setDueDate] = useState('');
   const [saving, setSaving] = useState(false);
@@ -152,11 +160,11 @@ export function WorkBoardQueue({ blogItems }: { blogItems: QueueItem[] }) {
     return [...avail.entries()].map(([h, a]) => ({ h, avail: a, sel: sel.get(h) ?? 0 })).sort((x, y) => y.avail - x.avail || x.h.localeCompare(y.h));
   }, [assignPool, selected, itemByRun]);
 
-  // blog_save 배정은 선택된 케이스마다 키워드 필수 — 하나라도 비어 있으면 배정 불가.
+  // blog_save 배정은 선택된 케이스마다 '첫 번째' 키워드 필수(두 번째는 선택) — 하나라도 비어 있으면 배정 불가.
   const missingKeywordCount = useMemo(() => {
     if (assignBoard !== 'blog_save') return 0;
     let n = 0;
-    for (const id of selected) if (!(keywords.get(id)?.trim())) n += 1;
+    for (const id of selected) if (!(keywords.get(id)?.kw1?.trim())) n += 1;
     return n;
   }, [assignBoard, selected, keywords]);
 
@@ -164,13 +172,16 @@ export function WorkBoardQueue({ blogItems }: { blogItems: QueueItem[] }) {
     if (!assignBoard || selected.size === 0 || missingKeywordCount > 0 || !requester.trim() || !dueDate) return;
     setSaving(true);
     try {
-      // blog_save 는 케이스별 키워드도 함께 전송(선택된 항목만).
+      // blog_save 는 케이스별 키워드도 함께 전송(선택된 항목만). kw1=필수, kw2=선택.
       const keywordPayload = assignBoard === 'blog_save'
-        ? Object.fromEntries([...selected].map((id) => [id, keywords.get(id)?.trim() ?? '']).filter(([, v]) => v))
+        ? Object.fromEntries([...selected].map((id) => [id, keywords.get(id)?.kw1?.trim() ?? '']).filter(([, v]) => v))
+        : undefined;
+      const keyword2Payload = assignBoard === 'blog_save'
+        ? Object.fromEntries([...selected].map((id) => [id, keywords.get(id)?.kw2?.trim() ?? '']).filter(([, v]) => v))
         : undefined;
       const res = await fetch('/api/admin/work-board/requests', {
         method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ board: assignBoard, runIds: [...selected], requester, dueDate, keywords: keywordPayload }),
+        body: JSON.stringify({ board: assignBoard, runIds: [...selected], requester, dueDate, keywords: keywordPayload, keywords2: keyword2Payload }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || '배정 실패');
@@ -259,6 +270,7 @@ export function WorkBoardQueue({ blogItems }: { blogItems: QueueItem[] }) {
                               </div>
                               <div style={{ marginTop: 4, display: 'flex', flexWrap: 'wrap', gap: 8, fontSize: 11 }}>
                                 {r.keyword ? <span style={{ padding: '1px 7px', borderRadius: 999, background: 'var(--accent-subtle)', color: 'var(--accent)', fontWeight: 700 }}># {r.keyword}</span> : null}
+                                {r.keyword2 ? <span style={{ padding: '1px 7px', borderRadius: 999, background: 'var(--bg-subtle)', color: 'var(--text-secondary)', fontWeight: 700 }}># {r.keyword2}</span> : null}
                                 {r.requester ? <span style={{ color: 'var(--text-secondary)' }}>요청자 <b style={{ color: 'var(--text)' }}>{r.requester}</b></span> : null}
                                 <span style={{ color: 'var(--text-muted)' }}>요청 {fmtDate(r.createdAt)}</span>
                               </div>
@@ -342,19 +354,35 @@ export function WorkBoardQueue({ blogItems }: { blogItems: QueueItem[] }) {
                         </label>
                         {isSave ? (() => {
                           const opts = (it.hospitalId && kwByHospital[it.hospitalId]) || [];
-                          const empty = !(keywords.get(it.runId)?.trim());
+                          const kw = keywords.get(it.runId) ?? { kw1: '', kw2: '' };
+                          const empty1 = !kw.kw1.trim();
                           // 체크 여부와 무관하게 우측에 항상 노출 — 미선택 항목은 흐리게.
                           return (
-                          <div style={{ display: 'flex', alignItems: 'center', flexShrink: 0, width: 256, padding: '9px 11px', borderLeft: '1px dashed var(--border)', opacity: on ? 1 : 0.55 }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flexShrink: 0, width: 256, padding: '9px 11px', borderLeft: '1px dashed var(--border)', opacity: on ? 1 : 0.55 }}>
                             {opts.length === 0 ? (
                               <span style={{ fontSize: 11, color: on ? '#dc2626' : 'var(--text-muted)', lineHeight: 1.35 }}>이 병원에 등록된 블로그 키워드 없음 — 병원 관리 설정에서 추가</span>
                             ) : (
-                              <KeywordSelect
-                                options={opts}
-                                value={keywords.get(it.runId) ?? ''}
-                                invalid={on && empty}
-                                onChange={(v) => setKeywords((m) => { const n = new Map(m); n.set(it.runId, v); return n; })}
-                              />
+                              <>
+                                <div>
+                                  <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 3 }}>키워드 1 <span style={{ color: '#dc2626' }}>*</span></div>
+                                  <KeywordSelect
+                                    options={opts}
+                                    value={kw.kw1}
+                                    invalid={on && empty1}
+                                    onChange={(v) => setKw(it.runId, 'kw1', v)}
+                                  />
+                                </div>
+                                <div>
+                                  <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 3 }}>키워드 2 <span style={{ fontWeight: 500 }}>(선택)</span></div>
+                                  <KeywordSelect
+                                    options={opts}
+                                    value={kw.kw2}
+                                    placeholder="선택 안 함"
+                                    clearable
+                                    onChange={(v) => setKw(it.runId, 'kw2', v)}
+                                  />
+                                </div>
+                              </>
                             )}
                           </div>
                           );
@@ -423,11 +451,14 @@ const inputStyle: React.CSSProperties = { width: '100%', padding: '9px 11px', fo
 // 키워드 커스텀 드롭다운 — 네이티브 select 로는 옵션 안에서 날짜 우측정렬·italic 이 불가해 직접 구현.
 //  옵션/선택 표시 모두 [키워드 …왼쪽] [마지막 사용 날짜 — 우측정렬·진회색·italic] 레이아웃.
 //  팝업은 모달의 overflow/opacity 에 안 잘리도록 body 로 포털 + fixed 좌표 배치.
-function KeywordSelect({ options, value, invalid, onChange }: {
+function KeywordSelect({ options, value, invalid = false, onChange, placeholder = '키워드 선택 *', clearable = false }: {
   options: { keyword: string; lastUsedAt: string | null }[];
   value: string;
-  invalid: boolean;
+  invalid?: boolean;
   onChange: (v: string) => void;
+  placeholder?: string;
+  /** 선택 안 함으로 되돌릴 수 있게(두 번째 키워드용). */
+  clearable?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const btnRef = useRef<HTMLButtonElement>(null);
@@ -463,7 +494,7 @@ function KeywordSelect({ options, value, invalid, onChange }: {
       <button ref={btnRef} type="button" onClick={() => setOpen((o) => !o)}
         style={{ width: '100%', minWidth: 0, display: 'flex', alignItems: 'center', gap: 8, padding: '6px 9px', fontSize: 14, border: `1px solid ${invalid ? '#dc2626' : 'var(--border-strong)'}`, borderRadius: 6, background: '#fff', cursor: 'pointer', textAlign: 'left', boxSizing: 'border-box' }}>
         <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: value ? 'var(--text)' : 'var(--text-muted)' }}>
-          {value || '키워드 선택 *'}
+          {value || placeholder}
         </span>
         {value ? <span style={{ flexShrink: 0, fontStyle: 'italic', fontWeight: 600, color: '#4b5563', fontSize: 11 }}>{selDate}</span> : null}
         <span style={{ flexShrink: 0, fontSize: 11, color: 'var(--text-muted)' }}>▼</span>
@@ -472,6 +503,12 @@ function KeywordSelect({ options, value, invalid, onChange }: {
         ? createPortal(
             <div ref={popRef}
               style={{ position: 'fixed', left: rect.left, top: rect.top, width: rect.width, maxHeight: 260, overflowY: 'auto', background: '#fff', border: '1px solid var(--border-strong)', borderRadius: 6, boxShadow: '0 8px 24px rgba(0,0,0,0.16)', zIndex: 1100, padding: 4 }}>
+              {clearable ? (
+                <button type="button" onClick={() => { onChange(''); setOpen(false); }}
+                  style={{ width: '100%', display: 'flex', alignItems: 'center', padding: '7px 8px', border: 0, background: !value ? 'var(--accent-subtle)' : 'transparent', borderRadius: 4, cursor: 'pointer', textAlign: 'left', fontSize: 14, color: 'var(--text-muted)' }}>
+                  선택 안 함
+                </button>
+              ) : null}
               {options.map((o) => (
                 <button key={o.keyword} type="button" onClick={() => { onChange(o.keyword); setOpen(false); }}
                   style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 8, padding: '7px 8px', border: 0, background: o.keyword === value ? 'var(--accent-subtle)' : 'transparent', borderRadius: 4, cursor: 'pointer', textAlign: 'left' }}>

@@ -9,13 +9,13 @@ const BOARDS = new Set(['blog_write', 'blog_save']);
 
 type Row = {
   id: string; run_id: string; board: string;
-  requester: string | null; due_date: string | null; keyword: string | null;
+  requester: string | null; due_date: string | null; keyword: string | null; keyword2: string | null;
   sort_order: number; created_at: string;
 };
 function toDto(r: Row) {
   return {
     id: r.id, runId: r.run_id, board: r.board,
-    requester: r.requester ?? '', dueDate: r.due_date ?? null, keyword: r.keyword ?? '',
+    requester: r.requester ?? '', dueDate: r.due_date ?? null, keyword: r.keyword ?? '', keyword2: r.keyword2 ?? null,
     sortOrder: Number(r.sort_order) || 0, createdAt: r.created_at,
   };
 }
@@ -29,7 +29,7 @@ export async function GET() {
     const { data, error } = await sb
       .schema('health_report')
       .from('work_requests')
-      .select('id, run_id, board, requester, due_date, keyword, sort_order, created_at')
+      .select('id, run_id, board, requester, due_date, keyword, keyword2, sort_order, created_at')
       .order('board', { ascending: true })
       .order('sort_order', { ascending: true });
     if (error) throw new Error(error.message);
@@ -45,7 +45,7 @@ export async function POST(request: NextRequest) {
   const gate = await requireAdminApi();
   if (!gate.ok) return gate.response;
 
-  let body: { runId?: string; runIds?: unknown; board?: string; requester?: string; dueDate?: string | null; keywords?: unknown };
+  let body: { runId?: string; runIds?: unknown; board?: string; requester?: string; dueDate?: string | null; keywords?: unknown; keywords2?: unknown };
   try {
     body = await request.json();
   } catch {
@@ -63,9 +63,15 @@ export async function POST(request: NextRequest) {
   if (!dueDate) return NextResponse.json({ error: '마감일을 입력하세요.' }, { status: 400 });
   // 케이스별 키워드 { [runId]: keyword } — 블로그 저장(blog_save) 배정에서만 사용.
   const keywordByRun: Record<string, string> = {};
+  const keyword2ByRun: Record<string, string> = {};
   if (board === 'blog_save' && body.keywords && typeof body.keywords === 'object' && !Array.isArray(body.keywords)) {
     for (const [k, v] of Object.entries(body.keywords as Record<string, unknown>)) {
       if (typeof v === 'string' && v.trim()) keywordByRun[k] = v.trim();
+    }
+  }
+  if (board === 'blog_save' && body.keywords2 && typeof body.keywords2 === 'object' && !Array.isArray(body.keywords2)) {
+    for (const [k, v] of Object.entries(body.keywords2 as Record<string, unknown>)) {
+      if (typeof v === 'string' && v.trim()) keyword2ByRun[k] = v.trim();
     }
   }
 
@@ -90,14 +96,14 @@ export async function POST(request: NextRequest) {
 
     const createdAt = new Date().toISOString();
     const rows = fresh.map((id, i) => ({
-      run_id: id, board, requester, due_date: dueDate, keyword: keywordByRun[id] ?? null,
+      run_id: id, board, requester, due_date: dueDate, keyword: keywordByRun[id] ?? null, keyword2: keyword2ByRun[id] ?? null,
       sort_order: i, created_at: createdAt, created_by: gate.userId,
     }));
     const { data, error } = await sb
       .schema('health_report')
       .from('work_requests')
       .insert(rows)
-      .select('id, run_id, board, requester, due_date, keyword, sort_order, created_at');
+      .select('id, run_id, board, requester, due_date, keyword, keyword2, sort_order, created_at');
     if (error) throw new Error(error.message);
     return NextResponse.json({ requests: (data ?? []).map((r) => toDto(r as Row)), skipped: runIds.length - fresh.length });
   } catch (e) {
