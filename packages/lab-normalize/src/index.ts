@@ -51,6 +51,9 @@ const PRIORITY_RULES: CanonicalRule[] = [
   { canonical: 'pO2(T)', pattern: /P[O0]2\s*\(\s*T\s*\)/i },
   { canonical: 'pCO2(T)', pattern: /PC[O0]2\s*\(\s*T\s*\)/i },
   { canonical: 'pH(T)', pattern: /\bPH\s*\(\s*T\s*\)/i },
+  // 염기과잉 변형 — BE(B)=혈액 실제 염기과잉, BE(ecf)=세포외액 표준 염기과잉. plain BE 와 별개 값.
+  { canonical: 'BE(ecf)', pattern: /\bBE\s*\(\s*ecf\s*\)/i },
+  { canonical: 'BE(B)', pattern: /\bBE\s*\(\s*B\s*\)/i },
 ];
 
 const DIRECT_ALIASES: Record<string, string> = {
@@ -416,7 +419,7 @@ const RECOGNIZED_LAB_ITEMS: ReadonlySet<string> = new Set(
     'FELV', 'FIV', 'FeLV Ag', 'FIV Ab', 'FPV', 'CPV', 'CDV', 'HWAG', 'HW Ag', 'Coronavirus', 'FCoV Ab',
     'FIP PCR', 'Ehrlichia', 'Anaplasma', 'Babesia', 'Lyme', 'Lepto', 'Toxo', 'PCR',
     // Blood gas
-    'pH', 'pH(T)', 'pCO2', 'pCO2(T)', 'pO2', 'pO2(T)', 'pO2(A-a)', 'BE', 'HCO3', 'HCO3(std)', 'tCO2', 'SO2', 'Lactate', 'tHb',
+    'pH', 'pH(T)', 'pCO2', 'pCO2(T)', 'pO2', 'pO2(T)', 'pO2(A-a)', 'BE', 'BE(B)', 'BE(ecf)', 'HCO3', 'HCO3(std)', 'tCO2', 'SO2', 'Lactate', 'tHb',
     // Immunologic
     'B12', 'Folate', 'ANA', 'RF', 'Coombs', 'IgG', 'IgM', 'IgA',
     // Tumor marker
@@ -802,6 +805,8 @@ const ITEM_TO_CATEGORY: Record<string, string> = {
   PO2: 'blood_gas',
   pO2: 'blood_gas',
   BE: 'blood_gas',
+  'BE(B)': 'blood_gas',
+  'BE(ecf)': 'blood_gas',
   HCO3: 'blood_gas',
   'HCO3(std)': 'blood_gas',
   'pH(T)': 'blood_gas',
