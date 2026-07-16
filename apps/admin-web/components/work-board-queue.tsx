@@ -19,6 +19,9 @@ export type QueueItem = {
   stage: 'requested' | 'writing' | 'drafted' | 'saved' | 'done';
 };
 
+// 키워드 드롭다운 옵션 — 마지막 배정일 + 최신 순위(섹션) + 최신 검색량.
+type KwOpt = { keyword: string; lastUsedAt: string | null; rank: number | null; rankSection: string | null; searchVolume: number | null };
+
 type ReqDto = {
   id: string; runId: string; board: 'blog_write' | 'blog_save';
   requester: string; dueDate: string | null; keyword: string; keyword2?: string | null; sortOrder: number; createdAt: string;
@@ -81,7 +84,7 @@ export function WorkBoardQueue({ blogItems }: { blogItems: QueueItem[] }) {
   useEffect(() => { void load(); }, [load]);
 
   // 병원별 블로그 키워드 — '블로그 저장' 배정 시 케이스별 드롭다운 옵션. lastUsedAt = 마지막 배정 일시.
-  const [kwByHospital, setKwByHospital] = useState<Record<string, { keyword: string; lastUsedAt: string | null }[]>>({});
+  const [kwByHospital, setKwByHospital] = useState<Record<string, KwOpt[]>>({});
   useEffect(() => {
     (async () => {
       try {
@@ -90,12 +93,19 @@ export function WorkBoardQueue({ blogItems }: { blogItems: QueueItem[] }) {
         if (!res.ok) return;
         // 응답이 문자열 배열(구버전)이든 {keyword,lastUsedAt} 객체 배열이든 동일하게 정규화.
         const raw = (data.keywords ?? {}) as Record<string, unknown[]>;
-        const norm: Record<string, { keyword: string; lastUsedAt: string | null }[]> = {};
+        const norm: Record<string, KwOpt[]> = {};
         for (const [hid, arr] of Object.entries(raw)) {
           norm[hid] = (arr ?? []).map((e) => {
-            if (typeof e === 'string') return { keyword: e, lastUsedAt: null };
-            const o = e as { keyword?: unknown; lastUsedAt?: unknown };
-            return { keyword: String(o.keyword ?? ''), lastUsedAt: o.lastUsedAt != null ? String(o.lastUsedAt) : null };
+            if (typeof e === 'string') return { keyword: e, lastUsedAt: null, rank: null, rankSection: null, searchVolume: null };
+            const o = e as { keyword?: unknown; lastUsedAt?: unknown; rank?: unknown; rankSection?: unknown; searchVolume?: unknown };
+            const n = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
+            return {
+              keyword: String(o.keyword ?? ''),
+              lastUsedAt: o.lastUsedAt != null ? String(o.lastUsedAt) : null,
+              rank: n(o.rank),
+              rankSection: o.rankSection != null ? String(o.rankSection) : null,
+              searchVolume: n(o.searchVolume),
+            };
           }).filter((o) => o.keyword);
         }
         setKwByHospital(norm);
@@ -297,7 +307,7 @@ export function WorkBoardQueue({ blogItems }: { blogItems: QueueItem[] }) {
         <div onClick={() => !saving && setAssignBoard(null)}
           style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
           <div onClick={(e) => e.stopPropagation()}
-            style={{ width: assignBoard === 'blog_save' ? 'min(96vw, 705px)' : 'min(94vw, 560px)', maxHeight: '88vh', display: 'flex', flexDirection: 'column', background: '#fff', borderRadius: 12, border: '1px solid var(--border)', overflow: 'hidden', boxShadow: '0 12px 40px rgba(0,0,0,0.18)' }}>
+            style={{ width: assignBoard === 'blog_save' ? 'min(97vw, 1240px)' : 'min(94vw, 560px)', maxHeight: '88vh', display: 'flex', flexDirection: 'column', background: '#fff', borderRadius: 12, border: '1px solid var(--border)', overflow: 'hidden', boxShadow: '0 12px 40px rgba(0,0,0,0.18)' }}>
             <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)' }}>
               <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: 'var(--text)' }}>
                 {BOARDS.find((x) => x.key === assignBoard)!.title} 작업 배정
@@ -338,7 +348,7 @@ export function WorkBoardQueue({ blogItems }: { blogItems: QueueItem[] }) {
                     const isSave = assignBoard === 'blog_save';
                     return (
                       <div key={it.runId} style={{ display: 'flex', alignItems: 'stretch', borderRadius: 8, border: `1px solid ${on ? 'var(--accent)' : 'var(--border)'}`, background: on ? 'var(--accent-subtle)' : 'var(--bg)', overflow: 'hidden' }}>
-                        <label style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 11px', cursor: 'pointer', flex: 1, minWidth: 0 }}>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 11px', cursor: 'pointer', flex: isSave ? '3.5 1 0' : '1 1 0', minWidth: 0 }}>
                           <input type="checkbox" checked={on} onChange={() => setSelected((s) => { const n = new Set(s); if (n.has(it.runId)) n.delete(it.runId); else n.add(it.runId); return n; })} style={{ width: 16, height: 16, flexShrink: 0 }} />
                           <StatusBadge category="blog" stage={it.stage} />
                           <div style={{ flex: 1, minWidth: 0 }}>
@@ -358,11 +368,11 @@ export function WorkBoardQueue({ blogItems }: { blogItems: QueueItem[] }) {
                           const empty1 = !kw.kw1.trim();
                           // 체크 여부와 무관하게 우측에 항상 노출 — 미선택 항목은 흐리게.
                           return (
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flexShrink: 0, width: 256, padding: '9px 11px', borderLeft: '1px dashed var(--border)', opacity: on ? 1 : 0.55 }}>
+                          <div style={{ display: 'flex', flex: '6.5 1 0', minWidth: 0, padding: '9px 11px', borderLeft: '1px dashed var(--border)', opacity: on ? 1 : 0.55 }}>
                             {opts.length === 0 ? (
                               <span style={{ fontSize: 11, color: on ? '#dc2626' : 'var(--text-muted)', lineHeight: 1.35 }}>이 병원에 등록된 블로그 키워드 없음 — 병원 관리 설정에서 추가</span>
                             ) : (
-                              <>
+                              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, width: '100%' }}>
                                 <div>
                                   <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 3 }}>키워드 1 <span style={{ color: '#dc2626' }}>*</span></div>
                                   <KeywordSelect
@@ -382,7 +392,7 @@ export function WorkBoardQueue({ blogItems }: { blogItems: QueueItem[] }) {
                                     onChange={(v) => setKw(it.runId, 'kw2', v)}
                                   />
                                 </div>
-                              </>
+                              </div>
                             )}
                           </div>
                           );
@@ -452,7 +462,7 @@ const inputStyle: React.CSSProperties = { width: '100%', padding: '9px 11px', fo
 //  옵션/선택 표시 모두 [키워드 …왼쪽] [마지막 사용 날짜 — 우측정렬·진회색·italic] 레이아웃.
 //  팝업은 모달의 overflow/opacity 에 안 잘리도록 body 로 포털 + fixed 좌표 배치.
 function KeywordSelect({ options, value, invalid = false, onChange, placeholder = '키워드 선택 *', clearable = false }: {
-  options: { keyword: string; lastUsedAt: string | null }[];
+  options: KwOpt[];
   value: string;
   invalid?: boolean;
   onChange: (v: string) => void;
@@ -488,6 +498,16 @@ function KeywordSelect({ options, value, invalid = false, onChange, placeholder 
 
   const dateText = (o: string | null) => (o ? fmtDateFull(o) : '없음');
   const selDate = value ? dateText(options.find((o) => o.keyword === value)?.lastUsedAt ?? null) : '';
+  const rankText = (rank: number | null, section: string | null) => (rank != null ? `${rank}위${section ? ` (${section})` : ''}` : '—');
+  const volText = (v: number | null) => (v != null ? `${v.toLocaleString('ko-KR')}회` : '—');
+  // 순위·검색량·마지막 사용일 3종 메타를 한 줄로. 좁으면 줄여서.
+  const metaRow = (o: KwOpt) => (
+    <span style={{ flexShrink: 0, display: 'inline-flex', gap: 8, alignItems: 'center', fontSize: 11 }}>
+      <span style={{ fontWeight: 700, color: o.rank != null ? 'var(--accent)' : 'var(--text-muted)' }} title="가장 최근 수집 최상위 순위">{rankText(o.rank, o.rankSection)}</span>
+      <span style={{ color: 'var(--text-secondary)' }} title="최신 월간 검색량">🔍 {volText(o.searchVolume)}</span>
+      <span style={{ fontStyle: 'italic', fontWeight: 600, color: '#4b5563' }} title="마지막 배정일">{dateText(o.lastUsedAt)}</span>
+    </span>
+  );
 
   return (
     <>
@@ -502,7 +522,7 @@ function KeywordSelect({ options, value, invalid = false, onChange, placeholder 
       {open && rect
         ? createPortal(
             <div ref={popRef}
-              style={{ position: 'fixed', left: rect.left, top: rect.top, width: rect.width, maxHeight: 260, overflowY: 'auto', background: '#fff', border: '1px solid var(--border-strong)', borderRadius: 6, boxShadow: '0 8px 24px rgba(0,0,0,0.16)', zIndex: 1100, padding: 4 }}>
+              style={{ position: 'fixed', left: rect.left, top: rect.top, width: Math.max(rect.width, 300), maxHeight: 260, overflowY: 'auto', background: '#fff', border: '1px solid var(--border-strong)', borderRadius: 6, boxShadow: '0 8px 24px rgba(0,0,0,0.16)', zIndex: 1100, padding: 4 }}>
               {clearable ? (
                 <button type="button" onClick={() => { onChange(''); setOpen(false); }}
                   style={{ width: '100%', display: 'flex', alignItems: 'center', padding: '7px 8px', border: 0, background: !value ? 'var(--accent-subtle)' : 'transparent', borderRadius: 4, cursor: 'pointer', textAlign: 'left', fontSize: 14, color: 'var(--text-muted)' }}>
@@ -513,7 +533,7 @@ function KeywordSelect({ options, value, invalid = false, onChange, placeholder 
                 <button key={o.keyword} type="button" onClick={() => { onChange(o.keyword); setOpen(false); }}
                   style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 8, padding: '7px 8px', border: 0, background: o.keyword === value ? 'var(--accent-subtle)' : 'transparent', borderRadius: 4, cursor: 'pointer', textAlign: 'left' }}>
                   <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 14, color: 'var(--text)' }}>{o.keyword}</span>
-                  <span style={{ flexShrink: 0, fontStyle: 'italic', fontWeight: 600, color: '#4b5563', fontSize: 11 }}>{dateText(o.lastUsedAt)}</span>
+                  {metaRow(o)}
                 </button>
               ))}
             </div>,
