@@ -3670,16 +3670,19 @@ export async function POST(request: NextRequest) {
     console.log(`[text-bucketing DEBUG] ocrConfigured=${ocrConfigured} fileType=${sourceFileType}`);
     const emptyOcr: import('@/lib/google-vision').VisionOcrResult = { text: '', confidence: null, rows: [] };
 
-    // PlusVet: 임베디드 텍스트 레이어가 충실하면 그것을 1순위 추출 경로로 쓴다.
+    // PlusVet·우리엔PMS: 임베디드 텍스트 레이어가 충실하면 그것을 1순위 추출 경로로 쓴다.
     // Gemini 이미지 전사는 반복 블록(여러 진료에 동일한 Problem list/DDX)을 스킵하고 순서를 잃을 수 있으나,
     // 텍스트 레이어는 누락 없이 시각 순서를 보존한다(+ 더 빠르고 저렴 → 타임아웃 위험↓). 스캔 PDF면 게이트에서 탈락 → Gemini 폴백.
+    //  · 우리엔: Gemini 가 S.O.A.P 본문 구조를 흩뜨려 차트 본문이 통째로 비는 PDF가 있었다.
+    //    이 양식은 텍스트 레이어가 정확해 그대로 버킷팅하면 본문·검사·바이탈이 온전히 나온다
+    //    (플랜 표는 어차피 reconstructPlanRowsFromText 로 Gemini 재구성하므로 경로와 무관).
     let textLayerLines: OrderedLine[] | null = null;
-    if (chartType === "plusvet") {
+    if (chartType === "plusvet" || chartType === "woorien_pms") {
       try {
         const tl = await extractOrderedLinesFromTextLayer(binary);
         if (isTextLayerSufficient(tl)) textLayerLines = tl.lines;
         console.log(
-          `[text-bucketing] plusvet 텍스트레이어: pages=${tl.numPages} lines=${tl.lines.length} sufficient=${textLayerLines !== null}`,
+          `[text-bucketing] ${chartType} 텍스트레이어: pages=${tl.numPages} lines=${tl.lines.length} sufficient=${textLayerLines !== null}`,
         );
       } catch (e) {
         console.log("[text-bucketing] 텍스트레이어 추출 실패(Gemini로 폴백):", (e as Error)?.message);
