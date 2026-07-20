@@ -24,11 +24,21 @@ async function count(sql: string): Promise<number> {
 const CASE_WRITE_TYPES = `'blog_causal','blog_detail','blog_outline','blog_post'`;
 
 /**
+ * run 이 실제로 chart_pdf.parse_runs 에 남아 있는지 확인하는 상관 서브쿼리.
+ * extract_jobs·generated_run_content 는 원본 run 이 삭제돼도 남으므로, 이 가드가 없으면
+ * 삭제된 케이스가 "할 일" 로 유령처럼 계속 잡힌다(작업 현황판은 parse_runs 를 조인해 이미 제외 중).
+ * id·run_id 타입이 스키마마다 uuid/text 로 엇갈릴 수 있어 ::text 로 통일 비교한다.
+ */
+const RUN_EXISTS = (runCol: string) =>
+  `EXISTS (SELECT 1 FROM chart_pdf.parse_runs r WHERE r.id::text = ${runCol}::text)`;
+
+/**
  * 운영자 "할 일" 대기 카운트. 모두 추출 완료(extract_jobs.status='done') 기준.
  * - 건강검진 요청: 최종 리포트(health_checkup) 미생성.
  * - 진료케이스 요청: 작성 콘텐츠가 아직 하나도 없음(차트 목록에서 작업 시작).
  * - 진료케이스 작업 중: 작성 콘텐츠는 있으나 blog_post.confirmed=true(완료) 아님.
  * - 병원 심사: core.hospital_registrations status='pending'.
+ * ※ run 기반 카운트는 모두 parse_runs 존재를 확인해 삭제된 케이스를 제외한다(RUN_EXISTS).
  */
 export async function getAdminPendingCounts(): Promise<AdminPendingCounts> {
   const [reportRequested, caseRequested, caseInProgress, caseDrafted, registrations, tokenOrders] = await Promise.all([
@@ -36,6 +46,7 @@ export async function getAdminPendingCounts(): Promise<AdminPendingCounts> {
       SELECT count(DISTINCT j.run_id) AS n
       FROM health_report.extract_jobs j
       WHERE j.kind = 'hospital_notes' AND j.status = 'done' AND j.run_id IS NOT NULL
+        AND ${RUN_EXISTS('j.run_id')}
         AND NOT EXISTS (
           SELECT 1 FROM health_report.generated_run_content g
           WHERE g.parse_run_id = j.run_id AND g.content_type = 'health_checkup'
@@ -44,6 +55,7 @@ export async function getAdminPendingCounts(): Promise<AdminPendingCounts> {
       SELECT count(DISTINCT j.run_id) AS n
       FROM health_report.extract_jobs j
       WHERE j.kind = 'blog_case' AND j.status = 'done' AND j.run_id IS NOT NULL
+        AND ${RUN_EXISTS('j.run_id')}
         AND NOT EXISTS (
           SELECT 1 FROM health_report.generated_run_content g
           WHERE g.parse_run_id = j.run_id AND g.content_type IN (${CASE_WRITE_TYPES})
@@ -52,6 +64,7 @@ export async function getAdminPendingCounts(): Promise<AdminPendingCounts> {
       SELECT count(DISTINCT j.run_id) AS n
       FROM health_report.extract_jobs j
       WHERE j.kind = 'blog_case' AND j.status = 'done' AND j.run_id IS NOT NULL
+        AND ${RUN_EXISTS('j.run_id')}
         AND EXISTS (
           SELECT 1 FROM health_report.generated_run_content g
           WHERE g.parse_run_id = j.run_id AND g.content_type IN (${CASE_WRITE_TYPES})
@@ -66,7 +79,8 @@ export async function getAdminPendingCounts(): Promise<AdminPendingCounts> {
       FROM health_report.generated_run_content g
       WHERE g.content_type = 'blog_post'
         AND g.payload->>'confirmed' = 'true'
-        AND coalesce(g.payload->>'saved', '') <> 'true'`),
+        AND coalesce(g.payload->>'saved', '') <> 'true'
+        AND ${RUN_EXISTS('g.parse_run_id')}`),
     count(`SELECT count(*) AS n FROM core.hospital_registrations WHERE status = 'pending'`),
     count(`SELECT count(*) AS n FROM billing.token_orders WHERE status = 'pending'`),
   ]);
