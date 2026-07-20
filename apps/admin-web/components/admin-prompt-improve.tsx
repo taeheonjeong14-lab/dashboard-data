@@ -2,8 +2,10 @@
 
 /**
  * admin '프롬프트 개선' 메뉴 — AI 초안이 실제로 어떻게 고쳐졌는지 보고 프롬프트를 다듬는다.
- * 탭: 블로그 컨텐츠(예정) · 검진 리포트(초안 vs 병원 최종본 비교 분석 결과).
- * 분석은 admin 이 고른 run 에 한해, 병원이 카카오 발송/공유 PDF 다운로드한 시점에 1회 돌아간다.
+ * 탭: 블로그 컨텐츠(AI 초안 vs 확정본) · 검진 리포트(초안 vs 병원 최종본).
+ * - 검진 리포트: admin 이 고른 run 에 한해, 병원이 카카오 발송/공유 PDF 다운로드한 시점에 1회 분석.
+ * - 블로그: 대상 선택 없이 모든 케이스가 자동. 3단계 글 생성 시 BEFORE 를 남기고 4단계 확정 시 1회 분석.
+ *   내용이 아니라 **말 표현** 변경에 초점(정보량이 같은데 텍스트가 바뀐 경우).
  */
 import { useEffect, useState, type CSSProperties } from 'react';
 
@@ -29,11 +31,15 @@ type Item = {
   hospitalName: string | null;
 };
 
+// 검진 리포트(factual/tone/detail/format)와 블로그(expression/content)가 라벨 맵을 공유한다.
+// 키가 겹치는 건 trivial 뿐이고 뜻이 같아 그대로 쓴다.
 const KIND_LABEL: Record<string, string> = {
   factual: '사실 정정',
   tone: '표현·말투',
   detail: '내용 가감',
   format: '구성·길이',
+  expression: '표현 변경',
+  content: '내용 변경',
   trivial: '사소',
 };
 const KIND_COLOR: Record<string, string> = {
@@ -41,10 +47,13 @@ const KIND_COLOR: Record<string, string> = {
   tone: '#f5a623',
   detail: '#3b82f6',
   format: '#8b5cf6',
+  expression: '#f5a623',
+  content: '#3b82f6',
   trivial: 'var(--text-muted)',
 };
 const STATUS_LABEL: Record<string, string> = {
   selected: '대기 (병원 발송/다운로드 시 분석)',
+  draft: '대기 (확정 시 분석)',
   running: '분석 중',
   done: '완료',
   error: '실패',
@@ -71,8 +80,12 @@ function fmt(iso: string | null): string {
   return new Date(iso).toLocaleString('ko-KR', { dateStyle: 'short', timeStyle: 'short' });
 }
 
-/** 카테고리 표시 순서 — 중요도 높은 것 먼저(사실 정정 → … → 사소). */
-const KIND_ORDER = ['factual', 'detail', 'format', 'tone', 'trivial'];
+/**
+ * 카테고리 표시 순서 — 중요도 높은 것 먼저.
+ * 블로그는 expression 이 이 분석의 핵심이라 맨 앞, content 는 참고용이라 뒤.
+ * (검진 리포트는 expression/content 를 쓰지 않아 기존 순서가 그대로 유지된다.)
+ */
+const KIND_ORDER = ['expression', 'factual', 'detail', 'content', 'format', 'tone', 'trivial'];
 
 /** 변경 항목 하나 — 겉엔 한 줄(what)만, 클릭/호버 시 '왜·프롬프트'가 펼쳐진다. */
 function ChangeRow({ c }: { c: Change }) {
@@ -238,7 +251,10 @@ function DiffCard({ item, expandKey }: { item: Item; expandKey: number }) {
   );
 }
 
-function HealthReportTab() {
+/**
+ * 목록 탭 공통 — 엔드포인트와 빈 상태 안내만 다르고 카드 렌더는 DiffCard 로 같다.
+ */
+function DiffListTab({ endpoint, empty }: { endpoint: string; empty: React.ReactNode }) {
   const [items, setItems] = useState<Item[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -248,7 +264,7 @@ function HealthReportTab() {
   useEffect(() => {
     void (async () => {
       try {
-        const res = await fetch('/api/admin/prompt-improve/health-report', { credentials: 'include' });
+        const res = await fetch(endpoint, { credentials: 'include' });
         const data = (await res.json()) as { items?: Item[]; error?: string };
         if (!res.ok) throw new Error(data.error ?? '목록을 불러오지 못했습니다.');
         setItems(data.items ?? []);
@@ -258,18 +274,11 @@ function HealthReportTab() {
         setLoading(false);
       }
     })();
-  }, []);
+  }, [endpoint]);
 
   if (loading) return <p style={{ fontSize: 14, color: 'var(--text-muted)' }}>불러오는 중…</p>;
   if (error) return <p style={{ fontSize: 14, color: 'var(--danger)' }}>{error}</p>;
-  if (!items.length) {
-    return (
-      <p style={{ fontSize: 14, color: 'var(--text-muted)', lineHeight: 1.7 }}>
-        분석 대상이 없습니다. 건강검진 리포트 화면에서 <b>&lsquo;비교 분석 대상&rsquo;</b>을 켜 두면,
-        병원이 카카오로 발송하거나 공유 페이지에서 PDF를 받는 시점에 초안과 최종본을 비교해 여기에 쌓입니다.
-      </p>
-    );
-  }
+  if (!items.length) return <>{empty}</>;
 
   return (
     <div style={{ display: 'grid', gap: 12 }}>
@@ -284,6 +293,41 @@ function HealthReportTab() {
         <DiffCard key={it.runId} item={it} expandKey={expandKey} />
       ))}
     </div>
+  );
+}
+
+/** 블로그 컨텐츠 — AI 초안(2→3단계 생성본) vs 확정본(4단계 확정 시점). 말 표현 변경 중심. */
+function BlogTab() {
+  return (
+    <div style={{ display: 'grid', gap: 12 }}>
+      <p style={{ margin: 0, fontSize: 14, color: 'var(--text-secondary)', lineHeight: 1.7 }}>
+        3단계에서 <b>AI가 쓴 글(BEFORE)</b>과 4단계 검수를 거쳐 <b>확정한 글(AFTER)</b>을 비교합니다.
+        내용이 아니라 <b>말 표현</b>에 초점을 둡니다 — 전달하는 내용은 그대로인데 문장이 바뀐 경우가 표현 변경입니다.
+      </p>
+      <DiffListTab
+        endpoint="/api/admin/prompt-improve/blog"
+        empty={
+          <p style={{ fontSize: 14, color: 'var(--text-muted)', lineHeight: 1.7 }}>
+            분석 결과가 없습니다. 진료케이스에서 <b>블로그 글을 생성</b>하면 그 시점의 AI 초안이 기록되고,
+            4단계에서 <b>&lsquo;확정&rsquo;</b>을 누르면 확정본과 비교해 여기에 쌓입니다.
+          </p>
+        }
+      />
+    </div>
+  );
+}
+
+function HealthReportTab() {
+  return (
+    <DiffListTab
+      endpoint="/api/admin/prompt-improve/health-report"
+      empty={
+        <p style={{ fontSize: 14, color: 'var(--text-muted)', lineHeight: 1.7 }}>
+          분석 대상이 없습니다. 건강검진 리포트 화면에서 <b>&lsquo;비교 분석 대상&rsquo;</b>을 켜 두면,
+          병원이 카카오로 발송하거나 공유 페이지에서 PDF를 받는 시점에 초안과 최종본을 비교해 여기에 쌓입니다.
+        </p>
+      }
+    />
   );
 }
 
@@ -308,11 +352,7 @@ export default function AdminPromptImprove() {
         </button>
       </div>
 
-      {tab === 'blog' ? (
-        <p style={{ fontSize: 14, color: 'var(--text-muted)' }}>준비 중입니다.</p>
-      ) : (
-        <HealthReportTab />
-      )}
+      {tab === 'blog' ? <BlogTab /> : <HealthReportTab />}
     </div>
   );
 }

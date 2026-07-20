@@ -32,6 +32,7 @@ import {
   healthPointsPromptBlock,
   parseHealthPointsPayload,
 } from '@/lib/chart-app/health-points';
+import { snapshotBlogDraft } from '@/lib/chart-app/blog-draft-diff';
 
 const HEALTH_CHECKUP = 'health_checkup';
 const BLOG_POST = 'blog_post';
@@ -1627,6 +1628,14 @@ export async function POST(request: NextRequest) {
           'object with keys: title (string), bodyMarkdown (string), tags (string[]), charCount (number)',
         );
         const saved = await upsertGeneratedRunContent(pool, runId, BLOG_POST, generated);
+        // 프롬프트 개선용 BEFORE 스냅샷 — 이 시점의 AI 초안을 남긴다(확정 시 AFTER 와 비교).
+        // 전체 생성에서만 갱신한다: 섹션 재생성·간결화는 부분 수정이라 BEFORE 기준이 되면 신호가 흐려진다.
+        // 부가 기능이므로 실패해도 생성 응답은 그대로 나가야 한다.
+        try {
+          await snapshotBlogDraft(runId, generated);
+        } catch (e) {
+          console.error('[blog-draft-diff] BEFORE 스냅샷 실패(생성은 계속):', e);
+        }
         await chargeOperationTokens(hospitalId, operationId, 'blog_post');
         const debug: GenerateDebugInfo | undefined = debugEnabled
           ? { enabled: true, parser: parserDebug, model: { maxOutputTokens: stageMaxTokens } }

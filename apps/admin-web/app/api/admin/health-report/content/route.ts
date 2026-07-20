@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse, after } from 'next/server';
 import { requireAdminApi } from '@/lib/assert-admin-api';
+import { getChartApiProxyConfig } from '@/lib/chart-api-proxy-env';
 import { notifyHospitalUsers, notifyAdminError, runHospitalAndPatient } from '@/lib/notify';
 import { createServiceRoleClient } from '@/lib/supabase/service-role';
 import { isParseRunUuid } from '@/lib/chart-extraction/uuid';
@@ -121,6 +122,27 @@ export async function PATCH(request: NextRequest) {
         body: `${patientName || '환자'} 진료케이스가 작성 완료되었습니다!`,
         link: '/blog',
       });
+
+      // 프롬프트 개선 — 확정본을 AFTER 로 두고 초안(BEFORE)과 비교 분석(1회). LLM 호출이라 오래 걸리므로
+      // 응답을 막지 않는다. 다만 `void fetch` 로 두면 응답 직후 함수가 종료돼 요청이 유실될 수 있어
+      // after() 로 응답 후에도 함수를 살려 둔다. 부가 기능이라 실패해도 저장·알림에는 영향 없음.
+      const cfg = getChartApiProxyConfig();
+      if (cfg) {
+        after(async () => {
+          try {
+            const res = await fetch(`${cfg.outboundBase}/api/content/blog/draft-diff`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${cfg.key}` },
+              body: JSON.stringify({ runId, finalPayload: body.payload }),
+            });
+            if (!res.ok) {
+              console.error('[blog-draft-diff] 분석 트리거 실패:', res.status, await res.text().catch(() => ''));
+            }
+          } catch (e) {
+            console.error('[blog-draft-diff] 분석 트리거 호출 오류:', e);
+          }
+        });
+      }
     }
 
     const s = saved as Record<string, unknown>;
