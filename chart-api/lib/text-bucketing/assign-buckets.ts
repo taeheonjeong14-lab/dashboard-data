@@ -170,7 +170,7 @@ export function assignLinesToBuckets(
      * (그렇지 않으면 첫 방문 문진 이후 모든 줄이 영구히 vaccination 버킷에만 쌓임)
      */
     if (
-      section === 'vaccination' &&
+      (section === 'vaccination' || section === 'lab') &&
       (chartKind === 'intovet' || chartKind === 'other' || chartKind === 'efriends') &&
       isVisitContextLine(line.text)
     ) {

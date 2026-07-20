@@ -31,7 +31,15 @@ export function shouldEndBasicInfo(lineText: string, kind: ChartKind): boolean {
     if (isPlusVetDiagnosticResultsSectionTitle('', lineText)) return true;
     if (isPlusVetLabMachinePanelHeaderLine(lineText)) return true;
   }
-  if (kind === 'intovet') return false;
+  if (kind === 'intovet') {
+    // 차트 본문 없이 검사결과만 있는 PDF 대비: lab 섹션 시작 신호에서 기본정보를 닫는다.
+    // 인투벳은 방문 앵커(`[재진] [날짜]`)로만 기본정보를 닫는데, 같은 진료분을
+    // 차트본문/검사결과 두 PDF 로 나눠 올리면 검사결과 PDF 에는 방문 앵커가 없다.
+    // 그러면 기본정보가 끝까지 안 닫혀 'Lab Examination' 이하 검사 표가 통째로
+    // basicInfo 로 빨려들어간다(assign-buckets 는 basicInfoOpen 중엔 lab 헤더를 아예 안 본다).
+    if (isLabSectionHeader(lineText.toLowerCase(), lineText, kind)) return true;
+    return false;
+  }
   const t = lineText.trim();
   return /^20\d{2}[./-]\d{1,2}[./-]\d{1,2}\s+[0-2]?\d:[0-5]\d(?::[0-5]\d)?\s*$/.test(t);
 }

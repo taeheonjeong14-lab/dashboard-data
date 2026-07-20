@@ -1546,7 +1546,11 @@ function parseCatalystSingleLineRow(cleaned: string, page: number): LabItem | nu
     const rest = body.slice(1);
     const value = rest.join(" ").trim();
     const isUnitOnly = rest.every((t) => isKnownLabUnitToken(t));
-    if (value && !isUnitOnly) return mk(body[0] ?? "", value, null, null);
+    // ※ 콜론이 든 값은 검사값이 아니라 라벨 줄이다. 이 규칙은 구조가 아니라 "인식되는 검사명"에만
+    //    기대므로, 검사명과 같은 낱말로 시작하는 헤더 줄("Color : RFID :" — Color 는 요검사 항목)이
+    //    그대로 검사행이 되어버린다. 콜론 배제는 looksLikeLabItemToken 과 같은 원칙.
+    const hasColon = rest.some((t) => /[:：]/.test(t));
+    if (value && !isUnitOnly && !hasColon) return mk(body[0] ?? "", value, null, null);
   }
 
   return null;
