@@ -417,8 +417,10 @@ async function main() {
   const placeEnv = { ...baseEnv, ...portEnv(placePort) };
 
   // 순위 수집(블로그/플레이스)은 로그인이 불필요 → 병원별(로그인) Chrome 포트를 쓰지 않고
-  // 항상 비로그인 전용 포트(기본 9222)로 보낸다. 계정/봇 탐지 리스크를 낮춘다.
-  const rankEnv = { ...baseEnv, RANK_CHROME_DEBUGGING_PORT: process.env.RANK_CHROME_DEBUGGING_PORT || "9222" };
+  // 항상 비로그인 전용 포트(기본 9223)로 보낸다. 계정/봇 탐지 리스크를 낮춘다.
+  // 9223 = scripts/windows/chrome-debug-rank-port9223.cmd 가 띄우는 순위 전용 비로그인 크롬.
+  // (9222 는 config.chrome.debuggingPort — 로그인용 폴백이라 순위에 쓰면 안 된다.)
+  const rankEnv = { ...baseEnv, RANK_CHROME_DEBUGGING_PORT: process.env.RANK_CHROME_DEBUGGING_PORT || "9223" };
 
   const allSteps = [
     {
