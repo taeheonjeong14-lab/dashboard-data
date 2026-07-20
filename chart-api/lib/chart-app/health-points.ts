@@ -105,7 +105,9 @@ export function healthPointsPromptBlock(points: HealthPoint[], section?: string)
   const relevant = !section
     ? points
     : points.filter((p) => {
-        if (section === 'overall' || section === 'followUp' || section === 'recheck') return p.inOverall || true;
+        // 종합소견·사후관리·재검진 재생성은 '종합 소견' 체크된 포인트만 쓴다.
+        // (예전엔 `p.inOverall || true` 라 항상 참 — 체크 해제한 포인트도 전부 통과했다.)
+        if (section === 'overall' || section === 'followUp' || section === 'recheck') return p.inOverall;
         if (EXAM_SET.has(section)) return p.examSections.includes(section as HealthPointExamSection);
         // systems3 / systems3b — 장기 칸 섹션. 어떤 장기가 어느 페이지인지는 호출부가 organs 로 걸러 넘긴다.
         return true;
@@ -118,7 +120,9 @@ export function healthPointsPromptBlock(points: HealthPoint[], section?: string)
     return [
       `- [${p.id}] ${p.text}`,
       `  · 근거(${BASIS_LABEL[p.basis]}): ${p.evidence || '(원문 없음)'}`,
-      `  · 배치: 장기=${organs} / 검사 섹션=${exams}${p.inOverall ? ' / 종합 소견 포함' : ''}`,
+      // 종합 소견 포함/제외를 양쪽 다 명시한다. 제외를 무표기로 두면 "쓰지 말라"가 아니라
+      // 그냥 침묵이라, 모델이 종합소견에 그대로 올려버린다(담당자가 체크를 푼 의미가 사라진다).
+      `  · 배치: 장기=${organs} / 검사 섹션=${exams} / ${p.inOverall ? '종합 소견 포함' : '종합 소견 제외'}`,
     ].join('\n');
   });
 
@@ -130,6 +134,7 @@ export function healthPointsPromptBlock(points: HealthPoint[], section?: string)
     '',
     '★ 이 포인트 목록에 대한 규칙 (다른 어떤 지시보다 우선):',
     '- 각 섹션은 그 섹션에 **배치된 포인트를 빠짐없이** 다룬다(장기 칸이면 organs, 검사 섹션이면 examSections 기준).',
+    '- **종합소견·사후관리·권장 재검진에는 「종합 소견 포함」으로 표시된 포인트만 올린다.** 「종합 소견 제외」 포인트는 담당 수의사가 종합소견에 넣지 않기로 판단한 것이므로, **종합소견·사후관리·권장 재검진에서는 언급하지 않는다.** 다만 그 포인트도 배정된 장기 칸·검사 섹션에서는 평소대로 다룬다(리포트에서 아예 빠지는 것이 아니다).',
     '- 포인트에 없는 **새로운 이상 소견·진단·수치를 만들어 쓰지 않는다.** 정상 소견 서술은 포인트가 없어도 무방하다.',
     '- 포인트의 근거를 벗어난 확대 해석을 하지 않는다. 근거가 "이미지 판독(AI)" 인 포인트는 관찰 소견으로만 서술한다(확정 진단 금지).',
   ].join('\n');
