@@ -8,6 +8,14 @@ import { isVisitContextLine, extractWoorienLooseVisitDateTime, isPlusVetLabMachi
  */
 export function shouldEndBasicInfo(lineText: string, kind: ChartKind): boolean {
   if (isVisitContextLine(lineText)) return true;
+  // 차트 본문 없이 검사결과만 있는 PDF 대비: lab 섹션 시작 신호는 어느 차트 종류든 기본정보를 닫는다.
+  // 각 종류는 방문 앵커(인투벳 `[재진] [날짜]`, 우리엔 SOAP/서명 헤더 등)로만 기본정보를 닫는데,
+  // 같은 진료분을 차트본문/검사결과 두 PDF 로 나눠 올리면 검사결과 PDF 에는 그 앵커가 없다.
+  // 그러면 기본정보가 끝까지 안 닫혀 검사 표가 통째로 basicInfo 로 빨려들어간다
+  // (assign-buckets 는 basicInfoOpen 중엔 lab 헤더를 아예 검사하지 않고 continue 한다).
+  // ※ 아래 종류별 분기보다 반드시 앞에 와야 한다 — 우리엔 분기는 중간에 `return false` 로 끊는다.
+  // ※ plusvet 은 isLabSectionHeader 가 항상 false → 여기서 no-op 이고, 아래 자체 신호로 처리한다.
+  if (isLabSectionHeader(lineText.toLowerCase(), lineText, kind)) return true;
   if (kind === 'efriends') {
     const t = lineText.replace(/\s+/g, ' ').trim();
     if (/^(check list|soap history|laboratory result)\b/i.test(t)) return true;
@@ -31,15 +39,7 @@ export function shouldEndBasicInfo(lineText: string, kind: ChartKind): boolean {
     if (isPlusVetDiagnosticResultsSectionTitle('', lineText)) return true;
     if (isPlusVetLabMachinePanelHeaderLine(lineText)) return true;
   }
-  if (kind === 'intovet') {
-    // 차트 본문 없이 검사결과만 있는 PDF 대비: lab 섹션 시작 신호에서 기본정보를 닫는다.
-    // 인투벳은 방문 앵커(`[재진] [날짜]`)로만 기본정보를 닫는데, 같은 진료분을
-    // 차트본문/검사결과 두 PDF 로 나눠 올리면 검사결과 PDF 에는 방문 앵커가 없다.
-    // 그러면 기본정보가 끝까지 안 닫혀 'Lab Examination' 이하 검사 표가 통째로
-    // basicInfo 로 빨려들어간다(assign-buckets 는 basicInfoOpen 중엔 lab 헤더를 아예 안 본다).
-    if (isLabSectionHeader(lineText.toLowerCase(), lineText, kind)) return true;
-    return false;
-  }
+  if (kind === 'intovet') return false;
   const t = lineText.trim();
   return /^20\d{2}[./-]\d{1,2}[./-]\d{1,2}\s+[0-2]?\d:[0-5]\d(?::[0-5]\d)?\s*$/.test(t);
 }
