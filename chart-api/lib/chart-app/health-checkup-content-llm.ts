@@ -617,9 +617,13 @@ export async function generateHealthCheckupContent(
     generateHealthCheckupSection('systems4', source, options, overallContext),
     generateHealthCheckupSection('systems5', source, options, overallContext),
     generateHealthCheckupSection('lab', source, options, overallContext),
-    generateHealthCheckupSection('recheck', source, options, overallContext).catch(
-      () => ({} as Partial<HealthCheckupGeneratedContent>),
-    ),
+    generateHealthCheckupSection('recheck', source, options, overallContext).catch((e) => {
+      // 폴백은 유지하되 조용히 삼키지 않는다 — 여기서 실패하면 stage 1 의 recheck(잘 비는 값)가
+      // 그대로 남아 "권장 재검진이 계속 비어 나온다"로 보이는데, 로그가 없으면 모델이 안 쓴 것인지
+      // 이 호출이 실패한 것인지 사후에 구분할 수 없다.
+      console.error('[health-checkup] recheck 섹션 생성 실패 — stage 1 값으로 폴백:', e);
+      return {} as Partial<HealthCheckupGeneratedContent>;
+    }),
   ]);
 
   return {
