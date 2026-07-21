@@ -23,7 +23,7 @@ import { isParseRunUuid } from '@/lib/chart-app/uuid';
 import { ensureHealthCheckupReviewShareLink } from '@/lib/chart-app/review-share-link';
 import { getReportPublicBase } from '@/lib/chart-app/report-public-base';
 import { getChartPgPool } from '@/lib/db';
-import { hospitalHasTokens, chargeOperationTokens } from '@/lib/billing/token-charge';
+import { hospitalHasTokens, chargeOperationTokens, isBarunFreeOperation } from '@/lib/billing/token-charge';
 import { applyHealthCheckupCoverFromSource } from '@/lib/chart-app/health-checkup-cover-from-source';
 import { loadReportSourceData } from '@/lib/chart-app/report-source';
 import type { ReportSourceData } from '@/lib/chart-app/report-types';
@@ -1060,7 +1060,11 @@ export async function POST(request: NextRequest) {
   const usageCtx = (feature: string) => ({ hospitalId, feature, runId, operationId });
 
   // 사전 점검: 병원 토큰 잔액이 0 이하면 작업을 막는다(토큰 미설정이면 통과).
-  if (!(await hospitalHasTokens(hospitalId))) {
+  // 단, 바른플랜 진료케이스(blog* = product case_blog)는 어차피 net 0이라 게이트를 우회한다.
+  // (건강검진 등 health 계열은 유료라 그대로 잔액 체크.) token_charge_operation 의 blog%→case_blog 유추와 동일.
+  const gateProduct = contentType.startsWith('blog') ? 'case_blog' : null;
+  const genBarunFree = await isBarunFreeOperation(hospitalId, gateProduct);
+  if (!genBarunFree && !(await hospitalHasTokens(hospitalId))) {
     return NextResponse.json({ error: '토큰이 부족합니다. 충전 후 다시 시도해 주세요.' }, { status: 402 });
   }
 

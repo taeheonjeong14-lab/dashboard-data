@@ -24,6 +24,33 @@ export async function hospitalHasTokens(hospitalId: string | null | undefined): 
   return bal > 0;
 }
 
+/**
+ * 바른플랜 무료 작업이면 잔액 게이트(hospitalHasTokens)를 우회한다 — 어차피 차감→즉시환불(net 0)이라
+ * 잔액이 0/음수여도 실질 비용이 0이다. 게이트가 막으면 무료로 해줄 작업(바른플랜 진료케이스)이 402로 중단된다.
+ * 대상: 바른플랜 활성 기간 + product ∈ {case_blog, admin_extract}. billing.token_charge_operation 의
+ * 환불 대상·기간 판정과 같은 규칙 — 한쪽을 바꾸면 여기도 맞출 것. (chart-api/lib/billing/token-charge.ts 와 동일)
+ */
+const BARUN_FREE_GATE_PRODUCTS = new Set(['case_blog', 'admin_extract']);
+
+export async function isBarunFreeOperation(
+  hospitalId: string | null | undefined,
+  product: string | null | undefined,
+): Promise<boolean> {
+  if (!hospitalId || !product || !BARUN_FREE_GATE_PRODUCTS.has(product)) return false;
+  try {
+    const { rows } = await getAdminWebPgPool().query<{ free: boolean | null }>(
+      `SELECT (barun_plan_enabled
+               AND (barun_plan_start IS NULL OR current_date >= barun_plan_start)
+               AND (barun_plan_end   IS NULL OR current_date <= barun_plan_end)) AS free
+         FROM core.hospitals WHERE id = $1`,
+      [hospitalId],
+    );
+    return rows[0]?.free === true;
+  } catch {
+    return false;
+  }
+}
+
 /** 작업 단위 토큰 차감(멱등). 실패해도 본 작업 안 깨짐. */
 export async function chargeOperationTokens(
   hospitalId: string | null | undefined,

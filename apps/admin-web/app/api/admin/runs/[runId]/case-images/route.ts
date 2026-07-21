@@ -4,7 +4,7 @@ import { requireAdminApi } from '@/lib/assert-admin-api';
 import { getAdminWebPgPool } from '@/lib/db';
 import { createServiceRoleClient } from '@/lib/supabase/service-role';
 import { analyzeImageGroup, type ImageInputPart } from '@/lib/chart-case-images/analyze';
-import { hospitalHasTokens, chargeOperationTokens } from '@/lib/billing/token-charge';
+import { hospitalHasTokens, chargeOperationTokens, isBarunFreeOperation } from '@/lib/billing/token-charge';
 import { prepareImageForAnalysis } from '@/lib/chart-case-images/encode';
 import type { ExamType, RadiologySub, FindingSpot } from '@/lib/chart-case-images/types';
 
@@ -387,7 +387,10 @@ export async function POST(
       /* 조회 실패 시 hospital 미귀속(null) */
     }
     const imageOperationId = crypto.randomUUID();
-    if (!(await hospitalHasTokens(usageHospitalId))) {
+    // 차감을 항상 product 'case_blog' 로 하므로(아래 chargeOperationTokens) 게이트도 case_blog 로 우회한다.
+    // 바른플랜이면 net 0 → 잔액 0 이어도 막지 않는다.
+    const imgBarunFree = await isBarunFreeOperation(usageHospitalId, 'case_blog');
+    if (!imgBarunFree && !(await hospitalHasTokens(usageHospitalId))) {
       return NextResponse.json({ error: '토큰이 부족합니다. 충전 후 다시 시도해 주세요.' }, { status: 402 });
     }
 

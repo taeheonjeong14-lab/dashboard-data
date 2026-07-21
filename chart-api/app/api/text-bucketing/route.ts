@@ -31,7 +31,7 @@ import {
 import { runGoogleVisionOcr, type OcrRow } from "@/lib/google-vision";
 import { extractOrderedLinesFromPdf, getOpenAiOrderedLinesModel, reconstructPlanRowsFromText } from "@/lib/report-llm";
 import { extractOrderedLinesFromTextLayer, isTextLayerSufficient } from "@/lib/text-bucketing/pdf-text-layer";
-import { hospitalHasTokens, chargeOperationTokens } from "@/lib/billing/token-charge";
+import { hospitalHasTokens, chargeOperationTokens, isBarunFreeOperation } from "@/lib/billing/token-charge";
 import { extractOpenAiErrorDetails, exposeOpenAiErrorDetailsInResponse } from "@/lib/openai-api-error";
 import { hasLlmApiKey } from "@/lib/llm-provider";
 import { detectTableBlocks, extractLabItems, rowsFromTableBlocks } from "@/lib/lab-parser";
@@ -3573,7 +3573,10 @@ export async function POST(request: NextRequest) {
         ? replaceRunIdRaw.trim()
         : undefined;
     const extractOperationId = crypto.randomUUID();
-    if (!(await hospitalHasTokens(hospitalId))) {
+    // 바른플랜 무료 추출(case_blog·admin_extract)은 어차피 net 0이라 잔액 게이트를 우회한다.
+    // (안 그러면 바른플랜 병원이 잔액 0일 때 무료인 진료케이스 추출이 402로 막혀 중단됐다.)
+    const extractBarunFree = await isBarunFreeOperation(hospitalId, extractProduct);
+    if (!extractBarunFree && !(await hospitalHasTokens(hospitalId))) {
       return Response.json(
         { error: "토큰이 부족합니다. 충전 후 다시 시도해 주세요." },
         { status: 402 },
