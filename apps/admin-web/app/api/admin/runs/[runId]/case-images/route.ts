@@ -200,12 +200,15 @@ export async function POST(
 
   let examDate = '';
   let mode: string | undefined;
+  // 과금 귀속 상품. 건강검진 워크스페이스는 'health_report'(유료), 그 외 진입점은 미지정 → 'case_blog'(바른플랜 무료).
+  // 원시 라벨링은 run당 1회 공용이라 업로드한 화면 맥락으로만 귀속을 판정한다.
+  let billingProduct: 'health_report' | 'case_blog' = 'case_blog';
   let rawFiles: RawFile[] = [];
   const stagingPaths: string[] = []; // JSON 직접 업로드의 임시 파일(처리 후 삭제)
 
   const contentType = request.headers.get('content-type') ?? '';
   if (contentType.includes('application/json')) {
-    let body: { examDate?: string; mode?: string; uploads?: { path?: string; fileName?: string }[] };
+    let body: { examDate?: string; mode?: string; product?: string; uploads?: { path?: string; fileName?: string }[] };
     try {
       body = (await request.json()) as typeof body;
     } catch {
@@ -213,6 +216,7 @@ export async function POST(
     }
     examDate = typeof body.examDate === 'string' ? body.examDate.trim() : '';
     mode = typeof body.mode === 'string' ? body.mode.trim() : undefined;
+    if (body.product === 'health_report') billingProduct = 'health_report';
     const uploads = Array.isArray(body.uploads) ? body.uploads : [];
     if (uploads.length === 0) {
       return NextResponse.json({ error: '업로드된 이미지가 없습니다.' }, { status: 400 });
@@ -251,6 +255,7 @@ export async function POST(
     }
     examDate = (form.get('examDate') as string | null)?.trim() ?? '';
     mode = (form.get('mode') as string | null)?.trim() || undefined; // 'append' | undefined(replace)
+    if ((form.get('product') as string | null)?.trim() === 'health_report') billingProduct = 'health_report';
     const imageFiles = form.getAll('images') as File[];
     if (imageFiles.length === 0) {
       return NextResponse.json({ error: '이미지 파일이 필요합니다.' }, { status: 400 });
@@ -387,9 +392,9 @@ export async function POST(
       /* 조회 실패 시 hospital 미귀속(null) */
     }
     const imageOperationId = crypto.randomUUID();
-    // 차감을 항상 product 'case_blog' 로 하므로(아래 chargeOperationTokens) 게이트도 case_blog 로 우회한다.
-    // 바른플랜이면 net 0 → 잔액 0 이어도 막지 않는다.
-    const imgBarunFree = await isBarunFreeOperation(usageHospitalId, 'case_blog');
+    // 차감 product 로 게이트를 판정한다. case_blog(진료케이스)면 바른플랜은 net 0 → 잔액 0 이어도 우회.
+    // health_report(건강검진)는 유료라 isBarunFreeOperation 이 false → 잔액 게이트가 그대로 적용된다.
+    const imgBarunFree = await isBarunFreeOperation(usageHospitalId, billingProduct);
     if (!imgBarunFree && !(await hospitalHasTokens(usageHospitalId))) {
       return NextResponse.json({ error: '토큰이 부족합니다. 충전 후 다시 시도해 주세요.' }, { status: 402 });
     }
@@ -409,9 +414,9 @@ export async function POST(
         { status: 500 },
       );
     }
-    // 이미지 분석 작업 토큰 차감(병원 잔액에서 1회). 진료케이스 단계이므로 product='case_blog'
-    // (바른플랜이면 즉시 환불, 사용량 통계도 진료케이스로 라벨).
-    await chargeOperationTokens(usageHospitalId, imageOperationId, 'image_analysis', 'case_blog');
+    // 이미지 분석 작업 토큰 차감(병원 잔액에서 1회). product 는 업로드 맥락으로 귀속:
+    // 건강검진(health_report)은 유료(환불 없음), 진료케이스(case_blog)는 바른플랜이면 즉시 환불(net 0).
+    await chargeOperationTokens(usageHospitalId, imageOperationId, 'image_analysis', billingProduct);
 
     // Upload images to Supabase Storage
     const savedImages = await Promise.all(

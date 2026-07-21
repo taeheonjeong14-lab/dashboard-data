@@ -1691,6 +1691,8 @@ export function AdminHealthCheckupWorkspace({
                 credentials: 'include',
                 body: JSON.stringify({
                   mode: 'append',
+                  // 건강검진 리포트 이미지 분석은 유료(바른플랜 환불 대상 아님). product 미지정 시 case_blog(무료)로 새므로 명시.
+                  product: 'health_report',
                   uploads: uploads.map((u, i) => ({ path: u.path, fileName: files[i].name })),
                 }),
               });
