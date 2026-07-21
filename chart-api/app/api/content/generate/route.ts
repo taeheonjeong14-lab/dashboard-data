@@ -34,6 +34,10 @@ import {
 } from '@/lib/chart-app/health-points';
 import { snapshotBlogDraft } from '@/lib/chart-app/blog-draft-diff';
 
+// 주의: 아래 상수들은 contentType(=차감 feature) 이름이다. feature 는 "동작(단계)" 축이고,
+// 과금·통계의 상품 축은 product_code 다. 예: feature 'health_checkup'(리포트 본문 생성 단계) ≠
+// product 'health_report'(건강검진 상품). 이름이 비슷해도 다른 축이니 혼동 금지 —
+// 차감 시 product 를 명시적으로 넘긴다(chargeOperationTokens(..., 'health_report')). [[project_token_product_labeling]]
 const HEALTH_CHECKUP = 'health_checkup';
 const BLOG_POST = 'blog_post';
 const BLOG_SECTION = 'blog_section'; // 3단계 블로그 글 중 특정 섹션만 다시 생성/간결화

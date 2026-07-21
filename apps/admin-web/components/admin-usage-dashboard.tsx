@@ -42,7 +42,10 @@ type OrderRow = {
   status: string; created_at: string; paid_at: string | null;
 };
 
-// 기능 코드 → 한글 라벨
+// feature(동작·단계) 코드 → 한글 라벨. 펼침 세부(단계 내역)에서만 쓰인다.
+// 그룹 헤더는 product(상품, PRODUCT_LABEL) 기준 — feature 와 product 는 다른 축이다(예: feature
+// 'health_checkup' 단계 ≠ product 'health_report' 건강검진 상품). 이 맵엔 과거 호환상 case_blog 등
+// product 코드도 일부 섞여 있으나(legacy 폴백용), 신규 그룹 라벨은 PRODUCT_LABEL 을 우선한다.
 const FEATURE_LABEL: Record<string, string> = {
   extract: '추출',
   ocr: 'OCR',
