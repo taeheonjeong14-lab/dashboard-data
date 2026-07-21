@@ -57,8 +57,19 @@ function groupLabel(feats: Set<string>): string {
   return f[0] ? featLabel(f[0]) : '사용';
 }
 
+// product(상품) 코드 → 한글 라벨. 내역은 이 product 기준으로 라벨링하고, groupLabel(feature 추측)은
+// product_code 가 없는 legacy 행에서만 폴백으로 쓴다.
+const PRODUCT_LABEL: Record<string, string> = {
+  health_report: '건강검진',
+  case_blog: '진료케이스',
+  survey: '사전문진',
+  ops_bundle: '운영 패키지',
+  admin_extract: 'admin 추출',
+};
+const productLabel = (p: string | null | undefined): string | null => (p ? (PRODUCT_LABEL[p] ?? p) : null);
+
 type OverviewDaily = { date: string; feature: string; tokens: number };
-type OverviewLedger = { createdAt: string; kind: string; feature: string | null; tokens: number; balanceAfter: number | null; runId?: string | null; ownerName?: string | null; patientName?: string | null };
+type OverviewLedger = { createdAt: string; kind: string; feature: string | null; productCode?: string | null; tokens: number; balanceAfter: number | null; runId?: string | null; ownerName?: string | null; patientName?: string | null };
 type Overview = { balance: number | null; daily: OverviewDaily[]; ledger: OverviewLedger[] };
 // 내역을 작업(run) 단위로 묶은 행. charge 는 run_id 로 합산, grant/adjust·추출(run 없음)은 개별.
 type LedgerGroup = { key: string; kind: string; label: string; createdAt: string; tokens: number; balanceAfter: number | null; steps: number; ownerName: string | null; patientName: string | null };
@@ -272,7 +283,7 @@ export function SettingsModal({ open, onClose, initialTab }: { open: boolean; on
   // 사용·충전 내역을 작업(run) 단위로 그룹핑 — 건강검진/진료케이스 1건이 한 줄로 합쳐짐.
   const groupedLedger = useMemo<LedgerGroup[]>(() => {
     const out: LedgerGroup[] = [];
-    const byRun = new Map<string, { g: LedgerGroup; feats: Set<string> }>();
+    const byRun = new Map<string, { g: LedgerGroup; feats: Set<string>; product: string | null }>();
     const byFeat = new Map<string, LedgerGroup>();
     const cutoff = Date.now() - DETAIL_DAYS * 86400000; // 최근 1년
     for (const r of overview?.ledger ?? []) {
@@ -286,9 +297,10 @@ export function SettingsModal({ open, onClose, initialTab }: { open: boolean; on
           hit.g.tokens += t;
           if (r.kind === 'charge') hit.g.steps += 1; // 단계 수는 실제 사용(charge)만 카운트
           if (r.feature) hit.feats.add(r.feature);
+          if (r.productCode && !hit.product) hit.product = r.productCode;
         } else {
           const g: LedgerGroup = { key: `run:${r.runId}`, kind: 'charge', label: '', createdAt: r.createdAt, tokens: t, balanceAfter: r.balanceAfter, steps: r.kind === 'charge' ? 1 : 0, ownerName: r.ownerName ?? null, patientName: r.patientName ?? null };
-          byRun.set(r.runId, { g, feats: new Set(r.feature ? [r.feature] : []) });
+          byRun.set(r.runId, { g, feats: new Set(r.feature ? [r.feature] : []), product: r.productCode ?? null });
           out.push(g);
         }
       } else if ((r.kind === 'charge' || r.kind === 'adjust') && r.feature) {
@@ -301,7 +313,7 @@ export function SettingsModal({ open, onClose, initialTab }: { open: boolean; on
           hit.tokens += t;
           if (r.kind === 'charge') hit.steps += 1;
         } else {
-          const g: LedgerGroup = { key, kind: 'charge', label: featLabel(feat), createdAt: r.createdAt, tokens: t, balanceAfter: r.balanceAfter, steps: r.kind === 'charge' ? 1 : 0, ownerName: null, patientName: null };
+          const g: LedgerGroup = { key, kind: 'charge', label: productLabel(r.productCode) ?? featLabel(feat), createdAt: r.createdAt, tokens: t, balanceAfter: r.balanceAfter, steps: r.kind === 'charge' ? 1 : 0, ownerName: null, patientName: null };
           byFeat.set(key, g);
           out.push(g);
         }
@@ -310,14 +322,14 @@ export function SettingsModal({ open, onClose, initialTab }: { open: boolean; on
           key: `${r.kind}:${r.createdAt}:${out.length}`,
           kind: r.kind,
           label: r.kind === 'charge'
-            ? featLabel(r.feature ?? '')
+            ? (productLabel(r.productCode) ?? featLabel(r.feature ?? ''))
             : (r.kind === 'grant' && r.feature === 'token_purchase' ? '토큰 구매' : (KIND_LABEL[r.kind] ?? r.kind)),
           createdAt: r.createdAt, tokens: t, balanceAfter: r.balanceAfter, steps: 1,
           ownerName: r.ownerName ?? null, patientName: r.patientName ?? null,
         });
       }
     }
-    for (const { g, feats } of byRun.values()) g.label = groupLabel(feats);
+    for (const { g, feats, product } of byRun.values()) g.label = productLabel(product) ?? groupLabel(feats);
     return out.sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
   }, [overview]);
 
