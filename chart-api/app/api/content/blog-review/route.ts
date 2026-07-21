@@ -7,7 +7,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import type pg from 'pg';
 import { chartAppAuthMiddleware } from '@/lib/chart-app/auth';
 import { getChartPgPool } from '@/lib/db';
-import { chargeOperationTokens, hospitalHasTokens, isBarunFreeOperation } from '@/lib/billing/token-charge';
+import { chargeOperationTokens } from '@/lib/billing/token-charge';
 import { upsertGeneratedRunContent } from '@/lib/chart-app/generated-content';
 import { isParseRunUuid } from '@/lib/chart-app/uuid';
 import { runBlogReviewEnsemble } from '@/lib/chart-app/blog-review';
@@ -137,13 +137,7 @@ export async function POST(request: NextRequest): Promise<Response> {
     hospitalId = String(body.hospitalId ?? '').trim() || null;
   }
 
-  // 사전 점검(잔액 0 이하 차단, 미설정은 통과).
-  // blog_review 는 product 'case_blog' 라 바른플랜이면 net 0 → 게이트 우회.
-  const reviewBarunFree = await isBarunFreeOperation(hospitalId, 'case_blog');
-  if (!reviewBarunFree && !(await hospitalHasTokens(hospitalId))) {
-    return NextResponse.json({ error: '토큰이 부족합니다. 충전 후 다시 시도해 주세요.' }, { status: 402 });
-  }
-
+  // 소프트 게이트: 블로그 검수는 '이미 시작된 작업'의 완료 단계라 잔액 게이트를 두지 않는다(잔액 검사는 추출에서만).
   const operationId = crypto.randomUUID();
   const usageCtx = (feature: string) => ({ hospitalId, feature, runId: runId || undefined, operationId });
 

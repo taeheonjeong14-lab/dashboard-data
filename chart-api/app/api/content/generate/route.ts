@@ -23,7 +23,7 @@ import { isParseRunUuid } from '@/lib/chart-app/uuid';
 import { ensureHealthCheckupReviewShareLink } from '@/lib/chart-app/review-share-link';
 import { getReportPublicBase } from '@/lib/chart-app/report-public-base';
 import { getChartPgPool } from '@/lib/db';
-import { hospitalHasTokens, chargeOperationTokens, isBarunFreeOperation } from '@/lib/billing/token-charge';
+import { chargeOperationTokens } from '@/lib/billing/token-charge';
 import { applyHealthCheckupCoverFromSource } from '@/lib/chart-app/health-checkup-cover-from-source';
 import { loadReportSourceData } from '@/lib/chart-app/report-source';
 import type { ReportSourceData } from '@/lib/chart-app/report-types';
@@ -1059,14 +1059,9 @@ export async function POST(request: NextRequest) {
   const operationId = crypto.randomUUID(); // 이 요청(=한 단계 작업)의 모든 LLM 호출을 묶는 id
   const usageCtx = (feature: string) => ({ hospitalId, feature, runId, operationId });
 
-  // 사전 점검: 병원 토큰 잔액이 0 이하면 작업을 막는다(토큰 미설정이면 통과).
-  // 단, 바른플랜 진료케이스(blog* = product case_blog)는 어차피 net 0이라 게이트를 우회한다.
-  // (건강검진 등 health 계열은 유료라 그대로 잔액 체크.) token_charge_operation 의 blog%→case_blog 유추와 동일.
-  const gateProduct = contentType.startsWith('blog') ? 'case_blog' : null;
-  const genBarunFree = await isBarunFreeOperation(hospitalId, gateProduct);
-  if (!genBarunFree && !(await hospitalHasTokens(hospitalId))) {
-    return NextResponse.json({ error: '토큰이 부족합니다. 충전 후 다시 시도해 주세요.' }, { status: 402 });
-  }
+  // 소프트 게이트: 콘텐츠 생성(건강검진 리포트·블로그)은 '이미 시작된 작업'의 진행 단계라 잔액 게이트를 두지 않는다.
+  // 잔액 검사는 작업 진입점인 차트 추출(text-bucketing)에서만 한다 — 추출을 양수로 시작했으면 리포트는
+  // 잔액이 음수가 돼도 끝까지 생성된다(차감은 그대로 일어나 사용량은 정확히 기록됨). 새 작업은 추출 게이트가 막는다.
 
   // 블로그 글 서식화 — 주어진 본문에 네이버용 서식 마커만 추가(텍스트 변경 금지). 추출 source 불필요.
   if (contentType === 'blog_format') {

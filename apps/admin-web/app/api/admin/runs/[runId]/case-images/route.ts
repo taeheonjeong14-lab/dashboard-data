@@ -4,7 +4,7 @@ import { requireAdminApi } from '@/lib/assert-admin-api';
 import { getAdminWebPgPool } from '@/lib/db';
 import { createServiceRoleClient } from '@/lib/supabase/service-role';
 import { analyzeImageGroup, type ImageInputPart } from '@/lib/chart-case-images/analyze';
-import { hospitalHasTokens, chargeOperationTokens, isBarunFreeOperation } from '@/lib/billing/token-charge';
+import { chargeOperationTokens } from '@/lib/billing/token-charge';
 import { prepareImageForAnalysis } from '@/lib/chart-case-images/encode';
 import type { ExamType, RadiologySub, FindingSpot } from '@/lib/chart-case-images/types';
 
@@ -392,12 +392,8 @@ export async function POST(
       /* 조회 실패 시 hospital 미귀속(null) */
     }
     const imageOperationId = crypto.randomUUID();
-    // 차감 product 로 게이트를 판정한다. case_blog(진료케이스)면 바른플랜은 net 0 → 잔액 0 이어도 우회.
-    // health_report(건강검진)는 유료라 isBarunFreeOperation 이 false → 잔액 게이트가 그대로 적용된다.
-    const imgBarunFree = await isBarunFreeOperation(usageHospitalId, billingProduct);
-    if (!imgBarunFree && !(await hospitalHasTokens(usageHospitalId))) {
-      return NextResponse.json({ error: '토큰이 부족합니다. 충전 후 다시 시도해 주세요.' }, { status: 402 });
-    }
+    // 소프트 게이트: 이미지 분석은 '이미 시작된 작업'의 진행 단계라 잔액 게이트를 두지 않는다(잔액 검사는 추출에서만).
+    // 차감은 billingProduct(health_report/case_blog)로 그대로 일어남.
 
     // Analyze with OpenAI (그룹 단위: 기존+새 이미지로 라벨 + 시사점)
     let analysis;

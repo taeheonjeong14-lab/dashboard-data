@@ -9,7 +9,7 @@ import {
   type ImageInputPart,
   type CaseBlogSectionInput,
 } from '@/lib/chart-case-images/analyze';
-import { hospitalHasTokens, chargeOperationTokens, isBarunFreeOperation } from '@/lib/billing/token-charge';
+import { chargeOperationTokens } from '@/lib/billing/token-charge';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300;
@@ -98,12 +98,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return NextResponse.json({ ok: true, assignments: [] });
     }
 
-    // blog_images 는 product 'case_blog' 라 바른플랜이면 net 0 → 게이트 우회.
-    const blogImgBarunFree = await isBarunFreeOperation(hospitalId, 'case_blog');
-    if (!blogImgBarunFree && !(await hospitalHasTokens(hospitalId))) {
-      return NextResponse.json({ error: '토큰이 부족합니다. 충전 후 다시 시도해 주세요.' }, { status: 402 });
-    }
-
+    // 소프트 게이트: 블로그 이미지 배정은 '이미 시작된 작업'의 진행 단계라 잔액 게이트를 두지 않는다(잔액 검사는 추출에서만).
     const operationId = randomUUID();
     const { assignments } = await analyzeCaseBlogImages({
       patient,
