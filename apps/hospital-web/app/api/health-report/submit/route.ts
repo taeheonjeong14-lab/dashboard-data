@@ -9,8 +9,6 @@ import { notifyAdminError } from '@/lib/notify';
 // 접수(job)만 만들고 즉시 jobId 반환 → 추출/저장은 백그라운드(after)에서. 사용자는 기다리지 않아도 된다.
 export const maxDuration = 800; // after() 백그라운드 작업이 이 안에서 돈다.
 
-const TOKEN_COST = 50;
-
 type Overview = {
   mainDisease?: string;
   comorbidities?: string;
@@ -72,23 +70,8 @@ async function handlePOST(request: NextRequest) {
   const hospitalId = (profile as { hospital_id?: string } | null)?.hospital_id;
   if (!hospitalId) return NextResponse.json({ error: '병원 정보를 찾을 수 없습니다.' }, { status: 400 });
 
-  // 토큰 사전 점검 — token_balance 컬럼이 아직 없을 수 있으므로 별도 쿼리로(에러면 미적용, 기존 동작 유지).
-  const { data: tb, error: tbErr } = await supabase
-    .schema('core')
-    .from('users')
-    .select('token_balance')
-    .eq('id', user.id)
-    .single();
-  const balance = (tb as { token_balance?: number } | null)?.token_balance;
-  const tokensReady = !tbErr && typeof balance === 'number';
-  if (tokensReady && (balance as number) < TOKEN_COST) {
-    return NextResponse.json(
-      { error: `토큰이 부족합니다. (보유 ${(balance as number).toLocaleString()}, 필요 ${TOKEN_COST})` },
-      { status: 402 },
-    );
-  }
-
   // 콘텐츠 payload 정규화(저장 라우트와 동일 형태). 워커는 source 만 덧씌워 그대로 저장.
+  // 과금은 추출 시점 System B(billing.token_ledger, 병원 잔액)에서 처리한다 — 여기선 잔액 게이트 없음.
   let jobPayload: Record<string, unknown>;
   if (kind === 'blog_case') {
     const o = body.overview ?? {};
@@ -139,7 +122,6 @@ async function handlePOST(request: NextRequest) {
         storage_paths: storagePaths,
         payload: jobPayload,
         status: 'queued',
-        token_cost: tokensReady ? TOKEN_COST : 0,
       })
       .select('id')
       .single();

@@ -116,14 +116,13 @@ export async function POST(
     .from('extract_jobs')
     .insert({
       hospital_id: run.hospital_id,
-      user_id: run.hospital_id, // 재추출은 토큰 차감 없음 → user_id 미사용(병원 id 로 채움)
+      user_id: run.hospital_id, // 재추출은 과금 없음 → user_id 미사용(병원 id 로 채움)
       chart_type: chartType,
       kind,
       storage_bucket: sourceStorage.bucket,
       storage_paths: sourceStorage.paths,
       payload: additionalDocs.length ? { additional_docs: additionalDocs } : {},
       status: 'queued',
-      token_cost: 0,
       replace_run_id: runId,
     })
     .select('id')

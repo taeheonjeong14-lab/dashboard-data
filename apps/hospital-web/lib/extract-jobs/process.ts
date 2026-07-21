@@ -39,8 +39,6 @@ export type ExtractJob = {
   payload: Record<string, unknown>;
   status: string;
   run_id: string | null;
-  token_cost: number;
-  token_deducted: boolean;
   attempts: number;
   /** 설정 시 재추출(덮어쓰기): 새 run 대신 이 run 을 덮어쓴다. */
   replace_run_id: string | null;
@@ -210,25 +208,8 @@ export async function processExtractJob(jobId: string): Promise<void> {
       await mergeAdditionalDocs(srvc, runId, enrichedDocs);
     }
 
-    // 토큰 차감(성공 시 1회). token_deducted 로 중복 차감 방지. 실패해도 best-effort.
-    // 재추출은 token_cost=0 으로 적재돼 아래 조건에서 자동 스킵된다(과금 없음).
-    if (job.token_cost > 0 && !job.token_deducted) {
-      try {
-        await srvc.schema('core').rpc('token_deduct', {
-          p_user_id: job.user_id,
-          p_amount: job.token_cost,
-          p_reason: job.kind === 'blog_case' ? 'blog_case' : 'health_report',
-          p_hospital_id: job.hospital_id,
-        });
-      } catch (e) {
-        console.error('[extract-job] token_deduct failed', jobId, e);
-      }
-      await srvc
-        .schema('health_report')
-        .from('extract_jobs')
-        .update({ token_deducted: true })
-        .eq('id', job.id);
-    }
+    // 과금은 추출 시점 chart-api(text-bucketing → billing.token_ledger, 병원 잔액)에서 처리한다.
+    // (구 System A: core.users 정액 차감 — DB에 컬럼/함수가 없어 무력이었으므로 제거함.)
 
     await srvc
       .schema('health_report')
