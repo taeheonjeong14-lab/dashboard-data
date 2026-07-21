@@ -90,7 +90,7 @@ export async function GET(request: NextRequest) {
     // 선택 병원: hospital-ui 사용량 탭과 '동일한' 사용·충전 내역(ledger: 사용/지급/조정)
     //  + 각 사용(charge) 건을 펼쳐 볼 항목(runItems). 토큰은 전부 billing.token_ledger 의 실제 차감 정수값.
     type LedgerRow = {
-      createdAt: string; kind: string; feature: string | null; tokens: number; balanceAfter: number | null;
+      createdAt: string; kind: string; feature: string | null; productCode: string | null; tokens: number; balanceAfter: number | null;
       runId: string | null; note: string | null; ownerName: string | null; patientName: string | null;
     };
     type RunItem = { feature: string; provider: string; costUsd: number; calls: number; tokens: number };
@@ -100,13 +100,13 @@ export async function GET(request: NextRequest) {
     if (hospitalIdParam && /^[0-9a-fA-F-]{36}$/.test(hospitalIdParam)) {
       // 사용·충전 내역 — charge/grant/adjust 전부. run_id(operation→llm_usage) + 보호자/환자명. (hospital-ui 와 동일)
       const ledgerRes = await pool.query<{
-        created_at: string; kind: string; feature: string | null; tokens: number; balance_after: number | null;
+        created_at: string; kind: string; feature: string | null; product_code: string | null; tokens: number; balance_after: number | null;
         run_id: string | null; note: string | null; owner_name: string | null; patient_name: string | null;
       }>(
-        `SELECT base.created_at, base.kind, base.feature, base.tokens, base.balance_after, base.run_id, base.note,
+        `SELECT base.created_at, base.kind, base.feature, base.product_code, base.tokens, base.balance_after, base.run_id, base.note,
                 bi.owner_name, bi.patient_name
            FROM (
-             SELECT tl.created_at, tl.kind, tl.feature, tl.tokens, tl.balance_after, tl.note,
+             SELECT tl.created_at, tl.kind, tl.feature, tl.product_code, tl.tokens, tl.balance_after, tl.note,
                     (SELECT u.run_id FROM billing.llm_usage u
                       WHERE u.operation_id = tl.operation_id AND u.run_id IS NOT NULL LIMIT 1) AS run_id
                FROM billing.token_ledger tl
@@ -118,7 +118,7 @@ export async function GET(request: NextRequest) {
         [hospitalIdParam],
       );
       ledger = ledgerRes.rows.map((r) => ({
-        createdAt: r.created_at, kind: r.kind, feature: r.feature, tokens: Number(r.tokens) || 0,
+        createdAt: r.created_at, kind: r.kind, feature: r.feature, productCode: r.product_code, tokens: Number(r.tokens) || 0,
         balanceAfter: r.balance_after == null ? null : Number(r.balance_after),
         runId: r.run_id, note: r.note, ownerName: r.owner_name, patientName: r.patient_name,
       }));

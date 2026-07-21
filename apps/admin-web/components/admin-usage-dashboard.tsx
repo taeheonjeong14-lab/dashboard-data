@@ -15,7 +15,7 @@ type HospitalRow = {
 };
 // hospital-ui 사용량 탭과 동일 데이터 구조.
 type LedgerRow = {
-  createdAt: string; kind: string; feature: string | null; tokens: number; balanceAfter: number | null;
+  createdAt: string; kind: string; feature: string | null; productCode: string | null; tokens: number; balanceAfter: number | null;
   runId: string | null; note: string | null; ownerName: string | null; patientName: string | null;
 };
 type RunItem = { feature: string; provider: string; costUsd: number; calls: number; tokens: number };
@@ -67,6 +67,7 @@ const ITEM_LABEL: Record<string, string> = {
 const itemLabel = (f: string) => ITEM_LABEL[f] ?? f;
 // 한 건(run)의 기능들 → 대표 라벨.
 const CASE_FEATS = new Set(['blog_causal', 'blog_detail', 'blog_outline', 'blog_post', 'blog_images']);
+// 그룹 라벨 폴백(legacy: product_code 가 null 인 옛 데이터). 신규는 아래 productLabel 을 우선 사용.
 function groupLabel(feats: Set<string>): string {
   const f = [...feats];
   if (f.some((x) => CASE_FEATS.has(x))) return '진료케이스';
@@ -76,6 +77,17 @@ function groupLabel(feats: Set<string>): string {
   if (f.some((x) => x === 'extract' || x === 'ocr')) return '추출';
   return f[0] ? featLabel(f[0]) : '사용';
 }
+
+// product(상품) 코드 → 한글 라벨. admin 화면은 이 product 기준으로 그룹을 라벨링한다.
+// (feature 역추측 groupLabel 은 product_code 가 없는 legacy 행에서만 폴백으로 쓴다.)
+const PRODUCT_LABEL: Record<string, string> = {
+  health_report: '건강검진',
+  case_blog: '진료케이스',
+  survey: '사전문진',
+  ops_bundle: '운영 패키지',
+  admin_extract: 'admin 추출',
+};
+const productLabel = (p: string | null | undefined): string | null => (p ? (PRODUCT_LABEL[p] ?? p) : null);
 
 const KIND_LABEL: Record<string, string> = { charge: '사용', grant: '관리자 지급', adjust: '조정' };
 
@@ -240,7 +252,7 @@ export default function AdminUsageDashboard({
   // 사용·충전 내역을 작업(run) 단위로 묶음 (hospital-ui 와 동일). charge+run → 합산, grant/adjust → 개별.
   const groupedLedger = useMemo<LedgerGroup[]>(() => {
     const out: LedgerGroup[] = [];
-    const byRun = new Map<string, { g: LedgerGroup; feats: Set<string> }>();
+    const byRun = new Map<string, { g: LedgerGroup; feats: Set<string>; product: string | null }>();
     const byFeat = new Map<string, LedgerGroup>();
     for (const r of data?.ledger ?? []) {
       const t = Number(r.tokens);
@@ -251,12 +263,13 @@ export default function AdminUsageDashboard({
           hit.g.tokens += t;
           if (r.kind === 'charge') hit.g.steps += 1;
           if (r.feature) hit.feats.add(r.feature);
+          if (r.productCode && !hit.product) hit.product = r.productCode;
         } else {
           const g: LedgerGroup = {
             key: `run:${r.runId}`, kind: 'charge', label: '', createdAt: r.createdAt, tokens: t,
             balanceAfter: r.balanceAfter, steps: r.kind === 'charge' ? 1 : 0, runId: r.runId, ownerName: r.ownerName ?? null, patientName: r.patientName ?? null,
           };
-          byRun.set(r.runId, { g, feats: new Set(r.feature ? [r.feature] : []) });
+          byRun.set(r.runId, { g, feats: new Set(r.feature ? [r.feature] : []), product: r.productCode ?? null });
           out.push(g);
         }
       } else if ((r.kind === 'charge' || r.kind === 'adjust') && r.feature) {
@@ -269,7 +282,7 @@ export default function AdminUsageDashboard({
           if (r.kind === 'charge') hit.steps += 1;
         } else {
           const g: LedgerGroup = {
-            key, kind: 'charge', label: featLabel(feat), createdAt: r.createdAt, tokens: t,
+            key, kind: 'charge', label: productLabel(r.productCode) ?? featLabel(feat), createdAt: r.createdAt, tokens: t,
             balanceAfter: r.balanceAfter, steps: r.kind === 'charge' ? 1 : 0, runId: null, ownerName: null, patientName: null,
           };
           byFeat.set(key, g);
@@ -280,14 +293,14 @@ export default function AdminUsageDashboard({
           key: `${r.kind}:${r.createdAt}:${out.length}`,
           kind: r.kind,
           label: r.kind === 'charge'
-            ? featLabel(r.feature ?? '')
+            ? (productLabel(r.productCode) ?? featLabel(r.feature ?? ''))
             : (r.kind === 'grant' && r.feature === 'token_purchase' ? '토큰 구매' : (KIND_LABEL[r.kind] ?? r.kind)),
           createdAt: r.createdAt, tokens: t, balanceAfter: r.balanceAfter, steps: 1, runId: null,
           ownerName: r.ownerName ?? null, patientName: r.patientName ?? null,
         });
       }
     }
-    for (const { g, feats } of byRun.values()) g.label = groupLabel(feats);
+    for (const { g, feats, product } of byRun.values()) g.label = productLabel(product) ?? groupLabel(feats);
     return out.sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
   }, [data]);
 
