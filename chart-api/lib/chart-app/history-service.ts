@@ -248,6 +248,9 @@ export async function deleteRunCascade(runId: string): Promise<boolean> {
 
     await client.query(`DELETE FROM health_report.generated_run_content WHERE parse_run_id = $1::uuid`, [runId]);
     await client.query(`DELETE FROM health_report.health_review_share_links WHERE parse_run_id = $1::uuid`, [runId]);
+    // extract_jobs 는 run_id FK 가 없어 documents CASCADE 로 안 지워진다 → 명시 삭제(안 하면 삭제된 run 의
+    // 잡이 고아로 남아 admin 홈 '할 일' 카운트에 유령으로 잡힌다).
+    await client.query(`DELETE FROM health_report.extract_jobs WHERE run_id = $1::uuid`, [runId]);
 
     await client.query(`DELETE FROM chart_pdf.documents WHERE id = $1::uuid`, [documentId]);
 
