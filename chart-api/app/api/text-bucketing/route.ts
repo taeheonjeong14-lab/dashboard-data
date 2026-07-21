@@ -3573,10 +3573,12 @@ export async function POST(request: NextRequest) {
         ? replaceRunIdRaw.trim()
         : undefined;
     const extractOperationId = crypto.randomUUID();
-    // 바른플랜 무료 추출(case_blog·admin_extract)은 어차피 net 0이라 잔액 게이트를 우회한다.
+    // admin 직접 추출(admin_extract)은 비과금 — 잔액 게이트도 차감도 하지 않는다.
+    const extractNoCharge = extractProduct === "admin_extract";
+    // 바른플랜 무료 추출(case_blog)은 어차피 net 0이라 잔액 게이트를 우회한다.
     // (안 그러면 바른플랜 병원이 잔액 0일 때 무료인 진료케이스 추출이 402로 막혀 중단됐다.)
     const extractBarunFree = await isBarunFreeOperation(hospitalId, extractProduct);
-    if (!extractBarunFree && !(await hospitalHasTokens(hospitalId))) {
+    if (!extractNoCharge && !extractBarunFree && !(await hospitalHasTokens(hospitalId))) {
       return Response.json(
         { error: "토큰이 부족합니다. 충전 후 다시 시도해 주세요." },
         { status: 402 },
@@ -3758,8 +3760,10 @@ export async function POST(request: NextRequest) {
     // LLM/OCR 모두 일부 줄의 text 가 런타임 null 로 올 수 있음 → 빈 문자열로 정규화(downstream .trim() 널 크래시 방지).
     for (const l of llmLines) if (l.text == null) (l as { text: string }).text = "";
     ocr.rows = ocr.rows.map((r) => (r.text == null ? { ...r, text: "" } : r));
-    // 추출 작업 토큰 차감(추출+OCR usage 합산 → ceil($/0.10), 병원 잔액에서 1회).
-    await chargeOperationTokens(hospitalId, extractOperationId, "extract", extractProduct);
+    // 추출 작업 토큰 차감(추출+OCR usage 합산, 병원 잔액에서 1회). admin 직접 추출(admin_extract)은 비과금이라 건너뛴다.
+    if (!extractNoCharge) {
+      await chargeOperationTokens(hospitalId, extractOperationId, "extract", extractProduct);
+    }
     console.log(`[text-bucketing DEBUG] llmLines count=${llmLines.length}, first3=${JSON.stringify(llmLines.slice(0, 3))}, last3=${JSON.stringify(llmLines.slice(-3))}`);
     console.log(`[text-bucketing] OCR 결과: rows=${ocr.rows.length} (ocrConfigured=${ocrConfigured}) — rows>0 이면 OCR 동작, 0이면 실패/미동작`);
 

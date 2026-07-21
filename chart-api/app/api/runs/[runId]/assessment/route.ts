@@ -3,7 +3,6 @@ import { chartAppAuthMiddleware } from '@/lib/chart-app/auth';
 import { geminiGenerateText, tryParseJsonObject } from '@/lib/chart-app/gemini';
 import { isParseRunUuid } from '@/lib/chart-app/uuid';
 import { getChartPgPool } from '@/lib/db';
-import { chargeOperationTokens } from '@/lib/billing/token-charge';
 
 async function buildAssessmentSource(pool: ReturnType<typeof getChartPgPool>, runId: string): Promise<string> {
   const { rows: basics } = await pool.query(
@@ -108,7 +107,7 @@ ${src}`;
         usageContext: { feature: 'assessment', hospitalId, runId: id, operationId },
       });
       assessmentJson = tryParseJsonObject(raw);
-      await chargeOperationTokens(hospitalId, operationId, 'assessment');
+      // assessment 는 비과금(추출 중 무과금으로 생성되는 것과 일치). 차감하지 않는다.
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       if (msg.includes('GEMINI_API_KEY')) {
