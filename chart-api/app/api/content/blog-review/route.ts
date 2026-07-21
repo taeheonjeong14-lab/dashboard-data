@@ -158,7 +158,7 @@ export async function POST(request: NextRequest): Promise<Response> {
     const review = assembleReview({ sourceType, aggregate, seoMetrics, modelsUsed, reviewers });
 
     // 과금: 합산 원가 1회 차감. feature 'blog_review' → product 'case_blog' → 바른플랜 자동 환불.
-    await chargeOperationTokens(hospitalId, operationId, 'blog_review');
+    await chargeOperationTokens(hospitalId, operationId, 'blog_review', 'case_blog');
 
     if (sourceType === 'internal' && runId) {
       await upsertGeneratedRunContent(pool, runId, 'blog_review', review);

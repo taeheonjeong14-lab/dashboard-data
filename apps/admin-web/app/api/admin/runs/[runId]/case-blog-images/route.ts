@@ -108,7 +108,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       images,
       usageContext: { hospitalId, runId, feature: 'blog_images', operationId },
     });
-    await chargeOperationTokens(hospitalId, operationId, 'blog_images');
+    await chargeOperationTokens(hospitalId, operationId, 'blog_images', 'case_blog');
 
     return NextResponse.json({ ok: true, assignments });
   } catch (e) {

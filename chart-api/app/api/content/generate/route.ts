@@ -1084,7 +1084,7 @@ export async function POST(request: NextRequest) {
         maxOutputTokens: 8192,
         usageContext: usageCtx('blog_format'),
       });
-      await chargeOperationTokens(hospitalId, operationId, 'blog_format');
+      await chargeOperationTokens(hospitalId, operationId, 'blog_format', 'case_blog');
       const cleaned = raw.replace(/^```[a-z]*\n?/i, '').replace(/\n?```\s*$/i, '').trim();
       return NextResponse.json({ runId, contentType, generated: { text: cleaned || text } });
     } catch (e) {
@@ -1141,7 +1141,7 @@ export async function POST(request: NextRequest) {
         // 새로 뽑았으니 확정은 해제 — admin 이 다시 검토해야 본문 생성이 열린다.
         const payload = { points, confirmed: false };
         const saved = await upsertGeneratedRunContent(pool, runId, HEALTH_POINTS, payload);
-        await chargeOperationTokens(hospitalId, operationId, 'health_checkup');
+        await chargeOperationTokens(hospitalId, operationId, 'health_checkup', 'health_report');
         return NextResponse.json({ runId, contentType, generated: payload, payload, saved });
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
@@ -1230,7 +1230,7 @@ export async function POST(request: NextRequest) {
             }
           }
 
-          await chargeOperationTokens(hospitalId, operationId, 'health_checkup');
+          await chargeOperationTokens(hospitalId, operationId, 'health_checkup', 'health_report');
           return NextResponse.json({ runId, contentType, section: sectionRaw, generated: partial, saved: false });
         } catch (e) {
           const msg = e instanceof Error ? e.message : String(e);
@@ -1313,7 +1313,7 @@ export async function POST(request: NextRequest) {
         } catch (linkErr) {
           console.error('[content/generate] ensure review-share link failed (non-blocking):', linkErr);
         }
-        await chargeOperationTokens(hospitalId, operationId, 'health_checkup');
+        await chargeOperationTokens(hospitalId, operationId, 'health_checkup', 'health_report');
         const debug: GenerateDebugInfo | undefined = debugEnabled
           ? {
               enabled: true,
@@ -1411,7 +1411,7 @@ export async function POST(request: NextRequest) {
         const debug: GenerateDebugInfo | undefined = debugEnabled
           ? { enabled: true, parser: parserDebug, model: { maxOutputTokens: stageMaxTokens } }
           : undefined;
-        await chargeOperationTokens(hospitalId, operationId, 'blog_causal');
+        await chargeOperationTokens(hospitalId, operationId, 'blog_causal', 'case_blog');
         return NextResponse.json({
           runId,
           contentType,
@@ -1488,7 +1488,7 @@ export async function POST(request: NextRequest) {
         const debug: GenerateDebugInfo | undefined = debugEnabled
           ? { enabled: true, parser: parserDebug, model: { maxOutputTokens: stageMaxTokens } }
           : undefined;
-        await chargeOperationTokens(hospitalId, operationId, 'blog_causal');
+        await chargeOperationTokens(hospitalId, operationId, 'blog_causal', 'case_blog');
         return NextResponse.json({
           runId,
           contentType,
@@ -1548,7 +1548,7 @@ export async function POST(request: NextRequest) {
         const debug: GenerateDebugInfo | undefined = debugEnabled
           ? { enabled: true, parser: parserDebug, model: { maxOutputTokens: stageMaxTokens } }
           : undefined;
-        await chargeOperationTokens(hospitalId, operationId, 'blog_outline');
+        await chargeOperationTokens(hospitalId, operationId, 'blog_outline', 'case_blog');
         return NextResponse.json({
           runId,
           contentType,
@@ -1635,7 +1635,7 @@ export async function POST(request: NextRequest) {
         } catch (e) {
           console.error('[blog-draft-diff] BEFORE 스냅샷 실패(생성은 계속):', e);
         }
-        await chargeOperationTokens(hospitalId, operationId, 'blog_post');
+        await chargeOperationTokens(hospitalId, operationId, 'blog_post', 'case_blog');
         const debug: GenerateDebugInfo | undefined = debugEnabled
           ? { enabled: true, parser: parserDebug, model: { maxOutputTokens: stageMaxTokens } }
           : undefined;
@@ -1697,7 +1697,7 @@ export async function POST(request: NextRequest) {
         const debug: GenerateDebugInfo | undefined = debugEnabled
           ? { enabled: true, parser: parserDebug, model: { maxOutputTokens: stageMaxTokens } }
           : undefined;
-        await chargeOperationTokens(hospitalId, operationId, 'blog_post');
+        await chargeOperationTokens(hospitalId, operationId, 'blog_post', 'case_blog');
         return NextResponse.json({
           runId,
           contentType,
@@ -1749,7 +1749,7 @@ export async function POST(request: NextRequest) {
         const debug: GenerateDebugInfo | undefined = debugEnabled
           ? { enabled: true, parser: parserDebug, model: { maxOutputTokens: stageMaxTokens } }
           : undefined;
-        await chargeOperationTokens(hospitalId, operationId, 'blog_post');
+        await chargeOperationTokens(hospitalId, operationId, 'blog_post', 'case_blog');
         return NextResponse.json({
           runId,
           contentType,

@@ -92,7 +92,7 @@ export async function POST(request: NextRequest) {
     });
     const text = raw.replace(/\s+/g, ' ').trim();
     if (!text) throw new Error('Gemini returned empty response.');
-    await chargeOperationTokens(hospitalId, operationId, 'disease_intro');
+    await chargeOperationTokens(hospitalId, operationId, 'disease_intro', 'health_report');
     return NextResponse.json({ body: clampToCompleteSentence(text, BODY_MAX) });
   } catch (e) {
     console.error('[content/health-checkup/disease-intro] error:', e);
