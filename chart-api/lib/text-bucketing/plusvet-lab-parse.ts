@@ -235,6 +235,16 @@ function stripTrailingUnit(head: string): { head: string; unit: string | null } 
     return { head: `${pct[1].trim()} ${pct[2]}`.trim(), unit: '%' };
   }
 
+  // 목록에 없는 단위 폴백. 위 목록은 허용목록이라 처음 보는 단위(mmol/kg·umol/dL 등)가 나오면
+  // 단위가 안 떼여 → splitItemAndValue 가 "값으로 끝나는 줄"을 못 찾아 → **행이 통째로 드롭**됐다.
+  // (Osm Calc·FRU 누락이 이 경로. 단위 하나 추가하는 땜질 대신 부류 자체를 막는다)
+  // 오검출 방지: 마지막 토큰이 단위꼴 문자이고 **그 앞이 숫자**일 때만 단위로 인정한다
+  // → "AP_spp NEG(2)"(괄호)·"BUN/CREA 48"(숫자로 끝남)·한글 값은 걸리지 않는다.
+  const generic = h.match(/^(.*\s[-+]?\d+(?:[.,]\d+)?)\s+([A-Za-zµμΩ]+(?:\/[A-Za-zµμΩ0-9%]+)*)\s*$/);
+  if (generic?.[1] && generic[2]) {
+    return { head: generic[1].trim(), unit: generic[2] };
+  }
+
   return { head: h, unit: null };
 }
 

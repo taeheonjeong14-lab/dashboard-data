@@ -102,6 +102,7 @@ const DIRECT_ALIASES: Record<string, string> = {
   ATIII: 'AT III',
   PLATELETFUNC: 'Platelet func',
   OSMCA: 'OSM CA',
+  OSMCALC: 'OSM CA', // 플러스벳 "Osm Calc" 표기
   OSMOLALITY: 'OSM',
   OSMOLARITY: 'OSM',
   OSMOLALITYCALC: 'OSM CA', // 계산 삼투압(calculated osmolality)
