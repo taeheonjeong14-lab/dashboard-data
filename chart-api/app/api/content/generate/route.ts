@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { withErrorLog } from '@dashboard/error-log';
 import { chartAppAuthMiddleware } from '@/lib/chart-app/auth';
 import { geminiGenerateText, tryParseJsonObject } from '@/lib/chart-app/gemini';
 import {
@@ -1033,7 +1034,7 @@ function dateAnchorBlock(source: ReportSourceData): string {
   ].join('\n');
 }
 
-export async function POST(request: NextRequest) {
+async function generatePOST(request: NextRequest) {
   const authErr = chartAppAuthMiddleware(request);
   if (authErr) return authErr;
 
@@ -1779,3 +1780,9 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+
+// 스스로 500 을 리턴하는 라우트라 instrumentation(onRequestError)로는 안 잡힌다 → 래퍼로 포착.
+export const POST = withErrorLog(
+  { app: 'chart-api', route: '/api/content/generate', feature: 'content_generate' },
+  generatePOST,
+);

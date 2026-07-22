@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { randomBytes } from 'crypto';
+import { withErrorLog } from '@dashboard/error-log';
 import { prisma } from '@/lib/prisma';
 import { effectiveSurveyStatus } from '@/lib/survey-expiry';
 import type { Prisma } from '@prisma/client';
@@ -22,7 +23,7 @@ async function getApprovedUser(userId: string) {
 }
 
 // GET /api/surveys/sessions?userId=xxx — 내 병원의 사전문진 세션 목록
-export async function GET(request: NextRequest) {
+async function sessionsGET(request: NextRequest) {
   try {
     const url = new URL(request.url);
     const sp = url.searchParams;
@@ -149,7 +150,7 @@ export async function GET(request: NextRequest) {
 }
 
 // POST /api/surveys/sessions — 사전문진 세션 생성 + 고정 질문 삽입
-export async function POST(request: NextRequest) {
+async function sessionsPOST(request: NextRequest) {
   try {
     const rawText = (await request.text()).replace(/^\uFEFF/, '').trim();
 
@@ -563,3 +564,18 @@ ${rawText}`;
   });
   return normalized;
 }
+
+// ─── 에러 적재 래퍼 ───────────────────────────────────────
+// GET/POST 모두 스스로 500 을 리턴하므로 instrumentation 만으론 안 잡힌다 → 래퍼로 포착.
+// userId 는 프록시가 쿼리에 붙여주므로(?userId=) 세션 없이도 식별 가능.
+const surveysIdentify = (req: NextRequest) =>
+  Promise.resolve({ userId: req.nextUrl.searchParams.get('userId'), hospitalId: null });
+
+export const GET = withErrorLog(
+  { app: 'ddx-api', route: '/api/surveys/sessions', feature: 'surveys_sessions', identify: surveysIdentify },
+  sessionsGET,
+);
+export const POST = withErrorLog(
+  { app: 'ddx-api', route: '/api/surveys/sessions', feature: 'surveys_sessions', identify: surveysIdentify },
+  sessionsPOST,
+);

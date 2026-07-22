@@ -5,6 +5,7 @@
  */
 import { NextResponse, type NextRequest } from 'next/server';
 import type pg from 'pg';
+import { withErrorLog } from '@dashboard/error-log';
 import { chartAppAuthMiddleware } from '@/lib/chart-app/auth';
 import { getChartPgPool } from '@/lib/db';
 import { chargeOperationTokens } from '@/lib/billing/token-charge';
@@ -74,7 +75,7 @@ async function saveExternalReview(
   }
 }
 
-export async function POST(request: NextRequest): Promise<Response> {
+async function blogReviewPOST(request: NextRequest): Promise<Response> {
   const authErr = chartAppAuthMiddleware(request);
   if (authErr) return authErr;
 
@@ -183,3 +184,9 @@ export async function POST(request: NextRequest): Promise<Response> {
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
+
+// 스스로 500 을 리턴하는 라우트라 instrumentation(onRequestError)로는 안 잡힌다 → 래퍼로 포착.
+export const POST = withErrorLog(
+  { app: 'chart-api', route: '/api/content/blog-review', feature: 'blog_review' },
+  blogReviewPOST,
+);
