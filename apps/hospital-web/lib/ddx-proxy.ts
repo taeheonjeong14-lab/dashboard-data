@@ -5,6 +5,9 @@ import { logError } from '@/lib/error-log';
 // ddx-api 는 CORS 헤더를 보내지 않으므로 브라우저가 직접 호출하면 cross-origin 차단됨.
 // 서버-투-서버 전달은 CORS 와 무관하므로 이 프록시를 통하면 로컬/배포 모두 동작한다.
 // 대상 호스트는 환경변수로 고정 — 임의 호스트로의 오픈 프록시가 아니다.
+// env 값은 스킴까지 포함한 절대 URL 이어야 한다(https://ddx-api.vercel.app).
+// 스킴이 빠지거나 URL 이 아닌 값이 들어가면 fetch 가 'Failed to parse URL' 로 즉사해
+// 화면엔 'ddx-api 연결에 실패했습니다.' 만 뜬다. 안 넣으면 아래 기본값으로 동작한다.
 const DDX_API = (
   process.env.DDX_API_URL ||
   process.env.NEXT_PUBLIC_DDX_API_URL ||
