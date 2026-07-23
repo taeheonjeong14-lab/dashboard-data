@@ -182,6 +182,9 @@ const DIRECT_ALIASES: Record<string, string> = {
   // 소변 화학(분석기가 혈액과 같은 표에 찍는다 — IDEXX Catalyst UPC 클립 등). 소변 샘플이 있어야 값이 나온다.
   UPC: 'UPC', UPCR: 'UPC', UPCRATIO: 'UPC',
   UCRE: 'U-CRE', UCREA: 'U-CRE', UCREAT: 'U-CRE',
+  // Blood gas 겹침 항목 canonical 멱등화(normalizeToken 이 '-' 를 지우므로 HCT-BG→HCTBG).
+  //  raw "HCT"→"HCT-BG" 같은 위험 매핑은 전역이 아니라 bloodGasSectionItemName(섹션 한정)에서만 한다.
+  HCTBG: 'HCT-BG', NABG: 'Na-BG', KBG: 'K-BG', CLBG: 'Cl-BG', CABG: 'Ca-BG',
   // 혈중 요소(Urea). BUN 과 같은 물질이지만 단위·수치 체계가 달라(BUN mg/dL vs UREA mmol/L)
   //  한 항목으로 합치지 않는다 — 합치면 추이 그래프에 두 체계 값이 섞인다.
   UREA: 'UREA', BUNUREA: 'UREA',
@@ -421,6 +424,9 @@ const RECOGNIZED_LAB_ITEMS: ReadonlySet<string> = new Set(
     'FIP PCR', 'Ehrlichia', 'Anaplasma', 'Babesia', 'Lyme', 'Lepto', 'Toxo', 'PCR',
     // Blood gas
     'pH', 'pH(T)', 'pCO2', 'pCO2(T)', 'pO2', 'pO2(T)', 'pO2(A-a)', 'BE', 'BE(B)', 'BE(ecf)', 'HCO3', 'HCO3(std)', 'tCO2', 'SO2', 'Lactate', 'tHb',
+    // Blood gas 겹침 항목 — 혈액가스기에서 나온 HCT·전해질(현장검사값)을 CBC/전해질의 정맥혈 값과 별개로 둔다.
+    //  내부 이름만 -BG 로 구분(카테고리=blood_gas)하고, 표시는 labItemDisplayName 이 -BG 를 떼 원래 이름으로 되돌린다.
+    'HCT-BG', 'Na-BG', 'K-BG', 'Cl-BG', 'Ca-BG',
     // Immunologic
     'B12', 'Folate', 'ANA', 'RF', 'Coombs', 'IgG', 'IgM', 'IgA',
     // Tumor marker
@@ -640,6 +646,8 @@ const ITEM_TO_CATEGORY: Record<string, string> = {
   LACTATE: 'blood_gas',
   Lactate: 'blood_gas',
   tHb: 'blood_gas',
+  // Blood gas 섹션 전용(섹션으로 혈액가스 확정된 겹침 항목) — 표시는 원래 이름, 분류만 혈액가스.
+  'HCT-BG': 'blood_gas', 'Na-BG': 'blood_gas', 'K-BG': 'blood_gas', 'Cl-BG': 'blood_gas', 'Ca-BG': 'blood_gas',
   // Urinalysis (요검사) — 소변 고유 항목
   SG: 'urinalysis',
   UBG: 'urinalysis',
@@ -906,6 +914,39 @@ export function urinalysisSectionItemName(rawItemName: string): string | null {
   if (!t) return null;
   if (URINALYSIS_SECTION_DROP.has(t)) return null;
   return URINALYSIS_SECTION_MAP[t] ?? rawItemName.trim();
+}
+
+// ── 혈액가스(Blood Gas) 섹션 겹침 항목 매핑 ──────────────────────────────────
+// 헤더로 "이 블록은 혈액가스"가 확정됐을 때만, CBC/전해질과 겹치는 항목(HCT·Na·K·Cl·Ca)을
+// -BG 내부 이름으로 돌려 정맥혈 값과 별개 항목(카테고리=blood_gas)으로 둔다.
+// 혈액가스 고유 항목(pH·pCO2·HCO3 등)은 여기 없다 — 이름만으로 이미 blood_gas 라 그대로 둔다.
+const BLOOD_GAS_SECTION_MAP: Record<string, string> = {
+  HCT: 'HCT-BG', HEMATOCRIT: 'HCT-BG',
+  NA: 'Na-BG',
+  K: 'K-BG',
+  CL: 'Cl-BG', CI: 'Cl-BG',
+  CA: 'Ca-BG', CA2: 'Ca-BG', ICA: 'Ca-BG', CAI: 'Ca-BG',
+};
+
+/**
+ * 혈액가스 섹션 한 항목의 이름을 정한다.
+ *  - 겹침 항목(HCT·Na·K·Cl·Ca)은 -BG 이름으로 → blood_gas 로 분류·표시명은 원래대로.
+ *  - 그 외(pH·pCO2 등 혈액가스 고유·기타)는 null → 호출부가 평소대로 canonicalize.
+ */
+export function bloodGasSectionItemName(rawItemName: string): string | null {
+  const t = normalizeToken(rawItemName);
+  if (!t) return null;
+  return BLOOD_GAS_SECTION_MAP[t] ?? null;
+}
+
+// -BG 내부 이름 → 표시명(원래 항목명). 리포트·화면엔 원래 이름으로 보이고, 구분은 카테고리(혈액가스)로만.
+const BLOOD_GAS_DISPLAY: Record<string, string> = {
+  'HCT-BG': 'HCT', 'Na-BG': 'Na', 'K-BG': 'K', 'Cl-BG': 'Cl', 'Ca-BG': 'Ca',
+};
+
+/** 내부 항목명을 사람에게 보일 표시명으로. 현재는 혈액가스 -BG 접미사만 원래 이름으로 되돌린다. */
+export function labItemDisplayName(itemName: string): string {
+  return BLOOD_GAS_DISPLAY[itemName] ?? itemName;
 }
 
 // ===== 플래그 보정 (부등호 값) =====

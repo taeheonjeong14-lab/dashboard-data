@@ -369,6 +369,11 @@ export function isUrinalysisPanelHeaderText(text: string): boolean {
   return /\bU\/?A\b|UA\s*Analy|Urinaly|Urine\b|요\s*검사|소변\s*검사/i.test(text);
 }
 
+/** 텍스트에 혈액가스(Blood Gas) 패널 표식이 있는지. 그 그룹의 HCT·전해질을 정맥혈 값과 별개로 두기 위함. */
+export function isBloodGasPanelHeaderText(text: string): boolean {
+  return /blood\s*gas|혈액\s*가스|\bABG\b|\bVBG\b/i.test(text);
+}
+
 function detectPlusVetPanelHeader(text: string): boolean | null {
   const s = normalizeSpaces(text);
   const isDateHeader = /^20\d{2}[./-]\d{1,2}[./-]\d{1,2}\s+\d{1,2}:\d{2}/.test(s) && s.includes('|');

@@ -12,7 +12,7 @@ import { parseHealthSystemsBlocksFromUnknown } from '@/lib/chart-app/health-repo
 import { resolveHospitalReportTemplate } from '@/lib/chart-app/report-hospital-template';
 import { formatDirectorHospitalLine, spreadKoreanCharsForFooter } from '@dashboard/health-report';
 import { labItemCategory, detectSpeciesProfile, labCategorySortOrder } from '@/lib/lab-category-map';
-import { refineLabFlag } from '@dashboard/lab-normalize';
+import { refineLabFlag, labItemDisplayName } from '@dashboard/lab-normalize';
 import {
   HEALTH_CHECKUP_MAX_OVERALL_CHARS,
   HEALTH_CHECKUP_MAX_FOLLOW_UP_CHARS,
@@ -194,10 +194,11 @@ function buildLabPages(
   const species = detectSpeciesProfile(speciesStr);
   const groupsByKey = new Map<string, { categoryKey: string; categoryLabel: string; items: unknown[] }>();
   for (const item of flat.values()) {
+    // 분류·dedup 은 내부 이름(HCT-BG 등)으로 하되, 화면 라벨은 표시명(HCT)으로 되돌린다.
     const cat = labItemCategory(item.itemName, species);
     const flag = refineLabFlag(item.flag, item.valueText, item.referenceRange);
     const g = groupsByKey.get(cat.key) ?? { categoryKey: cat.key, categoryLabel: cat.label, items: [] };
-    g.items.push({ ...item, flag, categoryKey: cat.key, categoryLabel: cat.label });
+    g.items.push({ ...item, itemName: labItemDisplayName(item.itemName), flag, categoryKey: cat.key, categoryLabel: cat.label });
     groupsByKey.set(cat.key, g);
   }
 

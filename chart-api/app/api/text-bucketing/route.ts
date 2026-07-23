@@ -7,7 +7,7 @@ import {
   parseVaccinationRecordsFromBucketLines,
   type ParsedVaccinationRecord,
 } from "@/lib/text-bucketing/vaccination-parse";
-import { parsePlusVetLabBucketLines, isUrinalysisPanelHeaderText, isPlusVetPatientInfoLine } from "@/lib/text-bucketing/plusvet-lab-parse";
+import { parsePlusVetLabBucketLines, isUrinalysisPanelHeaderText, isBloodGasPanelHeaderText, isPlusVetPatientInfoLine } from "@/lib/text-bucketing/plusvet-lab-parse";
 import { parsePlusVetPlanRows } from "@/lib/text-bucketing/plusvet-plan-parse";
 import {
   extractEfriendsLabAndPhysicalExamBuckets,
@@ -47,7 +47,7 @@ import { dbChartPdf, dbCore, getSupabaseCoreSchema } from "@/lib/supabase-db-sch
 import { getChartPgPool } from "@/lib/db";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { canonicalizeLabItemName, canonicalizeLabUnit } from "@/lib/lab-item-normalize";
-import { computeLabFlag, isRecognizedLabItem, refineLabFlag, urinalysisSectionItemName } from "@dashboard/lab-normalize";
+import { computeLabFlag, isRecognizedLabItem, refineLabFlag, urinalysisSectionItemName, bloodGasSectionItemName } from "@dashboard/lab-normalize";
 import { detectSpeciesProfile } from "@/lib/lab-category-map";
 import {
   efriendsChartBodyByDateFromBlocks,
@@ -95,6 +95,8 @@ type LabByDateLinesGroup = {
   lines: BucketedLine[];
   /** 이 날짜 그룹의 패널 헤더가 요검사(UA)였는지 — 헤더 줄은 그룹핑에서 떨어져 나가므로 여기 보존해 파서에 전달. */
   isUrinalysis?: boolean;
+  /** 이 날짜 그룹의 패널 헤더가 혈액가스였는지 — 겹침 항목(HCT·Na·K·Cl·Ca)을 정맥혈 값과 별개로 분류하기 위함. */
+  isBloodGas?: boolean;
 };
 
 type ParsedPlanRow = {
@@ -913,6 +915,7 @@ function groupContentLooksLikeUrinalysis(lines: BucketedLine[]): boolean {
 function groupLabLinesByDate(lines: BucketedLine[]): LabByDateLinesGroup[] {
   const groups = new Map<string, BucketedLine[]>();
   const uaByKey = new Map<string, boolean>();
+  const bgByKey = new Map<string, boolean>();
   let currentKey = "unknown";
 
   for (const line of lines) {
@@ -922,8 +925,9 @@ function groupLabLinesByDate(lines: BucketedLine[]): LabByDateLinesGroup[] {
       if (!groups.has(currentKey)) {
         groups.set(currentKey, []);
       }
-      // 날짜 앵커 줄(=패널 헤더)은 그룹에 넣지 않지만, 요검사(UA) 패널이면 그 표식을 그룹에 기억해 둔다.
+      // 날짜 앵커 줄(=패널 헤더)은 그룹에 넣지 않지만, 패널 종류(UA·혈액가스) 표식을 그룹에 기억해 둔다.
       if (isUrinalysisPanelHeaderText(line.text)) uaByKey.set(currentKey, true);
+      if (isBloodGasPanelHeaderText(line.text)) bgByKey.set(currentKey, true);
       continue;
     }
     const list = groups.get(currentKey) ?? [];
@@ -935,6 +939,7 @@ function groupLabLinesByDate(lines: BucketedLine[]): LabByDateLinesGroup[] {
     dateTime,
     lines: groupLines,
     isUrinalysis: uaByKey.get(dateTime) === true || groupContentLooksLikeUrinalysis(groupLines),
+    isBloodGas: bgByKey.get(dateTime) === true,
   }));
 }
 
@@ -3941,6 +3946,10 @@ export async function POST(request: NextRequest) {
           const ua = urinalysisSectionItemName(item.itemName);
           if (ua === null) continue;
           itemName = ua;
+        } else if (group.isBloodGas && bloodGasSectionItemName(item.itemName)) {
+          // 혈액가스 그룹의 겹침 항목(HCT·Na·K·Cl·Ca)은 -BG 이름으로 → 정맥혈 CBC/전해질 값과 별개 항목.
+          //  혈액가스 고유 항목(pH·pCO2 등)은 bloodGasSectionItemName 이 null → 아래 평소 경로로 canonicalize.
+          itemName = bloodGasSectionItemName(item.itemName)!;
         } else {
           itemName = canonicalizeLabItemName(item.itemName, labCanonicalSpecies);
         }
