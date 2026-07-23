@@ -11,6 +11,8 @@ import { useState, type CSSProperties } from 'react';
 export type HealthPointBasis = 'chart' | 'lab' | 'image';
 export type HealthPoint = {
   id: string;
+  /** 의심 질환·소견 그룹명(예: '신부전 의심'). 같은 group 팩트끼리 한 질환으로 묶어 보여준다. */
+  group: string;
   text: string;
   basis: HealthPointBasis;
   evidence: string;
@@ -64,10 +66,9 @@ function toggle(list: string[], v: string): string[] {
 }
 
 function PointCard({
-  point, index, onChange, onRemove, disabled,
+  point, onChange, onRemove, disabled,
 }: {
   point: HealthPoint;
-  index: number;
   onChange: (next: HealthPoint) => void;
   onRemove: () => void;
   disabled: boolean;
@@ -78,7 +79,6 @@ function PointCard({
   return (
     <div style={{ ...card, borderLeft: `3px solid ${meta.color}` }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
-        <span style={{ fontSize: 11, fontWeight: 800, color: 'var(--text-muted)' }}>#{index + 1}</span>
         {/* 근거 유형 — 리포트 검토에서 가장 먼저 봐야 할 정보라 항상 앞에 둔다 */}
         {(Object.keys(BASIS_META) as HealthPointBasis[]).map((b) => (
           <button
@@ -175,25 +175,44 @@ export default function AdminHealthPoints({
   onConfirm: () => void;
   onUnconfirm: () => void;
 }) {
-  const update = (i: number, next: HealthPoint) => onChange(points.map((p, j) => (j === i ? next : p)));
-  const remove = (i: number) => onChange(points.filter((_, j) => j !== i));
-  const add = () =>
-    onChange([
-      ...points,
-      { id: `p${points.length + 1}`, text: '', basis: 'chart', evidence: '', organs: [], examSections: [], inOverall: true },
-    ]);
+  const update = (id: string, next: HealthPoint) => onChange(points.map((p) => (p.id === id ? next : p)));
+  const remove = (id: string) => onChange(points.filter((p) => p.id !== id));
+  const nextId = () => `p${points.reduce((m, p) => Math.max(m, Number(p.id.replace(/^p/, '')) || 0), 0) + 1}`;
+  const blank = (group: string): HealthPoint => ({
+    id: nextId(), group, text: '', basis: 'chart', evidence: '', organs: [], examSections: [], inOverall: true,
+  });
+  // 새 팩트를 해당 그룹의 마지막 팩트 바로 뒤에 끼워 넣는다(그룹이 흩어지지 않게).
+  const addToGroup = (group: string) => {
+    let lastIdx = -1;
+    points.forEach((p, i) => { if ((p.group || p.text) === group) lastIdx = i; });
+    const at = lastIdx < 0 ? points.length : lastIdx + 1;
+    onChange([...points.slice(0, at), blank(group), ...points.slice(at)]);
+  };
+  const addGroup = () => onChange([...points, blank('')]);
+  // 그룹명 일괄 변경 — 그 그룹에 속한 모든 팩트의 group 을 바꾼다(빈 group 은 text 로 묶여 있으니 그것도 매칭).
+  const renameGroup = (from: string, to: string) =>
+    onChange(points.map((p) => ((p.group || p.text) === from ? { ...p, group: to } : p)));
 
   const counts = points.reduce(
     (acc, p) => ({ ...acc, [p.basis]: (acc[p.basis] ?? 0) + 1 }),
     {} as Record<string, number>,
   );
 
+  // 그룹(질환·소견) 단위로 묶되 첫 등장 순서를 유지한다. 빈 group 은 text 로 단독 묶음.
+  const groupOrder: string[] = [];
+  const byGroup = new Map<string, HealthPoint[]>();
+  for (const p of points) {
+    const g = p.group || p.text;
+    if (!byGroup.has(g)) { byGroup.set(g, []); groupOrder.push(g); }
+    byGroup.get(g)!.push(p);
+  }
+
   return (
     <section style={{ display: 'grid', gap: 12 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
         <h2 style={{ margin: 0, fontSize: 20, fontWeight: 800 }}>1단계 · 검진 포인트</h2>
         <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-          {points.length}개 · 차트 {counts.chart ?? 0} / 검사 {counts.lab ?? 0} / 이미지 {counts.image ?? 0}
+          {groupOrder.length}개 질환·소견 · 팩트 {points.length}개 · 차트 {counts.chart ?? 0} / 검사 {counts.lab ?? 0} / 이미지 {counts.image ?? 0}
         </span>
         {confirmed ? <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--success)' }}>확정됨</span> : null}
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
@@ -212,8 +231,9 @@ export default function AdminHealthPoints({
       </div>
 
       <p style={{ margin: 0, fontSize: 14, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
-        리포트에 다룰 소견을 근거·배치와 함께 먼저 확정합니다. 특히 <b style={{ color: BASIS_META.image.color }}>이미지 판독 (AI)</b> 근거는
-        AI가 사진을 보고 판단한 내용이라 반드시 확인하세요. 확정하면 이 포인트만으로 본문이 작성됩니다(없는 소견을 새로 만들지 않음).
+        리포트에 다룰 소견을 <b>질환·소견 단위로 묶어</b> 근거·배치와 함께 먼저 확정합니다. 같은 질환을 가리키는 팩트는 한 그룹 아래 모입니다.
+        특히 <b style={{ color: BASIS_META.image.color }}>이미지 판독 (AI)</b> 근거는 AI가 사진을 보고 판단한 내용이라 반드시 확인하세요.
+        확정하면 이 포인트만으로 본문이 작성되며, 종합소견도 그룹(질환) 단위로 정리됩니다.
       </p>
 
       {points.length === 0 ? (
@@ -221,16 +241,43 @@ export default function AdminHealthPoints({
           포인트가 없습니다. ‘포인트 다시 뽑기’를 누르거나 직접 추가하세요.
         </div>
       ) : (
-        <div style={{ display: 'grid', gap: 10 }}>
-          {points.map((p, i) => (
-            <PointCard key={p.id || i} point={p} index={i} disabled={confirmed} onChange={(next) => update(i, next)} onRemove={() => remove(i)} />
-          ))}
+        <div style={{ display: 'grid', gap: 16 }}>
+          {groupOrder.map((g) => {
+            const facts = byGroup.get(g)!;
+            const groupInOverall = facts.some((p) => p.inOverall);
+            return (
+              <div key={g} style={{ display: 'grid', gap: 8 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: 13, fontWeight: 800, color: 'var(--accent)' }}>▣</span>
+                  <input
+                    value={g}
+                    disabled={confirmed}
+                    onChange={(e) => renameGroup(g, e.target.value)}
+                    placeholder="질환·소견 그룹명 (예: 신부전 의심)"
+                    style={{ ...input, width: 'auto', flex: '1 1 240px', fontWeight: 800, fontSize: 15, padding: '6px 10px' }}
+                  />
+                  <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>팩트 {facts.length}</span>
+                  {!groupInOverall ? <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)' }}>종합소견 제외</span> : null}
+                </div>
+                <div style={{ display: 'grid', gap: 8, paddingLeft: 14, borderLeft: '2px solid var(--border)' }}>
+                  {facts.map((p) => (
+                    <PointCard key={p.id} point={p} disabled={confirmed} onChange={(next) => update(p.id, next)} onRemove={() => remove(p.id)} />
+                  ))}
+                  {!confirmed ? (
+                    <button type="button" className="adminBtnFree" onClick={() => addToGroup(g)} disabled={busy} style={{ ...smallBtn, border: 0, color: 'var(--text-muted)', justifySelf: 'start', padding: '2px 0' }}>
+                      + 이 질환에 팩트 추가
+                    </button>
+                  ) : null}
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
 
       {!confirmed ? (
-        <button type="button" className="adminLegacySmallBtn" onClick={add} disabled={busy} style={{ justifySelf: 'start' }}>
-          + 포인트 추가
+        <button type="button" className="adminLegacySmallBtn" onClick={addGroup} disabled={busy} style={{ justifySelf: 'start' }}>
+          + 질환·소견 그룹 추가
         </button>
       ) : null}
     </section>
