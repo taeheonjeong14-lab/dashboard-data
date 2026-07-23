@@ -39,10 +39,66 @@ const AGGREGATOR_MODEL = process.env.BLOG_REVIEW_AGGREGATOR_MODEL?.trim() || 'an
 /** 응답 토큰 상한. 너무 낮으면 JSON 이 잘려 파싱 실패("Unterminated string")한다. */
 const MAX_TOKENS = Number(process.env.BLOG_REVIEW_MAX_TOKENS) || 8000;
 
+/** 리뷰어/집계 호출 최대 시도 횟수(첫 시도 포함). 게이트웨이 일시 429/5xx 버스트 흡수용. */
+const MAX_ATTEMPTS = Number(process.env.BLOG_REVIEW_MAX_ATTEMPTS) || 4;
+
 function gatewayClient(): OpenAI {
   const apiKey = process.env.AI_GATEWAY_API_KEY?.trim();
   if (!apiKey) throw new Error('AI_GATEWAY_API_KEY is not configured');
-  return new OpenAI({ apiKey, baseURL: GATEWAY_BASE });
+  // SDK 자체 재시도는 끄고(maxRetries:0) 아래 chatWithRetry 로 직접 제어한다 —
+  // 겹치면 시도 횟수가 곱해져(SDK 3 × 우리 4) 시간 예산을 태운다.
+  return new OpenAI({ apiKey, baseURL: GATEWAY_BASE, maxRetries: 0 });
+}
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/** 일시 오류만 재시도한다. 네트워크 오류(status 없음)·429·408·409·5xx 는 일시, 그 외 4xx(400/401/403/404)는 영구(설정·인증 문제라 재시도 무의미). */
+function isTransientError(err: unknown): boolean {
+  const status = (err as { status?: number } | null)?.status;
+  if (status == null) return true; // 연결 끊김·타임아웃 등
+  return status === 408 || status === 409 || status === 429 || status >= 500;
+}
+
+/** 429 응답의 Retry-After(초) 헤더를 ms 로. 없거나 파싱 불가면 null → 지수 백오프 사용. 상한 20s. */
+function retryAfterMs(err: unknown): number | null {
+  const headers = (err as { headers?: Record<string, string> } | null)?.headers;
+  const raw = headers?.['retry-after'];
+  if (!raw) return null;
+  const secs = Number(raw);
+  return Number.isFinite(secs) && secs >= 0 ? Math.min(secs * 1000, 20_000) : null;
+}
+
+/** 지수 백오프 + 지터. attempt 1→~0.8s, 2→~1.6s, 3→~3.2s. */
+function backoffMs(attempt: number): number {
+  return 800 * 2 ** (attempt - 1) + Math.floor(Math.random() * 400);
+}
+
+/**
+ * chatOnce 를 감싼 재시도 래퍼. 일시 오류면 Retry-After(있으면) 또는 지수 백오프 후 재시도,
+ * 영구 오류면 즉시 던진다. 재시도 이력은 로그로 남겨 다음 장애 때 소진이 보이게 한다.
+ */
+async function chatWithRetry(
+  client: OpenAI,
+  model: string,
+  system: string,
+  user: string,
+  ctx: UsageContext,
+  temperature: number,
+): Promise<string> {
+  let lastErr: unknown;
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
+    try {
+      return await chatOnce(client, model, system, user, ctx, temperature);
+    } catch (e) {
+      lastErr = e;
+      if (attempt >= MAX_ATTEMPTS || !isTransientError(e)) break;
+      const wait = retryAfterMs(e) ?? backoffMs(attempt);
+      const status = (e as { status?: number } | null)?.status ?? 'net';
+      console.warn(`[blog-review] ${model} 호출 실패(${status}) — ${attempt}/${MAX_ATTEMPTS}, ${wait}ms 후 재시도`);
+      await sleep(wait);
+    }
+  }
+  throw lastErr;
 }
 
 /** 슬러그 앞부분(provider)만 usage 로깅용으로 뽑는다. cost 계산은 model 전체 문자열로 단가표 매칭. */
@@ -209,7 +265,7 @@ export async function runBlogReviewEnsemble(
   const reviewCtx = ctx('blog_review');
 
   const settled = await Promise.allSettled(
-    REVIEWER_MODELS.map((m) => chatOnce(client, m, sysReviewer, userReviewer, reviewCtx, 0.15)),
+    REVIEWER_MODELS.map((m) => chatWithRetry(client, m, sysReviewer, userReviewer, reviewCtx, 0.15)),
   );
 
   const outputs: Array<{ model: string; norm: ReviewerOutput }> = [];
@@ -236,7 +292,7 @@ export async function runBlogReviewEnsemble(
 
   // 집계 LLM — 실패(호출·파싱)하면 규칙 기반 병합으로 폴백해 500 을 피한다.
   try {
-    const aggText = await chatOnce(
+    const aggText = await chatWithRetry(
       client,
       AGGREGATOR_MODEL,
       buildAggregatorSystemPrompt(),
