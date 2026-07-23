@@ -939,12 +939,12 @@ export function bloodGasSectionItemName(rawItemName: string): string | null {
   return BLOOD_GAS_SECTION_MAP[t] ?? null;
 }
 
-// -BG 내부 이름 → 표시명(원래 항목명). 리포트·화면엔 원래 이름으로 보이고, 구분은 카테고리(혈액가스)로만.
+// -BG 내부 이름 → 표시명. 리포트·화면엔 "(BG)" 를 붙여 혈액가스 값임을 명시(정맥혈 값과 헷갈리지 않게).
 const BLOOD_GAS_DISPLAY: Record<string, string> = {
-  'HCT-BG': 'HCT', 'Na-BG': 'Na', 'K-BG': 'K', 'Cl-BG': 'Cl', 'Ca-BG': 'Ca',
+  'HCT-BG': 'HCT(BG)', 'Na-BG': 'Na(BG)', 'K-BG': 'K(BG)', 'Cl-BG': 'Cl(BG)', 'Ca-BG': 'Ca(BG)',
 };
 
-/** 내부 항목명을 사람에게 보일 표시명으로. 현재는 혈액가스 -BG 접미사만 원래 이름으로 되돌린다. */
+/** 내부 항목명을 사람에게 보일 표시명으로. 현재는 혈액가스 -BG 항목을 "이름(BG)" 표기로 바꾼다. */
 export function labItemDisplayName(itemName: string): string {
   return BLOOD_GAS_DISPLAY[itemName] ?? itemName;
 }
