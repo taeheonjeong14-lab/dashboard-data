@@ -814,11 +814,44 @@ function groupChartBodyByDate(lines: BucketedLine[], chartKind: ChartKind): Char
       JSON.stringify([...groups.keys()]),
     );
   } else {
-    for (const line of linesToGroup) {
-      const dateTime =
-        chartKind === "efriends"
-          ? extractEfriendsVisitDateKey(line.text) ?? extractChartBodyDateKey(line.text, chartKind)
-          : extractChartBodyDateKey(line.text, chartKind);
+    const keyOf = (text: string) =>
+      chartKind === "efriends"
+        ? extractEfriendsVisitDateKey(text) ?? extractChartBodyDateKey(text, chartKind)
+        : extractChartBodyDateKey(text, chartKind);
+
+    // 같은 진료 헤더가 두 번 잡히는 경우가 있다. 두 가지를 구분해야 한다.
+    //  (a) 연속 헤더 — 한 진료가 다음 장으로 이어지며 헤더가 다시 인쇄됨. 첫 등장이 진짜 시작이다.
+    //  (b) 미리보기 헤더 — 인투벳은 진료 본문을 래스터 이미지로 박는데, 그 이미지 안에 **다른 진료의
+    //      헤더**가 함께 찍혀 있어 전사가 먼저 읽어 버린다(공백이 벌어진 "[ 재진 ] [ … ]" 형태).
+    //      그러면 그 날짜 그룹이 실제 시작보다 앞자리에 만들어져 진료 순서가 뒤엉키고, 뒤따르는
+    //      다른 진료의 본문까지 그 그룹으로 빨려 들어간다.
+    // 구분 기준: 두 등장 **사이에 다른 진료 헤더가 끼어 있으면** 앞의 것이 (b) 미리보기다.
+    // (연속 헤더라면 사이에 다른 진료가 낄 수 없다.)
+    const anchors: Array<{ idx: number; key: string }> = [];
+    linesToGroup.forEach((line, idx) => {
+      const key = keyOf(line.text);
+      if (key) anchors.push({ idx, key });
+    });
+    const previewAnchors = new Set<number>();
+    const byAnchorKey = new Map<string, number[]>();
+    for (const a of anchors) byAnchorKey.set(a.key, [...(byAnchorKey.get(a.key) ?? []), a.idx]);
+    for (const [key, idxs] of byAnchorKey) {
+      for (let i = 0; i < idxs.length - 1; i += 1) {
+        const from = idxs[i]!;
+        const to = idxs[i + 1]!;
+        if (anchors.some((a) => a.idx > from && a.idx < to && a.key !== key)) previewAnchors.add(from);
+      }
+    }
+    if (previewAnchors.size > 0) {
+      console.log(
+        "[groupChartBodyByDate] 미리보기 헤더 무시: %s",
+        JSON.stringify(anchors.filter((a) => previewAnchors.has(a.idx)).map((a) => a.key)),
+      );
+    }
+
+    for (const [index, line] of linesToGroup.entries()) {
+      const dateTime = keyOf(line.text);
+      if (dateTime && previewAnchors.has(index)) continue; // 미리보기 헤더 — 그룹도 본문도 만들지 않는다
       if (dateTime) {
         currentKey = dateTime;
         if (!groups.has(currentKey)) {
