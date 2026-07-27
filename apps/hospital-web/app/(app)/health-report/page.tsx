@@ -3,6 +3,7 @@
 import { useState, useRef, useCallback, useEffect, useMemo, type DragEvent, type ChangeEvent } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { compressPdfIfNeeded, PdfCompressError } from '@/lib/pdf-compress';
+import { normalizeImagesForUpload } from '@/lib/image-normalize';
 import { checkPdfPageLimit } from '@/lib/pdf-pages';
 import { useHospital } from '@/components/shell/hospital-context';
 import { CenteredSpinner } from '@/components/ui/loading-spinner';
@@ -191,7 +192,7 @@ export default function HealthReportPage() {
   // ---------------------------------------------------------------------------
   // Image handling
   // ---------------------------------------------------------------------------
-  const addImageFiles = (files: File[]) => {
+  const addImageFiles = async (files: File[]) => {
     const images = files.filter((f) => f.type.startsWith('image/'));
     if (!images.length) return;
 
@@ -208,19 +209,21 @@ export default function HealthReportPage() {
         : null,
     );
 
-    const previews = accepted.map((f) => URL.createObjectURL(f));
-    setImageFiles((prev) => [...prev, ...accepted]);
+    // BMP 는 여기서 PNG(무손실)로 바꿔 올린다 — 픽셀은 그대로, 용량만 절반 아래로.
+    const normalized = await normalizeImagesForUpload(accepted);
+    const previews = normalized.map((f) => URL.createObjectURL(f));
+    setImageFiles((prev) => [...prev, ...normalized]);
     setImagePreviews((prev) => [...prev, ...previews]);
   };
 
   const onImageChange = (e: ChangeEvent<HTMLInputElement>) => {
-    addImageFiles(Array.from(e.target.files ?? []));
+    void addImageFiles(Array.from(e.target.files ?? []));
     e.target.value = '';
   };
 
   const onImageDrop = useCallback((e: DragEvent<HTMLDivElement>) => {
     e.preventDefault(); setIsImageDragging(false);
-    addImageFiles(Array.from(e.dataTransfer.files ?? []));
+    void addImageFiles(Array.from(e.dataTransfer.files ?? []));
   }, [addImageFiles]);
 
   const removeImage = (idx: number) => {

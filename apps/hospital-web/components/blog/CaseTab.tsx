@@ -4,6 +4,7 @@ import { useState, useRef, useCallback, useEffect, type DragEvent, type ChangeEv
 import { createClient } from '@/lib/supabase/client';
 import { compressPdfIfNeeded, PdfCompressError } from '@/lib/pdf-compress';
 import { checkPdfPageLimit } from '@/lib/pdf-pages';
+import { normalizeImagesForUpload } from '@/lib/image-normalize';
 import { useHospital } from '@/components/shell/hospital-context';
 import { CenteredSpinner } from '@/components/ui/loading-spinner';
 import { SectionTitle, FieldLabel } from '@/components/ui/typography';
@@ -266,7 +267,7 @@ export function CaseTab() {
   }, []);
 
   // ----- Images (날짜별 그룹) -----
-  const addImagesToGroup = (groupId: string, files: File[]) => {
+  const addImagesToGroup = async (groupId: string, files: File[]) => {
     const images = files.filter((f) => f.type.startsWith('image/'));
     if (!images.length) return;
 
@@ -284,18 +285,20 @@ export function CaseTab() {
         : null,
     );
 
-    const previews = accepted.map((f) => URL.createObjectURL(f));
+    // BMP 는 여기서 PNG(무손실)로 바꿔 올린다 — 픽셀은 그대로, 용량만 절반 아래로.
+    const normalized = await normalizeImagesForUpload(accepted);
+    const previews = normalized.map((f) => URL.createObjectURL(f));
     setImageGroups((prev) =>
       prev.map((g) =>
         g.id === groupId
-          ? { ...g, files: [...g.files, ...accepted], previews: [...g.previews, ...previews] }
+          ? { ...g, files: [...g.files, ...normalized], previews: [...g.previews, ...previews] }
           : g,
       ),
     );
   };
 
   const onGroupImageChange = (groupId: string, e: ChangeEvent<HTMLInputElement>) => {
-    addImagesToGroup(groupId, Array.from(e.target.files ?? []));
+    void addImagesToGroup(groupId, Array.from(e.target.files ?? []));
     e.target.value = '';
   };
 
@@ -840,7 +843,7 @@ export function CaseTab() {
                       onDrop={(e) => {
                         e.preventDefault();
                         setDragGroupId(null);
-                        if (!isProcessing) addImagesToGroup(group.id, Array.from(e.dataTransfer.files ?? []));
+                        if (!isProcessing) void addImagesToGroup(group.id, Array.from(e.dataTransfer.files ?? []));
                       }}
                       onDragOver={(e) => {
                         e.preventDefault();
