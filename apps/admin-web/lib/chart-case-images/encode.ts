@@ -1,4 +1,17 @@
 import sharp from 'sharp';
+import { decodeBmpToRaw, isBmp } from './bmp';
+
+/**
+ * sharp 입력 형태. sharp 가 못 읽는 형식(BMP)은 미리 raw 픽셀로 풀어서,
+ * 그 뒤 리사이즈·webp 인코딩은 다른 형식과 완전히 같은 경로를 타게 한다.
+ */
+type SharpSource = { input: Buffer; options?: Parameters<typeof sharp>[1] };
+
+function toSharpSource(input: Buffer): SharpSource {
+  if (!isBmp(input)) return { input };
+  const { data, width, height, channels } = decodeBmpToRaw(input);
+  return { input: data, options: { raw: { width, height, channels } } };
+}
 
 export type PreparedImagePayload = {
   buffer: Buffer;
@@ -13,8 +26,8 @@ function parseEnvInt(name: string, fallback: number): number {
   return Number.isFinite(n) && n > 0 ? n : fallback;
 }
 
-async function encodeOnce(input: Buffer, maxEdge: number, quality: number): Promise<Buffer> {
-  let pipeline = sharp(input).rotate();
+async function encodeOnce(src: SharpSource, maxEdge: number, quality: number): Promise<Buffer> {
+  let pipeline = sharp(src.input, src.options).rotate();
   const meta = await pipeline.metadata();
   const w = meta.width ?? 0;
   const h = meta.height ?? 0;
@@ -46,10 +59,12 @@ export async function prepareImageForAnalysis(input: Buffer): Promise<PreparedIm
     { maxEdge: 1024, quality: 48 },
     { maxEdge: 1024, quality: 42 },
   ];
+  // 디코딩 실패(지원하지 않는 BMP 변형 등)는 압축 재시도로 해결되지 않으므로 여기서 바로 던진다.
+  const src = toSharpSource(input);
   let lastError: unknown;
   for (const step of steps) {
     try {
-      const buf = await encodeOnce(input, step.maxEdge, step.quality);
+      const buf = await encodeOnce(src, step.maxEdge, step.quality);
       if (buf.length <= STORED_MAX_BYTES) {
         return { buffer: buf, mimeType: 'image/webp', byteSize: buf.length };
       }

@@ -103,6 +103,8 @@ export async function POST(
     // 그룹별로 다운로드 → 압축 → (그 날짜로) 분석 → 업로드 + insert. idx 는 전역 연속.
     let globalIdx = 0;
     let savedCount = 0;
+    // 열지 못해 건너뛴 파일 — 응답으로 돌려 UI 가 "몇 장은 실패"를 표시할 수 있게 한다.
+    const skipped: { fileName: string; reason: string }[] = [];
     for (const group of groups) {
       type Downloaded = { rawBuffer: Buffer; fileName: string; hash: string };
       const downloadedRaw = await Promise.all(
@@ -117,12 +119,23 @@ export async function POST(
       const downloaded = downloadedRaw.filter((d): d is Downloaded => d !== null);
       if (downloaded.length === 0) continue;
 
-      const imageParts: (ImageInputPart & { hash: string })[] = await Promise.all(
-        downloaded.map(async ({ rawBuffer, fileName, hash }) => {
-          const c = await prepareImageForAnalysis(rawBuffer);
-          return { buffer: c.buffer, fileName, mimeType: c.mimeType, hash };
+      // 장별로 실패를 격리한다. Promise.all 로 묶으면 열 수 없는 파일 한 장(예: 지원하지 않는
+      // BMP 변형) 때문에 전체가 reject 되어 멀쩡한 나머지까지 한 장도 저장되지 않는다.
+      type PreparedPart = ImageInputPart & { hash: string };
+      const prepared = await Promise.all(
+        downloaded.map(async ({ rawBuffer, fileName, hash }): Promise<PreparedPart | null> => {
+          try {
+            const c = await prepareImageForAnalysis(rawBuffer);
+            return { buffer: c.buffer, fileName, mimeType: c.mimeType, hash };
+          } catch (e) {
+            console.error(`case-images/from-hospital: 이미지 준비 실패 (${fileName}):`, e);
+            skipped.push({ fileName, reason: e instanceof Error ? e.message : String(e) });
+            return null;
+          }
         }),
       );
+      const imageParts = prepared.filter((p): p is PreparedPart => p !== null);
+      if (imageParts.length === 0) continue;
       const analysis = await analyzeImageGroup({ examDate: group.date ?? '', images: imageParts });
 
       for (let i = 0; i < imageParts.length; i++) {
@@ -163,9 +176,15 @@ export async function POST(
     }
 
     if (savedCount === 0) {
-      return NextResponse.json({ ok: true, count: 0, reason: 'download_failed' });
+      return NextResponse.json({
+        ok: true,
+        count: 0,
+        reason: skipped.length > 0 ? 'all_images_failed' : 'download_failed',
+        submitted: imagePaths.length,
+        skipped,
+      });
     }
-    return NextResponse.json({ ok: true, count: savedCount });
+    return NextResponse.json({ ok: true, count: savedCount, submitted: imagePaths.length, skipped });
   } catch (e) {
     console.error('POST case-images/from-hospital:', e);
     return NextResponse.json({ ok: false, error: e instanceof Error ? e.message : String(e) }, { status: 500 });

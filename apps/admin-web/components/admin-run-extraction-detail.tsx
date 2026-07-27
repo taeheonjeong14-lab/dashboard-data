@@ -233,6 +233,17 @@ type CaseImage = {
   bodyPart: string | null;
 };
 
+/** 병원 제출 이미지 임포트(POST case-images/from-hospital) 응답. */
+type ImportResponse = {
+  ok?: boolean;
+  count?: number;
+  /** no_hospital_images | already_complete | all_images_failed | download_failed */
+  reason?: string;
+  submitted?: number;
+  skipped?: { fileName: string; reason: string }[];
+  error?: string;
+};
+
 function FindingOverlay({ spots, imageRef }: { spots: FindingSpot[]; imageRef: React.RefObject<HTMLImageElement | null> }) {
   const [dims, setDims] = useState<{ w: number; h: number } | null>(null);
 
@@ -494,6 +505,10 @@ export function CaseImagesSection({ runId, onAddAnalysis }: { runId: string; onA
   const [error, setError] = useState<string | null>(null);
   const [editMode, setEditMode] = useState(false);
   const [autoRetrying, setAutoRetrying] = useState(false);
+  // 병원 이미지 임포트가 실패했을 때 그 사유. 예전엔 실패를 삼켜서 "분석 중"만 3분 떠 있었다.
+  const [importIssue, setImportIssue] = useState<string | null>(null);
+  // 일부만 실패한 경우(나머지는 정상 저장) 함께 띄우는 경고.
+  const [importWarning, setImportWarning] = useState<string | null>(null);
   const didAutoRetry = useRef(false);
   const autoRetryTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const loadIdRef = useRef(0);
@@ -511,6 +526,8 @@ export function CaseImagesSection({ runId, onAddAnalysis }: { runId: string; onA
     const stale = () => loadIdRef.current !== myLoadId;
     setLoading(true);
     setError(null);
+    setImportIssue(null);
+    setImportWarning(null);
 
     const fetchOnce = async (): Promise<{ images: CaseImage[] }> => {
       const res = await fetch(`/api/admin/runs/${encodeURIComponent(runId)}/case-images`, {
@@ -535,14 +552,41 @@ export function CaseImagesSection({ runId, onAddAnalysis }: { runId: string; onA
       if (first.images.length === 0 && !didAutoRetry.current) {
         didAutoRetry.current = true;
         setAutoRetrying(true);
-        void fetch(`/api/admin/runs/${encodeURIComponent(runId)}/case-images/from-hospital`, {
+
+        // 임포트 응답은 기다리되 폴링을 막지는 않는다(분석이 길면 요청이 먼저 끊길 수 있어서).
+        // 다만 응답이 "실패"로 오면 3분을 채우지 않고 즉시 사유를 띄운다.
+        let importFailure: string | null = null;
+        const importSettled = fetch(`/api/admin/runs/${encodeURIComponent(runId)}/case-images/from-hospital`, {
           method: 'POST',
           credentials: 'include',
-        }).catch(() => {});
+        })
+          .then(async (res) => {
+            const d = (await res.json().catch(() => ({}))) as ImportResponse;
+            if (!res.ok || d.ok === false) {
+              importFailure = `이미지 분석에 실패했습니다: ${d.error ?? `HTTP ${res.status}`}`;
+              return;
+            }
+            const skipped = d.skipped ?? [];
+            if ((d.count ?? 0) === 0 && d.reason && d.reason !== 'no_hospital_images') {
+              importFailure = skipped.length > 0
+                ? `제출된 ${d.submitted ?? skipped.length}장을 모두 열지 못했습니다. (예: ${skipped[0].fileName} — ${skipped[0].reason})`
+                : '제출된 이미지를 내려받지 못했습니다.';
+              return;
+            }
+            if (skipped.length > 0 && !stale()) {
+              setImportWarning(
+                `${skipped.length}장은 형식 문제로 제외됐습니다: ${skipped.map((s) => s.fileName).join(', ')}`,
+              );
+            }
+          })
+          .catch(() => { /* 요청이 끊긴 것뿐일 수 있다 — 폴링에 맡긴다 */ });
+        void importSettled;
+
         const deadline = Date.now() + 3 * 60 * 1000;
         while (Date.now() < deadline) {
           await new Promise((r) => setTimeout(r, 4000));
           if (stale()) return;
+          if (importFailure) break; // 서버가 실패로 끝냈다 — 더 기다릴 이유가 없다
           try {
             const r = await fetchOnce();
             if (stale()) return;
@@ -554,7 +598,10 @@ export function CaseImagesSection({ runId, onAddAnalysis }: { runId: string; onA
             /* 일시 오류는 무시하고 계속 폴링 */
           }
         }
-        if (!stale()) setAutoRetrying(false);
+        if (!stale()) {
+          setAutoRetrying(false);
+          if (importFailure) setImportIssue(importFailure);
+        }
       }
     } catch (e) {
       if (stale()) return;
@@ -638,6 +685,18 @@ export function CaseImagesSection({ runId, onAddAnalysis }: { runId: string; onA
                 사진이 많으면 1~2분 정도 걸릴 수 있어요. 끝나면 자동으로 표시됩니다.
               </span>
             </p>
+          ) : importIssue ? (
+            <p style={{ margin: 0, fontSize: 14, color: 'var(--danger)', fontWeight: 600 }}>
+              {importIssue}
+              <button
+                type="button"
+                className="adminLegacySmallBtn"
+                onClick={() => { didAutoRetry.current = false; void load(); }}
+                style={{ marginLeft: 8, fontWeight: 700 }}
+              >
+                다시 시도
+              </button>
+            </p>
           ) : (
             <p style={{ margin: 0, fontSize: 14, color: 'var(--text-muted)' }}>
               이미지가 없습니다. 차트 데이터 수집 시 이미지를 첨부하면 여기에 분석 결과가 표시됩니다.
@@ -645,6 +704,9 @@ export function CaseImagesSection({ runId, onAddAnalysis }: { runId: string; onA
           )
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column' }}>
+            {importWarning ? (
+              <p style={{ margin: '0 0 10px', fontSize: 13, color: 'var(--danger)', fontWeight: 600 }}>⚠ {importWarning}</p>
+            ) : null}
             {groupImagesByDate(images).map(({ date, images: dateImages }) => {
               return (
                 <details key={date ?? 'no-date'} open style={{ borderBottom: '1px solid var(--border)', padding: '12px 0' }}>
