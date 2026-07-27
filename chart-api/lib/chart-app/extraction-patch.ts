@@ -1,4 +1,5 @@
 import type pg from 'pg';
+import { looksLikeUrinalysisGroup, urinalysisSectionItemName } from '@dashboard/lab-normalize';
 import { canonicalizeLabItemName, canonicalizeLabUnit } from '@/lib/chart-app/lab-item-normalize';
 import { speciesProfileFromBasicSpecies } from '@/lib/chart-app/lab-species-profile';
 import { chartByDateIdForDateTime, getParseRun } from '@/lib/chart-app/run-queries';
@@ -233,6 +234,31 @@ function labDateTimeForPatch(row: Record<string, unknown>): string | null {
   return str(row.dateTime ?? row.date_time);
 }
 
+/**
+ * 이 run 에서 요검사(UA) 패널인 날짜 그룹들. 저장된 항목명·단위만 보고 판정한다.
+ *
+ * 추출 단계는 UA 그룹의 BIL/BLD/PRO/GLU/pH 를 소변 전용 이름(U-*)으로 저장하는데, 예전엔 이 패치가
+ * 원문 이름으로 다시 canonicalize 해서 **U-* 를 혈액 이름으로 되돌렸다**(admin 에서 검사행을 한 번만
+ * 손대도 요검사 전체가 혈액 항목과 뒤섞였다). 같은 판정을 여기서도 해서 이름을 지킨다.
+ */
+async function urinalysisDateTimes(client: pg.PoolClient, runId: string): Promise<Set<string>> {
+  const { rows } = await client.query<{ date_time: string; item_name: string; raw_item_name: string | null; unit: string | null }>(
+    `SELECT date_time, item_name, raw_item_name, unit FROM chart_pdf.result_lab_items WHERE parse_run_id = $1::uuid`,
+    [runId],
+  );
+  const byGroup = new Map<string, string[]>();
+  for (const r of rows) {
+    const list = byGroup.get(r.date_time) ?? [];
+    list.push(`${r.raw_item_name ?? ''} ${r.item_name} ${r.unit ?? ''}`);
+    byGroup.set(r.date_time, list);
+  }
+  const out = new Set<string>();
+  for (const [dateTime, texts] of byGroup) {
+    if (looksLikeUrinalysisGroup(texts)) out.add(dateTime);
+  }
+  return out;
+}
+
 async function patchLab(client: pg.PoolClient, runId: string, body: Record<string, unknown>) {
   const deletedItemIds = body.deletedItemIds as unknown;
   if (deletedItemIds !== undefined) {
@@ -255,6 +281,7 @@ async function patchLab(client: pg.PoolClient, runId: string, body: Record<strin
     [runId],
   );
   const labSpecies = speciesProfileFromBasicSpecies(speciesRows[0]?.species);
+  const uaGroups = await urinalysisDateTimes(client, runId);
 
   for (const it of items) {
     const row = it as Record<string, unknown>;
@@ -269,7 +296,9 @@ async function patchLab(client: pg.PoolClient, runId: string, body: Record<strin
 
     if (!rawDisplay) throw new Error('lab itemName or rawItemName required');
 
-    const canonicalName = canonicalizeLabItemName(rawDisplay, labSpecies) || rawDisplay;
+    // 요검사 그룹이면 소변 전용 이름(U-BLD·U-BIL·U-PRO …)을 유지한다. 매핑에 없으면 평소 정규화.
+    const uaName = dateTime && uaGroups.has(dateTime) ? urinalysisSectionItemName(rawDisplay) : null;
+    const canonicalName = uaName || canonicalizeLabItemName(rawDisplay, labSpecies) || rawDisplay;
 
     if (id) {
       const upd = await client.query(

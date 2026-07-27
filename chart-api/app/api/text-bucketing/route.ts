@@ -47,7 +47,8 @@ import { dbChartPdf, dbCore, getSupabaseCoreSchema } from "@/lib/supabase-db-sch
 import { getChartPgPool } from "@/lib/db";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { canonicalizeLabItemName, canonicalizeLabUnit } from "@/lib/lab-item-normalize";
-import { computeLabFlag, isRecognizedLabItem, refineLabFlag, urinalysisSectionItemName, bloodGasSectionItemName } from "@dashboard/lab-normalize";
+import { computeLabFlag, isRecognizedLabItem, looksLikeUrinalysisGroup, refineLabFlag, urinalysisSectionItemName, bloodGasSectionItemName } from "@dashboard/lab-normalize";
+import { normalizeConfusableScripts } from "@/lib/text-bucketing/ocr-line-correction";
 import { detectSpeciesProfile } from "@/lib/lab-category-map";
 import {
   efriendsChartBodyByDateFromBlocks,
@@ -890,26 +891,8 @@ function groupLabByDate(lines: BucketedLine[]): LabByDateGroup[] {
  * UA 로 잡히면 매핑 단계에서 BIL/BLD/KET/PRO/GLU/pH 를 소변 전용 이름(U-*)으로 정규화한다.
  */
 function groupContentLooksLikeUrinalysis(lines: BucketedLine[]): boolean {
-  const text = lines.map((l) => l.text).join(" ").toUpperCase();
-  const signals: RegExp[] = [
-    /\bU?SG\b/,                       // (U)SG 비중
-    /SPECIFIC\s*GRAVITY/,
-    /\bUBG\b|UROBILINOGEN|\bURO\b/,   // 우로빌리노겐
-    /\bNIT\b|NITRITE/,                // 아질산염
-    /\bLEU\b|LEUKOCYTE/,              // 백혈구 에스터라제
-    /\bBLD\b/,                        // 소변 잠혈(혈액 패널엔 없음)
-    /ERY\s*\/\s*[ΜМµμU]?L/,           // Ery/µL
-    /LEU\s*\/\s*[ΜМµμU]?L/,           // Leu/µL
-    /\/\s*HPF|\/\s*LPF/,              // /HPF·/LPF
-  ];
-  let hits = 0;
-  for (const rx of signals) {
-    if (rx.test(text)) {
-      hits += 1;
-      if (hits >= 2) return true;
-    }
-  }
-  return false;
+  // 판정 규칙은 @dashboard/lab-normalize 단일 소스 — 추출(여기)과 admin 수정 패치가 같은 기준을 써야 한다.
+  return looksLikeUrinalysisGroup(lines.map((l) => l.text));
 }
 
 function groupLabLinesByDate(lines: BucketedLine[]): LabByDateLinesGroup[] {
@@ -1393,6 +1376,11 @@ function looksLikeLabItemToken(t: string): boolean {
 }
 
 /** 슬래시 없는 단독 단위(fL, pg, uL, mmHg 등)까지 포함한 단위 토큰 판정. */
+/** 순수 숫자 토큰(부호·소수점만 허용). 검사 표에서 Min·Max 칸 판정용 — "+30"·"++50" 같은 정성 값은 제외. */
+function isPlainNumericToken(t: string): boolean {
+  return /^[-+]?\d+(?:[.,]\d+)?$/.test(t.trim());
+}
+
 function isKnownLabUnitToken(t: string): boolean {
   const s = (t ?? "").trim();
   return looksLikeLabUnitToken(s) || /^(fL|pg|uL|nL|mmHg|mOsm)$/i.test(s);
@@ -1452,6 +1440,16 @@ function isTruncatedNormalValue(v: string | null | undefined): boolean {
 function isNegativeDashValue(v: string | null | undefined): boolean {
   const t = (v ?? "").trim();
   return t.length > 0 && /^[-–—]+$/.test(t);
+}
+
+/**
+ * 기기가 측정하지 못했을 때 찍는 자리표시(예: RETIC "--.--", "---", "..").
+ * 딥스틱의 "-"(=음성)와 달리 **결과가 없다**는 뜻이라 값으로 저장하면 안 된다.
+ * (숫자가 하나도 없고 대시·점만 2자 이상)
+ */
+function isUnmeasuredPlaceholder(v: string | null | undefined): boolean {
+  const t = (v ?? "").trim();
+  return t.length >= 2 && /^[-–—.]+$/.test(t) && !/^[-–—]+$/.test(t);
 }
 
 const LAB_VERTICAL_VALUE_FLAG = /^([-+<]?\s*\d+(?:[.,]\d+)?(?:[!A-Za-z]+)?)(?:\s+(NORMAL|LOW|HIGH|UNDER))?$/i;
@@ -1540,12 +1538,19 @@ function parseCatalystSingleLineRow(cleaned: string, page: number): LabItem | nu
 
   // A: 항목 + 단위(2번째) + 나머지=값(여러 토큰/정성). 예: "UBG mg/dL nom nom nom"
   if (body.length >= 3 && looksLikeLabItemToken(body[0] ?? "") && isKnownLabUnitToken(body[1] ?? "")) {
-    const value = body.slice(2).join(" ").trim();
+    const rest = body.slice(2);
+    // ★ 나머지가 순수 숫자 딱 둘이면 그건 값이 아니라 Min·Max 이고 Result 칸이 비어 있는 행이다.
+    //   (예: 요검사 스틱의 "GLU mg/dL 0 50" — 결과 칸이 빈 줄)
+    //   이걸 이어 붙여 값으로 만들면 "050" 같은 **없는 수치를 지어내게** 된다. 값은 비우고 범위만 준다.
+    if (rest.length === 2 && rest.every(isPlainNumericToken)) {
+      return mk(body[0] ?? "", "", body[1] ?? null, `${rest[0]}-${rest[1]}`);
+    }
+    const value = rest.join(" ").trim();
     if (value) return mk(body[0] ?? "", value, body[1] ?? null, null);
   }
 
   // D: 단위·숫자범위 없는 "이름 + 값(들)". 구조만으론 쓰레기와 못 구분 → 정규화 시 인식되는 검사명일 때만.
-  //    예: "SG 1.051", "NIT 1 1". ("IMA 1"·"Liver"는 미인식 → 드롭)
+  //    예: "SG 1.051". ("IMA 1"·"Liver"는 미인식 → 드롭)
   //    ※ 값이 단위뿐인 행("PDW fL")은 측정값이 없는 것 → 값으로 받지 않는다(단위가 값 자리로 새는 걸 막음).
   if (body.length >= 2 && looksLikeLabItemToken(body[0] ?? "") && isRecognizedLabItem(canonicalizeLabItemName(body[0] ?? ""))) {
     const rest = body.slice(1);
@@ -1555,6 +1560,10 @@ function parseCatalystSingleLineRow(cleaned: string, page: number): LabItem | nu
     //    기대므로, 검사명과 같은 낱말로 시작하는 헤더 줄("Color : RFID :" — Color 는 요검사 항목)이
     //    그대로 검사행이 되어버린다. 콜론 배제는 looksLikeLabItemToken 과 같은 원칙.
     const hasColon = rest.some((t) => /[:：]/.test(t));
+    // 위 A 규칙과 같은 이유 — 숫자 딱 둘은 Min·Max 이지 값이 아니다(예: "NIT 1 1" → 값 "11" 이 되던 것).
+    if (rest.length === 2 && rest.every(isPlainNumericToken)) {
+      return mk(body[0] ?? "", "", null, `${rest[0]}-${rest[1]}`);
+    }
     if (value && !isUnitOnly && !hasColon) return mk(body[0] ?? "", value, null, null);
   }
 
@@ -3873,7 +3882,12 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const sanitizedLines = [...pasteLines, ...patientInfoFromOcr, ...effectivePdfLines];
+    // 버켓팅·파싱 전에 라틴 동음이형(그리스·키릴) 글자를 되돌린다. 여기서 해야 같은 줄이 같은 문자열이
+    // 되어 중복 제거가 먹고(전사가 같은 줄을 두 번 뱉는 일이 잦다), 검사명·값도 오염되지 않는다.
+    const sanitizedLines = [...pasteLines, ...patientInfoFromOcr, ...effectivePdfLines].map((line) => {
+      const text = normalizeConfusableScripts(line.text ?? "");
+      return text === line.text ? line : { ...line, text };
+    });
 
     stage = "assignLinesToBuckets";
     let buckets = assignLinesToBuckets(sanitizedLines, ocr.rows, chartType);
@@ -3976,6 +3990,7 @@ export async function POST(request: NextRequest) {
         let flag = refineLabFlag(item.flag, item.valueText, item.referenceRange);
         if (isNegativeDashValue(item.valueText)) { valueText = "음성"; flag = "normal"; }
         else if (isTruncatedNormalValue(item.valueText)) { valueText = "정상"; flag = "normal"; }
+        else if (isUnmeasuredPlaceholder(item.valueText)) { valueText = ""; flag = "unknown"; }
         mappedItems.push({ itemName, rawItemName: item.itemName, valueText, unit: canonicalizeLabUnit(item.unit), referenceRange: item.referenceRange, flag, page: item.page });
       }
       labItemsByDate.push({

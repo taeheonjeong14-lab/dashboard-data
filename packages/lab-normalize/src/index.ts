@@ -916,6 +916,41 @@ export function urinalysisSectionItemName(rawItemName: string): string | null {
   return URINALYSIS_SECTION_MAP[t] ?? rawItemName.trim();
 }
 
+/**
+ * 검사 묶음의 "내용"만 보고 UA(요검사) 패널인지 판정한다. 헤더에 요검사 키워드가 없어도 잡기 위함.
+ *
+ * 혈액 패널엔 등장하지 않는 소변 전용 신호(SG·UBG·Nitrite·LEU esterase·BLD 잠혈·Ery/uL·Leu/uL·/HPF 등)를
+ * 2개 이상 포함하면 UA 로 본다(혈액 그룹은 이 신호가 0개라 오작동하지 않는다).
+ *
+ * 추출(파싱)과 수정(패치) 양쪽이 **같은 판정**을 써야 한다 — 한쪽만 UA 로 보면 저장할 때
+ * BIL/BLD/PRO 가 혈액 이름으로 되돌아가 혈액 항목과 뒤섞인다.
+ *
+ * @param texts 그룹에 속한 줄 또는 "검사명 단위" 문자열들.
+ */
+export function looksLikeUrinalysisGroup(texts: string[]): boolean {
+  const text = texts.join(' ').toUpperCase();
+  const signals: RegExp[] = [
+    /\bU?SG\b/, // (U)SG 비중
+    /SPECIFIC\s*GRAVITY/,
+    /\bUBG\b|UROBILINOGEN|\bURO\b/, // 우로빌리노겐
+    /\bNIT\b|NITRITE/, // 아질산염
+    /\bLEU\b|LEUKOCYTE/, // 백혈구 에스터라제
+    /\bBLD\b/, // 소변 잠혈(혈액 패널엔 없음)
+    /ERY\s*\/\s*[ΜМµμU]?L/, // Ery/µL
+    /LEU\s*\/\s*[ΜМµμU]?L/, // Leu/µL
+    /\/\s*HPF|\/\s*LPF/, // /HPF·/LPF
+    /\bU-[A-Z]/, // 이미 U-* 로 저장된 항목(재수정 시)
+  ];
+  let hits = 0;
+  for (const rx of signals) {
+    if (rx.test(text)) {
+      hits += 1;
+      if (hits >= 2) return true;
+    }
+  }
+  return false;
+}
+
 // ── 혈액가스(Blood Gas) 섹션 겹침 항목 매핑 ──────────────────────────────────
 // 헤더로 "이 블록은 혈액가스"가 확정됐을 때만, CBC/전해질과 겹치는 항목(HCT·Na·K·Cl·Ca)을
 // -BG 내부 이름으로 돌려 정맥혈 값과 별개 항목(카테고리=blood_gas)으로 둔다.
