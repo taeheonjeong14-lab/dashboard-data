@@ -199,8 +199,10 @@ export const HEALTH_CHECKUP_ORGAN_SPECS: Record<
   dental: {
     title: '치과 및 안과', keys: 'hp4_dental_dx / hp4_dental_imp', tier: 'dentalSkin',
     diseases:
-      '(치과) 치석, 치주염, 치은염, 치아 흔들림, 치아 파절, 치근 농양, 구내염, 구강 종괴 등 / (안과) 각막·수정체 혼탁, 백내장, 핵경화, 각막궤양, 결막염, 녹내장(안압 상승) 등 — **안과 검사·소견이 데이터에 있을 때만**',
-    citedTests: '치석 정도, 잇몸 염증, 치아 흔들림·파절, 구취 / (안과) 혼탁·안압 등',
+      '(치과) 치석, 치주염, 치은염, 치아 흔들림, 치아 파절, 치근 농양, 치근 흡수, 치조골 소실, 매복치, 구내염, 구강 종괴 등 / (안과) 각막·수정체 혼탁, 백내장, 핵경화, 각막궤양, 결막염, 녹내장(안압 상승) 등 — **안과 검사·소견이 데이터에 있을 때만**',
+    // 치과 방사선 판독은 방사선 칸이 아니라 여기서 다룬다(방사선 칸은 흉부·복부·관절 전용).
+    citedTests:
+      '치석 정도, 잇몸 염증, 치아 흔들림·파절, 구취 / **치과 방사선(치아·치근·치조골·턱뼈) 판독 소견은 방사선 칸이 아니라 이 칸에서 다룬다 — 데이터에 있으면 빠뜨리지 말 것** / (안과) 혼탁·안압 등',
   },
   skin: {
     title: '피부·외이도', keys: 'hp4_skin_dx / hp4_skin_imp', tier: 'dentalSkin',
@@ -231,9 +233,10 @@ export function healthCheckupOrganBlockLines(key: string): string[] {
 /** 영상(방사선·초음파) 블록. 전체/섹션 공유. */
 export function healthCheckupImagingBlockLines(): string[] {
   const imgMax = HEALTH_CHECKUP_PROMPT_IMAGING_INTERP_MAX_CHARS;
-  const modality = (titleKo: string, key: string): string[] => [
+  const modality = (titleKo: string, key: string, scope: string[] = []): string[] => [
     `========== ${titleKo} (${key}) ==========`,
     `- 케이스에 첨부된 ${titleKo} 이미지를 판독하여 작성한다.`,
+    ...scope,
     `- ★이미지가 첨부되지 않았더라도, 차트·종합소견에 ${titleKo} 판독 결과가 적혀 있으면(예: 슬개골 탈구·고관절 이형성증 등 정형 방사선 소견) 그 내용을 근거로 소견을 작성한다. 사진이 없다는 이유로 고정 문구를 쓰지 말 것.`,
     `- 고정 문구는 이 ${titleKo} 검사를 **실제로 하지 않았을 때**(차트에도 판독 결과가 전혀 없을 때)만 쓴다.`,
     '- 포커스는 질병보다 **사진 상의 특이점** 위주. 어느 부위 이미지의 어느 부분에서 어떤 특이점이 보이는지 구체적으로 쓴다.',
@@ -244,7 +247,13 @@ export function healthCheckupImagingBlockLines(): string[] {
     '- 수치(VHS, 심흉비 등)를 적을 때는 **그 수치가 무엇을 재는지·정상인지 이상인지·그래서 무슨 의미인지**를 반드시 함께 쓴다. (나쁜 예: "VHS는 7로 측정되었습니다." / 좋은 예: "심장 크기를 나타내는 VHS가 7로 측정되어 심장이 비대해지지 않은 정상 범위로 확인되었습니다.")',
     `- 글자 수 제한: 최대 ${imgMax}자`,
   ];
-  return [...modality('방사선 검사', 'hp5_rad_interp'), '', ...modality('초음파 검사', 'hp5_us_interp')];
+  // 치과 방사선은 치과 칸(hp4_dental_*)에서 다룬다 — 여기서 또 쓰면 같은 소견이 두 섹션에 겹친다.
+  const radScope = [
+    '- ★**[이 섹션의 범위 = 흉부·복부·관절(정형) 방사선]** 치과 방사선(치아·치근·치조골·턱뼈·구강 촬영)은 이 섹션에서 **다루지 않는다.**',
+    '  · 치과 방사선 소견은 치과 칸(hp4_dental_dx / hp4_dental_imp)에서 서술하므로, 이 칸에서는 **언급조차 하지 않는다** — 요약·나열·"치과 방사선은 별도로 다룹니다" 같은 안내도 쓰지 않는다.',
+    '  · 이번 검진에 치과 방사선만 있고 흉부·복부·관절 방사선이 없으면, 이 칸은 소견을 쓰지 말고 위 고정 문구를 쓴다.',
+  ];
+  return [...modality('방사선 검사', 'hp5_rad_interp', radScope), '', ...modality('초음파 검사', 'hp5_us_interp')];
 }
 
 /** 혈액검사 해석 블록. 전체/섹션 공유. */
