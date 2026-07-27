@@ -70,14 +70,6 @@ const PAGE_RANGE_OVERLAP = Math.max(0, Number(process.env.EXTRACT_PAGE_RANGE_OVE
 const SCRIPT_INSTRUCTION =
   " SCRIPT RULES (critical): Output every character using ONLY Latin (English) letters, Arabic numerals (0-9), and Korean (Hangul). NEVER substitute Greek, Cyrillic, Arabic, or other non-Latin letters for visually similar Latin letters or digits. For example, write 'MONO' not 'ΜΟΝΟ', 'K/uL' not 'Κ/μL', 'M/uL' not 'Μ/μL', 'BASO' not 'ΒΑSΟ', and the digit '0' (zero) not the letter 'O'/'Ο'. Use 'u' for the micro unit (e.g., 'K/uL', 'ug/dL'). Transcribe Korean exactly as printed in Hangul.";
 
-/**
- * 표의 결과 칸에 홀로 찍힌 대시("-")는 **음성(negative)이라는 검사 결과**다. 전사 모델이 이 한 글자를
- * 자주 흘리는데, 빠지면 결과가 통째로 사라져(빈칸 ≠ 음성) 그 검사 항목이 리포트에서 없어진다.
- * 요검사 딥스틱은 모든 패드에 결과를 찍으므로 특히 이 줄이 중요하다.
- */
-const DASH_CELL_INSTRUCTION =
-  " DASH CELLS (critical): A table cell containing only a dash ('-', '–', '—') is a REAL result meaning NEGATIVE — it is not an empty cell. Always transcribe that dash in its column position, including when it is the LAST cell of the row (e.g. 'GLU mg/dL 0 50 -', 'KET mg/dL -', 'NIT 1 1 -'). Never drop it, never turn it into a space, and never end the row early because the last cell 'looks empty'.";
-
 // 표가 아닌 "좌우 2단 블록"(예: Medical Record 헤더 — 좌: 환자정보 / 우: 병원 주소)을 한 줄로
 // 이어붙이면 값이 오염된다(예: "품종: 푸들 (송내동, 국일빌딩) 1층"). 표의 한 행만 한 줄로 묶고,
 // 나란히 놓인 별개 블록은 블록별로 줄을 나누라고 명시한다.
@@ -326,7 +318,7 @@ async function extractOrderedLinesFromGeminiImageSlice(params: {
             role: 'user',
             parts: [
               {
-                text: 'Read this veterinary PDF from its first page through its last page in visual reading order. Transcribe EVERY visible text line verbatim — do NOT skip, summarize, merge, or omit any line, even if its content repeats or looks similar to another visit/section. Return strict JSON only. Do not bucket or classify. Number `page` starting at 1 for the first page of this file through the last page. Keep original line texts. The lines array order MUST match visual reading order (top-to-bottom, then next column if any). For any TABLE (e.g., a treatment/Plan table or a lab result table), output each table ROW as ONE single line containing all cells of that row left-to-right separated by single spaces; never split a single row across multiple lines, and never read a table column-by-column.' + visibleTextOnlyClause + SCRIPT_INSTRUCTION + DASH_CELL_INSTRUCTION + COLUMN_BLOCK_INSTRUCTION,
+                text: 'Read this veterinary PDF from its first page through its last page in visual reading order. Transcribe EVERY visible text line verbatim — do NOT skip, summarize, merge, or omit any line, even if its content repeats or looks similar to another visit/section. Return strict JSON only. Do not bucket or classify. Number `page` starting at 1 for the first page of this file through the last page. Keep original line texts. The lines array order MUST match visual reading order (top-to-bottom, then next column if any). For any TABLE (e.g., a treatment/Plan table or a lab result table), output each table ROW as ONE single line containing all cells of that row left-to-right separated by single spaces; never split a single row across multiple lines, and never read a table column-by-column.' + visibleTextOnlyClause + SCRIPT_INSTRUCTION + COLUMN_BLOCK_INSTRUCTION,
               },
               ...images.map((buf) => ({
                 inlineData: { mimeType: 'image/jpeg' as const, data: buf.toString('base64') },
@@ -387,7 +379,7 @@ async function extractOrderedLinesFromGeminiPdfSlice(params: {
           role: 'user',
           parts: [
             {
-              text: 'Read this veterinary PDF from its first page through its last page in visual reading order. Transcribe EVERY visible text line verbatim — do NOT skip, summarize, merge, or omit any line, even if its content repeats or looks similar to another visit/section. Return strict JSON only. Do not bucket or classify. Number `page` starting at 1 for the first page of this file through the last page. Keep original line texts. The lines array order MUST match visual reading order (top-to-bottom, then next column if any). For any TABLE (e.g., a treatment/Plan table or a lab result table), output each table ROW as ONE single line containing all cells of that row left-to-right separated by single spaces; never split a single row across multiple lines, and never read a table column-by-column.' + SCRIPT_INSTRUCTION + DASH_CELL_INSTRUCTION + COLUMN_BLOCK_INSTRUCTION,
+              text: 'Read this veterinary PDF from its first page through its last page in visual reading order. Transcribe EVERY visible text line verbatim — do NOT skip, summarize, merge, or omit any line, even if its content repeats or looks similar to another visit/section. Return strict JSON only. Do not bucket or classify. Number `page` starting at 1 for the first page of this file through the last page. Keep original line texts. The lines array order MUST match visual reading order (top-to-bottom, then next column if any). For any TABLE (e.g., a treatment/Plan table or a lab result table), output each table ROW as ONE single line containing all cells of that row left-to-right separated by single spaces; never split a single row across multiple lines, and never read a table column-by-column.' + SCRIPT_INSTRUCTION + COLUMN_BLOCK_INSTRUCTION,
             },
             {
               inlineData: {
@@ -786,7 +778,7 @@ async function openAiOrderedLinesFromPdfBuffer(params: {
 
   const basePrompt =
     'Read this veterinary PDF from first page to last page in visual order and output only ordered lines. Do not bucket, classify, summarize, or drop text.' +
-    SCRIPT_INSTRUCTION + DASH_CELL_INSTRUCTION + COLUMN_BLOCK_INSTRUCTION;
+    SCRIPT_INSTRUCTION + COLUMN_BLOCK_INSTRUCTION;
 
   try {
     let lastError: Error | null = null;
@@ -1023,7 +1015,7 @@ async function extractOrderedLinesFromPdfWithGemini(params: {
           role: 'user',
           parts: [
             {
-              text: 'Read this veterinary PDF in visual reading order and return plain ordered lines only. Do not bucket/classify. Return strict JSON. For any TABLE (e.g., a treatment/Plan table or a lab result table), output each table ROW as ONE single line containing all cells of that row left-to-right separated by single spaces; never split a single row across multiple lines, and never read a table column-by-column.' + SCRIPT_INSTRUCTION + DASH_CELL_INSTRUCTION + COLUMN_BLOCK_INSTRUCTION,
+              text: 'Read this veterinary PDF in visual reading order and return plain ordered lines only. Do not bucket/classify. Return strict JSON. For any TABLE (e.g., a treatment/Plan table or a lab result table), output each table ROW as ONE single line containing all cells of that row left-to-right separated by single spaces; never split a single row across multiple lines, and never read a table column-by-column.' + SCRIPT_INSTRUCTION + COLUMN_BLOCK_INSTRUCTION,
             },
             {
               inlineData: {

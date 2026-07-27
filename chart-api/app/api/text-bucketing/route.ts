@@ -48,7 +48,7 @@ import { getChartPgPool } from "@/lib/db";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { canonicalizeLabItemName, canonicalizeLabUnit } from "@/lib/lab-item-normalize";
 import { computeLabFlag, isRecognizedLabItem, looksLikeUrinalysisGroup, refineLabFlag, urinalysisSectionItemName, bloodGasSectionItemName } from "@dashboard/lab-normalize";
-import { normalizeConfusableScripts, restoreTrailingDashFromTextLayer } from "@/lib/text-bucketing/ocr-line-correction";
+import { normalizeConfusableScripts, correctLinesWithTextLayer } from "@/lib/text-bucketing/ocr-line-correction";
 import { detectSpeciesProfile } from "@/lib/lab-category-map";
 import {
   efriendsChartBodyByDateFromBlocks,
@@ -3966,8 +3966,8 @@ export async function POST(request: NextRequest) {
 
     // 버켓팅·파싱 전에 라틴 동음이형(그리스·키릴) 글자를 되돌린다. 여기서 해야 같은 줄이 같은 문자열이
     // 되어 중복 제거가 먹고(전사가 같은 줄을 두 번 뱉는 일이 잦다), 검사명·값도 오염되지 않는다.
-    // 그 앞에 전사가 흘린 행 끝 대시를 텍스트 레이어 원문으로 되살린다(빈칸 ≠ 음성).
-    const sanitizedLines = restoreTrailingDashFromTextLayer(
+    // 그 앞에 전사가 틀린 칸 기호(흘린 대시 / 지어낸 대시)를 텍스트 레이어 원문으로 바로잡는다.
+    const sanitizedLines = correctLinesWithTextLayer(
       [...pasteLines, ...patientInfoFromOcr, ...effectivePdfLines],
       usingTextLayer ? null : textLayerBackstop,
     ).map((line) => {
