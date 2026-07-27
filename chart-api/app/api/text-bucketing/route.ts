@@ -1930,7 +1930,23 @@ function parseWoorienLabItemsFromGroupLines(lines: BucketedLine[]): LabItem[] {
   return items;
 }
 
-function parseLabItemsFromGroupLines(lines: BucketedLine[], chartKind: ChartKind = "intovet", opts?: { isUrinalysis?: boolean }): LabItem[] {
+/**
+ * OCR 이 비교 기호와 숫자를 떼어 놓는 경우("SDMA < 10.00 ug/dL - 0 14")를 한 토큰으로 붙인다.
+ *
+ * 붙이지 않으면 "<" 가 값 토큰으로 인정되지 않아 검사명 꼬리에 붙고("SDMA <"), 그 다음
+ * 숫자가 값이 된다 — **"10 미만"이 "정확히 10"으로 뒤집힌다.** 검출 한계 미만(<) 결과는
+ * 그 자체가 임상적 의미(예: SDMA <10 = 신장 수치 낮음)라 값이 바뀌면 해석이 달라진다.
+ * 붙여 두면 이후 파서·정규화는 "<10.00" 을 지금도 정상 처리하는 경로(TBIL "<0.1" 등)를 탄다.
+ */
+function joinComparatorWithNumber(lines: BucketedLine[]): BucketedLine[] {
+  return lines.map((line) => {
+    const text = (line.text ?? "").replace(/([<>])\s+(?=[.,]?\d)/g, "$1");
+    return text === line.text ? line : { ...line, text };
+  });
+}
+
+function parseLabItemsFromGroupLines(rawLines: BucketedLine[], chartKind: ChartKind = "intovet", opts?: { isUrinalysis?: boolean }): LabItem[] {
+  const lines = joinComparatorWithNumber(rawLines);
   if (chartKind === "woorien_pms") {
     return parseWoorienLabItemsFromGroupLines(lines);
   }
