@@ -128,6 +128,15 @@ export function minimalOcrCorrection(line: OrderedLine, rows: OcrRow[]): Buckete
     }
   }
 
+  // 글자·숫자가 완전히 같으면 OCR 이 고쳐 줄 내용이 없다 — 차이는 기호·공백뿐이다.
+  // 이때 갈아끼우면 오히려 **의미 있는 기호를 잃는다**: Vision 이 표 마지막 칸의 단독 대시
+  // ("-"=음성 결과)를 자주 못 읽어서, 텍스트 레이어로 복원해 둔 "NIT 1 1 -" 가 OCR 의
+  // "NIT 1 1" 로 되돌아갔다(그 항목이 리포트에서 통째로 사라진다).
+  // OCR 보정의 목적은 오독한 글자·숫자를 바로잡는 것이고, 그건 키가 달라진다.
+  if (alnumKey(best) === alnumKey(line.text)) {
+    return { page: line.page, text: line.text, corrected: false };
+  }
+
   if (bestScore >= 0.9 && normalizeLoose(best) !== normalizeLoose(line.text)) {
     return {
       page: line.page,
