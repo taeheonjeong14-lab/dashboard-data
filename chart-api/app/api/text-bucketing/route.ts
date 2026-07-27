@@ -1547,6 +1547,15 @@ function parseCatalystSingleLineRow(cleaned: string, page: number, opts?: { isUr
     }
   }
 
+  // B': 단위 없는 "항목 + min + max + 정성result". 예: 요검사 "NIT 1 1 -" (결과가 음성 대시).
+  //     B 규칙은 단위 칸이 있는 행만 받아 이 형태를 놓쳤고, 그러면 min·max 가 값으로 흘러 "11" 이 된다.
+  if (body.length === 4 && looksLikeLabItemToken(body[0] ?? "")) {
+    const r = body[3] ?? "", mx = body[2] ?? "", mn = body[1] ?? "";
+    if (isPlainNumericToken(mn) && isPlainNumericToken(mx) && !isCatalystValueToken(r) && isRecognizedHere(body[0] ?? "")) {
+      return mk(body[0] ?? "", r, null, `${mn}-${mx}`);
+    }
+  }
+
   // A': 단위가 끝에서 두 번째 + 값이 마지막. 예: "Osmolality mOsm/kg 311", "nRBC# fL 0.00", "RET-He pg 24.9"
   if (body.length >= 3) {
     const v = body[end - 1] ?? "", u = body[end - 2] ?? "";
@@ -1591,9 +1600,6 @@ function parseCatalystSingleLineRow(cleaned: string, page: number, opts?: { isUr
       return mk(body[0] ?? "", "", null, `${rest[0]}-${rest[1]}`);
     }
     if (value && !isUnitOnly && !hasColon) return mk(body[0] ?? "", value, null, null);
-    // 값 자리가 단위뿐인 행("KET mg/dL") = 결과 칸이 빈 검사행. 항목은 남기고 값만 비운다 —
-    // 담당자가 원본을 보고 채울 수 있어야 한다(줄이 통째로 사라지면 빠진 줄도 모른다).
-    if (isUnitOnly && rest.length === 1) return mk(body[0] ?? "", "", rest[0] ?? null, null);
   }
 
   return null;
@@ -2426,14 +2432,10 @@ function sanitizeLabItems<
   // 측정값이 없는 항목은 차트 종류와 무관하게 드롭한다(항목명만 있는 빈 줄을 남기지 않는다).
   //  ※ 예전엔 efriends 만 "이름만 있으면 유지" 예외였는데, sanitize 이후 값을 채우는 단계가 없어
   //    빈 값 그대로 저장·표시됐다 → 예외 제거.
-  // 대시(-)는 요검사 딥스틱의 "음성" 결과이므로 여기서 버리지 않고 매핑 단계에서 "음성"으로 표시한다(빈칸 ≠ 음성).
+  // 대시(-)는 요검사 딥스틱의 음성 결과이므로 여기서 버리지 않고 매핑 단계에서 "NEG"로 표시한다(빈칸 ≠ 음성).
   const filtered = normalized.filter((item) => {
     if (isLikelyNoiseLabItemName(item.itemName)) return false;
-    if (item.valueText?.trim()) return true;
-    // 값이 비었어도 **단위나 참고범위가 붙어 있으면** 결과 칸만 빈 진짜 검사행이다(예: "KET mg/dL",
-    // "RETIC# 10x3/uL 3 50"). 항목을 남겨야 담당자가 원본을 보고 채울 수 있고, 무엇이 빠졌는지도 안다.
-    // 이름만 덜렁 있는 줄은 계속 버린다.
-    return Boolean(item.unit?.trim() || item.referenceRange?.trim());
+    return Boolean(item.valueText?.trim());
   });
   const unique = new Map<string, T>();
   for (const item of filtered) {
@@ -4021,7 +4023,7 @@ export async function POST(request: NextRequest) {
         //  예: BIL "-" → 음성, UBG "nom nom nom" → 정상.
         let valueText = item.valueText;
         let flag = refineLabFlag(item.flag, item.valueText, item.referenceRange);
-        if (isNegativeDashValue(item.valueText)) { valueText = "음성"; flag = "normal"; }
+        if (isNegativeDashValue(item.valueText)) { valueText = "NEG"; flag = "normal"; }
         else if (isTruncatedNormalValue(item.valueText)) { valueText = "정상"; flag = "normal"; }
         else if (isUnmeasuredPlaceholder(item.valueText)) { valueText = ""; flag = "unknown"; }
         mappedItems.push({ itemName, rawItemName: item.itemName, valueText, unit: canonicalizeLabUnit(item.unit), referenceRange: item.referenceRange, flag, page: item.page });
