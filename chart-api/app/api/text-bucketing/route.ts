@@ -1376,6 +1376,21 @@ function looksLikeLabItemToken(t: string): boolean {
 }
 
 /** 슬래시 없는 단독 단위(fL, pg, uL, mmHg 등)까지 포함한 단위 토큰 판정. */
+/**
+ * OCR 이 검사명을 겹쳐 쓴 토큰을 복원한다. 예: "ALB/GLO LOB 0.9" → 이름 "ALB/GLOB".
+ * 앞 토큰의 꼬리와 뒤 토큰의 머리가 겹치면 이어 붙여 보고, **결과가 인식되는 검사명일 때만** 받아들인다.
+ * (인식 조건이 없으면 "Na K" 같은 멀쩡한 두 항목을 한 항목으로 붙여 버린다)
+ */
+function mergeOverlappedNameTokens(a: string, b: string): string | null {
+  if (!a || !b || /\d/.test(b)) return null;
+  for (let k = Math.min(a.length, b.length); k >= 1; k -= 1) {
+    if (a.slice(-k).toUpperCase() !== b.slice(0, k).toUpperCase()) continue;
+    const merged = a + b.slice(k);
+    if (isRecognizedLabItem(canonicalizeLabItemName(merged))) return merged;
+  }
+  return null;
+}
+
 /** 순수 숫자 토큰(부호·소수점만 허용). 검사 표에서 Min·Max 칸 판정용 — "+30"·"++50" 같은 정성 값은 제외. */
 function isPlainNumericToken(t: string): boolean {
   return /^[-+]?\d+(?:[.,]\d+)?$/.test(t.trim());
@@ -1458,7 +1473,12 @@ const LAB_VERTICAL_VALUE_FLAG = /^([-+<]?\s*\d+(?:[.,]\d+)?(?:[!A-Za-z]+)?)(?:\s
  * IntoVet / Catalyst 계열: 한 줄에 "검사명 단위 min max 결과 [NORMAL|HIGH|LOW]".
  * 기존 numericRowRegex는 단위에 µ, 숫자(10x3/μL) 등이 들어가면 실패해서 대부분의 행이 누락됨.
  */
-function parseCatalystSingleLineRow(cleaned: string, page: number): LabItem | null {
+function parseCatalystSingleLineRow(cleaned: string, page: number, opts?: { isUrinalysis?: boolean }): LabItem | null {
+  // 요검사 그룹에선 KET·BLD 처럼 소변 문맥에서만 검사명인 이름도 인식해야 한다(혈액 사전엔 없다).
+  const isRecognizedHere = (name: string): boolean => {
+    const ua = opts?.isUrinalysis ? urinalysisSectionItemName(name) : null;
+    return isRecognizedLabItem(ua ?? canonicalizeLabItemName(name));
+  };
   const lower = cleaned.toLowerCase();
   if (/^performed by\b/i.test(lower)) return null;
   if (/^pacs\b/i.test(lower)) return null;
@@ -1549,10 +1569,16 @@ function parseCatalystSingleLineRow(cleaned: string, page: number): LabItem | nu
     if (value) return mk(body[0] ?? "", value, body[1] ?? null, null);
   }
 
+  // C': OCR 이 이름을 겹쳐 쓴 행. 예: "ALB/GLO LOB 0.9" — 원래 "ALB/GLOB 0.9" 한 항목이다.
+  if (body.length === 3) {
+    const merged = mergeOverlappedNameTokens(body[0] ?? "", body[1] ?? "");
+    if (merged && isCatalystValueToken(body[2] ?? "")) return mk(merged, body[2] ?? "", null, null);
+  }
+
   // D: 단위·숫자범위 없는 "이름 + 값(들)". 구조만으론 쓰레기와 못 구분 → 정규화 시 인식되는 검사명일 때만.
   //    예: "SG 1.051". ("IMA 1"·"Liver"는 미인식 → 드롭)
   //    ※ 값이 단위뿐인 행("PDW fL")은 측정값이 없는 것 → 값으로 받지 않는다(단위가 값 자리로 새는 걸 막음).
-  if (body.length >= 2 && looksLikeLabItemToken(body[0] ?? "") && isRecognizedLabItem(canonicalizeLabItemName(body[0] ?? ""))) {
+  if (body.length >= 2 && looksLikeLabItemToken(body[0] ?? "") && isRecognizedHere(body[0] ?? "")) {
     const rest = body.slice(1);
     const value = rest.join(" ").trim();
     const isUnitOnly = rest.every((t) => isKnownLabUnitToken(t));
@@ -1565,6 +1591,9 @@ function parseCatalystSingleLineRow(cleaned: string, page: number): LabItem | nu
       return mk(body[0] ?? "", "", null, `${rest[0]}-${rest[1]}`);
     }
     if (value && !isUnitOnly && !hasColon) return mk(body[0] ?? "", value, null, null);
+    // 값 자리가 단위뿐인 행("KET mg/dL") = 결과 칸이 빈 검사행. 항목은 남기고 값만 비운다 —
+    // 담당자가 원본을 보고 채울 수 있어야 한다(줄이 통째로 사라지면 빠진 줄도 모른다).
+    if (isUnitOnly && rest.length === 1) return mk(body[0] ?? "", "", rest[0] ?? null, null);
   }
 
   return null;
@@ -2032,7 +2061,7 @@ function parseLabItemsFromGroupLines(rawLines: BucketedLine[], chartKind: ChartK
 
       if (preferNumericFirst && pushNumericIfMatch()) continue;
 
-      const catalystItem = parseCatalystSingleLineRow(cleaned, line.page);
+      const catalystItem = parseCatalystSingleLineRow(cleaned, line.page, { isUrinalysis: opts?.isUrinalysis === true });
       if (catalystItem) {
         items.push(catalystItem);
         continue;
@@ -2376,7 +2405,7 @@ function isLikelyNoiseLabItemName(name: string | null | undefined) {
 }
 
 function sanitizeLabItems<
-  T extends { itemName: string; valueText: string; referenceRange?: string | null },
+  T extends { itemName: string; valueText: string; referenceRange?: string | null; unit?: string | null },
 >(items: T[], chartKind?: ChartKind) {
   const normalizeLabValueText = (raw: string): string => {
     const compact = raw.replace(/\s+/g, "");
@@ -2400,7 +2429,11 @@ function sanitizeLabItems<
   // 대시(-)는 요검사 딥스틱의 "음성" 결과이므로 여기서 버리지 않고 매핑 단계에서 "음성"으로 표시한다(빈칸 ≠ 음성).
   const filtered = normalized.filter((item) => {
     if (isLikelyNoiseLabItemName(item.itemName)) return false;
-    return Boolean(item.valueText?.trim());
+    if (item.valueText?.trim()) return true;
+    // 값이 비었어도 **단위나 참고범위가 붙어 있으면** 결과 칸만 빈 진짜 검사행이다(예: "KET mg/dL",
+    // "RETIC# 10x3/uL 3 50"). 항목을 남겨야 담당자가 원본을 보고 채울 수 있고, 무엇이 빠졌는지도 안다.
+    // 이름만 덜렁 있는 줄은 계속 버린다.
+    return Boolean(item.unit?.trim() || item.referenceRange?.trim());
   });
   const unique = new Map<string, T>();
   for (const item of filtered) {
