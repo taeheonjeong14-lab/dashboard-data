@@ -4026,6 +4026,10 @@ export async function POST(request: NextRequest) {
         if (isNegativeDashValue(item.valueText)) { valueText = "NEG"; flag = "normal"; }
         else if (isTruncatedNormalValue(item.valueText)) { valueText = "정상"; flag = "normal"; }
         else if (isUnmeasuredPlaceholder(item.valueText)) { valueText = ""; flag = "unknown"; }
+        // ★ 참고범위가 없는 항목엔 플래그를 붙이지 않는다 — 실제 차트도 그렇게 인쇄한다.
+        //   범위가 없으면 정상/이상을 판단할 근거 자체가 없다. 값만 보고 우리가 임의로 붙이면
+        //   딥스틱 "+30"(양성)을 정상으로 단정하는 식의 오판이 리포트까지 흘러간다.
+        if (!item.referenceRange?.trim()) flag = "unknown";
         mappedItems.push({ itemName, rawItemName: item.itemName, valueText, unit: canonicalizeLabUnit(item.unit), referenceRange: item.referenceRange, flag, page: item.page });
       }
       labItemsByDate.push({
