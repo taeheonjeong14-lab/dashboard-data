@@ -13,6 +13,12 @@ export type HealthPoint = {
   id: string;
   /** 의심 질환·소견 그룹명(예: '신부전 의심'). 같은 group 팩트끼리 한 질환으로 묶어 보여준다. */
   group: string;
+  /**
+   * 그룹의 정체성 키. 그룹명을 고치는 동안(빈칸이 되는 순간까지) 묶음이 흩어지지 않게 한다.
+   * admin 이 그룹명을 한 번이라도 고치면 그 그룹 팩트 전부에 찍힌다. chart-api 는 이 필드를 모르고
+   * group 문자열로 묶으므로, 저장된 뒤 프롬프트 묶음이 달라지지는 않는다.
+   */
+  groupId?: string;
   text: string;
   basis: HealthPointBasis;
   evidence: string;
@@ -63,6 +69,20 @@ const smallBtn: CSSProperties = {
 
 function toggle(list: string[], v: string): string[] {
   return list.includes(v) ? list.filter((x) => x !== v) : [...list, v];
+}
+
+/**
+ * 팩트가 속한 그룹의 키. groupId 가 찍혀 있으면 그걸 쓰고(이름을 비워도 흩어지지 않는다),
+ * 없으면 예전처럼 그룹명(없으면 팩트 본문)으로 묶는다.
+ */
+function groupKeyOf(p: HealthPoint): string {
+  return p.groupId ? `#${p.groupId}` : `@${p.group || p.text}`;
+}
+
+/** 화면에 보여줄 그룹명. groupId 가 있으면 빈 이름도 그대로 빈칸으로 둔다(본문으로 되돌리지 않는다). */
+function groupNameOf(facts: HealthPoint[]): string {
+  const head = facts[0];
+  return head.groupId ? head.group : head.group || head.text;
 }
 
 function PointCard({
@@ -178,31 +198,40 @@ export default function AdminHealthPoints({
   const update = (id: string, next: HealthPoint) => onChange(points.map((p) => (p.id === id ? next : p)));
   const remove = (id: string) => onChange(points.filter((p) => p.id !== id));
   const nextId = () => `p${points.reduce((m, p) => Math.max(m, Number(p.id.replace(/^p/, '')) || 0), 0) + 1}`;
-  const blank = (group: string): HealthPoint => ({
-    id: nextId(), group, text: '', basis: 'chart', evidence: '', organs: [], examSections: [], inOverall: true,
+  const nextGroupId = () =>
+    `g${points.reduce((m, p) => Math.max(m, Number((p.groupId ?? '').replace(/^g/, '')) || 0), 0) + 1}`;
+  const blank = (group: string, groupId?: string): HealthPoint => ({
+    id: nextId(), group, groupId, text: '', basis: 'chart', evidence: '', organs: [], examSections: [], inOverall: true,
   });
   // 새 팩트를 해당 그룹의 마지막 팩트 바로 뒤에 끼워 넣는다(그룹이 흩어지지 않게).
-  const addToGroup = (group: string) => {
-    let lastIdx = -1;
-    points.forEach((p, i) => { if ((p.group || p.text) === group) lastIdx = i; });
+  const addToGroup = (facts: HealthPoint[]) => {
+    const lastIdx = points.findIndex((p) => p.id === facts[facts.length - 1].id);
     const at = lastIdx < 0 ? points.length : lastIdx + 1;
-    onChange([...points.slice(0, at), blank(group), ...points.slice(at)]);
+    const fresh = blank(groupNameOf(facts), facts.find((f) => f.groupId)?.groupId);
+    onChange([...points.slice(0, at), fresh, ...points.slice(at)]);
   };
-  const addGroup = () => onChange([...points, blank('')]);
-  // 그룹명 일괄 변경 — 그 그룹에 속한 모든 팩트의 group 을 바꾼다(빈 group 은 text 로 묶여 있으니 그것도 매칭).
-  const renameGroup = (from: string, to: string) =>
-    onChange(points.map((p) => ((p.group || p.text) === from ? { ...p, group: to } : p)));
+  // 새 그룹엔 groupId 를 찍어 둔다 — 이름이 빈 그룹을 여러 개 만들어도 서로 합쳐지지 않게.
+  const addGroup = () => onChange([...points, blank('', nextGroupId())]);
+  /**
+   * 그룹명 일괄 변경 — 그 그룹의 팩트를 id 로 정확히 집어 group 을 바꾸고 groupId 를 찍는다.
+   * 이름이 아니라 id 로 잡기 때문에 이름을 통째로 지워도 묶음이 유지된다.
+   */
+  const renameGroup = (facts: HealthPoint[], to: string) => {
+    const ids = new Set(facts.map((f) => f.id));
+    const gid = facts.find((f) => f.groupId)?.groupId ?? nextGroupId();
+    onChange(points.map((p) => (ids.has(p.id) ? { ...p, group: to, groupId: gid } : p)));
+  };
 
   const counts = points.reduce(
     (acc, p) => ({ ...acc, [p.basis]: (acc[p.basis] ?? 0) + 1 }),
     {} as Record<string, number>,
   );
 
-  // 그룹(질환·소견) 단위로 묶되 첫 등장 순서를 유지한다. 빈 group 은 text 로 단독 묶음.
+  // 그룹(질환·소견) 단위로 묶되 첫 등장 순서를 유지한다. groupId 없는 옛 팩트는 group(없으면 text)으로 묶인다.
   const groupOrder: string[] = [];
   const byGroup = new Map<string, HealthPoint[]>();
   for (const p of points) {
-    const g = p.group || p.text;
+    const g = groupKeyOf(p);
     if (!byGroup.has(g)) { byGroup.set(g, []); groupOrder.push(g); }
     byGroup.get(g)!.push(p);
   }
@@ -242,17 +271,19 @@ export default function AdminHealthPoints({
         </div>
       ) : (
         <div style={{ display: 'grid', gap: 16 }}>
-          {groupOrder.map((g) => {
-            const facts = byGroup.get(g)!;
+          {groupOrder.map((key) => {
+            const facts = byGroup.get(key)!;
             const groupInOverall = facts.some((p) => p.inOverall);
             return (
-              <div key={g} style={{ display: 'grid', gap: 8 }}>
+              // key 는 그룹명이 아니라 첫 팩트 id — 이름이 바뀔 때마다 리마운트되면
+              // 한 글자마다 입력 포커스가 끊겨(특히 한글 IME) 타이핑이 안 된다.
+              <div key={facts[0].id} style={{ display: 'grid', gap: 8 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                   <span style={{ fontSize: 13, fontWeight: 800, color: 'var(--accent)' }}>▣</span>
                   <input
-                    value={g}
+                    value={groupNameOf(facts)}
                     disabled={confirmed}
-                    onChange={(e) => renameGroup(g, e.target.value)}
+                    onChange={(e) => renameGroup(facts, e.target.value)}
                     placeholder="질환·소견 그룹명 (예: 신부전 의심)"
                     style={{ ...input, width: 'auto', flex: '1 1 240px', fontWeight: 800, fontSize: 15, padding: '6px 10px' }}
                   />
@@ -264,7 +295,7 @@ export default function AdminHealthPoints({
                     <PointCard key={p.id} point={p} disabled={confirmed} onChange={(next) => update(p.id, next)} onRemove={() => remove(p.id)} />
                   ))}
                   {!confirmed ? (
-                    <button type="button" className="adminBtnFree" onClick={() => addToGroup(g)} disabled={busy} style={{ ...smallBtn, border: 0, color: 'var(--text-muted)', justifySelf: 'start', padding: '2px 0' }}>
+                    <button type="button" className="adminBtnFree" onClick={() => addToGroup(facts)} disabled={busy} style={{ ...smallBtn, border: 0, color: 'var(--text-muted)', justifySelf: 'start', padding: '2px 0' }}>
                       + 이 질환에 팩트 추가
                     </button>
                   ) : null}
