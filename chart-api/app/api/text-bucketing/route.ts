@@ -638,14 +638,19 @@ function parseBasicInfoFromText(
       const escapedKey = key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
       // Capture value even when multiple fields exist in one line:
       // e.g. "Client: A Client No: 123"
+      // ★ 콜론 뒤 공백은 **같은 줄**로 한정한다([ \t], \s 아님). \s 는 줄바꿈을 포함해서,
+      //   값이 비어 있는 라벨("Client :" 뒤에 값 없음)이면 다음 줄을 통째로 값으로 삼켰다
+      //   — 보호자 성명이 "Address : 경기 화성시 …" 로 저장되던 원인.
       const regex = new RegExp(
-        `${escapedKey}\\s*[:：]\\s*(.+?)(?=\\s+(?:${escapedLabelAlternation})\\s*[:：]|\\n|$)`,
+        `${escapedKey}[ \\t]*[:：][ \\t]*(.+?)(?=[ \\t]+(?:${escapedLabelAlternation})[ \\t]*[:：]|\\n|$)`,
         "i",
       );
       const match = fullText.match(regex);
       if (match?.[1]) {
         const value = match[1].trim();
-        if (value) return value;
+        // 값이 비고 같은 줄에 다음 라벨이 이어지면("Patient : Species : Canine") 그 라벨 이하가
+        // 통째로 잡힌다 — 이건 값이 아니라 빈 칸이다.
+        if (value && !new RegExp(`^(?:${escapedLabelAlternation})[ \\t]*[:：]`, "i").test(value)) return value;
       }
     }
     return null;
@@ -3871,10 +3876,13 @@ export async function POST(request: NextRequest) {
     // 텍스트 레이어를 주 경로로 쓰지 않는 차트(인투벳 등)도 뽑아 둔다 — 아래에서 전사가 흘린
     // 행 끝 대시(= 음성 결과)를 원문으로 되살리는 백스톱으로 쓴다. LLM 호출이 아니라 로컬 파싱이다.
     let textLayerBackstop: OrderedLine[] | null = null;
+    // 라벨-값 짝이 복원된 y밴드 재구성본 — 기본정보 보충 전용(본문 버킷팅엔 쓰지 않는다).
+    let textLayerBackstopBands: OrderedLine[] = [];
     try {
       const tl = await extractOrderedLinesFromTextLayer(binary);
       const sufficient = isTextLayerSufficient(tl);
       if (sufficient) textLayerBackstop = tl.lines;
+      if (sufficient) textLayerBackstopBands = tl.bandLines;
       if (sufficient && (chartType === "plusvet" || chartType === "woorien_pms")) textLayerLines = tl.lines;
       console.log(
         `[text-bucketing] ${chartType} 텍스트레이어: pages=${tl.numPages} lines=${tl.lines.length} sufficient=${sufficient} (주경로=${textLayerLines !== null})`,
@@ -4056,6 +4064,32 @@ export async function POST(request: NextRequest) {
     const chartTextForBasicInfo = sanitizedLines.map((line) => line.text).join("\n");
     stage = "parseBasicInfoFromText";
     const parsedBasicInfo = parseBasicInfoFromText(chartTextForBasicInfo, chartType, buckets.basicInfo);
+    // 전사가 헤더 표의 값을 통째로 흘리는 일이 있다(예: "Client :" 만 오고 보호자 이름은 사라짐 —
+    // 라벨과 값이 서로 다른 열 블록이라 이미지 전사가 짝을 잃는다). 텍스트 레이어의 y밴드 재구성본
+    // (라벨-값이 같은 줄로 복원됨)으로 **비어 있는 칸만** 채운다. 이미 읽힌 값은 건드리지 않는다.
+    if (textLayerBackstop && textLayerBackstopBands.length > 0) {
+      const missing = (Object.keys(parsedBasicInfo) as Array<keyof typeof parsedBasicInfo>).filter(
+        (k) => !parsedBasicInfo[k],
+      );
+      if (missing.length > 0) {
+        const bandText = textLayerBackstopBands
+          .filter((l) => l.page <= 2) // 기본정보 헤더는 첫 장에 있다
+          .map((l) => l.text)
+          .join("\n");
+        const fromBands = parseBasicInfoFromText(bandText, chartType, []);
+        const filled: string[] = [];
+        for (const key of missing) {
+          const v = fromBands[key];
+          if (typeof v === "string" && v.trim()) {
+            (parsedBasicInfo[key] as string | null) = v;
+            filled.push(String(key));
+          }
+        }
+        if (filled.length > 0) {
+          console.log("[basicInfo] 텍스트 레이어로 보충: %s", JSON.stringify(filled));
+        }
+      }
+    }
     stage = "detectSpeciesProfile";
     const labCanonicalSpecies = detectSpeciesProfile(parsedBasicInfo.species);
     const useLabSinglePass = process.env.LAB_SINGLE_PASS === "true";

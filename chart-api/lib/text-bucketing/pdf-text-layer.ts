@@ -3,6 +3,15 @@ import type { OrderedLine } from '@/lib/text-bucketing/ocr-line-correction';
 
 export type TextLayerResult = {
   lines: OrderedLine[];
+  /**
+   * 같은 y 밴드의 아이템을 **스트림 순서와 무관하게** 한 줄로 묶은 버전.
+   *
+   * `lines` 는 연속된 아이템만 묶으므로, 라벨과 값이 콘텐츠 스트림에서 떨어져 있는 헤더 표
+   * (예: 인투벳 1페이지 "Client :" 와 보호자 이름이 각각 다른 열 블록으로 기록)에서는 값이
+   * 갈라져 나온다. 이 버전은 같은 줄에 있던 것을 다시 붙여 준다 — 기본정보처럼 **라벨-값 짝**이
+   * 중요한 곳에서만 보조로 쓴다(본문 버킷팅은 순서가 중요해 `lines` 를 그대로 쓴다).
+   */
+  bandLines: OrderedLine[];
   numPages: number;
   /** 페이지별 텍스트 레이어 글자 수 (품질 게이트용) */
   charsByPage: Map<number, number>;
@@ -44,6 +53,7 @@ function joinLineItems(items: Item[]): string {
  */
 export async function extractOrderedLinesFromTextLayer(pdfBuffer: Buffer): Promise<TextLayerResult> {
   const lines: OrderedLine[] = [];
+  const bandLines: OrderedLine[] = [];
   const charsByPage = new Map<number, number>();
   let pageCounter = 0;
 
@@ -61,6 +71,8 @@ export async function extractOrderedLinesFromTextLayer(pdfBuffer: Buffer): Promi
       .getTextContent({ normalizeWhitespace: false, disableCombineTextItems: false })
       .then((tc) => {
         const pageLines: Array<{ y: number; text: string }> = [];
+        // y 밴드(정수 반올림) → 그 줄의 아이템들. 스트림에서 떨어져 있어도 같은 줄로 모은다.
+        const bands = new Map<number, Item[]>();
         let lastY: number | undefined;
         let cur: Item[] = [];
         let chars = 0;
@@ -79,6 +91,10 @@ export async function extractOrderedLinesFromTextLayer(pdfBuffer: Buffer): Promi
             str: item.str,
             fs: Math.abs(item.transform?.[3] ?? item.transform?.[0] ?? 10),
           };
+          if (typeof y === 'number') {
+            const band = Math.round(y);
+            bands.set(band, [...(bands.get(band) ?? []), it]);
+          }
           if (lastY !== undefined && y !== lastY) flush();
           cur.push(it);
           lastY = y;
@@ -88,13 +104,17 @@ export async function extractOrderedLinesFromTextLayer(pdfBuffer: Buffer): Promi
         // 안정 정렬(Node 20): y가 같은 줄은 원래 스트림 순서 유지(좌/우 컬럼 헤더 등).
         pageLines.sort((a, b) => b.y - a.y);
         for (const l of pageLines) lines.push({ page, text: l.text });
+        for (const [, items] of [...bands.entries()].sort((a, b) => b[0] - a[0])) {
+          const text = joinLineItems(items);
+          if (text.trim().length > 0) bandLines.push({ page, text: text.trim() });
+        }
         charsByPage.set(page, chars);
         return ''; // pdf-parse 의 합본 text 는 쓰지 않음(우리는 lines 로 받는다)
       });
   };
 
   const data = await pdfParse(pdfBuffer, { pagerender } as unknown as Parameters<typeof pdfParse>[1]);
-  return { lines, numPages: data.numpages, charsByPage };
+  return { lines, bandLines, numPages: data.numpages, charsByPage };
 }
 
 /**
