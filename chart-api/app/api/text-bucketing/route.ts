@@ -48,7 +48,7 @@ import { getChartPgPool } from "@/lib/db";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { canonicalizeLabItemName, canonicalizeLabUnit } from "@/lib/lab-item-normalize";
 import { computeLabFlag, isRecognizedLabItem, looksLikeUrinalysisGroup, refineLabFlag, urinalysisSectionItemName, bloodGasSectionItemName } from "@dashboard/lab-normalize";
-import { normalizeConfusableScripts } from "@/lib/text-bucketing/ocr-line-correction";
+import { normalizeConfusableScripts, restoreTrailingDashFromTextLayer } from "@/lib/text-bucketing/ocr-line-correction";
 import { detectSpeciesProfile } from "@/lib/lab-category-map";
 import {
   efriendsChartBodyByDateFromBlocks,
@@ -2410,6 +2410,50 @@ function isLikelyNoiseLabItemName(name: string | null | undefined) {
   return false;
 }
 
+/** 두 문자열이 한 글자 차이(삽입·삭제·치환) 이내인지. 전사 오타 쌍둥이 판정용. */
+function withinOneEdit(a: string, b: string): boolean {
+  if (a === b) return true;
+  if (Math.abs(a.length - b.length) > 1) return false;
+  const [s, t] = a.length >= b.length ? [a, b] : [b, a];
+  let i = 0;
+  let j = 0;
+  let diff = 0;
+  while (i < s.length && j < t.length) {
+    if (s[i] === t[j]) { i += 1; j += 1; continue; }
+    diff += 1;
+    if (diff > 1) return false;
+    if (s.length === t.length) { i += 1; j += 1; } else { i += 1; }
+  }
+  return diff + (s.length - i) + (t.length - j) <= 1;
+}
+
+/**
+ * 전사가 같은 줄을 두 번 뱉으면서 한쪽 이름에 글자를 더하거나 빼 버린 "쌍둥이" 항목을 지운다.
+ * 예: "WBC-MONO% % 4.7" 와 "WBC-MONNO% % 4.7" 이 함께 남아 같은 항목이 두 번 표시된다.
+ *
+ * 조건을 좁게 둔다 — **값·단위가 같고, 이름이 한 글자 차이이며, 한쪽만 정규화 사전에 있을 때**만
+ * 사전에 없는 쪽을 버린다. 둘 다 인식되면(서로 다른 실제 항목) 손대지 않는다.
+ */
+function dropTranscriptionTwins<T extends { itemName: string; valueText: string; unit?: string | null }>(items: T[]): T[] {
+  const recognized = items.map((it) => isRecognizedLabItem(canonicalizeLabItemName(it.itemName)));
+  const drop = new Set<number>();
+  for (let i = 0; i < items.length; i += 1) {
+    if (recognized[i] || drop.has(i)) continue;
+    const a = items[i]!;
+    const keyA = a.itemName.toUpperCase().replace(/[^A-Z0-9]/g, "");
+    for (let j = 0; j < items.length; j += 1) {
+      if (i === j || !recognized[j]) continue;
+      const b = items[j]!;
+      if (a.valueText.trim() !== b.valueText.trim()) continue;
+      if ((a.unit ?? "").trim() !== (b.unit ?? "").trim()) continue;
+      if (!withinOneEdit(keyA, b.itemName.toUpperCase().replace(/[^A-Z0-9]/g, ""))) continue;
+      drop.add(i);
+      break;
+    }
+  }
+  return drop.size === 0 ? items : items.filter((_, idx) => !drop.has(idx));
+}
+
 function sanitizeLabItems<
   T extends { itemName: string; valueText: string; referenceRange?: string | null; unit?: string | null },
 >(items: T[], chartKind?: ChartKind) {
@@ -2445,7 +2489,7 @@ function sanitizeLabItems<
         : `${item.itemName.toUpperCase().trim()}|${item.valueText.toUpperCase().trim()}`;
     if (!unique.has(key)) unique.set(key, item);
   }
-  return [...unique.values()];
+  return dropTranscriptionTwins([...unique.values()]);
 }
 
 function mapLabItemsToDateGroups(
@@ -3791,16 +3835,19 @@ export async function POST(request: NextRequest) {
     //    이 양식은 텍스트 레이어가 정확해 그대로 버킷팅하면 본문·검사·바이탈이 온전히 나온다
     //    (플랜 표는 어차피 reconstructPlanRowsFromText 로 Gemini 재구성하므로 경로와 무관).
     let textLayerLines: OrderedLine[] | null = null;
-    if (chartType === "plusvet" || chartType === "woorien_pms") {
-      try {
-        const tl = await extractOrderedLinesFromTextLayer(binary);
-        if (isTextLayerSufficient(tl)) textLayerLines = tl.lines;
-        console.log(
-          `[text-bucketing] ${chartType} 텍스트레이어: pages=${tl.numPages} lines=${tl.lines.length} sufficient=${textLayerLines !== null}`,
-        );
-      } catch (e) {
-        console.log("[text-bucketing] 텍스트레이어 추출 실패(Gemini로 폴백):", (e as Error)?.message);
-      }
+    // 텍스트 레이어를 주 경로로 쓰지 않는 차트(인투벳 등)도 뽑아 둔다 — 아래에서 전사가 흘린
+    // 행 끝 대시(= 음성 결과)를 원문으로 되살리는 백스톱으로 쓴다. LLM 호출이 아니라 로컬 파싱이다.
+    let textLayerBackstop: OrderedLine[] | null = null;
+    try {
+      const tl = await extractOrderedLinesFromTextLayer(binary);
+      const sufficient = isTextLayerSufficient(tl);
+      if (sufficient) textLayerBackstop = tl.lines;
+      if (sufficient && (chartType === "plusvet" || chartType === "woorien_pms")) textLayerLines = tl.lines;
+      console.log(
+        `[text-bucketing] ${chartType} 텍스트레이어: pages=${tl.numPages} lines=${tl.lines.length} sufficient=${sufficient} (주경로=${textLayerLines !== null})`,
+      );
+    } catch (e) {
+      console.log("[text-bucketing] 텍스트레이어 추출 실패(Gemini로 폴백):", (e as Error)?.message);
     }
     const usingTextLayer = textLayerLines !== null;
 
@@ -3919,7 +3966,11 @@ export async function POST(request: NextRequest) {
 
     // 버켓팅·파싱 전에 라틴 동음이형(그리스·키릴) 글자를 되돌린다. 여기서 해야 같은 줄이 같은 문자열이
     // 되어 중복 제거가 먹고(전사가 같은 줄을 두 번 뱉는 일이 잦다), 검사명·값도 오염되지 않는다.
-    const sanitizedLines = [...pasteLines, ...patientInfoFromOcr, ...effectivePdfLines].map((line) => {
+    // 그 앞에 전사가 흘린 행 끝 대시를 텍스트 레이어 원문으로 되살린다(빈칸 ≠ 음성).
+    const sanitizedLines = restoreTrailingDashFromTextLayer(
+      [...pasteLines, ...patientInfoFromOcr, ...effectivePdfLines],
+      usingTextLayer ? null : textLayerBackstop,
+    ).map((line) => {
       const text = normalizeConfusableScripts(line.text ?? "");
       return text === line.text ? line : { ...line, text };
     });
@@ -4019,13 +4070,21 @@ export async function POST(request: NextRequest) {
           itemName = canonicalizeLabItemName(item.itemName, labCanonicalSpecies);
         }
         stage = `labItems:refineFlag ${dbg}`;
-        // 정성 결과 표기 정리: 딥스틱 "-"=음성, 잘린 "nom/norm"=정상. 둘 다 flag 정상으로.
-        //  예: BIL "-" → 음성, UBG "nom nom nom" → 정상.
+        // 정성 결과 표기 정리. 단, **대시의 뜻은 검사 종류마다 다르다**:
+        //  · 요검사 딥스틱의 "-" = 음성(NEG). 실제 결과다.
+        //  · 혈액검사(CBC 등)의 "-" = 분석기가 그 항목을 측정하지 않음. 결과가 아니다.
+        //    (예: RETIC# "-" 는 망상적혈구를 안 돌렸다는 뜻이지 "음성"이 아니다.)
+        //  잘린 "nom/norm" 은 정상.
         let valueText = item.valueText;
         let flag = refineLabFlag(item.flag, item.valueText, item.referenceRange);
-        if (isNegativeDashValue(item.valueText)) { valueText = "NEG"; flag = "normal"; }
+        if (isNegativeDashValue(item.valueText)) {
+          if (group.isUrinalysis) { valueText = "NEG"; flag = "normal"; }
+          else { valueText = ""; flag = "unknown"; }
+        }
         else if (isTruncatedNormalValue(item.valueText)) { valueText = "정상"; flag = "normal"; }
         else if (isUnmeasuredPlaceholder(item.valueText)) { valueText = ""; flag = "unknown"; }
+        // 측정값이 없는 항목은 남기지 않는다(빈 줄로 보이느니 안 보이는 편이 낫다는 기존 방침).
+        if (!valueText.trim()) continue;
         // ★ 참고범위가 없는 항목엔 플래그를 붙이지 않는다 — 실제 차트도 그렇게 인쇄한다.
         //   범위가 없으면 정상/이상을 판단할 근거 자체가 없다. 값만 보고 우리가 임의로 붙이면
         //   딥스틱 "+30"(양성)을 정상으로 단정하는 식의 오판이 리포트까지 흘러간다.
