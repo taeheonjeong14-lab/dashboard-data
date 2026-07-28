@@ -35,6 +35,8 @@ import {
   HEALTH_CHECKUP_SYSTEMS_LLM_FIELD_KEYS,
   mergeHealthSystemsDemosWithLlmFields,
 } from '@/lib/chart-app/health-checkup-systems-llm-merge';
+// 프롬프트에도 같은 규칙이 있지만 모델이 "온도이의"처럼 자주 어겨서, 생성 결과에 결정적으로 한 번 더 건다.
+import { fixNameISuffixDeep } from '@dashboard/health-report';
 import type { ReportSourceData } from '@/lib/chart-app/report-types';
 import {
   type HealthCheckupGeneratedContent,
@@ -555,7 +557,10 @@ export async function generateHealthCheckupSection(
     throw new Error(`Gemini returned non-JSON content. Preview: ${preview}`);
   }
 
-  return normalizeSectionResponse(section, parsed);
+  return fixNameISuffixDeep(
+    normalizeSectionResponse(section, parsed),
+    source.basicInfo?.patientName ?? '',
+  );
 }
 
 export async function generateHealthCheckupContent(
@@ -575,7 +580,12 @@ export async function generateHealthCheckupContent(
     '- Return exactly one JSON object (RFC8259). No markdown, no ``` fences, no commentary before or after.',
     '- Use UTF-8 JSON strings only; escape raw line breaks inside string values as \\n.',
   ].join('\n');
-  let stage1 = normalizeStage1(await generateHealthCheckupRawJson(model, stage1Prompt, stage1SchemaHint, options?.usageContext));
+  const patientName = source.basicInfo?.patientName ?? '';
+  // stage 2 프롬프트에 그대로 실려 가는 값이므로 여기서 미리 교정한다(틀린 표기가 뒷단으로 전파되지 않게).
+  let stage1 = fixNameISuffixDeep(
+    normalizeStage1(await generateHealthCheckupRawJson(model, stage1Prompt, stage1SchemaHint, options?.usageContext)),
+    patientName,
+  );
 
   // Stage 2 컨텍스트용으로만 트림된 버전을 따로 관리 (저장되는 stage1은 원본 유지)
   let stage1Context = { ...stage1 };
@@ -593,7 +603,10 @@ export async function generateHealthCheckupContent(
         '입력 JSON:',
         JSON.stringify(stage1Context),
       ].join('\n');
-      stage1Context = normalizeStage1(await generateHealthCheckupRawJson(model, retryPrompt, stage1SchemaHint, options?.usageContext));
+      stage1Context = fixNameISuffixDeep(
+        normalizeStage1(await generateHealthCheckupRawJson(model, retryPrompt, stage1SchemaHint, options?.usageContext)),
+        patientName,
+      );
       if (isWithinPromptLength(stage1Context as HealthCheckupGeneratedContent)) break;
     }
     if (!isWithinPromptLength(stage1Context as HealthCheckupGeneratedContent)) {

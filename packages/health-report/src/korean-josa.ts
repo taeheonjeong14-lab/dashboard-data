@@ -31,3 +31,32 @@ export function hasFinalConsonant(word: string): boolean {
 export function iranSuffix(word: string): string {
   return hasFinalConsonant(word) ? "이란" : "란";
 }
+
+// 애칭 '이' 뒤에 올 수 있는 조사의 첫 글자. '이'는 받침이 없으므로 은/을/과 계열은 오지 않는다.
+const JOSA_AFTER_NAME_I = "는가를의도와랑라야에한처보만까부";
+
+/**
+ * 받침 없는 이름 뒤에 잘못 붙은 애칭 '이'를 걷어낸다. (예: 이름 "온도" → "온도이의" → "온도의")
+ * 받침 있는 이름("버들이의")은 그대로 둔다. 이름에 받침이 없으면 그 자리의 '이'는 조사도 아니므로
+ * 무조건 군더더기다. LLM 이 프롬프트 규칙을 자주 어겨서 생성 결과에 결정적으로 한 번 더 적용한다.
+ */
+export function fixNameISuffix(text: string, name: string): string {
+  const n = (name ?? "").trim();
+  if (!text || !n || hasFinalConsonant(n)) return text;
+  const esc = n.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  // 앞 글자가 한글이면 이름이 아니라 더 긴 낱말의 꼬리다(이름 "도" ↔ 본문 "온도").
+  const re = new RegExp(`(?<![가-힣])${esc}이(?=[${JOSA_AFTER_NAME_I}])`, "g");
+  return text.replace(re, n);
+}
+
+/** LLM 생성 결과처럼 중첩된 객체·배열 전체의 문자열에 {@link fixNameISuffix} 를 적용한다. */
+export function fixNameISuffixDeep<T>(value: T, name: string): T {
+  if (typeof value === "string") return fixNameISuffix(value, name) as T;
+  if (Array.isArray(value)) return value.map((v) => fixNameISuffixDeep(v, name)) as unknown as T;
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>).map(([k, v]) => [k, fixNameISuffixDeep(v, name)]),
+    ) as T;
+  }
+  return value;
+}

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { withErrorLog } from '@dashboard/error-log';
+import { fixNameISuffixDeep } from '@dashboard/health-report';
 import { chartAppAuthMiddleware } from '@/lib/chart-app/auth';
 import { geminiGenerateText, tryParseJsonObject } from '@/lib/chart-app/gemini';
 import {
@@ -675,7 +676,11 @@ const SYS_BLOGPOST = `당신은 동물병원을 운영하는 수의사이자 병
 
 # 화자와 톤
 - 화자: 병원이 환자의 사례를 소개하는 1인칭. 환자 이름은 병원정보의 환자명을 사용.
-  예: "저희 OO동물병원에서 치료받았던 OO이의 사례를 소개합니다."
+  예: "저희 OO동물병원에서 치료받았던 OO의 사례를 소개합니다."
+- ★환자 이름 뒤 애칭 '이'는 **이름의 마지막 글자에 받침(끝소리 자음)이 있을 때만** 붙인다.
+  · 받침 있음 → "버들이는 / 버들이가 / 버들이의 / 버들이를"
+  · 받침 없음 → "보리는 / 보리가 / 보리의", "온도는 / 온도가 / 온도의" (보리이의 ✗, 온도이의 ✗)
+  · 판단은 마지막 글자 한 글자만 본다 — 도·리·코·미·비처럼 모음으로 끝나면 받침 없음이다.
 - 톤: 정보를 전달하고 설명하는 느낌. 친근하되 전문성 유지.
   이야기를 풀어놓기보다 질환과 진료 과정을 차분히 설명하는 무게로.
 - <좋은예시>는 "톤앤매너(문체·어조·문장 호흡·설명 방식)만" 벤치마킹한다.
@@ -1630,10 +1635,12 @@ async function generatePOST(request: NextRequest) {
           maxOutputTokens: stageMaxTokens,
           usageContext: usageCtx('blog_post'),
         });
-        const { parsed: generated, debug: parserDebug } = await parseJsonWithRepair(
+        const { parsed: rawParsed, debug: parserDebug } = await parseJsonWithRepair(
           raw,
           'object with keys: title (string), bodyMarkdown (string), tags (string[]), charCount (number)',
         );
+        // 프롬프트에도 규칙이 있지만 모델이 "온도이의"처럼 자주 어겨서, 받침 없는 이름 뒤 애칭 '이'를 결정적으로 걷어낸다.
+        const generated = fixNameISuffixDeep(rawParsed, patientName);
         const saved = await upsertGeneratedRunContent(pool, runId, BLOG_POST, generated);
         // 프롬프트 개선용 BEFORE 스냅샷 — 이 시점의 AI 초안을 남긴다(확정 시 AFTER 와 비교).
         // 전체 생성에서만 갱신한다: 섹션 재생성·간결화는 부분 수정이라 BEFORE 기준이 되면 신호가 흐려진다.
