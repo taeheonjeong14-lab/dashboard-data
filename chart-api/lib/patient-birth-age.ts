@@ -47,15 +47,28 @@ export function normalizeBirthToIso(value: string | null | undefined): string | 
   return parseLeadingIsoDate(iso);
 }
 
-/** PlusVet `3Y 2M` style (case-insensitive, flexible spaces) */
+/**
+ * PlusVet `3Y 2M` style (case-insensitive, flexible spaces).
+ * OCR reads `0` as the letter `O` often enough that `7Y OM` is common — accept it in the
+ * digit slots only. Without this the whole row is dropped and birth/age come back null.
+ */
 export function parsePlusVetAgeYM(raw: string | null | undefined): { years: number; months: number } | null {
   const t = (raw ?? '').trim();
-  const m = t.match(/(\d+)\s*Y\s*(\d+)\s*M/i);
-  if (!m) return null;
-  const years = Number.parseInt(m[1] ?? '', 10);
-  const months = Number.parseInt(m[2] ?? '', 10);
-  if (!Number.isFinite(years) || !Number.isFinite(months) || years < 0 || months < 0 || months > 11) return null;
-  return { years, months };
+  const toInt = (s: string) => Number.parseInt(s.replace(/[Oo]/g, '0'), 10);
+  const m = t.match(/([\dOo]+)\s*Y\s*([\dOo]+)\s*M/i);
+  if (m) {
+    const years = toInt(m[1] ?? '');
+    const months = toInt(m[2] ?? '');
+    if (!Number.isFinite(years) || !Number.isFinite(months) || years < 0 || months < 0 || months > 11) return null;
+    return { years, months };
+  }
+  // 개월 토큰이 통째로 유실된 경우("7Y") — 연 단위만이라도 살린다. 0개월로 보는 오차(<1년)는
+  // 생일 자체를 못 구해 생일·나이가 함께 빈 칸이 되는 것보다 낫다.
+  const yOnly = t.match(/([\dOo]+)\s*Y\b/i);
+  if (!yOnly) return null;
+  const years = toInt(yOnly[1] ?? '');
+  if (!Number.isFinite(years) || years < 0) return null;
+  return { years, months: 0 };
 }
 
 /** Asia/Seoul calendar "today" as UTC midnight for that civil date */
