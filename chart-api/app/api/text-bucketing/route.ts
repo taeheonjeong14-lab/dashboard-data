@@ -29,6 +29,11 @@ import {
   extractWoorienChartBodyVisitDate,
 } from "@/lib/text-bucketing/chart-dates";
 import { runGoogleVisionOcr, type OcrRow } from "@/lib/google-vision";
+import {
+  buildOcrPositionIndex,
+  dropPlanLinesAboveHeader,
+  type OcrPositionIndex,
+} from "@/lib/text-bucketing/ocr-line-position";
 import { extractOrderedLinesFromPdf, getOpenAiOrderedLinesModel, reconstructPlanRowsFromText } from "@/lib/report-llm";
 import { extractOrderedLinesFromTextLayer, isTextLayerSufficient } from "@/lib/text-bucketing/pdf-text-layer";
 import { hospitalHasTokens, chargeOperationTokens, isBarunFreeOperation } from "@/lib/billing/token-charge";
@@ -714,7 +719,11 @@ function isMeaningfulChartBodyLine(text: string): boolean {
   return t.replace(/[^A-Za-z가-힣]/g, "").length >= 2;
 }
 
-function groupChartBodyByDate(lines: BucketedLine[], chartKind: ChartKind): ChartBodyByDateGroup[] {
+function groupChartBodyByDate(
+  lines: BucketedLine[],
+  chartKind: ChartKind,
+  ocrPositions: OcrPositionIndex | null = null,
+): ChartBodyByDateGroup[] {
   const linesToGroup =
     chartKind === "efriends" && lines.length > 0
       ? lines.slice(findEfriendsChartBodyContentStart(lines))
@@ -882,13 +891,14 @@ function groupChartBodyByDate(lines: BucketedLine[], chartKind: ChartKind): Char
     .filter(([, groupLines]) => groupLines.some((line) => isMeaningfulChartBodyLine(line.text)))
     .map(([dateTime, groupLines]) => {
     const texts = groupLines.map((line) => line.text);
+    const pages = groupLines.map((line) => line.page);
 
     let bodyText: string;
     let planText: string;
     let planDetected: boolean;
 
     if (chartKind === "plusvet") {
-      const soap = splitPlusVetSoapSections(texts);
+      const soap = splitPlusVetSoapSections(texts, pages, ocrPositions);
       bodyText = soap.bodyText;
       planText = soap.planText;
       planDetected = soap.planDetected;
@@ -3000,11 +3010,30 @@ function findPlusVetPlanStartIndex(lines: string[]): number {
   return -1;
 }
 
-function splitPlusVetSoapSections(texts: string[]): {
+function splitPlusVetSoapSections(
+  texts: string[],
+  pages: number[] = [],
+  pos: OcrPositionIndex | null = null,
+): {
   bodyText: string;
   planText: string;
   planDetected: boolean;
 } {
+  const planTextFrom = (from: number, to: number): string => {
+    const { kept, dropped } = dropPlanLinesAboveHeader(
+      texts.slice(from, to),
+      pages.slice(from, to),
+      pos,
+    );
+    if (dropped.length > 0) {
+      console.log(
+        `[splitPlusVetSoapSections] Plan 표 위쪽(사진 등) 줄 ${dropped.length}개 제외:`,
+        JSON.stringify(dropped.slice(0, 12)),
+      );
+    }
+    return kept.join("\n").trim();
+  };
+
   let diagnosticResultsIdx = -1;
   let subjectiveIdx = -1;
   let objectiveIdx = -1;
@@ -3038,7 +3067,7 @@ function splitPlusVetSoapSections(texts: string[]): {
     const fallbackPlan = findPlusVetPlanStartIndex(texts.slice(0, cutoff));
     return {
       bodyText: fallbackPlan >= 0 ? texts.slice(0, fallbackPlan).join("\n").trim() : texts.slice(0, cutoff).join("\n").trim(),
-      planText: fallbackPlan >= 0 ? texts.slice(fallbackPlan, cutoff).join("\n").trim() : "",
+      planText: fallbackPlan >= 0 ? planTextFrom(fallbackPlan, cutoff) : "",
       planDetected: fallbackPlan >= 0,
     };
   }
@@ -3055,7 +3084,7 @@ function splitPlusVetSoapSections(texts: string[]): {
     bodyLines = texts.slice(0, bodyEnd);
   }
 
-  const planText = planIdx >= 0 ? texts.slice(planIdx, cutoff).join("\n").trim() : "";
+  const planText = planIdx >= 0 ? planTextFrom(planIdx, cutoff) : "";
 
   return {
     bodyText: bodyLines.join("\n").trim(),
@@ -4016,6 +4045,10 @@ export async function POST(request: NextRequest) {
       return text === line.text ? line : { ...line, text };
     });
 
+    // 전사 줄에 OCR 행의 페이지 위치를 되붙이는 인덱스. 사진 속 인쇄 글자가 전사 순서를 타고
+    // 엉뚱한 구간에 끼어드는 것을 좌표로 걸러내는 데 쓴다(OCR 미동작이면 빈 인덱스 → no-op).
+    const ocrPositions = buildOcrPositionIndex(ocr.rows);
+
     stage = "assignLinesToBuckets";
     let buckets = assignLinesToBuckets(sanitizedLines, ocr.rows, chartType);
     let physicalExamBucket: (typeof buckets)["vitals"] | undefined;
@@ -4043,8 +4076,8 @@ export async function POST(request: NextRequest) {
       chartType === "efriends"
         ? efriendsDirectBlocks.length > 0
           ? efriendsDirectBlocks
-          : groupChartBodyByDate(buckets.chartBody, chartType)
-        : groupChartBodyByDate(buckets.chartBody, chartType);
+          : groupChartBodyByDate(buckets.chartBody, chartType, ocrPositions)
+        : groupChartBodyByDate(buckets.chartBody, chartType, ocrPositions);
     if (
       chartType === "efriends" &&
       chartBodyByDate.length === 0 &&
