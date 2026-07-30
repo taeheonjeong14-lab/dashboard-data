@@ -13,9 +13,12 @@ import {
 import {
   summarizeMetaActions,
   META_FUNNEL_WEB_STEP_PRIORITY,
-  type MetaActionTotal,
 } from "@dashboard/meta-ads-metrics";
-import type { MetaAdsConversionRow, MetaAdsDailyRow, MetaAdsStatus } from "@/lib/queries";
+import type {
+  MetaAdsConversionRow,
+  MetaAdsDailyRow,
+  MetaAdsStatus,
+} from "@/lib/queries";
 
 /** 차트 색은 CSS 변수로 — SearchAdSection 은 #ffffff 등을 하드코딩해 다크에서 어긋난다. */
 const AXIS = "var(--border-strong)";
@@ -54,7 +57,12 @@ function num(v: number): string {
   return Math.round(v).toLocaleString("ko-KR");
 }
 
-type Totals = { impressions: number; clicks: number; reach: number; spend: number };
+type Totals = {
+  impressions: number;
+  clicks: number;
+  reach: number;
+  spend: number;
+};
 
 function derive(t: Totals, metric: MetricKey): number {
   switch (metric) {
@@ -75,7 +83,9 @@ function KpiBox({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-md border border-[var(--accent)]/20 bg-[var(--accent-subtle)] px-4 py-3.5">
       <div className="text-xs text-[var(--text-secondary)]">{label}</div>
-      <div className="mt-1.5 text-2xl font-bold tabular-nums text-[var(--text)]">{value}</div>
+      <div className="mt-1.5 text-2xl font-bold tabular-nums text-[var(--text)]">
+        {value}
+      </div>
     </div>
   );
 }
@@ -98,7 +108,8 @@ function EmptyState({
   let body: string;
   if (!linked) {
     title = "인스타그램 광고를 운영하지 않는 병원입니다";
-    body = "광고를 시작하셨다면 담당자에게 알려주세요. 연동 후 성과가 이 화면에 표시됩니다.";
+    body =
+      "광고를 시작하셨다면 담당자에게 알려주세요. 연동 후 성과가 이 화면에 표시됩니다.";
   } else if (!synced) {
     title = "연동이 완료되었습니다";
     body = "첫 수집 후(보통 1일 이내) 데이터가 표시됩니다.";
@@ -113,8 +124,8 @@ function EmptyState({
       <p className="mt-1 text-sm text-[var(--text-muted)]">{body}</p>
       {showDiagnostics ? (
         <p className="mt-2 text-[11px] text-[var(--text-muted)]">
-          광고계정 {status?.adAccountId || "미지정"} · 수집 사용 {status?.isActive ? "ON" : "OFF"} ·
-          마지막 수집{" "}
+          광고계정 {status?.adAccountId || "미지정"} · 수집 사용{" "}
+          {status?.isActive ? "ON" : "OFF"} · 마지막 수집{" "}
           {status?.lastSyncedAt
             ? new Date(status.lastSyncedAt).toLocaleString("ko-KR", {
                 dateStyle: "short",
@@ -123,58 +134,6 @@ function EmptyState({
             : "없음"}
         </p>
       ) : null}
-    </div>
-  );
-}
-
-/** 광고 반응 — 값 크기는 막대 길이로만 표현한다(색으로 서열을 만들지 않는다). */
-function ActionRows({ rows }: { rows: MetaActionTotal[] }) {
-  if (rows.length === 0) {
-    return (
-      <p className="border border-[var(--border)] bg-[var(--bg)] py-6 text-center text-sm text-[var(--text-muted)]">
-        선택 기간에 데이터가 없습니다.
-      </p>
-    );
-  }
-  const max = Math.max(...rows.map((r) => r.total), 1);
-  return (
-    <div className="overflow-x-auto border border-[var(--border)]">
-      <table className="w-full border-collapse text-left text-sm">
-        <thead>
-          <tr className="border-b border-[var(--border)] bg-[var(--bg-subtle)] text-[var(--text-secondary)]">
-            {/* 헤더는 모두 좌측 정렬 — 값 셀은 숫자라 우측 정렬을 유지한다. */}
-            <th className="py-2 pl-3 pr-2 font-medium">항목</th>
-            <th className="py-2 px-2 font-medium">비중</th>
-            <th className="py-2 pl-2 pr-3 font-medium">횟수</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((r) => (
-            <tr key={r.actionType} className="border-b border-[var(--border)] last:border-0">
-              <td className="py-2 pl-3 pr-2 text-[var(--text)]">
-                {r.label}
-                {r.negative ? (
-                  <span className="ml-1.5 text-[11px] text-[var(--danger,#dc2626)]">부정 신호</span>
-                ) : null}
-                {r.custom ? (
-                  <span className="ml-1.5 text-[11px] text-[var(--text-muted)]">커스텀</span>
-                ) : null}
-              </td>
-              <td className="w-[45%] py-2 px-2">
-                <div className="h-1.5 w-full rounded-sm bg-[var(--bg-subtle)]">
-                  <div
-                    className="h-1.5 rounded-sm bg-[var(--accent)]"
-                    style={{ width: `${(r.total / max) * 100}%` }}
-                  />
-                </div>
-              </td>
-              <td className="py-2 pl-2 pr-3 text-right font-semibold tabular-nums text-[var(--text)]">
-                {num(r.total)}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
     </div>
   );
 }
@@ -197,7 +156,10 @@ export default function MetaAdsSection({
   const [rangeEnd, setRangeEnd] = useState("");
 
   const bounds = useMemo(() => {
-    const dates = daily.map((d) => d.metricDate).filter(Boolean).sort();
+    const dates = daily
+      .map((d) => d.metricDate)
+      .filter(Boolean)
+      .sort();
     if (dates.length === 0) return null;
     return { min: dates[0], max: dates[dates.length - 1] };
   }, [daily]);
@@ -208,13 +170,18 @@ export default function MetaAdsSection({
   const end = rangeEnd || maxB;
 
   const rows = useMemo(
-    () => daily.filter((r) => (!start || r.metricDate >= start) && (!end || r.metricDate <= end)),
+    () =>
+      daily.filter(
+        (r) =>
+          (!start || r.metricDate >= start) && (!end || r.metricDate <= end),
+      ),
     [daily, start, end],
   );
   const convRows = useMemo(
     () =>
       conversions.filter(
-        (r) => (!start || r.metricDate >= start) && (!end || r.metricDate <= end),
+        (r) =>
+          (!start || r.metricDate >= start) && (!end || r.metricDate <= end),
       ),
     [conversions, start, end],
   );
@@ -234,8 +201,14 @@ export default function MetaAdsSection({
   const trend = useMemo(() => {
     const byKey = new Map<string, Totals>();
     for (const r of rows) {
-      const key = granularity === "month" ? r.metricDate.slice(0, 7) : r.metricDate;
-      const cur = byKey.get(key) ?? { impressions: 0, clicks: 0, reach: 0, spend: 0 };
+      const key =
+        granularity === "month" ? r.metricDate.slice(0, 7) : r.metricDate;
+      const cur = byKey.get(key) ?? {
+        impressions: 0,
+        clicks: 0,
+        reach: 0,
+        spend: 0,
+      };
       cur.impressions += r.impressions;
       cur.clicks += r.clicks;
       cur.reach += r.reach;
@@ -253,16 +226,14 @@ export default function MetaAdsSection({
     const byAd = new Map<string, { name: string; campaign: string } & Totals>();
     for (const r of rows) {
       const key = r.adId || r.adName || "(알 수 없음)";
-      const cur =
-        byAd.get(key) ??
-        {
-          name: r.adName || "(이름 없음)",
-          campaign: r.campaignName || "-",
-          impressions: 0,
-          clicks: 0,
-          reach: 0,
-          spend: 0,
-        };
+      const cur = byAd.get(key) ?? {
+        name: r.adName || "(이름 없음)",
+        campaign: r.campaignName || "-",
+        impressions: 0,
+        clicks: 0,
+        reach: 0,
+        spend: 0,
+      };
       cur.impressions += r.impressions;
       cur.clicks += r.clicks;
       cur.reach += r.reach;
@@ -272,22 +243,45 @@ export default function MetaAdsSection({
     return [...byAd.values()].sort((a, b) => b.spend - a.spend);
   }, [rows]);
 
-  /** 깔때기 — 노출 → 클릭 → 랜딩 도달 → 대표 웹 전환. 웹사이트 전환 표와 내용이 겹쳐 이것만 둔다. */
+  /**
+   * 유입 흐름 — 노출 → 링크 클릭 → 랜딩 페이지 조회 → 콘텐츠 조회.
+   *
+   * 클릭은 `clicks`(전체) 대신 **`link_click`** 을 쓴다. 전체 클릭에는 좋아요·프로필 클릭처럼
+   * 사이트로 갈 의도가 없는 클릭이 섞여 있어(실측 1,554 vs 1,408), 분모로 쓰면 랜딩 도달률이
+   * 실제보다 나빠 보인다(77% vs 85%).
+   *
+   * 마지막에 실제 전환(예약·잠재고객·연락)이 잡히면 한 단계 더 붙는다 — 픽셀에 그 이벤트를
+   * 심는 순간 코드 수정 없이 흐름이 길어진다.
+   */
   const funnel = useMemo(() => {
+    const adByType = new Map(actions.ad.map((a) => [a.actionType, a]));
     const webByType = new Map(actions.web.map((w) => [w.actionType, w]));
-    const landing = webByType.get("landing_page_view");
-    const finalStep =
-      META_FUNNEL_WEB_STEP_PRIORITY.filter((t) => t !== "landing_page_view")
-        .map((t) => webByType.get(t))
-        .find((w) => w != null) ?? null;
     const steps: { label: string; value: number }[] = [
       { label: "노출", value: overall.impressions },
-      { label: "클릭", value: overall.clicks },
     ];
-    if (landing) steps.push({ label: landing.label, value: landing.total });
-    if (finalStep) steps.push({ label: finalStep.label, value: finalStep.total });
+    for (const t of ["link_click"]) {
+      const hit = adByType.get(t);
+      if (hit) steps.push({ label: hit.label, value: hit.total });
+    }
+    for (const t of [
+      "landing_page_view",
+      "offsite_conversion.fb_pixel_view_content",
+    ]) {
+      const hit = webByType.get(t);
+      if (hit) steps.push({ label: hit.label, value: hit.total });
+    }
+    const conversion =
+      META_FUNNEL_WEB_STEP_PRIORITY.filter(
+        (t) =>
+          t !== "landing_page_view" &&
+          t !== "offsite_conversion.fb_pixel_view_content",
+      )
+        .map((t) => webByType.get(t))
+        .find((w) => w != null) ?? null;
+    if (conversion)
+      steps.push({ label: conversion.label, value: conversion.total });
     return steps;
-  }, [actions.web, overall]);
+  }, [actions.ad, actions.web, overall]);
 
   if (!bounds || daily.length === 0) {
     return <EmptyState status={status} showDiagnostics={showDiagnostics} />;
@@ -376,18 +370,34 @@ export default function MetaAdsSection({
 
       {/* 요약 KPI */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-        <KpiBox label="노출" value={formatMetric("impressions", overall.impressions)} />
+        <KpiBox
+          label="노출"
+          value={formatMetric("impressions", overall.impressions)}
+        />
         <KpiBox label="도달" value={num(overall.reach)} />
-        <KpiBox label="클릭" value={formatMetric("clicks", overall.clicks)} />
-        <KpiBox label="클릭율" value={formatMetric("ctr", derive(overall, "ctr"))} />
+        {/* "클릭"은 Meta 의 clicks(전체) — 유입 흐름의 "링크 클릭"(1,408)과 다른 값(1,554)이라
+            이름으로 구분해 둔다. 좋아요·프로필 클릭 등이 함께 들어 있다. */}
+        <KpiBox
+          label="클릭(전체)"
+          value={formatMetric("clicks", overall.clicks)}
+        />
+        <KpiBox
+          label="클릭율"
+          value={formatMetric("ctr", derive(overall, "ctr"))}
+        />
         <KpiBox label="총비용" value={formatMetric("spend", overall.spend)} />
-        <KpiBox label="CPC" value={formatMetric("cpc", derive(overall, "cpc"))} />
+        <KpiBox
+          label="CPC"
+          value={formatMetric("cpc", derive(overall, "cpc"))}
+        />
       </div>
 
       {/* 추세 — 지표 토글 */}
       <section>
         <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-          <h3 className="text-base font-semibold text-[var(--text)]">광고 추세</h3>
+          <h3 className="text-base font-semibold text-[var(--text)]">
+            광고 추세
+          </h3>
           <div className="flex rounded border border-[var(--border-strong)] p-0.5">
             {METRICS.map((m) => (
               <button
@@ -406,8 +416,16 @@ export default function MetaAdsSection({
           </div>
         </div>
         <div className="h-[300px] w-full min-w-0">
-          <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={200}>
-            <LineChart data={trend} margin={{ top: 8, right: 12, bottom: 8, left: 4 }}>
+          <ResponsiveContainer
+            width="100%"
+            height="100%"
+            minWidth={0}
+            minHeight={200}
+          >
+            <LineChart
+              data={trend}
+              margin={{ top: 8, right: 12, bottom: 8, left: 4 }}
+            >
               <CartesianGrid stroke={GRID} strokeDasharray="3 3" />
               <XAxis
                 dataKey="label"
@@ -426,7 +444,10 @@ export default function MetaAdsSection({
                 contentStyle={tooltipStyle}
                 labelStyle={{ color: "var(--text)" }}
                 formatter={(value) => [
-                  formatMetric(trendMetric, typeof value === "number" ? value : Number(value)),
+                  formatMetric(
+                    trendMetric,
+                    typeof value === "number" ? value : Number(value),
+                  ),
                   METRICS.find((m) => m.key === trendMetric)?.label ?? "",
                 ]}
               />
@@ -436,7 +457,11 @@ export default function MetaAdsSection({
                 name={METRICS.find((m) => m.key === trendMetric)?.label ?? ""}
                 stroke={SERIES}
                 strokeWidth={2}
-                dot={granularity === "day" ? false : { r: 3, fill: SERIES, strokeWidth: 0 }}
+                dot={
+                  granularity === "day"
+                    ? false
+                    : { r: 3, fill: SERIES, strokeWidth: 0 }
+                }
                 activeDot={{ r: 4 }}
                 connectNulls={false}
               />
@@ -445,85 +470,90 @@ export default function MetaAdsSection({
         </div>
       </section>
 
-      <div className="grid grid-cols-1 gap-8 xl:grid-cols-2">
-        {/* 광고별 성과 */}
-        <section>
-          <h3 className="mb-2 text-base font-semibold text-[var(--text)]">광고별 성과</h3>
-          <div className="overflow-x-auto border border-[var(--border)]">
-            <table className="w-full border-collapse text-left text-sm">
-              <thead>
-                <tr className="border-b border-[var(--border)] bg-[var(--bg-subtle)] text-[var(--text-secondary)]">
-                  {/* 헤더는 모두 좌측 정렬 — 값 셀은 숫자라 우측 정렬을 유지한다. */}
-                  <th className="py-2 pl-3 pr-2 font-medium">광고 / 캠페인</th>
-                  <th className="py-2 px-2 font-medium">노출</th>
-                  <th className="py-2 px-2 font-medium">클릭</th>
-                  <th className="py-2 px-2 font-medium">클릭율</th>
-                  <th className="py-2 px-2 font-medium">비용</th>
-                  <th className="py-2 pl-2 pr-3 font-medium">CPC</th>
+      {/* 광고별 성과 — 광고 반응 표를 유입 흐름에 합쳤으므로 이제 전체 폭을 쓴다. */}
+      <section>
+        <h3 className="mb-2 text-base font-semibold text-[var(--text)]">
+          광고별 성과
+        </h3>
+        <div className="overflow-x-auto border border-[var(--border)]">
+          <table className="w-full border-collapse text-left text-sm">
+            <thead>
+              <tr className="border-b border-[var(--border)] bg-[var(--bg-subtle)] text-[var(--text-secondary)]">
+                {/* 헤더는 모두 좌측 정렬 — 값 셀은 숫자라 우측 정렬을 유지한다. */}
+                <th className="py-2 pl-3 pr-2 font-medium">광고 / 캠페인</th>
+                <th className="py-2 px-2 font-medium">노출</th>
+                <th className="py-2 px-2 font-medium">클릭</th>
+                <th className="py-2 px-2 font-medium">클릭율</th>
+                <th className="py-2 px-2 font-medium">비용</th>
+                <th className="py-2 pl-2 pr-3 font-medium">CPC</th>
+              </tr>
+            </thead>
+            <tbody>
+              {adTable.length === 0 ? (
+                <tr>
+                  <td
+                    colSpan={6}
+                    className="py-6 text-center text-[var(--text-muted)]"
+                  >
+                    선택 기간에 데이터가 없습니다.
+                  </td>
                 </tr>
-              </thead>
-              <tbody>
-                {adTable.length === 0 ? (
-                  <tr>
-                    <td colSpan={6} className="py-6 text-center text-[var(--text-muted)]">
-                      선택 기간에 데이터가 없습니다.
+              ) : (
+                adTable.map((a, i) => (
+                  <tr
+                    key={i}
+                    className="border-b border-[var(--border)] last:border-0"
+                  >
+                    <td className="py-2 pl-3 pr-2">
+                      <div className="text-[var(--text)]">{a.name}</div>
+                      <div className="text-[11px] text-[var(--text-muted)]">
+                        {a.campaign}
+                      </div>
+                    </td>
+                    <td className="py-2 px-2 text-right tabular-nums">
+                      {num(a.impressions)}
+                    </td>
+                    <td className="py-2 px-2 text-right tabular-nums">
+                      {num(a.clicks)}
+                    </td>
+                    <td className="py-2 px-2 text-right tabular-nums">
+                      {formatMetric("ctr", derive(a, "ctr"))}
+                    </td>
+                    <td className="py-2 px-2 text-right tabular-nums">
+                      {formatMetric("spend", a.spend)}
+                    </td>
+                    <td className="py-2 pl-2 pr-3 text-right tabular-nums">
+                      {formatMetric("cpc", derive(a, "cpc"))}
                     </td>
                   </tr>
-                ) : (
-                  adTable.map((a, i) => (
-                    <tr key={i} className="border-b border-[var(--border)] last:border-0">
-                      <td className="py-2 pl-3 pr-2">
-                        <div className="text-[var(--text)]">{a.name}</div>
-                        <div className="text-[11px] text-[var(--text-muted)]">{a.campaign}</div>
-                      </td>
-                      <td className="py-2 px-2 text-right tabular-nums">{num(a.impressions)}</td>
-                      <td className="py-2 px-2 text-right tabular-nums">{num(a.clicks)}</td>
-                      <td className="py-2 px-2 text-right tabular-nums">
-                        {formatMetric("ctr", derive(a, "ctr"))}
-                      </td>
-                      <td className="py-2 px-2 text-right tabular-nums">
-                        {formatMetric("spend", a.spend)}
-                      </td>
-                      <td className="py-2 pl-2 pr-3 text-right tabular-nums">
-                        {formatMetric("cpc", derive(a, "cpc"))}
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </section>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </section>
 
-        {/* 광고 반응 */}
-        <section>
-          <h3 className="mb-2 text-base font-semibold text-[var(--text)]">광고 반응</h3>
-          <ActionRows rows={actions.ad} />
-          <p className="mt-2 text-[11px] text-[var(--text-muted)]">
-            인스타그램·페이스북 <b>안에서</b> 일어난 반응입니다. 웹사이트에서 일어난 일은 아래
-            &quot;웹사이트 유입 및 전환&quot;에 있습니다.
-          </p>
-        </section>
-      </div>
-
-      {/* 웹사이트 유입 및 전환 — 깔때기 */}
+      {/* 유입 흐름 — 광고(노출·링크 클릭)에서 웹사이트(랜딩·콘텐츠 조회)까지 한 줄로 잇는다. */}
       <section>
-        <h3 className="mb-2 text-base font-semibold text-[var(--text)]">웹사이트 유입 및 전환</h3>
+        <h3 className="mb-2 text-base font-semibold text-[var(--text)]">
+          유입 흐름
+        </h3>
         {/*
           해석 주의를 화면에 남긴다. 이 숫자만 보면 "광고가 실패했다"고 읽히지만, 전화·네이버 예약
           처럼 웹사이트를 거치지 않는 문의는 픽셀이 볼 수 없다. 그 한계를 적어두지 않으면 잘못된
           판단(광고 중단 등)으로 이어진다.
         */}
         <div className="mb-3 rounded-md border-l-2 border-[var(--accent)] bg-[var(--accent-subtle)] px-3 py-2 text-[11px] leading-relaxed text-[var(--text-secondary)]">
-          웹사이트에 설치된 Meta 픽셀이 보고한 값으로, <b>인스타그램 광고로 유입된 방문</b>만
-          포함됩니다.
+          <b>노출·링크 클릭</b>은 인스타그램에서, <b>랜딩 페이지 조회부터</b>는
+          웹사이트에 설치된 Meta 픽셀이 보고한 값입니다. 모두{" "}
+          <b>인스타그램 광고로 유입된 방문</b>만 포함됩니다.
           <br />
-          <b>전화·네이버 예약으로 직접 들어온 문의는 집계되지 않습니다</b> — 실제 문의는 이 숫자보다
-          많을 수 있습니다.
+          <b>전화·네이버 예약으로 직접 들어온 문의는 집계되지 않습니다</b> —
+          실제 문의는 이 숫자보다 많을 수 있습니다.
         </div>
-        {funnel.length < 3 ? (
+        {funnel.length < 2 ? (
           <p className="border border-[var(--border)] bg-[var(--bg)] py-6 text-center text-sm text-[var(--text-muted)]">
-            픽셀 데이터가 없어 유입 단계를 표시할 수 없습니다.
+            표시할 유입 단계가 없습니다.
           </p>
         ) : (
           <div className="flex flex-col gap-2 border border-[var(--border)] p-4">
