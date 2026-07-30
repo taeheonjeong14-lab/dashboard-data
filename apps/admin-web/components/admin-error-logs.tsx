@@ -7,7 +7,8 @@ type ErrorLog = {
   id: string;
   occurred_at: string;
   app: string;
-  source: 'server' | 'client';
+  /** worker = 수집 워커(별도 머신의 백그라운드 프로세스). 웹 요청이 아니라 배지·필터를 따로 둔다. */
+  source: 'server' | 'client' | 'worker';
   route: string | null;
   method: string | null;
   status_code: number | null;
@@ -29,7 +30,15 @@ const SOURCE_OPTIONS = [
   { value: '', label: '전체' },
   { value: 'server', label: '서버' },
   { value: 'client', label: '브라우저' },
+  { value: 'worker', label: '수집 워커' },
 ];
+
+/** 배지 문구·색. 미지의 source 는 서버 취급(기존 동작 유지). */
+const SOURCE_BADGE: Record<string, { label: string; bg: string; fg: string }> = {
+  client: { label: '브라우저', bg: '#eff6ff', fg: '#1d4ed8' },
+  worker: { label: '수집 워커', bg: '#f5f3ff', fg: '#6d28d9' },
+  server: { label: '서버', bg: '#fef2f2', fg: '#b91c1c' },
+};
 
 function formatTime(iso: string): string {
   return new Date(iso).toLocaleString('ko-KR', { hour12: false });
@@ -191,11 +200,11 @@ export default function AdminErrorLogs() {
                     fontWeight: 600,
                     padding: '2px 6px',
                     borderRadius: 4,
-                    background: log.source === 'client' ? '#eff6ff' : '#fef2f2',
-                    color: log.source === 'client' ? '#1d4ed8' : '#b91c1c',
+                    background: (SOURCE_BADGE[log.source] ?? SOURCE_BADGE.server).bg,
+                    color: (SOURCE_BADGE[log.source] ?? SOURCE_BADGE.server).fg,
                   }}
                 >
-                  {log.source === 'client' ? '브라우저' : '서버'}
+                  {(SOURCE_BADGE[log.source] ?? SOURCE_BADGE.server).label}
                 </span>
                 {log.status_code ? (
                   <span style={{ fontSize: 14, color: '#6b7280', fontFamily: 'ui-monospace, monospace' }}>

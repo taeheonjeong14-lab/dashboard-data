@@ -7,10 +7,11 @@ export const maxDuration = 15;
 const PAGE_SIZE = 50;
 
 /**
- * hospital-web 오류 로그 조회. core.error_logs 는 RLS 로 잠겨 있어 service_role 로만 읽는다.
+ * 전 앱 오류 로그 조회. core.error_logs 는 RLS 로 잠겨 있어 service_role 로만 읽는다.
  *
- * ?source=server|client  ?hospitalId=  ?days=7  ?q=  ?fingerprint=  ?page=0
+ * ?source=server|client|worker  ?hospitalId=  ?days=7  ?q=  ?fingerprint=  ?page=0
  * fingerprint 를 주면 같은 지문의 발생 이력만 본다(그룹 상세).
+ * worker = 수집 워커(collect-worker.js)가 남긴 수집·알림톡 실패.
  */
 export async function GET(req: NextRequest): Promise<NextResponse> {
   const gate = await requireAdminApi();
@@ -34,7 +35,9 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     .range(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE - 1);
 
   const source = sp.get('source');
-  if (source === 'server' || source === 'client') query = query.eq('source', source);
+  if (source === 'server' || source === 'client' || source === 'worker') {
+    query = query.eq('source', source);
+  }
 
   const hospitalId = sp.get('hospitalId');
   if (hospitalId) query = query.eq('hospital_id', hospitalId);

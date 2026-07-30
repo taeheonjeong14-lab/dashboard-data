@@ -6,7 +6,7 @@
  */
 
 export type ExplainInput = {
-  source: 'server' | 'client';
+  source: 'server' | 'client' | 'worker';
   feature: string | null;
   route: string | null;
   status_code: number | null;
@@ -55,6 +55,15 @@ export function explainError(input: ExplainInput): string {
     return cause
       ? `자동 실행되는 ${subject} 작업이 실패했습니다 — ${cause}.`
       : `자동 실행되는 ${subject} 작업이 서버 오류로 실패했습니다.`;
+  }
+
+  // 수집 워커도 사용자 행동이 아니다(크론과 같은 이유) — 별도 머신에서 스스로 도는 배치다.
+  // "병원 사용자가 하다 실패" 로 쓰면 거짓말이 된다.
+  if (input.source === 'worker') {
+    const subject = subjectOf(input);
+    return cause
+      ? `자동으로 도는 ${subject} 작업이 실패했습니다 — ${cause}.`
+      : `자동으로 도는 ${subject} 작업이 실패했습니다.`;
   }
 
   if (input.source === 'client') {

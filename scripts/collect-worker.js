@@ -14,6 +14,7 @@
  */
 
 const { spawn } = require("child_process");
+const crypto = require("crypto");
 const path = require("path");
 require("dotenv").config({ path: path.resolve(__dirname, "..", ".env") });
 
@@ -95,6 +96,54 @@ async function notifyAdminError(source, message, link) {
     );
   } catch (e) {
     console.warn("[collect-worker] admin 오류 알림 실패(무시):", describeError(e));
+  }
+}
+
+/**
+ * 수집 실패를 core.error_logs 에 적재 — admin `/admin/error-logs` 에서 웹 오류와 함께 보기 위함.
+ *
+ * 왜 직접 insert 하나: 공용 `@dashboard/error-log` 는 Next.js 앱의 instrumentation(onRequestError)과
+ * withErrorLog(라우트 래퍼) 두 겹으로 되어 있어 **HTTP 요청이 있어야** 동작한다. 이 워커는 요청이
+ * 아니라 백그라운드 프로세스라 그 어디에도 걸리지 않았다(그래서 지금까지 수집 실패가 에러 로그에
+ * 한 줄도 안 올라왔다). 패키지도 TS 소스를 consumer 가 트랜스파일하는 형태라 순수 node 스크립트에서
+ * 가져다 쓸 수 없다 → 이미 있는 service_role 클라이언트로 직접 넣는다(notifications 과 같은 방식).
+ *
+ * source='worker' 는 이 워커 전용 값(웹은 server/client). admin 화면이 배지·필터로 구분한다.
+ * 적재 실패는 절대 수집을 막지 않는다 — 경고만 찍고 넘어간다.
+ */
+async function logWorkerError({ route, feature, message, stack, hospitalId, context }) {
+  try {
+    // Postgres text 는 NUL 을 저장하지 못한다 — 자식 출력(Windows 의 Chrome·python)에 섞여 들어오면
+    // insert 가 통째로 거부되므로 미리 지운다. (아래 safeOutput 과 같은 이유)
+    const NUL = /\u0000/g;
+    const msg = String(message || "(사유 미상)").replace(NUL, "").slice(0, 4000);
+    // 같은 오류 묶어보기용 지문 — 숫자·UUID 를 지워 정규화한 뒤 route 와 함께 해시.
+    const normalized = msg
+      .replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi, "<uuid>")
+      .replace(/\d+/g, "<n>")
+      .slice(0, 500);
+    const fingerprint = crypto
+      .createHash("sha256")
+      .update(`${route || ""}|${normalized}`)
+      .digest("hex")
+      .slice(0, 32);
+    const { error } = await supabase
+      .schema("core")
+      .from("error_logs")
+      .insert({
+        app: "collect-worker",
+        source: "worker",
+        route: route || null,
+        feature: feature || null,
+        message: msg,
+        stack: stack ? String(stack).replace(NUL, "").slice(0, 8000) : null,
+        hospital_id: hospitalId || null,
+        context: context || {},
+        fingerprint,
+      });
+    if (error) console.warn("[collect-worker] error_logs 적재 실패(무시):", error.message);
+  } catch (e) {
+    console.warn("[collect-worker] error_logs 적재 예외(무시):", describeError(e));
   }
 }
 
@@ -343,6 +392,16 @@ async function reapStaleJobs() {
     `진행이 멈춘 수집 작업 ${stale.length}건을 중단(고아 잡)으로 처리했어요. (job ${stale.map((r) => r.id).join(", ")})`,
     "/admin/data-upload?section=collect",
   );
+  // 잡마다 한 줄 — 어느 병원 잡이 멈췄는지 에러 로그에서 바로 보이게.
+  for (const row of stale) {
+    await logWorkerError({
+      route: "reaper",
+      feature: "데이터 수집 (고아 잡 회수)",
+      message: `${STALE_JOB_TIMEOUT_MS / 60_000}분 이상 진행이 없어 워커 중단으로 판단하고 failed 처리했습니다.`,
+      hospitalId: row.hospital_id ?? null,
+      context: { jobId: row.id, lastAliveAt: row.updated_at, stepsFilter: row.steps_filter ?? null },
+    });
+  }
 }
 
 async function pollAndRun() {
@@ -486,6 +545,37 @@ async function pollAndRun() {
         `수집 작업이 실패했어요. (job ${job.id})`,
         "/admin/data-upload?section=collect",
       );
+      // 에러 로그에는 **실패한 step 단위로** 남긴다 — "잡이 실패했다" 한 줄보다 어느 수집이
+      // 왜 죽었는지가 바로 보인다. step 파싱이 안 됐을 때만 잡 단위 한 줄로 폴백한다.
+      // 파이썬 수집기(순위·SearchAd·리뷰)도 이 워커가 자식으로 돌리므로 여기서 함께 잡힌다.
+      const failedSteps = finalSteps.filter((st) => st && st.error);
+      if (failedSteps.length > 0) {
+        for (const st of failedSteps) {
+          await logWorkerError({
+            route: st.name || "unknown-step",
+            feature: `데이터 수집 — ${st.name || "알 수 없는 단계"}`,
+            message: st.error,
+            hospitalId: st.hospitalId ?? job.hospital_id ?? null,
+            context: {
+              jobId: job.id,
+              exitCode: code,
+              stepIndex: st.index ?? null,
+              stepTotal: st.total ?? null,
+              hospitalName: st.hospitalName ?? null,
+            },
+          });
+        }
+      } else {
+        await logWorkerError({
+          route: "collect-all",
+          feature: "데이터 수집",
+          message: `수집 스크립트가 비정상 종료했습니다(exit ${code}). 단계별 실패 메시지를 찾지 못했습니다.`,
+          hospitalId: job.hospital_id ?? null,
+          // 원인 추적용으로 출력 끝부분만 — 전체 로그는 collect_jobs.output 에 있다.
+          stack: typeof output === "string" ? output.slice(-4000) : null,
+          context: { jobId: job.id, exitCode: code, stepsFilter: job.steps_filter ?? null },
+        });
+      }
     }
 
     // Postgres text/jsonb는 NUL(\u0000)을 저장하지 못한다. 자식 출력(특히 Windows의 Chrome/python)에
@@ -688,6 +778,13 @@ async function processAlimtalkOutbox() {
           `${row.receiver || "보호자"}님께 알림톡 발송에 실패했어요. (${result.message || "사유 미상"}, code=${result.code})`,
           "/admin/data-upload?section=collect",
         );
+        await logWorkerError({
+          route: "alimtalk",
+          feature: "알림톡 발송",
+          message: `${result.message || "사유 미상"} (code=${result.code})`,
+          hospitalId: row.hospital_id ?? null,
+          context: { outboxId: row.id, resultCode: result.code },
+        });
       }
 
       // 병원 유저(마스터·스태프)에게 발송 결과 알림
