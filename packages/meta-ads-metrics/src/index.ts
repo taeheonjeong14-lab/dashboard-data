@@ -33,6 +33,13 @@ export type MetaActionSpec = {
  * 표시 순서 = 배열 순서. 실측에 없던 항목(예약·문의 등)도 미리 넣어 뒀다 —
  * 병원이 픽셀 이벤트를 제대로 심으면 코드 수정 없이 바로 이름이 붙어 나온다.
  */
+/**
+ * 표시명은 **Meta 이벤트 관리자의 한국어 표기와 맞춘다.** 우리 화면과 Meta 화면을 나란히 놓고
+ * 비교하는 일이 잦은데 이름이 다르면 같은 값인지 헷갈린다(예: 우리 "문의(리드)" ↔ Meta "잠재 고객").
+ *
+ * `landing_page_view` 를 "랜딩 페이지 조회" 로 두는 이유: KPI 박스의 "도달"(reach)과 이름이
+ * 겹치면 서로 다른 두 지표가 같은 낱말을 쓰게 된다.
+ */
 export const META_ACTION_SPECS: readonly MetaActionSpec[] = [
   // ── 광고 반응 ────────────────────────────────────────────────
   { actionType: 'link_click', label: '링크 클릭', group: 'ad' },
@@ -46,7 +53,7 @@ export const META_ACTION_SPECS: readonly MetaActionSpec[] = [
   },
   {
     actionType: 'post_reaction',
-    label: '반응(좋아요 등)',
+    label: '게시물 반응',
     group: 'ad',
     // post_reaction − post_unlike = post_net_like (실측 45 − 6 = 39). 총량 하나만 쓴다.
     aliases: ['onsite_conversion.post_net_like', 'onsite_conversion.post_unlike'],
@@ -60,12 +67,12 @@ export const META_ACTION_SPECS: readonly MetaActionSpec[] = [
   { actionType: 'video_view', label: '동영상 조회', group: 'ad' },
   {
     actionType: 'onsite_conversion.messaging_conversation_started_7d',
-    label: 'DM 문의 시작',
+    label: '메시지 대화 시작(DM)',
     group: 'ad',
   },
   {
     actionType: 'onsite_conversion.messaging_block',
-    label: 'DM 차단',
+    label: '메시지 차단(DM)',
     group: 'ad',
     negative: true,
   },
@@ -73,7 +80,7 @@ export const META_ACTION_SPECS: readonly MetaActionSpec[] = [
   // ── 웹사이트(픽셀) ───────────────────────────────────────────
   {
     actionType: 'landing_page_view',
-    label: '랜딩페이지 도달',
+    label: '랜딩 페이지 조회',
     group: 'web',
     aliases: ['omni_landing_page_view'],
   },
@@ -88,12 +95,15 @@ export const META_ACTION_SPECS: readonly MetaActionSpec[] = [
       'onsite_web_app_view_content',
     ],
   },
-  { actionType: 'offsite_conversion.fb_pixel_lead', label: '문의(리드)', group: 'web' },
+  // `Lead` 가 실제로 무엇을 뜻하는지는 병원마다 다르다(픽셀을 어디에 심었는지에 달림).
+  // 예: 말랑동물행동연구소는 "행동진료 예약" 버튼 클릭에 심겨 있어 예약 완료가 아니라 예약 시도다.
+  // 그래서 우리가 의미를 단정하지 않고 Meta 표기("잠재 고객")를 그대로 쓴다.
+  { actionType: 'offsite_conversion.fb_pixel_lead', label: '잠재 고객', group: 'web' },
   { actionType: 'offsite_conversion.fb_pixel_schedule', label: '예약', group: 'web' },
   { actionType: 'offsite_conversion.fb_pixel_contact', label: '연락', group: 'web' },
   {
     actionType: 'offsite_conversion.fb_pixel_complete_registration',
-    label: '가입 완료',
+    label: '등록 완료',
     group: 'web',
   },
 ];

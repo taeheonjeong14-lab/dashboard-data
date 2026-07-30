@@ -507,10 +507,18 @@ export default function MetaAdsSection({
       {/* 웹사이트 유입 및 전환 — 깔때기 */}
       <section>
         <h3 className="mb-2 text-base font-semibold text-[var(--text)]">웹사이트 유입 및 전환</h3>
-        <p className="mb-3 text-[11px] text-[var(--text-muted)]">
+        {/*
+          해석 주의를 화면에 남긴다. 이 숫자만 보면 "광고가 실패했다"고 읽히지만, 전화·네이버 예약
+          처럼 웹사이트를 거치지 않는 문의는 픽셀이 볼 수 없다. 그 한계를 적어두지 않으면 잘못된
+          판단(광고 중단 등)으로 이어진다.
+        */}
+        <div className="mb-3 rounded-md border-l-2 border-[var(--accent)] bg-[var(--accent-subtle)] px-3 py-2 text-[11px] leading-relaxed text-[var(--text-secondary)]">
           웹사이트에 설치된 Meta 픽셀이 보고한 값으로, <b>인스타그램 광고로 유입된 방문</b>만
-          포함됩니다. 광고를 보지 않고 들어온 방문은 집계되지 않습니다.
-        </p>
+          포함됩니다.
+          <br />
+          <b>전화·네이버 예약으로 직접 들어온 문의는 집계되지 않습니다</b> — 실제 문의는 이 숫자보다
+          많을 수 있습니다.
+        </div>
         {funnel.length < 3 ? (
           <p className="border border-[var(--border)] bg-[var(--bg)] py-6 text-center text-sm text-[var(--text-muted)]">
             픽셀 데이터가 없어 유입 단계를 표시할 수 없습니다.
