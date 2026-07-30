@@ -62,12 +62,6 @@ export const META_ACTION_SPECS: readonly MetaActionSpec[] = [
     label: '메시지 대화 시작(DM)',
     group: 'ad',
   },
-  {
-    actionType: 'onsite_conversion.messaging_block',
-    label: '메시지 차단(DM)',
-    group: 'ad',
-    negative: true,
-  },
 
   // ── 웹사이트(픽셀) ───────────────────────────────────────────
   {
@@ -115,6 +109,9 @@ const META_NOISE_ACTIONS: ReadonlySet<string> = new Set([
   'post_interaction_net',
   'post_engagement',
   'page_engagement',
+  // 메시지 차단 — 노출 68,342 대비 4건 수준이라 신호가 되기엔 표본이 너무 작고,
+  // 리포트에서 부정 지표만 눈에 띄어 오해를 만든다. 필요해지면 스펙으로 되살리면 된다.
+  'onsite_conversion.messaging_block',
 ]);
 
 const SPEC_BY_TYPE = new Map<string, MetaActionSpec>();

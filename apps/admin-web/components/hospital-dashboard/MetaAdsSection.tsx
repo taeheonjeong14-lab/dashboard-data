@@ -142,9 +142,10 @@ function ActionRows({ rows }: { rows: MetaActionTotal[] }) {
       <table className="w-full border-collapse text-left text-sm">
         <thead>
           <tr className="border-b border-[var(--border)] bg-[var(--bg-subtle)] text-[var(--text-secondary)]">
+            {/* 헤더는 모두 좌측 정렬 — 값 셀은 숫자라 우측 정렬을 유지한다. */}
             <th className="py-2 pl-3 pr-2 font-medium">항목</th>
             <th className="py-2 px-2 font-medium">비중</th>
-            <th className="py-2 pl-2 pr-3 text-right font-medium">횟수</th>
+            <th className="py-2 pl-2 pr-3 font-medium">횟수</th>
           </tr>
         </thead>
         <tbody>
@@ -452,12 +453,13 @@ export default function MetaAdsSection({
             <table className="w-full border-collapse text-left text-sm">
               <thead>
                 <tr className="border-b border-[var(--border)] bg-[var(--bg-subtle)] text-[var(--text-secondary)]">
+                  {/* 헤더는 모두 좌측 정렬 — 값 셀은 숫자라 우측 정렬을 유지한다. */}
                   <th className="py-2 pl-3 pr-2 font-medium">광고 / 캠페인</th>
-                  <th className="py-2 px-2 text-right font-medium">노출</th>
-                  <th className="py-2 px-2 text-right font-medium">클릭</th>
-                  <th className="py-2 px-2 text-right font-medium">클릭율</th>
-                  <th className="py-2 px-2 text-right font-medium">비용</th>
-                  <th className="py-2 pl-2 pr-3 text-right font-medium">CPC</th>
+                  <th className="py-2 px-2 font-medium">노출</th>
+                  <th className="py-2 px-2 font-medium">클릭</th>
+                  <th className="py-2 px-2 font-medium">클릭율</th>
+                  <th className="py-2 px-2 font-medium">비용</th>
+                  <th className="py-2 pl-2 pr-3 font-medium">CPC</th>
                 </tr>
               </thead>
               <tbody>
