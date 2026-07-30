@@ -35,7 +35,7 @@ const tooltipStyle = {
 type MetricKey = "impressions" | "clicks" | "ctr" | "spend" | "cpc";
 type Granularity = "day" | "month";
 
-/** 파워링크 탭과 같은 5지표 토글 (도달은 KPI 박스에만 — 기간 합산이 의미가 약해 추세에선 뺀다). */
+/** 파워링크 탭과 같은 5지표 토글. */
 const METRICS: { key: MetricKey; label: string }[] = [
   { key: "impressions", label: "노출" },
   { key: "clicks", label: "클릭" },
@@ -57,10 +57,14 @@ function num(v: number): string {
   return Math.round(v).toLocaleString("ko-KR");
 }
 
+/**
+ * 합산 가능한 지표만 담는다. **도달(reach)은 일부러 넣지 않았다** — 중복 제거된 사람 수라
+ * 일별 값을 더하면 같은 사람을 여러 번 세게 된다(실측 빈도 1.04 라는 불가능한 값이 나왔다).
+ * 원시 일별 도달은 MetaAdsDailyRow 에 그대로 있으니 하루 단위로 쓸 일이 생기면 거기서 읽으면 된다.
+ */
 type Totals = {
   impressions: number;
   clicks: number;
-  reach: number;
   spend: number;
 };
 
@@ -187,11 +191,10 @@ export default function MetaAdsSection({
   );
 
   const overall = useMemo(() => {
-    const t: Totals = { impressions: 0, clicks: 0, reach: 0, spend: 0 };
+    const t: Totals = { impressions: 0, clicks: 0, spend: 0 };
     for (const r of rows) {
       t.impressions += r.impressions;
       t.clicks += r.clicks;
-      t.reach += r.reach;
       t.spend += r.spend;
     }
     return t;
@@ -206,12 +209,10 @@ export default function MetaAdsSection({
       const cur = byKey.get(key) ?? {
         impressions: 0,
         clicks: 0,
-        reach: 0,
         spend: 0,
       };
       cur.impressions += r.impressions;
       cur.clicks += r.clicks;
-      cur.reach += r.reach;
       cur.spend += r.spend;
       byKey.set(key, cur);
     }
@@ -231,12 +232,10 @@ export default function MetaAdsSection({
         campaign: r.campaignName || "-",
         impressions: 0,
         clicks: 0,
-        reach: 0,
         spend: 0,
       };
       cur.impressions += r.impressions;
       cur.clicks += r.clicks;
-      cur.reach += r.reach;
       cur.spend += r.spend;
       byAd.set(key, cur);
     }
@@ -368,13 +367,18 @@ export default function MetaAdsSection({
         </div>
       </div>
 
-      {/* 요약 KPI */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+      {/*
+        요약 KPI — **도달(reach)은 넣지 않는다.** 도달은 중복을 제거한 사람 수라 일별 값을 더할 수
+        없다(같은 사람이 10일에 걸쳐 봤으면 합계에서 10명이 된다). 실측에서 노출 68,342 · 일별 도달
+        단순합 65,575 → 빈도 1.04 라는 불가능한 값이 나왔다. 올바른 기간 도달은 그 기간마다 Meta 에
+        따로 물어야 얻어지므로(우리가 계산할 수 없다) 기간을 자유롭게 고르는 이 화면에서는 뺀다.
+        일별 원시값은 DB 에 남아 있어(하루 단위로는 정확) 고정 기간 지표가 필요해지면 쓸 수 있다.
+      */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
         <KpiBox
           label="노출"
           value={formatMetric("impressions", overall.impressions)}
         />
-        <KpiBox label="도달" value={num(overall.reach)} />
         {/* "클릭"은 Meta 의 clicks(전체) — 유입 흐름의 "링크 클릭"(1,408)과 다른 값(1,554)이라
             이름으로 구분해 둔다. 좋아요·프로필 클릭 등이 함께 들어 있다. */}
         <KpiBox
