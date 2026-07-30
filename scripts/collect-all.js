@@ -466,6 +466,15 @@ async function main() {
       command: "python",
       args: [path.join(ROOT_DIR, "scripts", "naver-rank-main.py")],
       options: { env: rankEnv },
+      // 순위 전용 Chrome 을 매번 새로 띄운다. 워커 머신을 오래 켜두면 이 Chrome 이 상해서
+      // /json/version 은 응답하는데 CDP 세션만 못 여는 상태가 되고, 그러면 34개 조합을 하나씩
+      // 재시도하며 24분을 태우고 전멸한다(실측 7일 22건). 상했는지 판별하는 대신 누적을 없앤다.
+      prepare: {
+        name: "순위 전용 Chrome 재시작",
+        command: process.execPath,
+        args: [path.join(ROOT_DIR, "scripts", "restart-rank-chrome.js")],
+        options: { env: rankEnv },
+      },
     },
     {
       key: "searchad",
@@ -510,6 +519,27 @@ async function main() {
     const step = steps[i];
     const stepIndex = i + 1;
     runState.phase = `단계 ${stepIndex}/${total}: ${step.name}`;
+    // prepare(사전 준비)가 있으면 먼저 돌린다. 같은 단계 번호로 표시해 진행률·단계 수는 그대로 둔다.
+    if (step.prepare) {
+      const prep = await runStep(
+        stepIndex,
+        total,
+        `${step.name} · ${step.prepare.name}`,
+        step.prepare.command,
+        step.prepare.args,
+        step.prepare.options,
+      );
+      if (!prep.success) {
+        // 준비가 실패하면 본 단계는 건너뛴다 — 어차피 실패할 것을 오래 태우지 않는다.
+        emit(`↳ 사전 준비 실패로 '${step.name}' 단계를 건너뜁니다.`, "err");
+        failedSteps.push({
+          index: stepIndex,
+          name: step.name,
+          error: `${step.prepare.name} 실패: ${prep.error || "사유 미상"}`,
+        });
+        continue;
+      }
+    }
     const result = await runStep(stepIndex, total, step.name, step.command, step.args, step.options);
     if (result.success) {
       runState.completedSteps.push({ index: stepIndex, name: step.name });
