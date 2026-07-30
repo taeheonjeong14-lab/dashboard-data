@@ -4,6 +4,73 @@
  */
 import { recordTokenUsage, geminiUsageFromMetadata, type UsageContext } from '@/lib/billing/usage-log';
 
+/**
+ * 일시 오류(구글 과부하·점검·레이트리밋·게이트웨이)로 보는 HTTP 상태.
+ * 503 UNAVAILABLE 이 대표적이고, 429 는 레이트리밋이라 잠깐 쉬면 풀린다.
+ */
+const RETRYABLE_HTTP_STATUS = new Set([408, 429, 500, 502, 503, 504]);
+
+const MAX_ATTEMPTS = 3;
+const BASE_BACKOFF_MS = 800;
+
+/**
+ * 재시도가 과금을 늘리지 않는 이유 — **응답을 받아 본문까지 성공한 호출만** recordTokenUsage 로
+ * 적재하고, 차감(billing.token_charge_operation)은 그 적재분의 합산 원가로 계산한다.
+ * 여기서 재시도하는 건 HTTP 단계에서 실패해 적재가 아예 없는 호출뿐이라, 구글도 우리도 비용이 0이다.
+ * ★그래서 "응답은 200인데 내용이 마음에 안 든다"(빈 텍스트·파싱 실패)는 절대 여기서 재시도하지 않는다.
+ *   그건 이미 구글이 토큰을 태운 호출이라, 다시 부르면 진짜로 비용이 두 배가 된다.
+ */
+async function geminiFetchWithRetry(url: string, body: unknown): Promise<Response> {
+  let lastError: unknown;
+
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
+    let res: Response;
+    try {
+      res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+    } catch (e) {
+      // 네트워크 단절 등 — 요청이 닿지 않았으므로 과금도 없다.
+      lastError = e;
+      if (attempt === MAX_ATTEMPTS) throw e;
+      await sleep(backoffMs(attempt));
+      continue;
+    }
+
+    if (res.ok || !RETRYABLE_HTTP_STATUS.has(res.status) || attempt === MAX_ATTEMPTS) {
+      return res;
+    }
+
+    const retryAfter = parseRetryAfterMs(res.headers.get('retry-after'));
+    console.warn(
+      `[gemini] HTTP ${res.status} — ${attempt}/${MAX_ATTEMPTS} 재시도 (${retryAfter ?? backoffMs(attempt)}ms 후)`,
+    );
+    await sleep(retryAfter ?? backoffMs(attempt));
+  }
+
+  // 위 루프는 항상 return 하거나 throw 하지만, 타입상 도달 가능해 방어적으로 둔다.
+  throw lastError ?? new Error('Gemini request failed');
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/** 지수 backoff + 지터(동시에 7개가 몰려 같은 순간 재시도하는 것을 흩는다). */
+function backoffMs(attempt: number): number {
+  return BASE_BACKOFF_MS * 2 ** (attempt - 1) + Math.floor(Math.random() * 300);
+}
+
+/** `Retry-After`(초). 터무니없이 길면 무시하고 기본 backoff 를 쓴다. */
+function parseRetryAfterMs(header: string | null): number | null {
+  if (!header) return null;
+  const seconds = Number(header.trim());
+  if (!Number.isFinite(seconds) || seconds <= 0 || seconds > 10) return null;
+  return Math.ceil(seconds * 1000);
+}
+
 export type GeminiTextOptions = {
   /** 기본 8192. 긴 버킷팅 JSON 등은 늘림 */
   maxOutputTokens?: number;
@@ -53,11 +120,7 @@ export async function geminiGenerateText(prompt: string, opts?: GeminiTextOption
     requestBody.systemInstruction = { parts: [{ text: opts.systemInstruction }] };
   }
 
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(requestBody),
-  });
+  const res = await geminiFetchWithRetry(url, requestBody);
 
   if (!res.ok) {
     const t = await res.text();
@@ -116,13 +179,9 @@ export async function geminiGenerateFromParts(
     return { text: p.text };
   });
 
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      contents: [{ parts: apiParts }],
-      generationConfig: { temperature: 0.2, maxOutputTokens: 8192 },
-    }),
+  const res = await geminiFetchWithRetry(url, {
+    contents: [{ parts: apiParts }],
+    generationConfig: { temperature: 0.2, maxOutputTokens: 8192 },
   });
 
   if (!res.ok) {
