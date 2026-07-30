@@ -13,8 +13,61 @@ export type ExplainInput = {
   message: string;
 };
 
-/** 메시지 본문에서 원인 유형을 추린다. 위에서부터 먼저 맞는 것을 쓴다. */
-const CAUSE_RULES: Array<[RegExp, string]> = [
+/**
+ * 메시지에서 디버그 포트를 뽑는다. 순위 수집은 병원별/용도별로 포트가 달라(7000~7012, 9222, 9223)
+ * "어느 포트가 문제였나"가 곧 조치 대상이다. 못 찾으면 null.
+ */
+function debugPortOf(message: string): string | null {
+  const m =
+    /remote-debugging-port=(\d{2,5})/.exec(message) ??
+    /127\.0\.0\.1:(\d{2,5})/.exec(message) ??
+    /localhost:(\d{2,5})/.exec(message);
+  return m ? m[1] : null;
+}
+
+/**
+ * 메시지 본문에서 원인 유형을 추린다. 위에서부터 먼저 맞는 것을 쓴다.
+ *
+ * 두 번째 요소가 함수면 매치 결과로 문구를 만든다(포트 번호처럼 값을 넣어야 하는 경우).
+ * **수집(워커) 규칙을 맨 위에 둔다** — 아래 일반 규칙이 더 넓어서(예: ECONNREFUSED →
+ * "외부 서비스에 연결하지 못했습니다") 먼저 걸리면 정작 필요한 "어느 포트의 Chrome이 죽었나"가
+ * 묻혀 버린다. 그게 지금까지 수집 실패 원인을 못 짚던 이유다.
+ */
+type CauseRule = [RegExp, string | ((message: string) => string)];
+
+const CAUSE_RULES: Array<CauseRule> = [
+  // ── 수집 워커 ────────────────────────────────────────────────
+  [
+    /디버깅 Chrome\(CDP\) 연결 실패|connect_over_cdp|CDP 연결 재시도/i,
+    (msg) => {
+      const port = debugPortOf(msg);
+      const where = port ? `디버그 Chrome(포트 ${port})` : '디버그 Chrome';
+      return `${where}에 연결하지 못했습니다. 그 포트의 Chrome이 꺼져 있거나, 오래 켜져 있어 응답하지 않는 상태입니다. 워커 머신에서 해당 Chrome을 재시작하세요`;
+    },
+  ],
+  [
+    /순위를 한 건도 수집하지 못했습니다/,
+    '네이버 순위를 한 건도 수집하지 못했습니다. 디버그 Chrome 연결 실패·타임아웃·네이버 차단 중 하나입니다',
+  ],
+  [
+    /Target closed|browser has been closed|Protocol error|Target page.*closed/i,
+    '수집 중 브라우저 세션이 끊겼습니다. Chrome이 도중에 닫혔거나 응답을 멈췄습니다',
+  ],
+  [/캡차|captcha|비정상적인 접근|접근이 차단/i, '네이버가 접근을 차단한 것으로 보입니다'],
+  [
+    /진행이 없어 워커 중단|고아 잡/,
+    '수집 도중 워커가 멈춰 작업이 자동 회수됐습니다. 워커 프로세스가 죽었거나 머신이 재부팅됐을 수 있습니다',
+  ],
+  [
+    /종료 코드 \d+\.\s*(콘솔 출력|로그 파일)/,
+    '수집 스크립트가 비정상 종료했지만 사유가 출력에 남지 않았습니다. 수집 이력의 전체 로그를 확인하세요',
+  ],
+  [
+    /OAuthException|access token|Error validating access token|토큰이 만료/i,
+    '외부 서비스(Meta 등) 액세스 토큰이 만료되었거나 유효하지 않습니다. 토큰을 갱신하세요',
+  ],
+
+  // ── 웹(기존) ────────────────────────────────────────────────
   [/너무 깁니다|페이지까지만/i, 'PDF 페이지 수가 한도를 넘었습니다'],
   [/용량 초과|파일 크기|너무 큽니다/i, '파일 용량이 한도를 넘었습니다'],
   [/timeout|timed out|ETIMEDOUT|시간 초과/i, '처리 시간이 초과됐습니다'],
@@ -35,7 +88,10 @@ const CAUSE_RULES: Array<[RegExp, string]> = [
 ];
 
 function causeOf(message: string): string | null {
-  for (const [re, text] of CAUSE_RULES) if (re.test(message)) return text;
+  for (const [re, text] of CAUSE_RULES) {
+    if (!re.test(message)) continue;
+    return typeof text === 'function' ? text(message) : text;
+  }
   return null;
 }
 
