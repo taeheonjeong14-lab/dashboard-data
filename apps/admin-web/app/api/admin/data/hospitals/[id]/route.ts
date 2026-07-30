@@ -166,6 +166,9 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
         ads.googleads_refresh_token_encrypted != null
           ? String(ads.googleads_refresh_token_encrypted || '')
           : '',
+      meta_ad_account_id:
+        ads.meta_ad_account_id != null ? String(ads.meta_ad_account_id || '') : '',
+      meta_is_active: ads.meta_is_active === true,
       naver_login_id: naverLoginId,
       naver_login_pw: naverLoginPw,
       wish_keywords: wishKeywords,

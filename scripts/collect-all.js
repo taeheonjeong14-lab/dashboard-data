@@ -465,6 +465,14 @@ async function main() {
       args: [path.join(ROOT_DIR, "scripts", "label-place-reviews.mjs"), resolved.hospitalId],
       options: { env: baseEnv },
     },
+    {
+      // Meta(인스타그램) 광고 — 크롬/로그인이 필요 없는 공식 API 수집이라 baseEnv 로 충분.
+      key: "meta_ads",
+      name: "Meta 광고 일별 성과 수집",
+      command: process.execPath,
+      args: [path.join(ROOT_DIR, "scripts", "meta-ads-collect-main.js")],
+      options: { env: baseEnv },
+    },
   ];
   const steps = STEPS_FILTER ? allSteps.filter((s) => STEPS_FILTER.includes(s.key)) : allSteps;
 

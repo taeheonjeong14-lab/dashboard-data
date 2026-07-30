@@ -93,6 +93,8 @@ const EMPTY_FORM = {
   searchad_secret_key_encrypted: '',
   googleads_customer_id: '',
   googleads_refresh_token_encrypted: '',
+  meta_ad_account_id: '',
+  meta_is_active: false,
   barun_plan_enabled: false,
   barun_plan_start: '',
   barun_plan_end: '',
@@ -1012,6 +1014,23 @@ export default function AdminHospitalsManager({
                   </LabeledField>
                   <LabeledField label="GoogleAds refresh_token_encrypted" hint="구글 광고 refresh token (암호화 저장)">
                     <input value={form.googleads_refresh_token_encrypted} onChange={(e) => setForm((f) => ({ ...f, googleads_refresh_token_encrypted: e.target.value }))} style={fieldStyle} />
+                  </LabeledField>
+                </DataCard>
+
+                {/* Meta(인스타그램) 광고 — 토큰은 병원별이 아니라 대행사 공용 1개라 여기엔 광고계정 ID만 둔다. */}
+                <DataCard title="Meta(인스타그램) 광고" desc="Meta 광고 API로 인스타그램·페이스북 광고 성과를 수집합니다. 토큰은 전사 공용이라 여기선 광고계정만 지정합니다.">
+                  <LabeledField label="Meta 광고계정 ID" hint="act_1234567890 (act_ 없이 숫자만 넣어도 됩니다)">
+                    <input value={form.meta_ad_account_id} onChange={(e) => setForm((f) => ({ ...f, meta_ad_account_id: e.target.value }))} style={fieldStyle} />
+                  </LabeledField>
+                  <LabeledField label="Meta 수집 사용" hint="체크하면 자동 수집 대상에 포함됩니다">
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, color: 'var(--text-secondary)' }}>
+                      <input
+                        type="checkbox"
+                        checked={form.meta_is_active}
+                        onChange={(e) => setForm((f) => ({ ...f, meta_is_active: e.target.checked }))}
+                      />
+                      사용
+                    </label>
                   </LabeledField>
                 </DataCard>
               </div>

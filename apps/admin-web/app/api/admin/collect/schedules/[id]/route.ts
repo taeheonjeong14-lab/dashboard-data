@@ -4,7 +4,7 @@ import { createServiceRoleClient } from '@/lib/supabase/service-role';
 
 export const dynamic = 'force-dynamic';
 
-const VALID_STEPS = ['blog_metrics', 'smartplace', 'keyword_rank', 'searchad', 'place_reviews'];
+const VALID_STEPS = ['blog_metrics', 'smartplace', 'keyword_rank', 'searchad', 'place_reviews', 'meta_ads'];
 
 function normalize(body: Record<string, unknown>) {
   const steps = Array.isArray(body.steps)

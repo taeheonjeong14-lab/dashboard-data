@@ -49,6 +49,7 @@ const COLLECT_STEPS: { key: string; label: string }[] = [
   { key: 'keyword_rank', label: '블로그/플레이스 키워드 순위' },
   { key: 'searchad', label: 'SearchAd 일별 성과' },
   { key: 'place_reviews', label: '스마트플레이스 리뷰 추이' },
+  { key: 'meta_ads', label: 'Meta 광고 일별 성과' },
 ];
 
 function formatKst(iso: string): string {

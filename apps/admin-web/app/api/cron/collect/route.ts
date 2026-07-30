@@ -4,7 +4,7 @@ import { createServiceRoleClient } from '@/lib/supabase/service-role';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
-const VALID_STEPS = ['blog_metrics', 'smartplace', 'keyword_rank', 'searchad', 'place_reviews'];
+const VALID_STEPS = ['blog_metrics', 'smartplace', 'keyword_rank', 'searchad', 'place_reviews', 'meta_ads'];
 
 type Schedule = {
   id: string;

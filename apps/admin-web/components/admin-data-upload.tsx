@@ -24,6 +24,7 @@ import {
   Loader2,
   Clock,
   ShoppingCart,
+  Megaphone,
   X,
   type LucideIcon,
 } from 'lucide-react';
@@ -34,6 +35,7 @@ const COLLECT_STEPS = [
   { key: 'keyword_rank', label: '블로그/플레이스 키워드 순위', short: '키워드 순위' },
   { key: 'searchad', label: 'SearchAd 일별 성과', short: 'SearchAd' },
   { key: 'place_reviews', label: '스마트플레이스 리뷰 추이', short: '리뷰 추이' },
+  { key: 'meta_ads', label: 'Meta 광고 일별 성과', short: 'Meta 광고' },
 ] as const;
 
 type StepKey = (typeof COLLECT_STEPS)[number]['key'];
@@ -45,6 +47,7 @@ const STEP_ICON: Record<StepKey, LucideIcon> = {
   keyword_rank: Search,
   searchad: TrendingUp,
   place_reviews: Star,
+  meta_ads: Megaphone,
 };
 
 const MAX_PDF_BYTES = 30 * 1024 * 1024;

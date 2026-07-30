@@ -80,6 +80,8 @@ type FormBody = {
     searchad_secret_key_encrypted?: string;
     googleads_customer_id?: string;
     googleads_refresh_token_encrypted?: string;
+    meta_ad_account_id?: string;
+    meta_is_active?: boolean;
     barun_plan_enabled?: boolean;
     barun_plan_start?: string;
     barun_plan_end?: string;
@@ -191,6 +193,22 @@ export async function POST(request: Request) {
         })
         .eq('id', resolvedHospitalId);
       if (barunErr) console.warn('barun_plan 저장 생략(컬럼 미존재 가능):', barunErr.message);
+    }
+
+    // Meta(인스타그램) 광고 — barun_plan 과 같은 이유로 분리해 방어적으로 저장(컬럼 미존재 가능).
+    // act_ 접두사는 수집기가 정규화하므로 여기서는 원문을 그대로 둔다.
+    {
+      const metaAcct = (hospitalForm.meta_ad_account_id || '').trim();
+      const { error: metaErr } = await supabase
+        .schema('core')
+        .from('hospitals')
+        .update({
+          meta_ad_account_id: metaAcct || null,
+          // 계정 ID가 없으면 활성일 수 없다 — 빈 값으로 수집기가 돌아가는 걸 막는다.
+          meta_is_active: metaAcct ? !!hospitalForm.meta_is_active : false,
+        })
+        .eq('id', resolvedHospitalId);
+      if (metaErr) console.warn('meta 광고 저장 생략(컬럼 미존재 가능):', metaErr.message);
     }
 
     const { error: blogDeactivateErr } = await supabase

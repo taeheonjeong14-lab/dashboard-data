@@ -4,7 +4,7 @@ import { createServiceRoleClient } from '@/lib/supabase/service-role';
 
 export const maxDuration = 30;
 
-const VALID_STEPS = ['blog_metrics', 'smartplace', 'keyword_rank', 'searchad', 'place_reviews'] as const;
+const VALID_STEPS = ['blog_metrics', 'smartplace', 'keyword_rank', 'searchad', 'place_reviews', 'meta_ads'] as const;
 
 export async function POST(request: Request) {
   const gate = await requireAdminApi();

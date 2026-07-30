@@ -3,21 +3,22 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 export const HOSPITAL_LIST_COLUMNS =
   'id,name,naver_blog_id,smartplace_stat_url,debug_port';
 
+// meta_is_active 는 boolean 이라 값 타입을 unknown 으로 둔다(호출부가 String()/Boolean() 으로 좁힌다).
 export async function fetchHospitalAdsColumns(
   supabase: SupabaseClient,
   hospitalId: string,
-): Promise<Record<string, string>> {
+): Promise<Record<string, unknown>> {
   if (!hospitalId) return {};
   const { data, error } = await supabase
     .schema('core')
     .from('hospitals')
     .select(
-      'searchad_customer_id,searchad_api_license,searchad_secret_key_encrypted,googleads_customer_id,googleads_refresh_token_encrypted',
+      'searchad_customer_id,searchad_api_license,searchad_secret_key_encrypted,googleads_customer_id,googleads_refresh_token_encrypted,meta_ad_account_id,meta_is_active',
     )
     .eq('id', hospitalId)
     .maybeSingle();
   if (error) return {};
-  return (data || {}) as Record<string, string>;
+  return (data || {}) as Record<string, unknown>;
 }
 
 export async function upsertHospitalWithCompat(
