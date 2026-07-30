@@ -54,7 +54,9 @@ async function runModality(
     'findings: 위 맥락(종합소견·차트 기반 소견)과 이미지 관찰을 함께 반영한 검사 소견 텍스트(2~5문장).',
     opts?.orderHint
       ? `imageIds: 이미지를 빼지 말고 **전부** id 배열에 담되, ${opts.orderHint} 순서로 정렬한다(최대 ${maxSlots}장, 아래 목록의 id 만). 방향(VD/lateral)과 부위(흉부/복부)는 이미지를 직접 보고 판단한다.`
-      : `imageIds: 그 소견을 가장 잘 보여주는 이미지를 최대 ${maxSlots}장 골라 id 배열로(아래 목록의 id 만, 중요도 높은 순).`,
+      // 고르는 게 아니라 **정렬**이다. 소견이 보이는 이미지가 앞 슬롯에 오되, 슬롯이 비면 정상 이미지로도 채운다
+      // (사진이 넉넉한데 이상 소견 몇 장만 뽑아 빈 칸이 남던 문제).
+      : `imageIds: 이미지를 빼지 말고 **전부** id 배열에 담되(최대 ${maxSlots}장, 아래 목록의 id 만), 이상 소견이 보이는 이미지를 앞에, 그 다음 특이소견 없는 이미지를 뒤에 두는 순서로 정렬한다. 슬롯이 ${maxSlots}장까지 있으니 정상 이미지로도 남은 칸을 채운다.`,
     '',
     '이미지 목록 (index: id):',
     manifest,
@@ -226,7 +228,10 @@ export async function generateCdFindings(
       orderHint: 'VD 흉부 → lateral 흉부 → VD 복부 → lateral 복부',
       chartFindings: chartFindings?.radiology,
     }),
+    // 초음파는 3x3(9칸). fillAll 로 LLM 이 고른 순서를 앞에 두고 남은 칸을 나머지 이미지로 채운다 —
+    // 이상 소견 이미지 우선은 유지하되, 사진이 넉넉하면 9칸을 다 쓴다(방사선과 동일한 규칙).
     runModality(client, model, '초음파', usImgs, overallSummary, 9, usageContext, {
+      fillAll: true,
       chartFindings: chartFindings?.ultrasound,
     }),
   ]);
