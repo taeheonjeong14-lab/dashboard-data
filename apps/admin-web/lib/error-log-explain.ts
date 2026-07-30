@@ -95,6 +95,15 @@ function causeOf(message: string): string | null {
   return null;
 }
 
+/**
+ * 사유만 뽑는다(주체 문장 없이). 텔레그램 다이제스트처럼 app·route 를 이미 한 줄로 보여주는
+ * 곳에서 explainError() 를 쓰면 "자동으로 도는 '...' 작업이 실패했습니다" 가 헤더와 겹친다.
+ * 매칭되는 규칙이 없으면 null — 호출부가 원문으로 폴백한다(정보를 잃지 않게).
+ */
+export function errorCauseOf(message: string): string | null {
+  return causeOf(message);
+}
+
 /** 기능명이 없을 때 경로에서 대충이라도 사람말 이름을 만든다. */
 function subjectOf(input: ExplainInput): string {
   if (input.feature) return `'${input.feature}'`;

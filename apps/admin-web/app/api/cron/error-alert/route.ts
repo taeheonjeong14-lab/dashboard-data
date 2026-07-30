@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase/service-role';
 import { sendErrorAlert } from '@/lib/error-alert';
+import { errorCauseOf } from '@/lib/error-log-explain';
 
 /**
  * GET /api/cron/error-alert — core.error_logs 를 주기적으로 훑어 새 에러를
@@ -27,7 +28,9 @@ function authorized(req: NextRequest): boolean {
 
 type Row = {
   app: string | null;
+  source: string | null;
   route: string | null;
+  feature: string | null;
   status_code: number | null;
   message: string | null;
   fingerprint: string | null;
@@ -42,7 +45,7 @@ export async function GET(request: NextRequest) {
   const { data, error } = await srvc
     .schema('core')
     .from('error_logs')
-    .select('app, route, status_code, message, fingerprint')
+    .select('app, source, route, feature, status_code, message, fingerprint')
     .gte('occurred_at', since)
     .neq('route', SELF_ROUTE)
     .order('occurred_at', { ascending: false })
@@ -53,18 +56,26 @@ export async function GET(request: NextRequest) {
   if (rows.length === 0) return NextResponse.json({ ok: true, newErrors: 0, sent: false });
 
   // fingerprint(없으면 app|route|message 앞부분)로 그룹핑
-  const groups = new Map<string, { count: number; app: string; route: string; message: string; status: number | null }>();
+  const groups = new Map<
+    string,
+    { count: number; app: string; route: string; label: string; cause: string | null; message: string; status: number | null }
+  >();
   for (const r of rows) {
     const key = r.fingerprint || `${r.app}|${r.route}|${(r.message || '').slice(0, 40)}`;
     const g = groups.get(key);
     if (g) {
       g.count += 1;
     } else {
+      const raw = (r.message || '').replace(/\s+/g, ' ').trim();
       groups.set(key, {
         count: 1,
         app: r.app || '?',
         route: r.route || '?',
-        message: (r.message || '').replace(/\s+/g, ' ').trim().slice(0, 160),
+        // 사람이 읽는 이름이 있으면 그걸 앞세운다(수집은 feature 가 '데이터 수집 — 블로그 순위' 처럼 구체적).
+        label: (r.feature || '').trim() || r.route || '?',
+        // 화면과 같은 규칙으로 사유를 사람 말로 바꾼다. 매칭 없으면 null → 원문으로 폴백.
+        cause: errorCauseOf(raw),
+        message: raw.slice(0, 160),
         status: r.status_code,
       });
     }
@@ -74,10 +85,17 @@ export async function GET(request: NextRequest) {
   const top = sorted.slice(0, 8);
   const base = (process.env.ADMIN_WEB_URL || '').replace(/\/$/, '');
 
+  // 한 그룹 = 헤더(무엇이 몇 번) + 사유(사람 말). 사유 규칙이 없으면 원문을 그대로 실어 정보를 잃지 않는다.
   const lines = [
     `🚨 에러 알림 — 최근 ${WINDOW_MIN}분 새 에러 ${rows.length}건 (${sorted.length}종)`,
     '',
-    ...top.map((g, i) => `${i + 1}. [${g.app}] ${g.status ?? ''} ${g.route}\n   ×${g.count} · ${g.message}`),
+    ...top.map((g, i) => {
+      const status = g.status ? ` ${g.status}` : '';
+      const head = `${i + 1}. ×${g.count} [${g.app}]${status} ${g.label}`;
+      // 사유 문구는 마침표 없이 끝난다(화면에선 explainError 가 붙인다) → 여기서 붙인다.
+      const body = g.cause ? `${g.cause}.` : g.message;
+      return `${head}\n   ↳ ${body}`;
+    }),
   ];
   if (sorted.length > top.length) lines.push('', `…외 ${sorted.length - top.length}종 더`);
   lines.push('', base ? `${base}/admin/error-logs` : '/admin/error-logs');
