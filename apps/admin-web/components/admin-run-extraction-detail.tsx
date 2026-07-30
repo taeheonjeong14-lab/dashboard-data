@@ -1140,14 +1140,18 @@ export function AdminRunExtractionDetail({
       setGenExistingReport(null);
       fetch(`/api/admin/health-report/content?runId=${encodeURIComponent(runId)}`, { credentials: 'include' })
         .then((r) => r.json())
-        .then((data: { items?: { contentType: string; payload?: { emphasis_text?: string; points?: HealthPoint[]; confirmed?: boolean } }[] }) => {
+        .then((data: { items?: { contentType: string; payload?: { emphasis_text?: string; vet_name?: string; points?: HealthPoint[]; confirmed?: boolean } }[]; directorName?: string }) => {
           const items = Array.isArray(data.items) ? data.items : [];
           setGenExistingReport(items.some((i) => i.contentType === 'health_checkup'));
           // 병원(hospital-ui) 제출 강조사항을 '반드시 포함' 칸에 pre-fill (admin 입력값은 보존).
-          const emphasis = items.find((i) => i.contentType === 'hospital_notes')?.payload?.emphasis_text;
+          const notes = items.find((i) => i.contentType === 'hospital_notes')?.payload;
+          const emphasis = notes?.emphasis_text;
           if (typeof emphasis === 'string' && emphasis.trim()) {
             setGenMustInclude((prev) => (prev.trim() ? prev : emphasis));
           }
+          // 담당 수의사 — 병원이 적어 보낸 이름, 비워서 왔으면 그 병원 대표원장 성함으로 채운다.
+          const vet = (notes?.vet_name ?? '').trim() || (data.directorName ?? '').trim();
+          if (vet) setGenVeterinarian((prev) => (prev.trim() ? prev : vet.slice(0, HEALTH_CHECKUP_MAX_COVER_FIELD_CHARS)));
           // 이미 정리해 둔 검진 포인트가 있으면 이어서 검토(다시 뽑지 않는다).
           const hp = items.find((i) => i.contentType === 'health_points')?.payload;
           setGenPoints(Array.isArray(hp?.points) ? hp.points : []);

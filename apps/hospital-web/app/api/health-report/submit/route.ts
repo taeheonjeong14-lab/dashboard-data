@@ -28,6 +28,8 @@ type Body = {
   overview?: Overview;
   imageGroups?: ImageGroupInput[];
   emphasisText?: string;
+  /** 담당 수의사명(선택). 비워서 오면 admin 리포트 생성 시 병원 대표원장(director_name_ko)으로 채운다. */
+  vetName?: string;
   imagePaths?: string[];
   additionalDocs?: { path?: string; filename?: string; mimeType?: string }[];
 };
@@ -105,7 +107,7 @@ async function handlePOST(request: NextRequest) {
     const imagePaths = Array.isArray(body.imagePaths)
       ? body.imagePaths.filter((p): p is string => typeof p === 'string' && p.length > 0)
       : [];
-    jobPayload = { emphasis_text: str(body.emphasisText), image_paths: imagePaths };
+    jobPayload = { emphasis_text: str(body.emphasisText), vet_name: str(body.vetName), image_paths: imagePaths };
   }
 
   try {

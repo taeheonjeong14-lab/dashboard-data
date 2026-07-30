@@ -94,6 +94,8 @@ export default function HealthReportPage() {
   const [compressing, setCompressing] = useState(false);
   const [imageFiles, setImageFiles] = useState<File[]>([]);
   const [imagePreviews, setImagePreviews] = useState<string[]>([]);
+  // 담당 수의사명 — 선택. 비워 두면 admin 리포트 생성 시 병원 대표원장 성함으로 채워진다.
+  const [vetName, setVetName] = useState('');
   const [emphasisText, setEmphasisText] = useState('');
   const [isDragging, setIsDragging] = useState(false);
   const [isImageDragging, setIsImageDragging] = useState(false);
@@ -386,6 +388,7 @@ export default function HealthReportPage() {
           chartType,
           storageBucket: bucket,
           storagePaths,
+          vetName,
           emphasisText,
           imagePaths,
         }),
@@ -408,6 +411,7 @@ export default function HealthReportPage() {
       setImageError(null);
       imagePreviews.forEach((u) => URL.revokeObjectURL(u));
       setImagePreviews([]);
+      setVetName('');
       setEmphasisText('');
       setUploadProgress(0);
       setProgressMessage('');
@@ -659,6 +663,20 @@ export default function HealthReportPage() {
                     ))}
                   </div>
                 )}
+              </FormField>
+
+              {/* Veterinarian */}
+              <FormField label="담당 수의사명" hint="선택">
+                <input
+                  type="text"
+                  value={vetName} onChange={(e) => setVetName(e.target.value)}
+                  disabled={isProcessing}
+                  placeholder="예: 홍길동"
+                  style={{ width: '100%', padding: '8px 10px', border: '1px solid var(--border)', borderRadius: 'var(--radius)', background: 'var(--bg)', color: 'var(--text)', outline: 'none', fontSize: '14px', boxSizing: 'border-box' }}
+                />
+                <div style={{ marginTop: '5px', fontSize: '11px', color: 'var(--text-muted)' }}>
+                  미입력 시 병원 대표원장님 성함으로 입력됩니다.
+                </div>
               </FormField>
 
               {/* Emphasis */}

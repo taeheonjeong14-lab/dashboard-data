@@ -13,7 +13,29 @@ function iso(d: unknown): string {
   return new Date(String(d)).toISOString();
 }
 
-/** GET ?runId= — vet-report `GET /api/content?runId=` 과 유사 `{ runId, items }` */
+/**
+ * 이 run 병원의 대표원장 성함(core.hospitals.director_name_ko).
+ * 병원이 건강검진 제출 시 담당 수의사명을 비워 두면 admin 생성 화면이 이 값으로 칸을 채운다.
+ * 조회 실패는 폴백 없음(빈 문자열)으로 두고 리포트 조회 자체를 막지 않는다.
+ */
+async function hospitalDirectorName(runId: string): Promise<string> {
+  try {
+    const sb = createServiceRoleClient();
+    const { hospitalId } = await runHospitalAndPatient(runId);
+    if (!hospitalId) return '';
+    const { data } = await sb
+      .schema('core')
+      .from('hospitals')
+      .select('director_name_ko')
+      .eq('id', hospitalId)
+      .maybeSingle();
+    return ((data as { director_name_ko?: string | null } | null)?.director_name_ko ?? '').trim();
+  } catch {
+    return '';
+  }
+}
+
+/** GET ?runId= — vet-report `GET /api/content?runId=` 과 유사 `{ runId, items, directorName }` */
 export async function GET(request: NextRequest) {
   const gate = await requireAdminApi();
   if (!gate.ok) return gate.response;
@@ -25,12 +47,15 @@ export async function GET(request: NextRequest) {
 
   try {
     const sb = createServiceRoleClient();
-    const { data: rows, error } = await sb
-      .schema('health_report')
-      .from('generated_run_content')
-      .select('id, content_type, payload, created_at, updated_at')
-      .eq('parse_run_id', runId!)
-      .order('created_at', { ascending: false });
+    const [{ data: rows, error }, directorName] = await Promise.all([
+      sb
+        .schema('health_report')
+        .from('generated_run_content')
+        .select('id, content_type, payload, created_at, updated_at')
+        .eq('parse_run_id', runId!)
+        .order('created_at', { ascending: false }),
+      hospitalDirectorName(runId!),
+    ]);
 
     if (error) throw new Error(error.message);
 
@@ -45,7 +70,7 @@ export async function GET(request: NextRequest) {
       };
     });
 
-    return NextResponse.json({ runId, items });
+    return NextResponse.json({ runId, items, directorName });
   } catch (e) {
     console.error('GET /api/admin/health-report/content:', e);
     return NextResponse.json(

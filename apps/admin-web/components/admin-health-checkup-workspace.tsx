@@ -271,16 +271,20 @@ export function AdminHealthCheckupWorkspace({
       const res = await fetch(`/api/admin/health-report/content?runId=${encodeURIComponent(runId)}`, {
         credentials: 'include',
       });
-      const data = (await res.json()) as { runId?: string; items?: ContentItem[]; error?: string };
+      const data = (await res.json()) as { runId?: string; items?: ContentItem[]; directorName?: string; error?: string };
       if (!res.ok) throw new Error(data.error ?? '불러오기 실패');
       const list = Array.isArray(data.items) ? data.items : [];
       setItems(list);
       // 병원(hospital-ui)에서 제출한 강조사항을 강조사항 입력란에 pre-fill (admin 편집값은 보존).
       const notes = list.find((i) => i.contentType === 'hospital_notes');
-      const emphasis = (notes?.payload as { emphasis_text?: string } | null)?.emphasis_text;
+      const notesPayload = (notes?.payload ?? null) as { emphasis_text?: string; vet_name?: string } | null;
+      const emphasis = notesPayload?.emphasis_text;
       if (typeof emphasis === 'string' && emphasis.trim()) {
         setMustInclude((prev) => (prev.trim() ? prev : emphasis));
       }
+      // 담당 수의사 — 병원이 적어 보낸 이름, 비워서 왔으면 그 병원 대표원장 성함으로 채운다.
+      const vet = (notesPayload?.vet_name ?? '').trim() || (data.directorName ?? '').trim();
+      if (vet) setVeterinarian((prev) => (prev.trim() ? prev : clamp(vet, HEALTH_CHECKUP_MAX_COVER_FIELD_CHARS)));
       // 1단계 검진 포인트 — 저장돼 있으면 그대로 복원(확정 여부 포함).
       const hp = list.find((i) => i.contentType === 'health_points');
       const hpPayload = (hp?.payload ?? null) as { points?: HealthPoint[]; confirmed?: boolean } | null;
