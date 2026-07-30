@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { formatSupabaseError } from '@/lib/format-supabase-error';
 import { HospitalKakaoSection } from '@/components/admin-hospital-kakao';
+import { TokenGrantModal } from '@/components/token-grant-modal';
 
 type HospitalListRow = { id: string; name?: string; address?: string; addressDetail?: string; address_detail?: string };
 
@@ -404,6 +405,10 @@ export default function AdminHospitalsManager({
   const [hospitals, setHospitals] = useState<HospitalListRow[]>([]);
   const [selectedId, setSelectedId] = useState('');
   const [selectedBalance, setSelectedBalance] = useState(0);
+  // 토큰 지급 모달(토큰 수 + 관리자 메모)
+  const [grantOpen, setGrantOpen] = useState(false);
+  const [grantBusy, setGrantBusy] = useState(false);
+  const [grantError, setGrantError] = useState('');
   const [query, setQuery] = useState('');
   const [form, setForm] = useState(EMPTY_FORM);
   // 선택된 탭만 표시. 저장은 어느 탭에서나 전체 폼 저장.
@@ -612,32 +617,28 @@ export default function AdminHospitalsManager({
   }
 
   // 토큰 지급 — 병원 귀속(core.hospitals.token_balance). billing.token_grant.
-  async function grantTokens() {
+  // 토큰 수 + 메모(사유)를 모달에서 받는다. 메모는 원장 note 로만 남고 병원 화면엔 노출되지 않는다.
+  async function grantTokens(amount: number, note: string) {
     const id = String(selectedId || '').trim();
     if (!id) return;
-    const input = window.prompt(`"${form.name || id}"에 지급할 토큰 수를 입력하세요 (병원 잔액에 추가)`);
-    if (input == null) return;
-    const amount = Math.trunc(Number(input.trim()));
-    if (!Number.isFinite(amount) || amount <= 0) {
-      setMessage('지급 토큰 수는 양의 정수여야 합니다.');
-      return;
-    }
-    setLoading(true);
+    setGrantBusy(true);
+    setGrantError('');
     setMessage('');
     try {
       const res = await fetch(`/api/admin/hospitals/${encodeURIComponent(id)}/tokens`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ amount }),
+        body: JSON.stringify({ amount, reason: note || undefined }),
       });
       const data = (await res.json()) as { success?: boolean; balance?: number; error?: string };
       if (!res.ok || !data.success) throw new Error(data.error || '토큰 지급 실패');
       if (typeof data.balance === 'number') setSelectedBalance(data.balance);
+      setGrantOpen(false);
       setMessage(`토큰 ${amount.toLocaleString()} 지급 완료 (현재 잔액: ${Math.round(data.balance ?? 0).toLocaleString()} 토큰)`);
     } catch (e) {
-      setMessage(`토큰 지급 실패: ${formatSupabaseError(e)}`);
+      setGrantError(formatSupabaseError(e));
     } finally {
-      setLoading(false);
+      setGrantBusy(false);
     }
   }
 
@@ -778,13 +779,23 @@ export default function AdminHospitalsManager({
               <span style={{ fontSize: 14, color: 'var(--text-secondary)' }}>
                 토큰 잔액 <b style={{ color: 'var(--text)' }}>{Math.round(selectedBalance).toLocaleString()}</b> 토큰
               </span>
-              <button type="button" onClick={() => void grantTokens()} disabled={loading}
+              <button type="button" onClick={() => { setGrantError(''); setGrantOpen(true); }} disabled={loading}
                 style={{ padding: '7px 14px', fontSize: 14, fontWeight: 700, borderRadius: 6, border: 'none', background: 'var(--accent)', color: '#fff', cursor: loading ? 'default' : 'pointer' }}>
                 토큰 지급
               </button>
             </div>
           ) : null}
         </div>
+        {grantOpen && selectedId ? (
+          <TokenGrantModal
+            hospitalName={form.name || selectedId}
+            currentBalance={selectedBalance}
+            busy={grantBusy}
+            error={grantError}
+            onClose={() => { if (!grantBusy) setGrantOpen(false); }}
+            onSubmit={(amount, note) => void grantTokens(amount, note)}
+          />
+        ) : null}
         {loading || message ? (
           <div className="adminLegacyStatus" style={{ marginBottom: 10, fontSize: 14 }}>
             {loading ? '처리 중...' : message}

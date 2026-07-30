@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { TokenGrantModal } from '@/components/token-grant-modal';
 
 const KRW_PER_USD = 1380;
 
@@ -23,6 +24,8 @@ type RunItem = { feature: string; provider: string; costUsd: number; calls: numb
 type LedgerGroup = {
   key: string; kind: string; label: string; createdAt: string; tokens: number; balanceAfter: number | null;
   steps: number; runId: string | null; ownerName: string | null; patientName: string | null;
+  // 관리자 지급/조정 메모(billing.token_ledger.note). 관리자 화면 전용 — 병원엔 내려가지 않는다.
+  note: string | null;
 };
 type UsageResponse = {
   days: number;
@@ -159,38 +162,50 @@ export default function AdminUsageDashboard({
   // 입금 대기 주문이 있는 병원에 수동 지급하려 할 때 경고하기 위한 스냅샷(아래 pendingByHospital 과 동기화).
   const pendingOrdersRef = useRef<Map<string, number>>(new Map());
 
-  const grant = useCallback(
-    async (hospitalId: string, name: string, current: number) => {
-      // 수동 지급 후 그 주문의 '입금 확인'을 누르면 토큰이 한 번 더 지급된다(confirm 은 중복을 막지 않음).
-      const pending = pendingOrdersRef.current.get(hospitalId) ?? 0;
-      if (pending > 0) {
-        const ok = window.confirm(
-          `"${name}" 에는 입금 대기 중인 토큰 주문이 ${pending}건 있습니다.\n\n` +
-            `주문 건이라면 아래 '입금 확인' 버튼으로 처리하세요 — 그래야 주문이 완료 처리됩니다.\n` +
-            `여기서 수동 지급하면 주문은 대기로 남고, 나중에 '입금 확인'을 누르면 토큰이 이중 지급됩니다.\n\n` +
-            `그래도 수동 지급할까요?`,
-        );
-        if (!ok) return;
-      }
-      const input = window.prompt(`"${name}" 에 지급할 토큰 수 (음수면 차감). 현재 잔액 ${current.toLocaleString()}`, '1000');
-      if (input == null) return;
-      const tokens = Math.trunc(Number(input));
-      if (!Number.isFinite(tokens) || tokens === 0) return;
+  // 관리자 수동 지급 — 토큰 수와 메모(사유)를 모달에서 받는다. 메모는 원장(note)에만 남고 병원엔 안 보인다.
+  const [grantTarget, setGrantTarget] = useState<{ hospitalId: string; name: string; current: number } | null>(null);
+  const [grantBusy, setGrantBusy] = useState(false);
+  const [grantError, setGrantError] = useState('');
+
+  const openGrant = useCallback((hospitalId: string, name: string, current: number) => {
+    // 수동 지급 후 그 주문의 '입금 확인'을 누르면 토큰이 한 번 더 지급된다(confirm 은 중복을 막지 않음).
+    const pending = pendingOrdersRef.current.get(hospitalId) ?? 0;
+    if (pending > 0) {
+      const ok = window.confirm(
+        `"${name}" 에는 입금 대기 중인 토큰 주문이 ${pending}건 있습니다.\n\n` +
+          `주문 건이라면 아래 '입금 확인' 버튼으로 처리하세요 — 그래야 주문이 완료 처리됩니다.\n` +
+          `여기서 수동 지급하면 주문은 대기로 남고, 나중에 '입금 확인'을 누르면 토큰이 이중 지급됩니다.\n\n` +
+          `그래도 수동 지급할까요?`,
+      );
+      if (!ok) return;
+    }
+    setGrantError('');
+    setGrantTarget({ hospitalId, name, current });
+  }, []);
+
+  const submitGrant = useCallback(
+    async (tokens: number, note: string) => {
+      if (!grantTarget) return;
+      setGrantBusy(true);
+      setGrantError('');
       try {
         const res = await fetch('/api/admin/usage', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
-          body: JSON.stringify({ hospitalId, tokens }),
+          body: JSON.stringify({ hospitalId: grantTarget.hospitalId, tokens, note: note || undefined }),
         });
         const json = (await res.json()) as { error?: string };
         if (!res.ok) throw new Error(json.error || '지급 실패');
+        setGrantTarget(null);
         await load(days, selected);
       } catch (e) {
-        window.alert(e instanceof Error ? e.message : '지급 실패');
+        setGrantError(e instanceof Error ? e.message : '지급 실패');
+      } finally {
+        setGrantBusy(false);
       }
     },
-    [days, selected, load],
+    [grantTarget, days, selected, load],
   );
 
   // 토큰 구매 주문(무통장입금) — 입금 대기 줄을 병원 내역에 함께 표시.
@@ -229,7 +244,7 @@ export default function AdminUsageDashboard({
     for (const o of orders) if (o.status === 'pending') m.set(o.hospital_id, (m.get(o.hospital_id) ?? 0) + 1);
     return m;
   }, [orders]);
-  // grant()는 이 useMemo 보다 위에서 선언되므로 ref 로 최신 값을 넘긴다.
+  // openGrant()는 이 useMemo 보다 위에서 선언되므로 ref 로 최신 값을 넘긴다.
   useEffect(() => {
     pendingOrdersRef.current = pendingByHospital;
   }, [pendingByHospital]);
@@ -271,6 +286,7 @@ export default function AdminUsageDashboard({
           const g: LedgerGroup = {
             key: `run:${r.runId}`, kind: 'charge', label: '', createdAt: r.createdAt, tokens: t,
             balanceAfter: r.balanceAfter, steps: r.kind === 'charge' ? 1 : 0, runId: r.runId, ownerName: r.ownerName ?? null, patientName: r.patientName ?? null,
+            note: null,
           };
           byRun.set(r.runId, { g, feats: new Set(r.feature ? [r.feature] : []), product: r.productCode ?? null });
           out.push(g);
@@ -287,6 +303,7 @@ export default function AdminUsageDashboard({
           const g: LedgerGroup = {
             key, kind: 'charge', label: productLabel(r.productCode) ?? featLabel(feat), createdAt: r.createdAt, tokens: t,
             balanceAfter: r.balanceAfter, steps: r.kind === 'charge' ? 1 : 0, runId: null, ownerName: null, patientName: null,
+            note: null,
           };
           byFeat.set(key, g);
           out.push(g);
@@ -300,6 +317,7 @@ export default function AdminUsageDashboard({
             : (r.kind === 'grant' && r.feature === 'token_purchase' ? '토큰 구매' : (KIND_LABEL[r.kind] ?? r.kind)),
           createdAt: r.createdAt, tokens: t, balanceAfter: r.balanceAfter, steps: 1, runId: null,
           ownerName: r.ownerName ?? null, patientName: r.patientName ?? null,
+          note: r.note ?? null,
         });
       }
     }
@@ -436,7 +454,7 @@ export default function AdminUsageDashboard({
               {selectedHospital?.hospitalId ? (
                 <button
                   type="button"
-                  onClick={() => void grant(selectedHospital.hospitalId as string, selectedHospital.hospitalName, selectedHospital.tokenBalance)}
+                  onClick={() => openGrant(selectedHospital.hospitalId as string, selectedHospital.hospitalName, selectedHospital.tokenBalance)}
                   style={{ padding: '6px 14px', fontSize: 14, fontWeight: 700, borderRadius: 8, cursor: 'pointer', border: '1px solid var(--accent)', background: 'var(--accent)', color: '#fff' }}
                 >
                   토큰 지급
@@ -513,6 +531,12 @@ export default function AdminUsageDashboard({
                             <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
                               {new Date(g.createdAt).toLocaleString('ko-KR', { dateStyle: 'short', timeStyle: 'short' })}
                             </div>
+                            {adminNote(g) ? (
+                              // 관리자 메모 — admin 화면에서만 보인다(병원의 my_usage_overview 는 note 를 안 내려준다).
+                              <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 3, whiteSpace: 'pre-wrap' }}>
+                                <span style={{ color: 'var(--text-muted)' }}>메모 </span>{adminNote(g)}
+                              </div>
+                            ) : null}
                           </div>
                           <div style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
                             <div style={{ fontSize: 14, fontWeight: 800, color: isZeroCharge(g.kind, g.tokens) ? 'var(--danger)' : (g.tokens < 0 ? 'var(--danger)' : 'var(--success)') }}>
@@ -589,10 +613,31 @@ export default function AdminUsageDashboard({
           )}
         </div>
       </div>
+
+      {grantTarget ? (
+        <TokenGrantModal
+          hospitalName={grantTarget.name}
+          currentBalance={grantTarget.current}
+          allowNegative
+          busy={grantBusy}
+          error={grantError}
+          onClose={() => { if (!grantBusy) setGrantTarget(null); }}
+          onSubmit={(tokens, note) => void submitGrant(tokens, note)}
+        />
+      ) : null}
     </div>
   );
 }
 
 function banner(bg: string, color: string): React.CSSProperties {
   return { padding: 12, marginBottom: 12, fontSize: 14, background: bg, borderRadius: 8, color };
+}
+
+// 원장 note 중 '사람이 쓴 메모'만 골라낸다 — 시스템이 심는 코드성 note(구주문 라벨 등)는 라벨로 이미 보이므로 숨김.
+const SYSTEM_NOTES = new Set(['admin_grant', 'token_purchase', 'grant', 'adjust']);
+function adminNote(g: LedgerGroup): string {
+  if (g.kind === 'charge') return '';
+  const n = (g.note ?? '').trim();
+  if (!n || SYSTEM_NOTES.has(n)) return '';
+  return n;
 }
