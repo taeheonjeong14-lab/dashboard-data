@@ -1436,3 +1436,102 @@ export async function fetchSummaryPlaceRanks(
       compareByImportanceThenRank(a, a.rank_value ?? Number.POSITIVE_INFINITY, b, b.rank_value ?? Number.POSITIVE_INFINITY),
     );
 }
+
+// ── Meta(인스타그램) 광고 ─────────────────────────────────────────────
+// hospital-web 은 브라우저 클라이언트로 analytics 를 직접 읽지만(RLS), admin 은 관례대로
+// service_role 서버 조회 후 API 로 내려준다. 반환 형태는 hospital 쪽과 동일하게 맞춘다
+// (복사해 온 MetaAdsSection 이 그대로 쓰도록).
+
+export type MetaAdsDailyRow = {
+  metricDate: string;
+  campaignName: string | null;
+  adsetName: string | null;
+  adId: string;
+  adName: string | null;
+  impressions: number;
+  clicks: number;
+  reach: number;
+  spend: number;
+  currency: string | null;
+};
+
+export type MetaAdsConversionRow = {
+  metricDate: string;
+  action_type: string;
+  action_count: number;
+};
+
+export async function fetchMetaAdsDaily(hospitalId: string): Promise<MetaAdsDailyRow[]> {
+  const supabase = getSupabaseClient();
+  const since = searchAdSinceDate();
+  const rows = await fetchAllPages((from, to) =>
+    supabase
+      .schema("analytics")
+      .from("analytics_meta_ads_daily")
+      .select(
+        "metric_date,campaign_name,adset_name,ad_id,ad_name,impressions,clicks,reach,spend,currency",
+      )
+      .eq("hospital_id", hospitalId)
+      .gte("metric_date", since)
+      .order("metric_date", { ascending: false })
+      .range(from, to),
+  );
+  return (rows as Record<string, unknown>[]).map((r) => ({
+    metricDate: String(r.metric_date ?? "").slice(0, 10),
+    campaignName: (r.campaign_name as string | null) ?? null,
+    adsetName: (r.adset_name as string | null) ?? null,
+    adId: String(r.ad_id ?? ""),
+    adName: (r.ad_name as string | null) ?? null,
+    impressions: Number(r.impressions ?? 0),
+    clicks: Number(r.clicks ?? 0),
+    reach: Number(r.reach ?? 0),
+    spend: Number(r.spend ?? 0),
+    currency: (r.currency as string | null) ?? null,
+  }));
+}
+
+export async function fetchMetaAdsConversions(
+  hospitalId: string,
+): Promise<MetaAdsConversionRow[]> {
+  const supabase = getSupabaseClient();
+  const since = searchAdSinceDate();
+  const rows = await fetchAllPages((from, to) =>
+    supabase
+      .schema("analytics")
+      .from("analytics_meta_ads_conversions_daily")
+      .select("metric_date,action_type,action_count")
+      .eq("hospital_id", hospitalId)
+      .gte("metric_date", since)
+      .order("metric_date", { ascending: false })
+      .range(from, to),
+  );
+  return (rows as Record<string, unknown>[]).map((r) => ({
+    metricDate: String(r.metric_date ?? "").slice(0, 10),
+    action_type: String(r.action_type ?? ""),
+    action_count: Number(r.action_count ?? 0),
+  }));
+}
+
+export type MetaAdsStatus = {
+  adAccountId: string | null;
+  isActive: boolean;
+  lastSyncedAt: string | null;
+};
+
+/** 빈 화면 문구·admin 진단용 연동 상태. 컬럼 미존재여도 화면을 막지 않는다. */
+export async function fetchMetaAdsStatus(hospitalId: string): Promise<MetaAdsStatus> {
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase
+    .schema("core")
+    .from("hospitals")
+    .select("meta_ad_account_id,meta_is_active,meta_last_synced_at")
+    .eq("id", hospitalId)
+    .maybeSingle();
+  if (error || !data) return { adAccountId: null, isActive: false, lastSyncedAt: null };
+  const r = data as Record<string, unknown>;
+  return {
+    adAccountId: (r.meta_ad_account_id as string | null) ?? null,
+    isActive: r.meta_is_active === true,
+    lastSyncedAt: (r.meta_last_synced_at as string | null) ?? null,
+  };
+}

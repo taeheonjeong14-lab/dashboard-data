@@ -10,6 +10,7 @@
   "dependencies": {
     "@dashboard/breeds": "*",
     "@dashboard/chart-ingest": "*",
+    "@dashboard/meta-ads-metrics": "*",
     "@supabase/ssr": "^0.10.3",
     "@supabase/supabase-js": "^2.57.4",
     "lucide-react": "^0.511.0",

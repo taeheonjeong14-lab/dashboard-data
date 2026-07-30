@@ -117,3 +117,29 @@ export type SearchAdRow = {
   cost: number;
 };
 
+
+/** Meta(인스타그램) 광고 — hospital lib/queries.ts 와 같은 형태(복사 컴포넌트 호환). */
+export type MetaAdsDailyRow = {
+  metricDate: string;
+  campaignName: string | null;
+  adsetName: string | null;
+  adId: string;
+  adName: string | null;
+  impressions: number;
+  clicks: number;
+  reach: number;
+  spend: number;
+  currency: string | null;
+};
+
+export type MetaAdsConversionRow = {
+  metricDate: string;
+  action_type: string;
+  action_count: number;
+};
+
+export type MetaAdsStatus = {
+  adAccountId: string | null;
+  isActive: boolean;
+  lastSyncedAt: string | null;
+};

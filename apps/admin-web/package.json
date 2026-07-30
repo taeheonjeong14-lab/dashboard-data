@@ -13,6 +13,7 @@
     "@dashboard/error-log": "*",
     "@dashboard/health-report": "*",
     "@dashboard/lab-normalize": "*",
+    "@dashboard/meta-ads-metrics": "*",
     "@fontsource/noto-sans-kr": "^5.2.9",
     "@fontsource/pretendard": "^5.2.5",
     "@supabase/ssr": "^0.10.3",

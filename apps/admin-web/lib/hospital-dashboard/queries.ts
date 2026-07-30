@@ -12,6 +12,9 @@ import type {
   PlaceRankSummaryRow,
   PlaceReviewStats,
   SearchAdRow,
+  MetaAdsDailyRow,
+  MetaAdsConversionRow,
+  MetaAdsStatus,
 } from '@/lib/hospital-dashboard/types';
 import type { KeywordPerf } from '@/lib/hospital-dashboard/searchad-aggregates';
 
@@ -92,4 +95,18 @@ export async function fetchVetCount(hospitalId: string): Promise<number | null> 
   } catch {
     return null;
   }
+}
+
+/** Meta(인스타그램) 광고 — 성과·전환을 한 번에 받는다(라우트가 둘을 함께 내려준다). */
+export async function fetchMetaAds(hospitalId: string): Promise<{
+  rows: MetaAdsDailyRow[];
+  conversions: MetaAdsConversionRow[];
+  status: MetaAdsStatus | null;
+}> {
+  const d = await getJson<{
+    rows?: MetaAdsDailyRow[];
+    conversions?: MetaAdsConversionRow[];
+    status?: MetaAdsStatus;
+  }>(stats('meta-ads', { hospitalId }));
+  return { rows: d.rows ?? [], conversions: d.conversions ?? [], status: d.status ?? null };
 }

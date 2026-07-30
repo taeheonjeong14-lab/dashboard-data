@@ -1388,3 +1388,107 @@ export async function deleteKeywordTarget(id: number): Promise<void> {
     .eq("id", id);
   if (error) throw error;
 }
+
+// ── Meta(인스타그램) 광고 ─────────────────────────────────────────────
+// analytics.* 를 브라우저 클라이언트로 직접 읽는다(SearchAd 와 동일). 병원 범위는 RLS 가 강제한다.
+
+export type MetaAdsDailyRow = {
+  metricDate: string;
+  campaignName: string | null;
+  adsetName: string | null;
+  adId: string;
+  adName: string | null;
+  impressions: number;
+  clicks: number;
+  reach: number;
+  spend: number;
+  currency: string | null;
+};
+
+export type MetaAdsConversionRow = {
+  metricDate: string;
+  action_type: string;
+  action_count: number;
+};
+
+/** 광고 성과 — 최근 6개월(SearchAd 와 같은 하한). */
+export async function fetchMetaAdsDaily(hospitalId: string): Promise<MetaAdsDailyRow[]> {
+  const supabase = createClient();
+  const since = searchAdSinceDate();
+  const rows = await fetchAllPages<Record<string, unknown>>((from, to) =>
+    supabase
+      .schema("analytics")
+      .from("analytics_meta_ads_daily")
+      .select(
+        "metric_date,campaign_name,adset_name,ad_id,ad_name,impressions,clicks,reach,spend,currency",
+      )
+      .eq("hospital_id", hospitalId)
+      .gte("metric_date", since)
+      .order("metric_date", { ascending: false })
+      .range(from, to),
+  );
+  return rows.map((r) => ({
+    metricDate: String(r.metric_date ?? "").slice(0, 10),
+    campaignName: (r.campaign_name as string | null) ?? null,
+    adsetName: (r.adset_name as string | null) ?? null,
+    adId: String(r.ad_id ?? ""),
+    adName: (r.ad_name as string | null) ?? null,
+    impressions: Number(r.impressions ?? 0),
+    clicks: Number(r.clicks ?? 0),
+    reach: Number(r.reach ?? 0),
+    spend: Number(r.spend ?? 0),
+    currency: (r.currency as string | null) ?? null,
+  }));
+}
+
+/** 전환/액션 — 원본 action_type 을 그대로 받는다(중복 제거·표시명은 @dashboard/meta-ads-metrics). */
+export async function fetchMetaAdsConversions(
+  hospitalId: string,
+): Promise<MetaAdsConversionRow[]> {
+  const supabase = createClient();
+  const since = searchAdSinceDate();
+  const rows = await fetchAllPages<Record<string, unknown>>((from, to) =>
+    supabase
+      .schema("analytics")
+      .from("analytics_meta_ads_conversions_daily")
+      .select("metric_date,action_type,action_count")
+      .eq("hospital_id", hospitalId)
+      .gte("metric_date", since)
+      .order("metric_date", { ascending: false })
+      .range(from, to),
+  );
+  return rows.map((r) => ({
+    metricDate: String(r.metric_date ?? "").slice(0, 10),
+    action_type: String(r.action_type ?? ""),
+    action_count: Number(r.action_count ?? 0),
+  }));
+}
+
+export type MetaAdsStatus = {
+  adAccountId: string | null;
+  isActive: boolean;
+  lastSyncedAt: string | null;
+};
+
+/**
+ * 빈 화면 문구를 정확히 쓰기 위한 연동 상태.
+ * "데이터 없음" 한 문장으로 덮으면 ①광고 안 하는 병원 ②연동 누락 ③첫 수집 전 이 구분되지 않아,
+ * 연동이 빠진 병원이 조용히 방치된다.
+ */
+export async function fetchMetaAdsStatus(hospitalId: string): Promise<MetaAdsStatus> {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .schema("core")
+    .from("hospitals")
+    .select("meta_ad_account_id,meta_is_active,meta_last_synced_at")
+    .eq("id", hospitalId)
+    .maybeSingle();
+  // 컬럼 미존재(마이그레이션 전)·권한 문제여도 화면을 막지 않는다 — 미연동으로 간주.
+  if (error || !data) return { adAccountId: null, isActive: false, lastSyncedAt: null };
+  const r = data as Record<string, unknown>;
+  return {
+    adAccountId: (r.meta_ad_account_id as string | null) ?? null,
+    isActive: r.meta_is_active === true,
+    lastSyncedAt: (r.meta_last_synced_at as string | null) ?? null,
+  };
+}
