@@ -244,6 +244,24 @@ function runStep(stepIndex, totalSteps, stepName, command, args, options = {}) {
     }
 
     let settled = false;
+    const errorHints = [];
+    // 자식이 죽은 뒤 "종료 코드 1" 만 남으면 원인을 알 수 없다. 실패로 보이는 줄을 모아 두고
+    // 실패 메시지에 실어 보낸다 → collect_jobs 의 step error 와 core.error_logs 에 그대로 전달된다.
+    // 청크 경계에서 줄이 잘릴 수 있으므로 남은 조각을 버퍼에 들고 다음 청크와 이어 붙인다.
+    let hintBuffer = "";
+    function collectErrorHints(chunk) {
+      hintBuffer += String(chunk);
+      const lines = hintBuffer.split(/\r?\n/);
+      hintBuffer = lines.pop() ?? "";
+      for (const line of lines) {
+        const t = line.trim();
+        if (!t) continue;
+        if (!/^(❌|✗)|Traceback|Error:|Exception|실패:/.test(t)) continue;
+        if (errorHints.includes(t)) continue;
+        errorHints.push(t.slice(0, 300));
+        if (errorHints.length > 3) errorHints.shift();
+      }
+    }
     let lastOutputTs = Date.now();
 
     // Windows: child.kill()은 Python 자체만 종료하고 자식 프로세스(크롬 등)는 살아남음.
@@ -291,6 +309,7 @@ function runStep(stepIndex, totalSteps, stepName, command, args, options = {}) {
       child.stdout.setEncoding("utf8");
       child.stdout.on("data", (chunk) => {
         lastOutputTs = Date.now();
+        collectErrorHints(chunk);
         if (pipeChild) {
           writeChildChunk(stepIndex, totalSteps, stepName, "stdout", chunk);
         } else {
@@ -302,6 +321,7 @@ function runStep(stepIndex, totalSteps, stepName, command, args, options = {}) {
       child.stderr.setEncoding("utf8");
       child.stderr.on("data", (chunk) => {
         lastOutputTs = Date.now();
+        collectErrorHints(chunk);
         if (pipeChild) {
           writeChildChunk(stepIndex, totalSteps, stepName, "stderr", chunk);
         } else {
@@ -336,7 +356,10 @@ function runStep(stepIndex, totalSteps, stepName, command, args, options = {}) {
         pipeChild && runState.logFilePath
           ? `로그 파일 확인: ${runState.logFilePath}`
           : "콘솔 출력을 확인하세요.";
-      const msg = `종료 코드 ${code}. ${tail}`;
+      // 자식이 남긴 실패 줄이 있으면 그것을 앞세운다 — 이게 없으면 에러 로그에도
+      // "종료 코드 1. 콘솔 출력을 확인하세요" 만 올라가 알맹이가 없다.
+      const hint = errorHints.length > 0 ? errorHints.join(" / ") : "";
+      const msg = hint ? `${hint} (종료 코드 ${code})` : `종료 코드 ${code}. ${tail}`;
       emit(`✗ ${stepIndex}/${totalSteps} 실패 (${sec}s) — ${stepName}: ${msg}`, "err");
       resolve({ success: false, durationSec: parseFloat(sec), error: msg });
     });

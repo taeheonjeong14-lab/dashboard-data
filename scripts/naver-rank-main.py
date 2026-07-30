@@ -776,9 +776,13 @@ def create_browser_session(playwright, *, headless: bool = True, use_debug_chrom
                     print(f"⏳ CDP 연결 재시도 {attempt}/{max_attempts - 1} — {endpoint}", file=sys.stderr)
                     time.sleep(1.5 * attempt)  # 점증 대기(1.5s → 3s → 4.5s …)
         if browser is None:
+            # last_err(Playwright 가 알려주는 실제 사유)를 반드시 메시지에 담는다.
+            # 예전에는 이걸 __cause__ 로만 넘겨 출력에는 "Chrome을 실행했는지 확인하세요" 만 남았고,
+            # Chrome 이 멀쩡히 떠 있는 상황에서 그 안내만 보여 원인 추적이 매번 헛돌았다.
+            reason = f"{type(last_err).__name__}: {last_err}" if last_err else "원인 미상"
             raise RuntimeError(
                 f"디버깅 Chrome(CDP) 연결 실패: {endpoint} ({max_attempts}회 재시도). "
-                f"Chrome을 --remote-debugging-port={debug_port}로 실행했는지 확인하세요."
+                f"실제 사유: {reason}"
             ) from last_err
 
         context = browser.contexts[0] if browser.contexts else browser.new_context()
