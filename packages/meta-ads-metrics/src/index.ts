@@ -44,14 +44,6 @@ export const META_ACTION_SPECS: readonly MetaActionSpec[] = [
   // ── 광고 반응 ────────────────────────────────────────────────
   { actionType: 'link_click', label: '링크 클릭', group: 'ad' },
   {
-    actionType: 'post_engagement',
-    label: '게시물 참여',
-    group: 'ad',
-    // page_engagement 는 값이 동일. 참여는 링크 클릭까지 포함하는 상위 개념이라
-    // 화면에서 링크 클릭과 나란히 둬서 "소셜 반응이 많다"는 오해를 막는다.
-    aliases: ['page_engagement'],
-  },
-  {
     actionType: 'post_reaction',
     label: '게시물 반응',
     group: 'ad',
@@ -111,11 +103,18 @@ export const META_ACTION_SPECS: readonly MetaActionSpec[] = [
 /**
  * 의미가 겹치거나 값이 서로 안 맞아 화면에 올리지 않는 Meta 내부 집계 변형.
  * (실측에서 post_interaction_net 73 > post_interaction_gross 67 로 역전돼 신뢰할 수 없다)
+ *
+ * post_engagement·page_engagement 도 여기 둔다 — 값이 같고(1494), 그중 94%가 link_click(1408)
+ * 이라 링크 클릭과 거의 같은 숫자다. 그런데 이름이 "참여"여서 단독으로 보면 소셜 반응이 많은 것처럼
+ * 읽힌다(실제 좋아요·저장 등은 86건). 링크 클릭·게시물 반응·저장·동영상 조회를 각각 보여주는 편이
+ * 뜻이 분명하다. **삭제가 아니라 숨김이다** — 지우면 미등록으로 취급돼 "커스텀 전환" 목록에 되살아난다.
  */
 const META_NOISE_ACTIONS: ReadonlySet<string> = new Set([
   'post',
   'post_interaction_gross',
   'post_interaction_net',
+  'post_engagement',
+  'page_engagement',
 ]);
 
 const SPEC_BY_TYPE = new Map<string, MetaActionSpec>();

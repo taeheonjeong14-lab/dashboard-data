@@ -498,8 +498,8 @@ export default function MetaAdsSection({
           <h3 className="mb-2 text-base font-semibold text-[var(--text)]">광고 반응</h3>
           <ActionRows rows={actions.ad} />
           <p className="mt-2 text-[11px] text-[var(--text-muted)]">
-            게시물 참여는 링크 클릭·반응·저장을 모두 포함하는 상위 개념입니다. 링크 클릭과 나란히
-            보세요.
+            인스타그램·페이스북 <b>안에서</b> 일어난 반응입니다. 웹사이트에서 일어난 일은 아래
+            &quot;웹사이트 유입 및 전환&quot;에 있습니다.
           </p>
         </section>
       </div>
