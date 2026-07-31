@@ -45,6 +45,17 @@ export function shouldEndBasicInfo(lineText: string, kind: ChartKind): boolean {
 }
 
 /**
+ * 우리엔PMS 문서(= PDF 한 개)의 시작 줄.
+ *
+ * 진료 날짜별로 PDF 를 따로 받아 mergePdfs 로 이어 붙이면 이 헤더가 PDF 개수만큼 반복된다.
+ * 그 경계를 알아야 두 번째 이후 기본정보 블록을 basicInfo 로 되돌릴 수 있다
+ * (assign-buckets 의 basicInfoOpen 재개 조건).
+ */
+export function isWoorienDocumentHeaderLine(lineText: string): boolean {
+  return /^medical\s*record$/i.test(lineText.replace(/\s+/g, ' ').trim());
+}
+
+/**
  * 플러스벳: 섹션 제목은 "진단 검사 결과" (Lab/lab examination 문구 없음).
  * 실제 표 데이터는 이 줄 **이후** `yyyy.mm.dd hh:mm` 앵커 줄부터 assign-buckets에서 lab으로 넣는다.
  */

@@ -3,6 +3,7 @@ import {
   isDiagnosisTrendSectionTitle,
   isLabSectionHeader,
   isPlusVetDiagnosticResultsSectionTitle,
+  isWoorienDocumentHeaderLine,
   shouldEndBasicInfo,
 } from '@/lib/text-bucketing/chart-bucket-rules';
 import {
@@ -87,6 +88,27 @@ export function assignLinesToBuckets(
         basicInfoOpen = false; // 기본정보 오염 방지(트렌드가 첫 섹션인 경우)
         continue; // 트렌드 시작 줄 드롭
       }
+    }
+
+    /**
+     * 합쳐 올린 PDF 의 새 문서 시작 → 기본정보 블록을 **다시 연다**.
+     *
+     * basicInfoOpen 은 첫 문서에서 한 번 닫히면 다시 열리지 않는다. 그런데 진료 날짜별로 PDF 를
+     * 따로 받아 이어 붙이면(mergePdfs) 문서 헤더 + 환자/보호자 블록이 PDF 개수만큼 반복되고,
+     * 두 번째 이후 헤더는 그 시점 섹션(직전이 검사였으므로 대개 lab)에 통째로 처박힌다.
+     *
+     * 실측(파스텔 4일치 · run 2b6b0639): 기본정보 87줄 + S.O.A.P 3줄이 lab 으로 가서
+     * `MEDICALRECORD 보호자번호:` `RFID 색상:` 같은 **가짜 검사항목**이 만들어지고
+     * 검사 날짜 그룹이 4일인데 6개로 쪼개졌다.
+     *
+     * 여기서 basicInfo 를 다시 열어 두면 이어지는 블록이 basicInfo 로 모이고,
+     * 뒤따르는 `S.O.A.P` 를 shouldEndBasicInfo 가 잡아 다시 chartBody 로 정상 복귀한다.
+     */
+    if (chartKind === 'woorien_pms' && isWoorienDocumentHeaderLine(line.text)) {
+      basicInfoOpen = true;
+      section = 'basicInfo';
+      buckets.basicInfo.push({ page: line.page, text: line.text, corrected: false });
+      continue;
     }
 
     if (basicInfoOpen) {
