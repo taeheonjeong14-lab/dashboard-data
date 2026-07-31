@@ -35,8 +35,11 @@ import {
   type OcrPositionIndex,
 } from "@/lib/text-bucketing/ocr-line-position";
 import { extractOrderedLinesFromPdf, getOpenAiOrderedLinesModel, reconstructPlanRowsFromText } from "@/lib/report-llm";
-import { extractOrderedLinesFromTextLayer, isTextLayerSufficient } from "@/lib/text-bucketing/pdf-text-layer";
-import { measurePdfImageCoverage, hasImagedBodyPage } from "@/lib/pdf-render-pages";
+import {
+  extractOrderedLinesFromTextLayer,
+  isTextLayerSufficient,
+  woorienTextLayerHasSoapBody,
+} from "@/lib/text-bucketing/pdf-text-layer";
 import { hospitalHasTokens, chargeOperationTokens, isBarunFreeOperation } from "@/lib/billing/token-charge";
 import { extractOpenAiErrorDetails, exposeOpenAiErrorDetailsInResponse } from "@/lib/openai-api-error";
 import { hasLlmApiKey } from "@/lib/llm-provider";
@@ -3909,10 +3912,9 @@ export async function POST(request: NextRequest) {
      */
     let textLayerDecision: {
       sufficient: boolean;
+      /** 우리엔에서만 의미 있음 — 텍스트 레이어에 SOAP 본문이 없어 비전으로 넘겼는지 */
       imagedBody: boolean | null;
       usedTextLayer: boolean;
-      coverage?: { page: number; imageAreaRatio: number; textChars: number }[];
-      coverageError?: string;
     } = { sufficient: false, imagedBody: null, usedTextLayer: false };
     let textLayerLines: OrderedLine[] | null = null;
     // 텍스트 레이어를 주 경로로 쓰지 않는 차트(인투벳 등)도 뽑아 둔다 — 아래에서 전사가 흘린
@@ -3929,32 +3931,19 @@ export async function POST(request: NextRequest) {
       // 우리엔: 머리글·`S.O.A.P`·`Subjective` 라벨은 진짜 텍스트인데 **본문만 래스터 이미지**인 PDF 가 있다.
       // 그러면 텍스트 레이어는 라벨까지만 읽고 본문을 통째로 놓치는데, isTextLayerSufficient 는
       // "페이지에 글자가 50자 이상 있나"만 보므로 머리글만으로 통과해 버린다
-      // (실측 파스텔LC 4일치: 본문 페이지 이미지 48% · 텍스트 280자 → S.O.A.P 아래 내용 전량 유실).
-      // → 이미지가 페이지를 크게 덮는데 텍스트가 적은 페이지가 있으면 텍스트 레이어를 주 경로로 쓰지 않는다.
-      //   비전(페이지 렌더 이미지) 경로로 넘어가고, report-llm 이 우리엔을 forceRenderedPageImages 로 처리한다.
+      // (실측 파스텔LC 4일치: `Subjective` 다음이 바로 `Lab` → S.O.A.P 아래 내용 전량 유실).
+      // → 본문이 안 담겼으면 텍스트 레이어를 주 경로로 쓰지 않고 비전(페이지 렌더) 경로로 넘긴다.
+      //
+      // 판정은 **이미 손에 든 텍스트 레이어만으로** 한다. 처음엔 pdfjs 로 이미지 면적을 쟀는데
+      // 서버리스에서 워커 파일을 못 찾아("Setting up fake worker failed") 매번 조용히 폴백했다.
       // ※ 플러스벳은 이 판정을 적용하지 않는다(그런 사례가 아직 없어 기존 동작을 그대로 둔다).
       let woorienImagedBody = false;
       if (sufficient && chartType === "woorien_pms") {
-        try {
-          const coverage = await measurePdfImageCoverage(binary);
-          woorienImagedBody = hasImagedBodyPage(coverage, tl.charsByPage);
-          textLayerDecision.coverage = coverage.map((c) => ({
-            page: c.page,
-            imageAreaRatio: Number(c.imageAreaRatio.toFixed(3)),
-            textChars: tl.charsByPage.get(c.page) ?? 0,
-          }));
-          if (woorienImagedBody) {
-            console.log(
-              `[text-bucketing] 우리엔 본문 이미지 감지 → 텍스트레이어 대신 비전(페이지 렌더) 경로 사용: ` +
-                coverage
-                  .map((c) => `p${c.page} img=${(c.imageAreaRatio * 100).toFixed(0)}% txt=${tl.charsByPage.get(c.page) ?? 0}`)
-                  .join(" · "),
-            );
-          }
-        } catch (e) {
-          // 측정 실패는 치명적이지 않다 — 기존 동작(텍스트 레이어 주 경로)을 유지한다.
-          textLayerDecision.coverageError = (e as Error)?.message ?? String(e);
-          console.log("[text-bucketing] 이미지 커버리지 측정 실패(기존 경로 유지):", (e as Error)?.message);
+        woorienImagedBody = !woorienTextLayerHasSoapBody(tl.lines);
+        if (woorienImagedBody) {
+          console.log(
+            "[text-bucketing] 우리엔 텍스트레이어에 SOAP 본문이 없음(본문이 이미지) → 비전(페이지 렌더) 경로 사용",
+          );
         }
       }
 

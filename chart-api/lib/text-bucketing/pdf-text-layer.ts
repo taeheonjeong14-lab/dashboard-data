@@ -126,3 +126,42 @@ export function isTextLayerSufficient(result: TextLayerResult): boolean {
   const pagesWithText = [...result.charsByPage.values()].filter((c) => c >= 50).length;
   return pagesWithText / result.numPages >= 0.5;
 }
+
+/**
+ * 우리엔 텍스트 레이어가 **SOAP 본문을 담고 있는지** 판정한다.
+ *
+ * 우리엔PMS 는 머리글·`S.O.A.P`·`Subjective` 라벨은 진짜 텍스트로, **본문만 래스터 이미지**로 넣는
+ * PDF 를 만든다. 그러면 텍스트 레이어에는 라벨까지만 남고 그 아래 내용(생활력·검사 해석·처방)이
+ * 통째로 사라진다. isTextLayerSufficient 는 "페이지에 글자가 좀 있나"만 보므로 머리글만으로 통과한다.
+ *
+ * 이미지 면적을 재는 방법도 있지만 pdfjs 가 서버리스에서 워커를 못 찾아 실패한 전례가 있어,
+ * **이미 손에 든 텍스트 레이어만으로** 판정한다(추가 의존성·런타임 위험 없음).
+ * 원리: 각 `Subjective` 뒤에 다음 섹션 마커 전까지 실질 줄이 몇 개나 오는가.
+ *   · 본문이 텍스트인 정상 차트: 여러 줄(주관 증상·경과·처방)
+ *   · 본문이 이미지인 차트: `[일반] …` 한 줄 뒤 바로 `Lab`
+ */
+export function woorienTextLayerHasSoapBody(lines: OrderedLine[]): boolean {
+  const isStop = (t: string): boolean =>
+    /^lab$/i.test(t) ||
+    /^s\.?\s*o\.?\s*a\.?\s*p\.?$/i.test(t) ||
+    /^(objective|assessment|plan)\b/i.test(t) ||
+    /^검사명/.test(t) ||
+    /\bSign\b\s*[:：]/i.test(t) ||
+    /^20\d{2}[./-]\d{1,2}[./-]\d{1,2}\b/.test(t);
+
+  let maxBodyLines = 0;
+  for (let i = 0; i < lines.length; i += 1) {
+    const t = (lines[i]?.text ?? '').replace(/\s+/g, ' ').trim();
+    if (!/^subjective\b/i.test(t)) continue;
+    let n = 0;
+    for (let j = i + 1; j < lines.length; j += 1) {
+      const s = (lines[j]?.text ?? '').replace(/\s+/g, ' ').trim();
+      if (!s) continue;
+      if (isStop(s)) break;
+      n += 1;
+    }
+    if (n > maxBodyLines) maxBodyLines = n;
+  }
+  // 어느 진료에서도 2줄을 못 넘으면 본문이 텍스트 레이어 밖(이미지)에 있다고 본다.
+  return maxBodyLines > 2;
+}

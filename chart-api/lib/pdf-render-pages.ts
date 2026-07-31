@@ -42,10 +42,27 @@ let pdfjsPromise: Promise<any> | null = null;
 async function getPdfjs(): Promise<any> {
   await getCanvasMod(); // 전역 폴리필을 먼저 건다.
   if (!pdfjsPromise) {
-    // exports 맵이 없어 파일 경로를 직접 import 가능(검증됨). serverExternalPackages 로 런타임 해석.
-    // (이 서브패스는 타입 선언을 제공하지 않아 any — getPdfjs 반환도 any)
-    // @ts-expect-error pdfjs-dist/build/pdf.mjs 는 타입 선언이 없음
-    pdfjsPromise = import('pdfjs-dist/build/pdf.mjs');
+    pdfjsPromise = (async () => {
+      // exports 맵이 없어 파일 경로를 직접 import 가능(검증됨). serverExternalPackages 로 런타임 해석.
+      // (이 서브패스는 타입 선언을 제공하지 않아 any — getPdfjs 반환도 any)
+      // @ts-expect-error pdfjs-dist/build/pdf.mjs 는 타입 선언이 없음
+      const mod: any = await import('pdfjs-dist/build/pdf.mjs');
+      // pdfjs 는 워커를 못 띄우면 "fake worker"(같은 프로세스)로 돌리는데, 그때 워커 **모듈**을
+      // 동적으로 import 한다. 그 경로가 계산식이라 번들 트레이서가 못 따라가 서버리스에서
+      //   "Setting up fake worker failed: Cannot find module .../pdf.worker.mjs"
+      // 로 getDocument 자체가 실패했다(→ 페이지 렌더가 조용히 PDF 직송으로 폴백).
+      // 리터럴 경로로 한 번 참조해 파일이 배포에 포함되게 하고, workerSrc 도 그 경로로 지정한다.
+      try {
+        // @ts-expect-error pdf.worker.mjs 는 타입 선언이 없음
+        await import('pdfjs-dist/build/pdf.worker.mjs');
+        const { createRequire } = await import('node:module');
+        const req = createRequire(import.meta.url);
+        mod.GlobalWorkerOptions.workerSrc = req.resolve('pdfjs-dist/build/pdf.worker.mjs');
+      } catch (e) {
+        console.warn('[pdf-render] 워커 사전 로드 실패(계속 진행):', e instanceof Error ? e.message : String(e));
+      }
+      return mod;
+    })();
   }
   return pdfjsPromise;
 }
@@ -119,104 +136,4 @@ export async function renderPdfPagesToJpegs(
   } finally {
     await doc.destroy().catch(() => {});
   }
-}
-
-export type PdfPageImageCoverage = {
-  page: number;
-  /** 페이지 면적 대비 래스터 이미지가 덮은 비율(0~1). 겹침은 보정하지 않는 근사치. */
-  imageAreaRatio: number;
-  imageCount: number;
-  /** 그 페이지 텍스트 레이어 글자 수 (호출부가 charsByPage 로 채워 넣는다) */
-  textChars: number;
-};
-
-/**
- * 페이지별 "래스터 이미지가 덮은 면적" 을 잰다 — 본문이 이미지로 들어간 PDF 를 가려내기 위함.
- *
- * 우리엔PMS 처럼 머리글·라벨은 진짜 텍스트인데 **SOAP 본문만 이미지**인 차트가 있다. 이때
- * 텍스트 레이어만 읽으면 `Subjective` 라벨까지만 나오고 그 아래 내용이 통째로 사라진다.
- * 실측(파스텔LC 4일치): 본문 페이지가 이미지 48% · 텍스트 280자 → 본문 전량 유실.
- *
- * 정확한 클리핑·겹침까지 계산하지 않는다. "이 페이지 상당 부분이 그림이다" 라는 **거친 신호**면
- * 충분하고, 임계값도 그 전제로 잡는다.
- */
-export async function measurePdfImageCoverage(pdfBuffer: Buffer): Promise<PdfPageImageCoverage[]> {
-  const pdfjs = await getPdfjs();
-  const doc = await pdfjs.getDocument({
-    data: new Uint8Array(pdfBuffer),
-    isEvalSupported: false,
-    disableFontFace: true,
-  }).promise;
-  try {
-    const OPS = pdfjs.OPS;
-    const paintOps = new Set(
-      [OPS.paintImageXObject, OPS.paintInlineImageXObject, OPS.paintJpegXObject].filter(
-        (v: unknown) => typeof v === 'number',
-      ),
-    );
-    const out: PdfPageImageCoverage[] = [];
-    for (let p = 1; p <= doc.numPages; p += 1) {
-      const page = await doc.getPage(p);
-      try {
-        const vp = page.getViewport({ scale: 1 });
-        const pageArea = Math.max(1, vp.width * vp.height);
-        const ops = await page.getOperatorList();
-        // CTM 을 save/restore/transform 으로 추적해 각 이미지가 실제로 차지하는 면적을 구한다.
-        let ctm: number[] = [1, 0, 0, 1, 0, 0];
-        const stack: number[][] = [];
-        let imageArea = 0;
-        let imageCount = 0;
-        for (let k = 0; k < ops.fnArray.length; k += 1) {
-          const fn = ops.fnArray[k];
-          if (fn === OPS.save) {
-            stack.push(ctm.slice());
-          } else if (fn === OPS.restore) {
-            ctm = stack.pop() ?? [1, 0, 0, 1, 0, 0];
-          } else if (fn === OPS.transform) {
-            const m = ops.argsArray[k] as number[];
-            // ctm = m × ctm (pdfjs 는 [a,b,c,d,e,f])
-            ctm = [
-              m[0] * ctm[0] + m[1] * ctm[2],
-              m[0] * ctm[1] + m[1] * ctm[3],
-              m[2] * ctm[0] + m[3] * ctm[2],
-              m[2] * ctm[1] + m[3] * ctm[3],
-              m[4] * ctm[0] + m[5] * ctm[2] + ctm[4],
-              m[4] * ctm[1] + m[5] * ctm[3] + ctm[5],
-            ];
-          } else if (paintOps.has(fn)) {
-            imageCount += 1;
-            // 단위 정사각형(0..1)이 CTM 으로 변환된 넓이 = |det|
-            imageArea += Math.abs(ctm[0] * ctm[3] - ctm[1] * ctm[2]);
-          }
-        }
-        out.push({
-          page: p,
-          imageAreaRatio: Math.min(1, imageArea / pageArea),
-          imageCount,
-          textChars: 0,
-        });
-      } finally {
-        page.cleanup();
-      }
-    }
-    return out;
-  } finally {
-    await doc.destroy().catch(() => {});
-  }
-}
-
-/**
- * "본문이 이미지로 들어간 페이지"가 있는지 — 텍스트 레이어를 주 경로로 믿어도 되는지 판정한다.
- * 이미지가 페이지를 크게 덮는데 그 페이지 텍스트가 적으면, 텍스트 레이어는 머리글·라벨만 읽은 것이다.
- */
-export function hasImagedBodyPage(
-  coverage: PdfPageImageCoverage[],
-  charsByPage: Map<number, number>,
-  opts?: { minImageAreaRatio?: number; maxTextChars?: number },
-): boolean {
-  const minRatio = opts?.minImageAreaRatio ?? 0.25;
-  const maxChars = opts?.maxTextChars ?? 800;
-  return coverage.some(
-    (c) => c.imageAreaRatio >= minRatio && (charsByPage.get(c.page) ?? 0) < maxChars,
-  );
 }
