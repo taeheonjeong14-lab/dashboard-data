@@ -3902,6 +3902,18 @@ export async function POST(request: NextRequest) {
     //  · 우리엔: Gemini 가 S.O.A.P 본문 구조를 흩뜨려 차트 본문이 통째로 비는 PDF가 있었다.
     //    이 양식은 텍스트 레이어가 정확해 그대로 버킷팅하면 본문·검사·바이탈이 온전히 나온다
     //    (플랜 표는 어차피 reconstructPlanRowsFromText 로 Gemini 재구성하므로 경로와 무관).
+    /**
+     * 텍스트 레이어를 주 경로로 썼는지/왜 안 썼는지를 raw_payload 에 남긴다.
+     * 이게 없으면 "게이트가 안 걸렸다"와 "게이트가 런타임 오류로 조용히 폴백했다"가 겉으로 똑같아
+     * Vercel 로그를 열기 전엔 구분이 안 된다(실제로 이 케이스에서 그래서 헤맸다).
+     */
+    let textLayerDecision: {
+      sufficient: boolean;
+      imagedBody: boolean | null;
+      usedTextLayer: boolean;
+      coverage?: { page: number; imageAreaRatio: number; textChars: number }[];
+      coverageError?: string;
+    } = { sufficient: false, imagedBody: null, usedTextLayer: false };
     let textLayerLines: OrderedLine[] | null = null;
     // 텍스트 레이어를 주 경로로 쓰지 않는 차트(인투벳 등)도 뽑아 둔다 — 아래에서 전사가 흘린
     // 행 끝 대시(= 음성 결과)를 원문으로 되살리는 백스톱으로 쓴다. LLM 호출이 아니라 로컬 파싱이다.
@@ -3926,6 +3938,11 @@ export async function POST(request: NextRequest) {
         try {
           const coverage = await measurePdfImageCoverage(binary);
           woorienImagedBody = hasImagedBodyPage(coverage, tl.charsByPage);
+          textLayerDecision.coverage = coverage.map((c) => ({
+            page: c.page,
+            imageAreaRatio: Number(c.imageAreaRatio.toFixed(3)),
+            textChars: tl.charsByPage.get(c.page) ?? 0,
+          }));
           if (woorienImagedBody) {
             console.log(
               `[text-bucketing] 우리엔 본문 이미지 감지 → 텍스트레이어 대신 비전(페이지 렌더) 경로 사용: ` +
@@ -3936,6 +3953,7 @@ export async function POST(request: NextRequest) {
           }
         } catch (e) {
           // 측정 실패는 치명적이지 않다 — 기존 동작(텍스트 레이어 주 경로)을 유지한다.
+          textLayerDecision.coverageError = (e as Error)?.message ?? String(e);
           console.log("[text-bucketing] 이미지 커버리지 측정 실패(기존 경로 유지):", (e as Error)?.message);
         }
       }
@@ -3943,6 +3961,12 @@ export async function POST(request: NextRequest) {
       if (sufficient && (chartType === "plusvet" || (chartType === "woorien_pms" && !woorienImagedBody))) {
         textLayerLines = tl.lines;
       }
+      textLayerDecision = {
+        ...textLayerDecision,
+        sufficient,
+        imagedBody: chartType === "woorien_pms" ? woorienImagedBody : null,
+        usedTextLayer: textLayerLines !== null,
+      };
       console.log(
         `[text-bucketing] ${chartType} 텍스트레이어: pages=${tl.numPages} lines=${tl.lines.length} sufficient=${sufficient} (주경로=${textLayerLines !== null})`,
       );
@@ -4293,6 +4317,7 @@ export async function POST(request: NextRequest) {
       chartType,
       chartTypeNotice: chartTypeNoticeFor(chartType),
       labStrategy: useLabSinglePass ? "single-pass" : "date-by-date",
+      textLayerDecision,
       counts: {
         llm: llmLines.length,
         pasteLines: pasteLines.length,
