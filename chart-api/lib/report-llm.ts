@@ -992,15 +992,22 @@ async function extractOrderedLinesFromPdfWithGemini(params: {
   }
   // 인투벳: 진료 본문을 이미지 박스로 넣어, 텍스트헤더가 있는 페이지의 박스를 PDF 직송(단일패스/PDF-슬라이스)으로는
   // 못 읽는다(디지털 텍스트 페이지로 오인해 이미지 스킵) → 페이지를 통째 렌더한 이미지로 전사한다.
-  const forceRenderedPageImages = params.chartKind === 'intovet';
+  //
+  // 우리엔PMS 도 같은 구조의 PDF 가 있다. 머리글·`S.O.A.P`·`Subjective` 라벨은 진짜 텍스트인데
+  // **본문만 래스터 이미지**여서, 텍스트 레이어로도 PDF 직송으로도 본문이 통째로 빈다
+  // (실측 파스텔LC: 본문 페이지 이미지 48% · 텍스트 280자). 여기까지 왔다는 건 route 의 게이트가
+  // 이미 "텍스트 레이어로는 본문을 못 읽는다"고 판정했다는 뜻이므로, 곧장 렌더 이미지로 전사한다.
+  const forceRenderedPageImages = params.chartKind === 'intovet' || params.chartKind === 'woorien_pms';
   // 클라이언트를 감싸 모든 generateContent sub-call(단일패스·이미지/PDF 슬라이스)의 usage 를 자동 적재.
   const client = withGenAiUsage(new GoogleGenAI({ apiKey }), { feature: 'extract', ...params.usageContext });
   const model = process.env.GEMINI_REPORT_MODEL ?? 'gemini-2.5-flash';
 
   try {
-    // 인투벳은 단일패스(PDF 직송)가 이미지 박스를 스킵하므로 곧장 페이지-이미지 렌더 경로(아래 catch)로 보낸다.
+    // 인투벳·우리엔은 단일패스(PDF 직송)가 이미지 박스를 스킵하므로 곧장 페이지-이미지 렌더 경로(아래 catch)로 보낸다.
     if (forceRenderedPageImages) {
-      throw new Error('intovet — skip single-pass, render page images for full transcription');
+      throw new Error(
+        `${params.chartKind} — skip single-pass, render page images for full transcription`,
+      );
     }
     // 큰 PDF는 단일패스 출력이 토큰 한도에 걸려 JSON이 잘리는 게 거의 확정 →
     // 254초쯤 낭비하지 말고 곧장 페이지-범위 추출(아래 catch)로 보낸다.

@@ -36,6 +36,7 @@ import {
 } from "@/lib/text-bucketing/ocr-line-position";
 import { extractOrderedLinesFromPdf, getOpenAiOrderedLinesModel, reconstructPlanRowsFromText } from "@/lib/report-llm";
 import { extractOrderedLinesFromTextLayer, isTextLayerSufficient } from "@/lib/text-bucketing/pdf-text-layer";
+import { measurePdfImageCoverage, hasImagedBodyPage } from "@/lib/pdf-render-pages";
 import { hospitalHasTokens, chargeOperationTokens, isBarunFreeOperation } from "@/lib/billing/token-charge";
 import { extractOpenAiErrorDetails, exposeOpenAiErrorDetailsInResponse } from "@/lib/openai-api-error";
 import { hasLlmApiKey } from "@/lib/llm-provider";
@@ -3912,7 +3913,36 @@ export async function POST(request: NextRequest) {
       const sufficient = isTextLayerSufficient(tl);
       if (sufficient) textLayerBackstop = tl.lines;
       if (sufficient) textLayerBackstopBands = tl.bandLines;
-      if (sufficient && (chartType === "plusvet" || chartType === "woorien_pms")) textLayerLines = tl.lines;
+
+      // 우리엔: 머리글·`S.O.A.P`·`Subjective` 라벨은 진짜 텍스트인데 **본문만 래스터 이미지**인 PDF 가 있다.
+      // 그러면 텍스트 레이어는 라벨까지만 읽고 본문을 통째로 놓치는데, isTextLayerSufficient 는
+      // "페이지에 글자가 50자 이상 있나"만 보므로 머리글만으로 통과해 버린다
+      // (실측 파스텔LC 4일치: 본문 페이지 이미지 48% · 텍스트 280자 → S.O.A.P 아래 내용 전량 유실).
+      // → 이미지가 페이지를 크게 덮는데 텍스트가 적은 페이지가 있으면 텍스트 레이어를 주 경로로 쓰지 않는다.
+      //   비전(페이지 렌더 이미지) 경로로 넘어가고, report-llm 이 우리엔을 forceRenderedPageImages 로 처리한다.
+      // ※ 플러스벳은 이 판정을 적용하지 않는다(그런 사례가 아직 없어 기존 동작을 그대로 둔다).
+      let woorienImagedBody = false;
+      if (sufficient && chartType === "woorien_pms") {
+        try {
+          const coverage = await measurePdfImageCoverage(binary);
+          woorienImagedBody = hasImagedBodyPage(coverage, tl.charsByPage);
+          if (woorienImagedBody) {
+            console.log(
+              `[text-bucketing] 우리엔 본문 이미지 감지 → 텍스트레이어 대신 비전(페이지 렌더) 경로 사용: ` +
+                coverage
+                  .map((c) => `p${c.page} img=${(c.imageAreaRatio * 100).toFixed(0)}% txt=${tl.charsByPage.get(c.page) ?? 0}`)
+                  .join(" · "),
+            );
+          }
+        } catch (e) {
+          // 측정 실패는 치명적이지 않다 — 기존 동작(텍스트 레이어 주 경로)을 유지한다.
+          console.log("[text-bucketing] 이미지 커버리지 측정 실패(기존 경로 유지):", (e as Error)?.message);
+        }
+      }
+
+      if (sufficient && (chartType === "plusvet" || (chartType === "woorien_pms" && !woorienImagedBody))) {
+        textLayerLines = tl.lines;
+      }
       console.log(
         `[text-bucketing] ${chartType} 텍스트레이어: pages=${tl.numPages} lines=${tl.lines.length} sufficient=${sufficient} (주경로=${textLayerLines !== null})`,
       );
