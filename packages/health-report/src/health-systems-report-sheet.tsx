@@ -1,3 +1,4 @@
+import { renderReportRichText } from "./rich-text";
 import { Fragment } from "react";
 import "./health-systems-report-sheet.css";
 import { HealthReportInnerSheetHeader } from "./health-report-inner-sheet-header";
@@ -226,7 +227,7 @@ export function HealthSystemsReportSheet({
                   {block.rows.map((row, j) => (
                     <div key={`${row.label}-${j}`} className="hsr-row">
                       <div className="hsr-row__label">{row.label}</div>
-                      <div className="hsr-row__body">{typeof row.content === "string" ? row.content.replace(/\n{2,}/g, "\n") : row.content}</div>
+                      <div className="hsr-row__body">{renderReportRichText(typeof row.content === "string" ? row.content.replace(/\n{2,}/g, "\n") : row.content)}</div>
                     </div>
                   ))}
                 </div>
@@ -366,7 +367,7 @@ export function HealthSystemsReportSheet({
                   </svg>
                   <p className="hsr-disease-box__title">{block.name}{iranSuffix(block.name)}?</p>
                 </div>
-                <p className="hsr-disease-box__body">{block.body}</p>
+                <p className="hsr-disease-box__body">{renderReportRichText(block.body)}</p>
               </div>
             ) : (
               <div className="hsr-section-body hsr-section-body--omitted">

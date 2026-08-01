@@ -24,7 +24,9 @@ import type { HealthCheckupGeneratedContent } from '@/lib/health-report-admin/ty
 import { joinTimelineCardText, splitTimelineCardText } from '@/lib/health-report-admin/timeline-card';
 import type { HealthSystemsReportBlock, HealthSystemsImageSlot } from '@/lib/health-report-admin/health-systems-types';
 import { parseHealthSystemsBlocksFromUnknown } from '@/lib/health-report-admin/health-systems-blocks-parse';
-import { iranSuffix } from '@dashboard/health-report';
+import { iranSuffix,
+  RichTextTextarea,
+} from '@dashboard/health-report';
 import { AdminHealthReportImageSlots, type CaseImageCandidate } from '@/components/admin-health-report-image-slots';
 import { CaseImagesSection } from '@/components/admin-run-extraction-detail';
 import { AdminRunExtractionDetail } from '@/components/admin-run-extraction-detail';
@@ -1346,12 +1348,12 @@ export function AdminHealthCheckupWorkspace({
                       {cardTitle.length} / 권장 최대 글자수 {HEALTH_CHECKUP_MAX_RECHECK_TITLE_CHARS}
                       {cardTitle.length > HEALTH_CHECKUP_MAX_RECHECK_TITLE_CHARS ? OVER_MAX_WARNING : ''}
                     </p>
-                    <textarea
+                    <RichTextTextarea
                       placeholder="본문"
                       rows={3}
                       style={{ width: '100%', padding: 8, fontSize: 14 }}
                       value={cardBody}
-                      onChange={(e) => setRecheckField(key, 'body', e.target.value)}
+                      onChange={(v) => setRecheckField(key, 'body', v)}
                     />
                     <p style={{ margin: 0, fontSize: 11, color: 'var(--warning)', textAlign: 'right' }}>
                       {cardBody.length} / 권장 최대 글자수 {HEALTH_CHECKUP_MAX_RECHECK_BODY_CHARS}
@@ -1435,11 +1437,11 @@ export function AdminHealthCheckupWorkspace({
                             </button>
                           </div>
                         )}
-                        <textarea
+                        <RichTextTextarea
                           rows={3}
                           style={{ width: '100%', padding: 8, fontSize: 14 }}
                           value={row.content}
-                          onChange={(e) => setRowContent(e.target.value)}
+                          onChange={setRowContent}
                         />
                         <span style={{ fontSize: 11, color: 'var(--warning)' }}>
                           {row.content.length} / 권장 최대 글자수 {rowMax}
@@ -1487,7 +1489,7 @@ export function AdminHealthCheckupWorkspace({
                                 </div>
                                 {opt.enabled && (
                                   <div>
-                                    <textarea rows={3} style={{ width: '100%', padding: 8, fontSize: 14 }} maxLength={200} value={opt.body} onChange={(e) => patchDiseaseOption(k, bi, oi, { body: e.target.value })} />
+                                    <RichTextTextarea rows={3} style={{ width: '100%', padding: 8, fontSize: 14 }} maxLength={200} value={opt.body} onChange={(v) => patchDiseaseOption(k, bi, oi, { body: v })} />
                                     <span style={{ fontSize: 11, color: opt.body.length > 250 ? 'var(--danger)' : 'var(--text-muted)' }}>
                                       {opt.body.length} / 권장 최대 글자수 200{opt.body.length > 200 ? OVER_MAX_WARNING : ''}
                                     </span>
@@ -1603,14 +1605,14 @@ export function AdminHealthCheckupWorkspace({
               </div>
             </summary>
             <div style={{ padding: '12px 14px' }}>
-              <textarea
+              <RichTextTextarea
                 rows={6}
                 style={{ width: '100%', fontSize: 14, padding: 10 }}
                 value={draft.labInterpretation ?? ''}
-                onChange={(e) =>
+                onChange={(v) =>
                   setDraft((d) => ({
                     ...d,
-                    labInterpretation: e.target.value,
+                    labInterpretation: v,
                   }))
                 }
               />

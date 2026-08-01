@@ -1,3 +1,4 @@
+import { renderReportRichText } from "./rich-text";
 import "./health-report-summary-sheet.css";
 import { HealthReportInnerSheetHeader } from "./health-report-inner-sheet-header";
 import { formatKoreanShortDateKst } from "./kst-date-format";
@@ -182,7 +183,7 @@ export function HealthReportSummarySheet({
                       <div className="hrss-tl-card">
                         <div className="hrss-tl-card__inner">
                           {title ? (
-                            <p className="hrss-tl-card__title">{title}</p>
+                            <p className="hrss-tl-card__title">{renderReportRichText(title)}</p>
                           ) : isCompletelyEmpty ? (
                             // 비어 있을 때 제목 자리만큼 보이지 않는 placeholder 를 두어,
                             // fallback 문구가 일반 카드의 본문 첫째 줄 위치에 떨어지도록 한다.
@@ -195,7 +196,7 @@ export function HealthReportSummarySheet({
                             </p>
                           ) : null}
                           <p className="hrss-tl-card__text">
-                            {isCompletelyEmpty ? "별도의 재검 일정은 없습니다" : body || " "}
+                            {isCompletelyEmpty ? "별도의 재검 일정은 없습니다" : renderReportRichText(body) || " "}
                           </p>
                         </div>
                       </div>

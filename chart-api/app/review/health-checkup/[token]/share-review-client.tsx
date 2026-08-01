@@ -24,6 +24,7 @@ import {
   buildHealthReportPreviewPages,
   HealthReportPreviewPages,
   type HealthPreviewEditableSection,
+  RichTextTextarea,
 } from '@dashboard/health-report';
 import { joinTimelineCardText, splitTimelineCardText } from '@/lib/chart-app/health-report-timeline-card';
 import { parseHealthSystemsBlocksFromUnknown } from '@/lib/chart-app/health-report-systems-blocks-parse';
@@ -418,7 +419,7 @@ function HealthCheckupReviewEditor({ draft, onChange, onSave, saving, activeSect
                   <div>
                     <label style={{ display: 'block' }}>
                       <span style={{ display: 'block', fontSize: 11, fontWeight: 500, color: '#71717a', marginBottom: 4 }}>본문</span>
-                      <textarea className="hcu-rv-textarea" style={{ minHeight: 72 }} maxLength={HEALTH_CHECKUP_MAX_RECHECK_BODY_CHARS} value={bodyForInput} onChange={(e) => setRecheckPair(field, titleVal, e.target.value)} />
+                      <RichTextTextarea className="hcu-rv-textarea" style={{ minHeight: 72 }} maxLength={HEALTH_CHECKUP_MAX_RECHECK_BODY_CHARS} value={bodyForInput} onChange={(v) => setRecheckPair(field, titleVal, v)} />
                     </label>
                     <CharCountLine current={bodyForInput.length} max={HEALTH_CHECKUP_MAX_RECHECK_BODY_CHARS} />
                   </div>
@@ -452,7 +453,7 @@ function HealthCheckupReviewEditor({ draft, onChange, onSave, saving, activeSect
                     <div key={`${key}-b-${bi}-r-${ri}`} style={{ minWidth: 0 }}>
                       <label style={{ display: 'block' }}>
                         <span style={{ display: 'block', fontSize: 11, fontWeight: 500, color: '#52525b', marginBottom: 4 }}>{row.label}</span>
-                        <textarea className="hcu-rv-textarea" style={{ minHeight: 100 }} maxLength={rowMax} value={row.content} onChange={(e) => setSystemsRow(key, bi, ri, e.target.value)} />
+                        <RichTextTextarea className="hcu-rv-textarea" style={{ minHeight: 100 }} maxLength={rowMax} value={row.content} onChange={(v) => setSystemsRow(key, bi, ri, v)} />
                       </label>
                       <CharCountLine current={row.content.length} max={rowMax} />
                     </div>
@@ -479,7 +480,7 @@ function HealthCheckupReviewEditor({ draft, onChange, onSave, saving, activeSect
                             </label>
                             {opt.enabled ? (
                               <div>
-                                <textarea className="hcu-rv-textarea" style={{ minHeight: 80 }} maxLength={DISEASE_BODY_MAX} value={opt.body} onChange={(e) => setSystemsOptionBody(key, bi, oi, e.target.value)} />
+                                <RichTextTextarea className="hcu-rv-textarea" style={{ minHeight: 80 }} maxLength={DISEASE_BODY_MAX} value={opt.body} onChange={(v) => setSystemsOptionBody(key, bi, oi, v)} />
                                 <CharCountLine current={opt.body.length} max={DISEASE_BODY_MAX} />
                               </div>
                             ) : null}
@@ -502,7 +503,7 @@ function HealthCheckupReviewEditor({ draft, onChange, onSave, saving, activeSect
             <div style={{ minWidth: 0 }}>
               <label style={{ display: 'block' }}>
                 <span style={{ display: 'block', fontSize: 11, fontWeight: 500, color: '#52525b', marginBottom: 4 }}>검사 결과 해석</span>
-                <textarea className="hcu-rv-textarea" style={{ minHeight: 100 }} maxLength={250} value={draft.labInterpretation ?? ''} onChange={(e) => onChange({ ...draft, labInterpretation: e.target.value })} />
+                <RichTextTextarea className="hcu-rv-textarea" style={{ minHeight: 100 }} maxLength={250} value={draft.labInterpretation ?? ''} onChange={(v) => onChange({ ...draft, labInterpretation: v })} />
               </label>
               <CharCountLine current={(draft.labInterpretation ?? '').length} max={250} />
             </div>

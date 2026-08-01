@@ -1,3 +1,4 @@
+import { renderReportRichText } from "./rich-text";
 import "./health-lab-report-sheet.css";
 import { HealthReportInnerSheetHeader } from "./health-report-inner-sheet-header";
 import { parseReferenceRange, valuePositionPercent } from "./lab-range-parse";
@@ -139,7 +140,7 @@ export function HealthLabReportSheet({
             <div className="hlr-interp-rows">
               <div className="hlr-interp-row">
                 <div className="hlr-interp-row__label">검사 결과 해석</div>
-                <div className="hlr-interp-row__body">{interpretation}</div>
+                <div className="hlr-interp-row__body">{renderReportRichText(interpretation)}</div>
               </div>
             </div>
           </div>
