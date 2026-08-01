@@ -7,6 +7,31 @@ import {
   type RadiologySub,
 } from './types';
 
+/**
+ * 비전 LLM 클라이언트. **모델 슬러그가 provider 를 결정한다** — `/` 가 있으면
+ * Vercel AI Gateway(`provider/model`), 없으면 OpenAI 직결.
+ * 덕분에 provider 교체가 env 한 줄이고, 문제가 생기면 재배포 없이 되돌릴 수 있다.
+ *
+ * 기본값 `xai/grok-4.5` — 실측(방사선 4장)에서 gpt-4o 와 판정이 완전히 같았고,
+ * 단가는 더 싸다($2/$6 vs $2.5/$10). 다만 같은 이미지를 토큰으로 1.75배 쓰기 때문에
+ * 회당 비용은 오히려 1.36배다. 품질 동률·게이트웨이 일원화를 택한 결정.
+ * 되돌리려면 IMAGE_VISION_MODEL=gpt-4o.
+ */
+function visionClient(): { client: OpenAI; model: string } {
+  const model = process.env.IMAGE_VISION_MODEL?.trim() || 'xai/grok-4.5';
+  if (model.includes('/')) {
+    const apiKey = process.env.AI_GATEWAY_API_KEY?.trim();
+    if (!apiKey) {
+      throw new Error(`AI_GATEWAY_API_KEY is not configured. (IMAGE_VISION_MODEL=${model})`);
+    }
+    const baseURL = process.env.AI_GATEWAY_BASE_URL?.trim() || 'https://ai-gateway.vercel.sh/v1';
+    return { client: new OpenAI({ apiKey, baseURL }), model };
+  }
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) throw new Error('OPENAI_API_KEY is not configured.');
+  return { client: new OpenAI({ apiKey }), model };
+}
+
 export type ImageInputPart = {
   buffer: Buffer;
   fileName: string;
@@ -199,12 +224,9 @@ export async function analyzeImageGroup(params: {
   images: ImageInputPart[];
   usageContext?: UsageContext;
 }): Promise<ImageGroupAnalysis> {
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) throw new Error('OPENAI_API_KEY is not configured.');
   if (params.images.length === 0) return { images: [], bullets: [] };
 
-  const model = process.env.OPENAI_VISION_MODEL?.trim() || 'gpt-4o';
-  const client = new OpenAI({ apiKey });
+  const { client, model } = visionClient();
   const validNames = new Set(params.images.map((i) => i.fileName));
 
   // 이미지가 많으면 한 요청 토큰이 분당 한도(TPM)를 넘어 429 가 난다(한 요청이 한도를 넘으면 재시도로도 불가).
@@ -278,12 +300,9 @@ export async function analyzeCaseBlogImages(params: {
   images: (ImageInputPart & { examDate?: string | null })[];
   usageContext?: UsageContext;
 }): Promise<{ assignments: CaseBlogImageAssignment[] }> {
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) throw new Error('OPENAI_API_KEY is not configured.');
   if (params.images.length === 0 || params.sections.length === 0) return { assignments: [] };
 
-  const model = process.env.OPENAI_VISION_MODEL?.trim() || 'gpt-4o';
-  const client = new OpenAI({ apiKey });
+  const { client, model } = visionClient();
   const validNames = new Set(params.images.map((i) => i.fileName));
   const sectionIds = new Set(params.sections.map((s) => s.id));
   // 이미지는 진단 과정/치료 과정 섹션에만 배정. 그런 섹션이 있으면 그 id 로 제한(없으면 전체 허용=폴백).

@@ -32,9 +32,13 @@ const PRICE_TABLE: Record<string, ModelPrice> = {
   'claude-sonnet-4': { inputPer1M: 3.0, outputPer1M: 15.0 },
   'claude-haiku-4': { inputPer1M: 1.0, outputPer1M: 5.0 },
   'claude-opus-4': { inputPer1M: 15.0, outputPer1M: 75.0 },
-  // — xAI (Grok) — ★ 단가 추정값(변동 잦음). AI Gateway Models 페이지에서 실단가 확인 후 정정할 것.
-  // 긴 prefix 우선 매칭: fast 계열은 저가 행으로, 그 외 grok 은 catch-all.
+  // — xAI (Grok) — 2026-08-01 게이트웨이 카탈로그(GET /v1/models 의 pricing)에서 실단가 확인.
+  // 긴 prefix 우선 매칭이므로 구체적인 버전 행이 catch-all 보다 먼저 잡힌다.
+  // catch-all 두 줄은 여전히 추정값이다 — 새 버전을 쓰기로 하면 반드시 실단가를 확인해 행을 추가할 것.
+  // (마진 0 구조라 표가 틀리면 그대로 과다/과소 차감이 된다. grok-4.5 를 catch-all 로 계산하면 2.5배 과다였다.)
   'grok-4.1-fast': { inputPer1M: 0.2, outputPer1M: 0.5 },
+  'grok-4.5': { inputPer1M: 2.0, outputPer1M: 6.0 },
+  'grok-4.3': { inputPer1M: 1.25, outputPer1M: 2.5 },
   'grok-4': { inputPer1M: 3.0, outputPer1M: 15.0 },
   'grok': { inputPer1M: 3.0, outputPer1M: 15.0 },
 };

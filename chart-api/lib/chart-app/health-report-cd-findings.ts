@@ -12,6 +12,28 @@ import { recordTokenUsage, openaiChatUsage, type UsageContext } from '@/lib/bill
 export type CdModalityResult = { findings: string; imageIds: string[] };
 export type CdFindingsResult = { radiology: CdModalityResult; ultrasound: CdModalityResult };
 
+/**
+ * 비전 LLM 클라이언트. **모델 슬러그가 provider 를 결정한다** — `/` 가 있으면
+ * Vercel AI Gateway(`provider/model`), 없으면 OpenAI 직결. provider 교체가 env 한 줄이고,
+ * 문제가 생기면 재배포 없이 IMAGE_VISION_MODEL 만 되돌리면 된다.
+ * 기본값·근거는 admin-web 의 chart-case-images/analyze.ts 주석 참고(같은 결정을 공유한다).
+ *
+ * 키가 없으면 null — 호출부가 "비전 없이 진행"을 스스로 정하게 둔다(a/b 넘침은 폴백이 있고
+ * c/d 는 없어서 throw 해야 한다).
+ */
+function visionClient(): { client: OpenAI; model: string } | null {
+  const model = process.env.IMAGE_VISION_MODEL?.trim() || 'xai/grok-4.5';
+  if (model.includes('/')) {
+    const apiKey = process.env.AI_GATEWAY_API_KEY?.trim();
+    if (!apiKey) return null;
+    const baseURL = process.env.AI_GATEWAY_BASE_URL?.trim() || 'https://ai-gateway.vercel.sh/v1';
+    return { client: new OpenAI({ apiKey, baseURL }), model };
+  }
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) return null;
+  return { client: new OpenAI({ apiKey }), model };
+}
+
 async function runModality(
   client: OpenAI,
   model: string,
@@ -130,12 +152,11 @@ export async function selectSectionImages(params: {
   maxSlots: number;
   usageContext?: UsageContext;
 }): Promise<string[]> {
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) return params.images.slice(0, params.maxSlots).map((i) => i.id);
+  const vc = visionClient();
+  if (!vc) return params.images.slice(0, params.maxSlots).map((i) => i.id);
   if (params.images.length <= params.maxSlots) return params.images.map((i) => i.id);
 
-  const model = process.env.OPENAI_VISION_MODEL?.trim() || 'gpt-4o';
-  const client = new OpenAI({ apiKey });
+  const { client, model } = vc;
 
   const signed = await signCaseImageStoragePaths(params.images.map((i) => i.storagePath));
   const urled = params.images
@@ -213,10 +234,14 @@ export async function generateCdFindings(
   usageContext?: UsageContext,
   chartFindings?: { radiology?: string; ultrasound?: string },
 ): Promise<CdFindingsResult> {
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) throw new Error('OPENAI_API_KEY is not configured.');
-  const model = process.env.OPENAI_VISION_MODEL?.trim() || 'gpt-4o';
-  const client = new OpenAI({ apiKey });
+  const vc = visionClient();
+  if (!vc) {
+    throw new Error(
+      `비전 LLM 키가 없습니다 — IMAGE_VISION_MODEL=${process.env.IMAGE_VISION_MODEL?.trim() || 'xai/grok-4.5'} 에 필요한 ` +
+        'AI_GATEWAY_API_KEY(게이트웨이 슬러그) 또는 OPENAI_API_KEY(직결) 를 설정하세요.',
+    );
+  }
+  const { client, model } = vc;
 
   // 치아·구강 방사선(dental)은 5p 치과 슬롯이므로 방사선 검사 소견에서 제외.
   const radImgs = images.filter((i) => i.examType === 'radiology' && i.radiologySub !== 'dental');
