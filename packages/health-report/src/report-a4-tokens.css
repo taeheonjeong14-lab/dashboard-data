@@ -70,9 +70,11 @@
   --report-a4-sheet-preview-shadow: 0 4px 24px rgba(0, 0, 0, 0.08);
   /** 요약(2p) 재검진 타임라인 */
   /* 섹션을 10mm 줄인 만큼 내용물도 위로 당겨 푸터와의 여백 유지(아래로 밀림 방지) */
-  --report-a4-timeline-labels-top: 3mm;
-  --report-a4-timeline-nodes-top: 9mm;
-  --report-a4-timeline-cards-top: 18mm;
+  /* 재검진 타임라인은 라벨·노드·카드가 모두 absolute 라 이 세 값이 함께 움직여야 내부 간격이 유지된다.
+     2026-08-01: 제목과 너무 붙어 보여 블록 전체를 5mm 내렸다(3/9/18 → 8/14/23). */
+  --report-a4-timeline-labels-top: 8mm;
+  --report-a4-timeline-nodes-top: 14mm;
+  --report-a4-timeline-cards-top: 23mm;
   --report-a4-timeline-interval-label-font-size: 14px;
   --report-a4-timeline-interval-label-font-weight: 700;
   --report-a4-timeline-line-thickness: 4px;

@@ -359,7 +359,10 @@
   position: relative;
   flex-shrink: 0;
   margin: 0;
-  padding: 5mm var(--report-a4-sheet-padding-x) 6mm;
+  /* 푸터(발행일·원장 서명)는 타임라인이 flex:1 로 늘어난 뒤 하단에 붙는다 → 아래 여백을 줄여야
+     내려간다(위 padding 을 키우면 오히려 자기 높이만 커지고 내용 위치는 그대로다).
+     2026-08-01: 6mm → 4mm 로 2mm 내림. */
+  padding: 5mm var(--report-a4-sheet-padding-x) 4mm;
   background: transparent;
   color: var(--report-a4-inverse-text);
   isolation: isolate;
