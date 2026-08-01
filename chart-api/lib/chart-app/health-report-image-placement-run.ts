@@ -1,4 +1,5 @@
 import type pg from 'pg';
+import { logError } from '@dashboard/error-log';
 
 import type { ExamType, RadiologySub } from '@/lib/chart-app/image-case-types';
 import type { HealthCheckupValidatedPayload } from '@/lib/chart-app/health-checkup-content-schema';
@@ -156,6 +157,31 @@ export function sortRadiologyIds(ids: string[], imageById: Map<string, Placement
     .map((x) => x.id);
 }
 
+/**
+ * 비전 단계 실패를 에러 로그에 올린다.
+ *
+ * 이 단계들은 전부 non-blocking 이다 — 실패해도 리포트는 그냥 생성되고, 라벨 기반 배치 결과나
+ * 데모 블록이 남는다. 즉 **아무도 모르는 채로 품질만 조용히 떨어진다**. console.error 는
+ * Vercel 로그에만 남아 사실상 안 본다. 리포트에서 제일 눈에 띄는 부분이라 반드시 올린다.
+ */
+async function logVisionFailure(
+  stage: string,
+  runId: string,
+  e: unknown,
+  usageContext?: UsageContext,
+): Promise<void> {
+  await logError({
+    app: 'chart-api',
+    source: 'server',
+    route: '/lib/chart-app/health-report-image-placement-run',
+    feature: 'image_placement',
+    message: `${stage}: ${e instanceof Error ? e.message : String(e)}`,
+    stack: e instanceof Error ? e.stack ?? null : null,
+    hospitalId: usageContext?.hospitalId ?? null,
+    context: { runId, stage, model: process.env.IMAGE_VISION_MODEL?.trim() || 'xai/grok-4.5' },
+  });
+}
+
 /** 이미지가 a(치과·안과) / b(피부·외이도) 섹션 후보인지 분류. 그 외는 null. */
 function sectionABofImage(img: PlacementImageInput): 'a' | 'b' | null {
   const part = img.bodyPart || '';
@@ -256,6 +282,7 @@ export async function runImagePlacementForRun(
     applyCdFindingsToPage5(page5, cd, imageById, storagePathById, chartFindings);
   } catch (e) {
     console.error('[image-placement] c/d findings failed (non-blocking):', e);
+    await logVisionFailure('c/d 검사소견(전체 생성)', runId, e, usageContext);
   }
 
   // 치과·안과(a) / 피부·외이도(b)는 이미지가 슬롯보다 많을 때만 섹션 텍스트 기반 비전 선택으로 교체.
@@ -272,6 +299,7 @@ export async function runImagePlacementForRun(
     }
   } catch (e) {
     console.error('[image-placement] a/b overflow failed (non-blocking):', e);
+    await logVisionFailure('a/b 이미지 넘침 선택(전체 생성)', runId, e, usageContext);
   }
 
   payload.systemsPage4Blocks = page4;
@@ -321,6 +349,7 @@ export async function applyImagePlacementForSection(
       }
     } catch (e) {
       console.error('[image-placement] a/b overflow (section) failed (non-blocking):', e);
+      await logVisionFailure('a/b 이미지 넘침 선택(섹션 재생성)', runId, e, usageContext);
     }
   } else {
     placePage5ByLabel(blocks, images, imageById, storagePathById);
@@ -332,6 +361,7 @@ export async function applyImagePlacementForSection(
       applyCdFindingsToPage5(blocks, cd, imageById, storagePathById, chartFindings);
     } catch (e) {
       console.error('[image-placement] c/d findings (section) failed (non-blocking):', e);
+      await logVisionFailure('c/d 검사소견(섹션 재생성)', runId, e, usageContext);
     }
   }
   return blocks;
