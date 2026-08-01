@@ -429,6 +429,9 @@ function CaseImageCard({ img, numbers = [], confidence, editMode = false, onDele
 }
 
 function imageSectionKey(img: Pick<CaseImage, 'examType' | 'radiologySub'>): string {
+  // examType 이 없으면 아직 분류 전이다. 라벨링은 건강검진 리포트 생성 직전에 한 번 도는데,
+  // 그 전까지는 '그 외'로 뭉뚱그리지 않고 미분류로 따로 보여준다(= 판정 실패가 아니라 아직 안 한 것).
+  if (!img.examType) return 'unlabeled';
   if (img.examType === 'radiology') {
     if (img.radiologySub === 'thorax') return 'radiology:thorax';
     if (img.radiologySub === 'abdomen') return 'radiology:abdomen';
@@ -451,6 +454,7 @@ const IMAGE_SECTION_ORDER = [
   'scope',
   'slit_lamp',
   'other',
+  'unlabeled',
 ] as const;
 
 function imageSectionTitle(key: string): string {
@@ -461,6 +465,7 @@ function imageSectionTitle(key: string): string {
   if (key === 'ultrasound') return '초음파';
   if (key === 'scope') return '현미경 · 검이경';
   if (key === 'slit_lamp') return '슬릿램프';
+  if (key === 'unlabeled') return '미분류 (리포트 생성 시 분류됨)';
   return '그 외';
 }
 

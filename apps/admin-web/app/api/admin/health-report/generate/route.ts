@@ -4,9 +4,12 @@ import { isParseRunUuid } from '@/lib/chart-extraction/uuid';
 import { getChartApiProxyConfig } from '@/lib/chart-api-proxy-env';
 import { formatChartApiFetchError } from '@/lib/chart-api-fetch-error';
 import { notifyHospitalUsers, notifyAdminError, runHospitalAndPatient } from '@/lib/notify';
+import { ensureRunImagesLabeled } from '@/lib/chart-case-images/ensure-labeled';
+import { logError } from '@dashboard/error-log';
 
 export const dynamic = 'force-dynamic';
-export const maxDuration = 120;
+// 라벨링을 여기서 먼저 돌리므로(미분류가 있을 때만) 프록시보다 시간이 더 걸릴 수 있다.
+export const maxDuration = 300;
 
 /**
  * LLM 건강검진 컨텐츠 생성 — chart-api `POST /api/content/generate` 로 서버 프록시.
@@ -41,6 +44,30 @@ export async function POST(request: NextRequest) {
   }
 
   const genLabel = String(o.contentType ?? '') === 'health_checkup' ? '건강검진 리포트 생성' : '콘텐츠 생성';
+
+  // 라벨이 필요한 건 건강검진 리포트뿐이다(배치·정렬·캡션·a/b 분리·c/d 필터). 업로드 시점에는
+  // 저장만 하고, 실제로 쓰기 직전인 여기서 미분류분만 1회 분류한다. 전부 분류돼 있으면 LLM 호출 0.
+  // 실패해도 생성은 계속한다 — 라벨 없이 배치될 뿐이고, 그 편이 생성을 통째로 막는 것보다 낫다.
+  if (String(o.contentType ?? '') === 'health_checkup') {
+    try {
+      const r = await ensureRunImagesLabeled(runId);
+      if (r.groups > 0) {
+        console.info(`[health-report/generate] 라벨링 ${r.labeled}장 / ${r.groups}회 · run ${runId}`);
+      }
+    } catch (e) {
+      console.error('[health-report/generate] 이미지 라벨링 실패(생성은 계속):', e);
+      await logError({
+        app: 'admin-web',
+        source: 'server',
+        route: '/api/admin/health-report/generate',
+        feature: 'image_analysis',
+        message: `리포트 생성 전 이미지 라벨링 실패: ${e instanceof Error ? e.message : String(e)}`,
+        stack: e instanceof Error ? e.stack ?? null : null,
+        context: { runId },
+      });
+    }
+  }
+
   const url = `${cfg.outboundBase}/api/content/generate`;
   try {
     const res = await fetch(url, {

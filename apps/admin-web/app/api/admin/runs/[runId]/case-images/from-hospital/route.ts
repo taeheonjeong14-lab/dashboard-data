@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAdminApi } from '@/lib/assert-admin-api';
 import { getAdminWebPgPool } from '@/lib/db';
 import { createServiceRoleClient } from '@/lib/supabase/service-role';
-import { analyzeImageGroup, type ImageInputPart } from '@/lib/chart-case-images/analyze';
+import { type ImageInputPart } from '@/lib/chart-case-images/analyze';
 import { prepareImageForAnalysis } from '@/lib/chart-case-images/encode';
 import { ensureCaseImagesTable } from '@/lib/chart-case-images/ensure-table';
 
@@ -136,7 +136,11 @@ export async function POST(
       );
       const imageParts = prepared.filter((p): p is PreparedPart => p !== null);
       if (imageParts.length === 0) continue;
-      const analysis = await analyzeImageGroup({ examDate: group.date ?? '', images: imageParts });
+      // ★ 라벨링(비전 LLM)은 여기서 하지 않는다 — 저장만 한다. 진료 날짜가 4일이면 임포트 한 번에
+      //   4회씩 돌던 호출이 사라진다. 라벨은 건강검진 리포트 생성 직전에 미분류분만 1회 채운다
+      //   (lib/chart-case-images/ensure-labeled.ts). 미분류 표시는 exam_type = NULL.
+      //   덤으로, 이 경로는 예전에 usageContext 없이 호출해 **사용량 귀속도 토큰 차감도 없던**
+      //   누수 구간이었다 — LLM 을 아예 안 부르므로 그 문제도 함께 사라진다.
 
       for (let i = 0; i < imageParts.length; i++) {
         const img = imageParts[i];
@@ -151,28 +155,16 @@ export async function POST(
           continue;
         }
 
-        const r = analysis.images[i];
         await pool.query(
           `INSERT INTO chart_pdf.parse_run_case_images
             (parse_run_id, idx, file_name, storage_path, exam_type, radiology_sub, body_part, content_hash, exam_date)
            VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8, $9)`,
-          [
-            runId, globalIdx, img.fileName, storagePath,
-            r?.examType ?? 'other', r?.radiologySub ?? null, r?.bodyPart ?? '', img.hash, group.date,
-          ],
+          [runId, globalIdx, img.fileName, storagePath, null, null, '', img.hash, group.date],
         );
         globalIdx++;
         savedCount++;
       }
 
-      // 그룹 시사점(불렛 + 뒷받침 파일명) 저장
-      if (analysis.bullets.length > 0) {
-        await pool.query(
-          `INSERT INTO chart_pdf.parse_run_case_image_summaries (parse_run_id, exam_date, bullets)
-           VALUES ($1::uuid, $2, $3::jsonb)`,
-          [runId, group.date, JSON.stringify(analysis.bullets)],
-        );
-      }
     }
 
     if (savedCount === 0) {

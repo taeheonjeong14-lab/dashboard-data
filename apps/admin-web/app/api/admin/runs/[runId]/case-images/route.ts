@@ -3,8 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAdminApi } from '@/lib/assert-admin-api';
 import { getAdminWebPgPool } from '@/lib/db';
 import { createServiceRoleClient } from '@/lib/supabase/service-role';
-import { analyzeImageGroup, type ImageInputPart } from '@/lib/chart-case-images/analyze';
-import { chargeOperationTokens } from '@/lib/billing/token-charge';
+import { type ImageInputPart } from '@/lib/chart-case-images/analyze';
 import { prepareImageForAnalysis } from '@/lib/chart-case-images/encode';
 import type { ExamType, RadiologySub, FindingSpot } from '@/lib/chart-case-images/types';
 
@@ -202,7 +201,10 @@ export async function POST(
   let mode: string | undefined;
   // 과금 귀속 상품. 건강검진 워크스페이스는 'health_report'(유료), 그 외 진입점은 미지정 → 'case_blog'(바른플랜 무료).
   // 원시 라벨링은 run당 1회 공용이라 업로드한 화면 맥락으로만 귀속을 판정한다.
-  let billingProduct: 'health_report' | 'case_blog' = 'case_blog';
+  // NOTE: 예전에는 여기서 이미지 분석 토큰을 차감하며 product 를 "어느 화면에서 올렸나"로
+  //   추측했다. 라벨링이 리포트 생성 직전으로 옮겨가면서 그 추측이 사라졌다 —
+  //   라벨이 필요한 경로가 건강검진뿐이라 ensure-labeled 가 항상 'health_report' 로 확정한다.
+  //   호출부가 여전히 body/form 에 product 를 실어 보내지만 이 라우트는 더 이상 쓰지 않는다.
   let rawFiles: RawFile[] = [];
   const stagingPaths: string[] = []; // JSON 직접 업로드의 임시 파일(처리 후 삭제)
 
@@ -216,7 +218,6 @@ export async function POST(
     }
     examDate = typeof body.examDate === 'string' ? body.examDate.trim() : '';
     mode = typeof body.mode === 'string' ? body.mode.trim() : undefined;
-    if (body.product === 'health_report') billingProduct = 'health_report';
     const uploads = Array.isArray(body.uploads) ? body.uploads : [];
     if (uploads.length === 0) {
       return NextResponse.json({ error: '업로드된 이미지가 없습니다.' }, { status: 400 });
@@ -255,7 +256,6 @@ export async function POST(
     }
     examDate = (form.get('examDate') as string | null)?.trim() ?? '';
     mode = (form.get('mode') as string | null)?.trim() || undefined; // 'append' | undefined(replace)
-    if ((form.get('product') as string | null)?.trim() === 'health_report') billingProduct = 'health_report';
     const imageFiles = form.getAll('images') as File[];
     if (imageFiles.length === 0) {
       return NextResponse.json({ error: '이미지 파일이 필요합니다.' }, { status: 400 });
@@ -360,59 +360,11 @@ export async function POST(
       );
     }
 
-    // append + 같은 날짜에 기존 이미지가 있으면, 그 날짜 그룹 시사점이 전체(기존+새)를 반영하도록
-    // 기존 이미지도 다운로드해 함께 재분석한다. (insert/upload 는 새 이미지만; 시사점만 전체 기준 갱신)
-    const priorParts: ImageInputPart[] = [];
-    if (mode === 'append' && examDate) {
-      const { rows: priorRows } = await pool.query<{ storage_path: string; file_name: string }>(
-        `SELECT storage_path, file_name FROM chart_pdf.parse_run_case_images
-         WHERE parse_run_id = $1::uuid AND exam_date IS NOT DISTINCT FROM $2
-         ORDER BY idx ASC`,
-        [runId, examDate || null],
-      );
-      for (const r of priorRows) {
-        const { data: blob } = await supabase.storage.from(CASE_IMAGES_BUCKET).download(r.storage_path);
-        if (!blob) continue;
-        const buf = Buffer.from(await blob.arrayBuffer());
-        const ext = r.storage_path.split('.').pop()?.toLowerCase();
-        const mimeType = ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : 'image/jpeg';
-        priorParts.push({ buffer: buf, fileName: r.file_name, mimeType });
-      }
-    }
-
-    // 과금 귀속용 병원 id (run → hospital)
-    let usageHospitalId: string | null = null;
-    try {
-      const hr = await pool.query<{ hospital_id: string | null }>(
-        `SELECT hospital_id FROM chart_pdf.parse_runs WHERE id = $1::uuid`,
-        [runId],
-      );
-      usageHospitalId = hr.rows[0]?.hospital_id ?? null;
-    } catch {
-      /* 조회 실패 시 hospital 미귀속(null) */
-    }
-    const imageOperationId = crypto.randomUUID();
-    // 소프트 게이트: 이미지 분석은 '이미 시작된 작업'의 진행 단계라 잔액 게이트를 두지 않는다(잔액 검사는 추출에서만).
-    // 차감은 billingProduct(health_report/case_blog)로 그대로 일어남.
-
-    // Analyze with OpenAI (그룹 단위: 기존+새 이미지로 라벨 + 시사점)
-    let analysis;
-    try {
-      analysis = await analyzeImageGroup({
-        examDate,
-        images: [...priorParts, ...imageParts],
-        usageContext: { hospitalId: usageHospitalId, runId, feature: 'image_analysis', operationId: imageOperationId },
-      });
-    } catch (e) {
-      console.error('[case-images] analysis error:', e);
-      return NextResponse.json(
-        { error: e instanceof Error ? e.message : '이미지 분석 실패' },
-        { status: 500 },
-      );
-    }
-    // 이미지 분석 작업 토큰 차감(병원 잔액에서 1회). product 는 업로드 맥락으로 귀속:
-    // 건강검진(health_report)은 유료(환불 없음), 진료케이스(case_blog)는 바른플랜이면 즉시 환불(net 0).
-    await chargeOperationTokens(usageHospitalId, imageOperationId, 'image_analysis', billingProduct);
+    // ★ 여기서는 라벨링(비전 LLM)을 하지 않는다 — 저장만 한다.
+    //   라벨을 쓰는 곳은 건강검진 리포트 생성뿐이라, 그 직전에 미분류분만 1회 분류한다
+    //   (lib/chart-case-images/ensure-labeled.ts). 나눠 올릴 때마다 기존 이미지까지 재분석하던
+    //   비용이 사라지고, 진료케이스만 하는 run 은 라벨링을 한 번도 타지 않는다.
+    //   미분류 표시는 exam_type = NULL.
 
     // Upload images to Supabase Storage
     const savedImages = await Promise.all(
@@ -430,16 +382,11 @@ export async function POST(
 
         if (uploadErr) throw new Error(`이미지 업로드 실패: ${uploadErr.message}`);
 
-        // 분석 결과는 [기존…, 새…] 순서라 새 이미지는 priorParts 이후 인덱스.
-        const result = analysis.images[priorParts.length + i];
         return {
           idx: idxOffset + i,
           fileName: img.fileName,
           storagePath,
           contentHash: img.hash,
-          examType: result?.examType ?? 'other',
-          radiologySub: result?.radiologySub ?? null,
-          bodyPart: result?.bodyPart ?? '',
         };
       }),
     );
@@ -455,28 +402,22 @@ export async function POST(
           img.idx,
           img.fileName,
           img.storagePath,
-          img.examType,
-          img.radiologySub,
-          img.bodyPart,
+          null, // exam_type — 미분류. 리포트 생성 직전에 채운다.
+          null, // radiology_sub
+          '', // body_part
           img.contentHash,
           examDate || null,
         ],
       );
     }
 
-    // 그룹 시사점 저장(이 examDate). append 시 같은 날짜 기존 시사점 교체.
+    // 시사점(bullets)도 라벨링과 같은 호출에서 나오므로 함께 미뤄진다. 이 날짜의 기존 시사점은
+    // 새 이미지가 들어와 더 이상 전체를 반영하지 않으므로 지운다(라벨링 때 다시 만들어진다).
     await pool.query(
       `DELETE FROM chart_pdf.parse_run_case_image_summaries
        WHERE parse_run_id = $1::uuid AND exam_date IS NOT DISTINCT FROM $2`,
       [runId, examDate || null],
     );
-    if (analysis.bullets.length > 0) {
-      await pool.query(
-        `INSERT INTO chart_pdf.parse_run_case_image_summaries (parse_run_id, exam_date, bullets)
-         VALUES ($1::uuid, $2, $3::jsonb)`,
-        [runId, examDate || null, JSON.stringify(analysis.bullets)],
-      );
-    }
 
     return NextResponse.json({ ok: true, count: savedImages.length, skipped, allSkipped: false });
   } catch (e) {
