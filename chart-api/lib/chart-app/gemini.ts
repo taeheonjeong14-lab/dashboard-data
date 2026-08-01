@@ -96,21 +96,22 @@ export async function geminiGenerateText(prompt: string, opts?: GeminiTextOption
     throw new Error('GEMINI_API_KEY is not configured');
   }
 
-  const model = process.env.GEMINI_MODEL?.trim() || 'gemini-2.0-flash';
+  // 폴백을 프로덕션 실사용값에 맞춘다. 예전 'gemini-2.0-flash' 는 실제로 쓰이지 않는 낡은 값이라
+  // 코드만 읽으면 2.0 을 쓰는 것처럼 오해하게 했다(프로덕션 env 는 계속 2.5-flash 였다).
+  const model = process.env.GEMINI_MODEL?.trim() || 'gemini-2.5-flash';
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(key)}`;
 
   const maxOut = opts?.maxOutputTokens ?? 8192;
   const temperature = opts?.temperature ?? 0.3;
 
   // thinking 토큰은 maxOutputTokens 를 함께 소모해 본문이 잘릴 수 있다(finishReason=MAX_TOKENS).
-  // 옵션으로 thinkingBudget 을 명시하면 그 값을 그대로 쓰고(단계별 제어용),
-  // 생략하면 기존 기본값(2.5-flash 계열은 0으로 끔)을 따른다.
+  // 그래서 **명시하지 않으면 무조건 끈다**. 켜는 건 단계별로 값을 넘기는 쪽만(현재 blog_causal 2곳).
+  //
+  // 예전에는 모델 이름이 2.5-flash 일 때만 껐다. 그러면 GEMINI_MODEL 을 다른 모델로 바꾸는
+  // 순간(2.5-pro, 3.x …) thinking 이 조용히 켜지고, 증상은 "모델만 바꿨는데 본문이 잘린다"로
+  // 나타나 원인 찾기가 고약하다. 동작이 모델 이름에 딸려 오면 안 된다.
   const generationConfig: Record<string, unknown> = { temperature, maxOutputTokens: maxOut };
-  if (opts?.thinkingBudget !== undefined) {
-    generationConfig.thinkingConfig = { thinkingBudget: opts.thinkingBudget };
-  } else if (/2\.5-flash/i.test(model)) {
-    generationConfig.thinkingConfig = { thinkingBudget: 0 };
-  }
+  generationConfig.thinkingConfig = { thinkingBudget: opts?.thinkingBudget ?? 0 };
 
   const requestBody: Record<string, unknown> = {
     contents: [{ parts: [{ text: prompt }] }],
@@ -164,7 +165,9 @@ export async function geminiGenerateFromParts(
     throw new Error('GEMINI_API_KEY is not configured');
   }
 
-  const model = process.env.GEMINI_MODEL?.trim() || 'gemini-2.0-flash';
+  // 폴백을 프로덕션 실사용값에 맞춘다. 예전 'gemini-2.0-flash' 는 실제로 쓰이지 않는 낡은 값이라
+  // 코드만 읽으면 2.0 을 쓰는 것처럼 오해하게 했다(프로덕션 env 는 계속 2.5-flash 였다).
+  const model = process.env.GEMINI_MODEL?.trim() || 'gemini-2.5-flash';
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(key)}`;
 
   const apiParts = parts.map((p) => {
@@ -179,6 +182,11 @@ export async function geminiGenerateFromParts(
     return { text: p.text };
   });
 
+  // ⚠️ 여기는 thinkingConfig 를 안 넣어서 **thinking 이 켜진 채로 돈다**(Google 기본값).
+  //    geminiGenerateText 와 다르다. 쓰는 곳은 전부 추출류(case-doc-extract·reference-extract·
+  //    reference-rows)라 추론이 값을 하지 않고, maxOutputTokens 8192 를 thinking 이 나눠 쓰므로
+  //    잘림 위험만 진다. 끄는 게 맞아 보이지만 **동작이 바뀌는 변경이라 배포 후 실물 확인이 필요**해서
+  //    여기서는 손대지 않았다. 정리할 때 같이 판단할 것.
   const res = await geminiFetchWithRetry(url, {
     contents: [{ parts: apiParts }],
     generationConfig: { temperature: 0.2, maxOutputTokens: 8192 },
