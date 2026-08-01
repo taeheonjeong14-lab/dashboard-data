@@ -5,7 +5,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { chartAppAuthMiddleware } from '@/lib/chart-app/auth';
 import { isParseRunUuid } from '@/lib/chart-app/uuid';
-import { getDiffStatus, selectRunForDiff, unselectRunForDiff } from '@/lib/chart-app/report-draft-diff';
+import { getDiffStatus, retryDiffAnalysis, selectRunForDiff, unselectRunForDiff } from '@/lib/chart-app/report-draft-diff';
 
 export const runtime = 'nodejs';
 
@@ -38,8 +38,13 @@ export async function POST(request: NextRequest): Promise<Response> {
   if (!isParseRunUuid(runId)) return NextResponse.json({ error: 'runId invalid' }, { status: 400 });
   const selected = body.selected !== false;
   const createdBy = String(body.createdBy ?? '').trim() || null;
+  // action:'retry' 는 실패한 분석을 다시 돌린다(선택/해제와는 별개 동작).
+  const action = String(body.action ?? '').trim();
 
   try {
+    if (action === 'retry') {
+      return NextResponse.json(await retryDiffAnalysis(runId));
+    }
     const out = selected ? await selectRunForDiff(runId, createdBy) : await unselectRunForDiff(runId);
     return NextResponse.json(out);
   } catch (e) {

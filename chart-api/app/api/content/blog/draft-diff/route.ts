@@ -6,7 +6,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { chartAppAuthMiddleware } from '@/lib/chart-app/auth';
 import { isParseRunUuid } from '@/lib/chart-app/uuid';
-import { runBlogDiffAnalysisOnConfirm } from '@/lib/chart-app/blog-draft-diff';
+import { retryBlogDiffAnalysis, runBlogDiffAnalysisOnConfirm } from '@/lib/chart-app/blog-draft-diff';
 
 export const runtime = 'nodejs';
 /** LLM 분석이 들어가므로 기본 타임아웃으로는 모자랄 수 있다. */
@@ -27,6 +27,10 @@ export async function POST(request: NextRequest): Promise<Response> {
   if (!isParseRunUuid(runId)) return NextResponse.json({ error: 'runId invalid' }, { status: 400 });
 
   try {
+    // action:'retry' — 실패한 분석을 admin 이 손으로 다시 돌린다(확정 시점과 달리 payload 를 새로 받지 않는다).
+    if (String(body.action ?? '').trim() === 'retry') {
+      return NextResponse.json(await retryBlogDiffAnalysis(runId));
+    }
     await runBlogDiffAnalysisOnConfirm(runId, body.finalPayload ?? {});
     return NextResponse.json({ ok: true });
   } catch (e) {

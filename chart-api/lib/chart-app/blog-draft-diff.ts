@@ -193,6 +193,36 @@ export async function snapshotBlogDraft(runId: string, draft: unknown): Promise<
  * 확정 트리거에서 호출. 초안이 없거나 이미 분석된 run 은 조용히 지나간다
  * (경합 시 UPDATE ... WHERE status='draft' 로 1회 보장).
  */
+/**
+ * 실패(error)한 분석을 손으로 다시 돌린다. 확정 트리거는 status='draft' 인 행만 집어가므로
+ * error 로 끝난 샘플은 자동으로는 영영 재시도되지 않는다. (검진 리포트 쪽 retryDiffAnalysis 와 같은 이유)
+ * BEFORE 스냅샷(draft)과 확정본(final_payload)이 행에 남아 있어 그대로 다시 돌릴 수 있다.
+ */
+export async function retryBlogDiffAnalysis(runId: string): Promise<{ ok: boolean; status: string | null }> {
+  const pool = getChartPgPool();
+  const { rows } = await pool.query<{ final_payload: unknown }>(
+    `UPDATE health_report.blog_draft_diffs
+        SET status = 'draft', error = null
+      WHERE parse_run_id = $1::uuid AND status = 'error'
+      RETURNING final_payload`,
+    [runId],
+  );
+  if (rows.length === 0) {
+    const cur = await pool.query<{ status: string }>(
+      `SELECT status FROM health_report.blog_draft_diffs WHERE parse_run_id = $1::uuid LIMIT 1`,
+      [runId],
+    );
+    return { ok: false, status: cur.rows[0]?.status ?? null };
+  }
+  await runBlogDiffAnalysisOnConfirm(runId, rows[0]?.final_payload ?? {});
+  const after = await pool.query<{ status: string }>(
+    `SELECT status FROM health_report.blog_draft_diffs WHERE parse_run_id = $1::uuid LIMIT 1`,
+    [runId],
+  );
+  const status = after.rows[0]?.status ?? null;
+  return { ok: status === 'done', status };
+}
+
 export async function runBlogDiffAnalysisOnConfirm(runId: string, finalPayload: unknown): Promise<void> {
   let pool: pg.Pool;
   try {

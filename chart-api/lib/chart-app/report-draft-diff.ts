@@ -205,6 +205,36 @@ export async function unselectRunForDiff(runId: string): Promise<{ ok: true; rem
   return { ok: true, removed: (res.rowCount ?? 0) > 0 };
 }
 
+/**
+ * 실패(error)한 분석을 손으로 다시 돌린다.
+ *
+ * 종료 트리거(runDiffAnalysisIfSelected)는 `status='selected'` 인 행만 집어가므로, 한 번 error 가
+ * 되면 그 샘플은 영영 재시도되지 않는다. 프롬프트 개선은 샘플이 쌓여야 의미가 있는 기능이라
+ * 그대로 두면 조용히 샌다. 자동 재시도는 의도치 않은 비용이 날 수 있어(오늘 403 처럼 원인이
+ * 계정 쪽이면 몇 번을 돌려도 실패한다) **사람이 고친 뒤 직접 누르는 방식**으로 둔다.
+ *
+ * draft 스냅샷은 행에 그대로 남아 있으므로 selected 로 되돌리기만 하면 기존 경로를 그대로 탄다.
+ */
+export async function retryDiffAnalysis(runId: string): Promise<{ ok: boolean; status: string | null }> {
+  const pool = getChartPgPool();
+  const { rows } = await pool.query<{ triggered_by: string | null }>(
+    `UPDATE health_report.report_draft_diffs
+        SET status = 'selected', error = null
+      WHERE parse_run_id = $1::uuid AND status = 'error'
+      RETURNING triggered_by`,
+    [runId],
+  );
+  if (rows.length === 0) {
+    // error 가 아니면 건드리지 않는다(done 결과를 재분석으로 날리지 않기 위해).
+    const cur = await getDiffStatus(runId);
+    return { ok: false, status: cur.status };
+  }
+  const triggeredBy = rows[0]?.triggered_by === 'kakao' ? 'kakao' : 'download';
+  await runDiffAnalysisIfSelected(runId, triggeredBy);
+  const after = await getDiffStatus(runId);
+  return { ok: after.status === 'done', status: after.status };
+}
+
 export async function getDiffStatus(runId: string): Promise<{ selected: boolean; status: string | null }> {
   const pool = getChartPgPool();
   const { rows } = await pool.query<{ status: string }>(

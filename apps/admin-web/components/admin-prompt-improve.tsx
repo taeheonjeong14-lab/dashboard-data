@@ -137,8 +137,43 @@ function KindGroup({ kind, items }: { kind: string; items: Change[] }) {
 }
 
 /** 한 건의 분석 결과 — 변경 목록 + 프롬프트 제안 + 원문 대조(접힘). */
-function DiffCard({ item, expandKey }: { item: Item; expandKey: number }) {
+function DiffCard({
+  item,
+  expandKey,
+  endpoint,
+  onRetried,
+}: {
+  item: Item;
+  expandKey: number;
+  endpoint: string;
+  onRetried: () => void;
+}) {
   const [open, setOpen] = useState(false); // 원문 대조 접힘
+  const [retrying, setRetrying] = useState(false);
+  const [retryErr, setRetryErr] = useState('');
+
+  // 실패한 분석 다시 돌리기. 자동 재시도를 두지 않았으므로(원인이 계정·설정이면 반복해도 실패한다)
+  // 사람이 원인을 고친 뒤 이 버튼으로 되살린다.
+  async function retry() {
+    setRetrying(true);
+    setRetryErr('');
+    try {
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ runId: item.runId }),
+      });
+      const data = (await res.json()) as { ok?: boolean; status?: string; error?: string };
+      if (!res.ok) throw new Error(data.error ?? '재시도에 실패했습니다.');
+      if (!data.ok) throw new Error(`다시 실패했습니다 (상태: ${data.status ?? '알 수 없음'}). 에러 로그를 확인하세요.`);
+      onRetried();
+    } catch (e) {
+      setRetryErr(e instanceof Error ? e.message : '재시도에 실패했습니다.');
+    } finally {
+      setRetrying(false);
+    }
+  }
   const [cardOpen, setCardOpen] = useState(false); // 케이스 카드 전체 접힘(기본 접힘 — 여러 건 쌓이므로)
   // 상단 '모두 펼치기/접기'가 눌릴 때(expandKey 변화) 이 카드 상태를 그에 맞춘다.
   useEffect(() => {
@@ -194,7 +229,20 @@ function DiffCard({ item, expandKey }: { item: Item; expandKey: number }) {
 
       {!cardOpen ? null : (<>
 
-      {item.error ? <div style={{ fontSize: 14, color: 'var(--danger)' }}>{item.error}</div> : null}
+      {item.error ? (
+        <div style={{ display: 'grid', gap: 6 }}>
+          <div style={{ fontSize: 14, color: 'var(--danger)' }}>{item.error}</div>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <button type="button" className="adminBtn" onClick={() => void retry()} disabled={retrying}>
+              {retrying ? '다시 분석 중…' : '다시 분석'}
+            </button>
+            <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+              원인을 고친 뒤 누르세요. 초안 스냅샷이 남아 있어 그대로 다시 돌립니다.
+            </span>
+          </div>
+          {retryErr ? <div style={{ fontSize: 12, color: 'var(--danger)' }}>{retryErr}</div> : null}
+        </div>
+      ) : null}
       {r?.summary ? <div style={{ fontSize: 14, color: 'var(--text)' }}>{r.summary}</div> : null}
 
       {r?.noEdits ? (
@@ -260,6 +308,8 @@ function DiffListTab({ endpoint, empty }: { endpoint: string; empty: React.React
   const [error, setError] = useState('');
   // 양수 = 모두 펼침, 음수 = 모두 접힘, 0 = 개별 제어. 값이 바뀔 때마다 카드가 반응하도록 타임스탬프를 쓴다.
   const [expandKey, setExpandKey] = useState(0);
+  // 재시도 후 목록을 다시 읽어 상태·결과를 갱신한다.
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     void (async () => {
@@ -274,7 +324,7 @@ function DiffListTab({ endpoint, empty }: { endpoint: string; empty: React.React
         setLoading(false);
       }
     })();
-  }, [endpoint]);
+  }, [endpoint, reloadKey]);
 
   if (loading) return <p style={{ fontSize: 14, color: 'var(--text-muted)' }}>불러오는 중…</p>;
   if (error) return <p style={{ fontSize: 14, color: 'var(--danger)' }}>{error}</p>;
@@ -290,7 +340,13 @@ function DiffListTab({ endpoint, empty }: { endpoint: string; empty: React.React
         </div>
       </div>
       {items.map((it) => (
-        <DiffCard key={it.runId} item={it} expandKey={expandKey} />
+        <DiffCard
+          key={it.runId}
+          item={it}
+          expandKey={expandKey}
+          endpoint={endpoint}
+          onRetried={() => setReloadKey((v) => v + 1)}
+        />
       ))}
     </div>
   );
