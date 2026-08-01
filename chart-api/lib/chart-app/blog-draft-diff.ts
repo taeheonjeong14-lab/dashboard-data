@@ -11,6 +11,7 @@
  */
 import OpenAI from 'openai';
 import type pg from 'pg';
+import { logError } from '@dashboard/error-log';
 import { getChartPgPool } from '@/lib/db';
 import { openaiChatUsage, recordTokenUsage } from '@/lib/billing/usage-log';
 import { tryParseJsonObject } from '@/lib/chart-app/gemini';
@@ -200,14 +201,18 @@ export async function runBlogDiffAnalysisOnConfirm(runId: string, finalPayload: 
     return;
   }
 
+  // 실패 로그에 병원을 붙이려고 밖에 둔다(claim 자체가 깨지면 null 로 남는다).
+  let hospitalId: string | null = null;
+
   try {
-    const claimed = await pool.query<{ draft: unknown }>(
+    const claimed = await pool.query<{ draft: unknown; hospital_id: string | null }>(
       `UPDATE health_report.blog_draft_diffs
           SET status = 'running'
         WHERE parse_run_id = $1::uuid AND status = 'draft'
-        RETURNING draft`,
+        RETURNING draft, hospital_id`,
       [runId],
     );
+    hospitalId = claimed.rows[0]?.hospital_id ?? null;
     const draft = claimed.rows[0]?.draft;
     if (!draft) return; // 초안 스냅샷 없음 또는 이미 처리됨
 
@@ -227,6 +232,17 @@ export async function runBlogDiffAnalysisOnConfirm(runId: string, finalPayload: 
     );
   } catch (e) {
     console.error('[blog-draft-diff] 분석 실패:', e);
+    // 확정 요청의 after() 안에서 도는 백그라운드 작업이라 라우트의 withErrorLog 가 못 본다. 직접 올린다.
+    await logError({
+      app: 'chart-api',
+      source: 'server',
+      route: '/lib/chart-app/blog-draft-diff',
+      feature: 'blog_draft_diff',
+      message: e instanceof Error ? e.message : String(e),
+      stack: e instanceof Error ? e.stack ?? null : null,
+      hospitalId,
+      context: { runId, model: DIFF_MODEL },
+    });
     try {
       await pool.query(
         `UPDATE health_report.blog_draft_diffs

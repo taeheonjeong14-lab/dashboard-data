@@ -67,6 +67,22 @@ const CAUSE_RULES: Array<CauseRule> = [
     '외부 서비스(Meta 등) 액세스 토큰이 만료되었거나 유효하지 않습니다. 토큰을 갱신하세요',
   ],
 
+  // ── AI Gateway ──────────────────────────────────────────────
+  // 아래 일반 403 규칙("권한이 없습니다")보다 반드시 먼저 온다 — 게이트웨이 403 은 권한이 아니라 과금 문제라
+  // 일반 규칙에 걸리면 엉뚱한 데를 뒤지게 된다.
+  [
+    /Free tier users do not have access|paid credits|to%2Ftop-up|modal=top-up/i,
+    'AI Gateway 에 결제한 크레딧이 없어 이 모델을 쓸 수 없습니다. 무료로 얹어주는 크레딧은 여기 해당하지 않습니다 — Vercel 팀의 AI 크레딧을 충전하거나 무료 등급 모델로 바꾸세요',
+  ],
+  [
+    /AI_GATEWAY_API_KEY is not configured/i,
+    'AI Gateway API 키가 설정되지 않았습니다. chart-api 의 AI_GATEWAY_API_KEY 환경변수를 확인하세요',
+  ],
+  [
+    /model.*(not found|does not exist|unknown|unsupported)|no such model/i,
+    '모델 슬러그가 게이트웨이 카탈로그에 없습니다. 카탈로그가 바뀐 것이니 /api/debug/blog-review-models 로 실제 슬러그를 확인해 env 를 고치세요',
+  ],
+
   // ── 웹(기존) ────────────────────────────────────────────────
   [/너무 깁니다|페이지까지만/i, 'PDF 페이지 수가 한도를 넘었습니다'],
   [/용량 초과|파일 크기|너무 큽니다/i, '파일 용량이 한도를 넘었습니다'],

@@ -7,6 +7,7 @@
  */
 import OpenAI from 'openai';
 import type pg from 'pg';
+import { logError } from '@dashboard/error-log';
 import { getChartPgPool } from '@/lib/db';
 import { getHealthCheckupGeneratedContentForRun } from '@/lib/generated-run-content';
 import { openaiChatUsage, recordTokenUsage } from '@/lib/billing/usage-log';
@@ -229,15 +230,19 @@ export async function runDiffAnalysisIfSelected(
     return;
   }
 
+  // 실패 로그에 병원을 붙이려고 밖에 둔다(claim 자체가 깨지면 null 로 남는다).
+  let hospitalId: string | null = null;
+
   try {
     // 잠금 겸 중복 방지 — selected 인 행만 running 으로 바꾸고, 바꾼 쪽만 분석을 진행한다.
-    const claimed = await pool.query<{ draft: unknown }>(
+    const claimed = await pool.query<{ draft: unknown; hospital_id: string | null }>(
       `UPDATE health_report.report_draft_diffs
           SET status = 'running', triggered_by = $2
         WHERE parse_run_id = $1::uuid AND status = 'selected'
-        RETURNING draft`,
+        RETURNING draft, hospital_id`,
       [runId, triggeredBy],
     );
+    hospitalId = claimed.rows[0]?.hospital_id ?? null;
     const draft = claimed.rows[0]?.draft;
     if (!draft) return; // 미선택 또는 이미 처리됨
 
@@ -259,6 +264,18 @@ export async function runDiffAnalysisIfSelected(
     );
   } catch (e) {
     console.error('[report-draft-diff] 분석 실패:', e);
+    // after() 안에서 도는 백그라운드 작업이라 라우트의 withErrorLog 가 못 본다. 직접 올린다.
+    // 안 올리면 실패가 이 run 의 행에만 남아, 프롬프트 개선 화면을 직접 열어봐야만 알 수 있다.
+    await logError({
+      app: 'chart-api',
+      source: 'server',
+      route: '/lib/chart-app/report-draft-diff',
+      feature: 'report_draft_diff',
+      message: e instanceof Error ? e.message : String(e),
+      stack: e instanceof Error ? e.stack ?? null : null,
+      hospitalId,
+      context: { runId, triggeredBy, model: DIFF_MODEL },
+    });
     try {
       await pool.query(
         `UPDATE health_report.report_draft_diffs
