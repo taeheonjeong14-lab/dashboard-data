@@ -223,9 +223,12 @@ export async function generateCdFindings(
   const usImgs = images.filter((i) => i.examType === 'ultrasound');
 
   const [radiology, ultrasound] = await Promise.all([
+    // orderHint 는 "어떤 이미지를 고를지"의 힌트일 뿐이다 — **최종 배치 순서는
+    // health-report-image-placement-run 의 sortRadiologyIds 가 코드로 확정**한다.
+    // (프롬프트에만 맡겼더니 순서가 매번 흔들렸다.) 둘을 같은 순서로 맞춰 둔다.
     runModality(client, model, '방사선', radImgs, overallSummary, 4, usageContext, {
       fillAll: true,
-      orderHint: 'VD 흉부 → lateral 흉부 → VD 복부 → lateral 복부',
+      orderHint: '흉부 정면(VD/DV) → 흉부 측면(lateral) → 복부 정면 → 복부 측면 → 관절',
       chartFindings: chartFindings?.radiology,
     }),
     // 초음파는 3x3(9칸). fillAll 로 LLM 이 고른 순서를 앞에 두고 남은 칸을 나머지 이미지로 채운다 —

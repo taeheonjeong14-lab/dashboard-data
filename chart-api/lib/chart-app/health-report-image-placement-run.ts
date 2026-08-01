@@ -71,7 +71,10 @@ function placePage5ByLabel(
   imageById: Map<string, PlacementImageInput>,
   storagePathById: Map<string, string>,
 ): void {
-  const cIds = images.filter((i) => i.examType === 'radiology' && i.radiologySub !== 'dental').map((i) => i.id);
+  const cIds = sortRadiologyIds(
+    images.filter((i) => i.examType === 'radiology' && i.radiologySub !== 'dental').map((i) => i.id),
+    imageById,
+  );
   const dIds = images.filter((i) => i.examType === 'ultrasound').map((i) => i.id);
   fillImageBlock(page5[1], cIds, imageById, storagePathById); // 방사선(4)
   fillImageBlock(page5[3], dIds, imageById, storagePathById); // 초음파
@@ -103,6 +106,54 @@ function fillImageBlock(
     slot.src = path;
     slot.caption = img && path ? simpleHealthReportImageCaption(img) : undefined;
   }
+}
+
+/**
+ * 방사선 촬영 방향 — 정면(VD/DV) 0, 측면(lateral) 1, 불명 2.
+ * 라벨에 전용 필드가 없어 bodyPart 자유문구에서 읽는다(라벨링 프롬프트가 "흉부 정면" 처럼 적게 한다).
+ * 한국어·영문 약어를 모두 받는다 — 병원·라벨러에 따라 표기가 갈린다.
+ */
+function radiologyViewRank(bodyPart: string): number {
+  const t = (bodyPart ?? '').toLowerCase();
+  if (/정면|복배|배복|\bv\s*\/?\s*d\b|\bd\s*\/?\s*v\b/.test(t)) return 0;
+  if (/측면|외측|\blat(eral)?\b|\brt?\s*lat\b|\blt?\s*lat\b/.test(t)) return 1;
+  return 2;
+}
+
+/** 부위 순서 — 흉부 → 복부 → 관절 → 그 외. (치과 방사선은 상위에서 이미 제외됨) */
+function radiologyPartRank(sub: RadiologySub | null): number {
+  if (sub === 'thorax') return 0;
+  if (sub === 'abdomen') return 1;
+  if (sub === 'joint') return 2;
+  return 3;
+}
+
+/**
+ * 방사선 슬롯 채움 순서를 **코드로 확정**한다:
+ *   흉부 정면 → 흉부 측면 → 복부 정면 → 복부 측면 → 관절(여러 장 가능) → 그 외
+ *
+ * 병원이 올리는 순서가 대체로 이 형태라 리포트도 같은 순서로 읽히는 게 자연스럽다.
+ * 전에는 비전 프롬프트의 orderHint 로 "부탁"만 해서 매번 순서가 흔들렸다 — 선택(어떤 이미지를
+ * 쓸지)과 소견 작성은 LLM 이 하되 **배치 순서는 우리가 정한다**.
+ * 없는 부위는 자연히 건너뛰고 당겨 채워지며, 슬롯(4칸)이 차면 나머지는 fillImageBlock 이 버린다.
+ * 동순위는 원래 순서를 유지한다(같은 부위·방향이 여러 장일 때 업로드 순서 보존).
+ */
+export function sortRadiologyIds(ids: string[], imageById: Map<string, PlacementImageInput>): string[] {
+  return ids
+    .map((id, idx) => ({ id, idx, img: imageById.get(id) }))
+    .sort((a, b) => {
+      const pa = radiologyPartRank(a.img?.radiologySub ?? null);
+      const pb = radiologyPartRank(b.img?.radiologySub ?? null);
+      if (pa !== pb) return pa - pb;
+      // 관절 이하는 방향 구분이 의미 없어 업로드 순서를 그대로 둔다.
+      if (pa <= 1) {
+        const va = radiologyViewRank(a.img?.bodyPart ?? '');
+        const vb = radiologyViewRank(b.img?.bodyPart ?? '');
+        if (va !== vb) return va - vb;
+      }
+      return a.idx - b.idx;
+    })
+    .map((x) => x.id);
 }
 
 /** 이미지가 a(치과·안과) / b(피부·외이도) 섹션 후보인지 분류. 그 외는 null. */
@@ -151,10 +202,14 @@ function applyCdFindingsToPage5(
     count: number,
     vision: CdModalityResult,
     chartText: string,
+    isRadiology: boolean,
   ) => {
     if (count > 0) {
       setRowsText(rowsBlock, vision.findings);
-      fillImageBlock(imagesBlock, vision.imageIds, imageById, storagePathById);
+      // 방사선만 배치 순서를 코드로 확정한다(흉부 정면·측면 → 복부 정면·측면 → 관절).
+      // 초음파는 정해진 순서가 없어 비전이 고른 순서(이상 소견 우선)를 그대로 쓴다.
+      const ids = isRadiology ? sortRadiologyIds(vision.imageIds, imageById) : vision.imageIds;
+      fillImageBlock(imagesBlock, ids, imageById, storagePathById);
       return;
     }
     // 이미지 없음 — 차트 기반 소견이 있으면 살리고, 없으면 미포함 문구.
@@ -162,8 +217,8 @@ function applyCdFindingsToPage5(
     fillImageBlock(imagesBlock, [], imageById, storagePathById);
   };
 
-  applyModality(page5[0], page5[1], radCount, cd.radiology, chartFindings?.radiology ?? '');
-  applyModality(page5[2], page5[3], usCount, cd.ultrasound, chartFindings?.ultrasound ?? '');
+  applyModality(page5[0], page5[1], radCount, cd.radiology, chartFindings?.radiology ?? '', true);
+  applyModality(page5[2], page5[3], usCount, cd.ultrasound, chartFindings?.ultrasound ?? '', false);
 }
 
 export async function runImagePlacementForRun(
