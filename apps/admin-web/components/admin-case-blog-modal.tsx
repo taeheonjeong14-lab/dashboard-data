@@ -667,6 +667,9 @@ export function CaseBlogButton({
       const newOutline: Outline = { ...outline, sections: outline.sections.map((s) => ({ ...s, imageFileNames: byId.get(s.id) ?? [] })) };
       setOutline(newOutline);
       await callSave('blog_outline', { outline: newOutline, caseOverview });
+      // 이 단계에서 미분류 이미지가 라벨링됐을 수 있다(서버가 배정 전에 채운다). 캡션을 다시 읽어
+      // 썸네일 밑 라벨과 다운로드 파일명이 바로 반영되게 한다 — 안 하면 다음에 열 때까지 빈 채로 남는다.
+      await loadCaseImages();
       setSavedMsg('이미지 배정 완료');
     } catch (e) { setError(e instanceof Error ? e.message : '이미지 분석 실패'); }
     finally { setGenLoading(null); }

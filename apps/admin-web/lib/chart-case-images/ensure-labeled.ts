@@ -1,16 +1,18 @@
 /**
  * 케이스 이미지 라벨링을 **필요한 시점에 1회만** 수행한다.
  *
- * 예전에는 업로드·임포트할 때마다 라벨링을 돌렸다. 그런데
- *  - 진료케이스 블로그는 라벨을 아예 안 쓴다(analyzeCaseBlogImages 가 사진을 직접 본다)
- *  - 사진을 나눠 올리면 그때마다 **기존 이미지까지 통째로 다시** 분석했다
- *  - 병원 제출분 임포트는 진료 날짜 그룹 수만큼 호출됐다(4일치면 4회)
- * 라벨을 실제로 쓰는 건 **건강검진 리포트 생성**뿐이므로(배치·정렬·캡션·a/b 분리·c/d 필터),
- * 호출을 그 직전으로 미룬다. 진료케이스만 하는 run 은 라벨링을 한 번도 타지 않는다.
+ * 예전에는 업로드·임포트할 때마다 라벨링을 돌렸다. 그런데 추출 단계에서는 라벨을 아무도 안 본다.
+ *  - 사진을 나눠 올리면 그때마다 **기존 이미지까지 통째로 다시** 분석했다(3장+2장 → 3+5=8장)
+ *  - 병원 제출분 임포트는 진료 날짜 그룹 수만큼 호출됐다(4일치면 한 번에 4회)
+ *  - 추출만 하고 끝나는 run 도 쓰지도 않을 라벨을 만들었다
+ *
+ * 규칙은 하나다: **이미지를 처음 실제로 쓰는 쪽이 라벨링한다.** 지금 그 지점은 둘이다 —
+ * 건강검진 리포트 생성(배치·정렬·캡션에 라벨이 필요)과 진료케이스 블로그의 이미지 배정 단계
+ * (썸네일 캡션·다운로드 파일명이 bodyPart 에서 나온다). 먼저 도달한 쪽이 채우고, 나중 쪽은 그냥 지나간다.
  *
  * 미분류 표시는 `exam_type IS NULL` 이다(컬럼이 nullable 이라 마이그레이션이 필요 없다).
- * 과금 product 는 여기서 항상 'health_report' 로 확정된다 — 예전처럼 "어느 화면에서 올렸나"를
- * 추측하지 않아도 된다. 라벨이 필요한 경로가 건강검진 하나뿐이기 때문이다.
+ * 과금 product 는 **호출한 쪽이 정한다** — 업로드 화면 맥락으로 추측하던 예전 방식과 달리,
+ * 지금은 "무슨 작업을 하다가 라벨이 필요해졌나"가 곧 답이라 추측할 여지가 없다.
  */
 import crypto from 'node:crypto';
 import { getAdminWebPgPool } from '@/lib/db';
@@ -46,7 +48,11 @@ export type EnsureLabeledResult = {
  * 실패는 던지지 않는다 — 라벨이 없으면 배치가 라벨 없이 진행될 뿐, 생성 자체를 막을 이유는 없다.
  * (실패 사실은 호출부가 에러 로그로 올린다.)
  */
-export async function ensureRunImagesLabeled(runId: string): Promise<EnsureLabeledResult> {
+export async function ensureRunImagesLabeled(
+  runId: string,
+  /** 토큰 차감 귀속. 건강검진은 유료, 진료케이스는 바른플랜이면 즉시 환불(net 0). */
+  product: 'health_report' | 'case_blog',
+): Promise<EnsureLabeledResult> {
   const pool = getAdminWebPgPool();
 
   const { rows } = await pool.query<UnlabeledRow>(
@@ -128,7 +134,7 @@ export async function ensureRunImagesLabeled(runId: string): Promise<EnsureLabel
 
   // 호출이 몇 번이었든 작업 단위로 1회만 차감한다(usage 는 operationId 로 묶여 있다).
   if (groups > 0) {
-    await chargeOperationTokens(hospitalId, operationId, 'image_analysis', 'health_report');
+    await chargeOperationTokens(hospitalId, operationId, 'image_analysis', product);
   }
   return { labeled, groups };
 }

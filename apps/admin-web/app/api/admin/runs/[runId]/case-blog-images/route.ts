@@ -10,6 +10,7 @@ import {
   type CaseBlogSectionInput,
 } from '@/lib/chart-case-images/analyze';
 import { chargeOperationTokens } from '@/lib/billing/token-charge';
+import { ensureRunImagesLabeled } from '@/lib/chart-case-images/ensure-labeled';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300;
@@ -96,6 +97,16 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
     if (images.length === 0) {
       return NextResponse.json({ ok: true, assignments: [] });
+    }
+
+    // 여기가 진료케이스에서 이미지를 처음 실제로 쓰는 지점이다. 업로드 때는 저장만 했으므로
+    // 미분류가 남아 있으면 지금 채운다(이미 분류돼 있으면 LLM 호출 0).
+    // 라벨이 없으면 썸네일 캡션과 다운로드 파일명이 빈 채로 남아 어느 사진인지 못 알아본다.
+    // 실패해도 배정은 계속한다 — 배정 자체는 사진을 직접 보므로 라벨이 없어도 된다.
+    try {
+      await ensureRunImagesLabeled(runId, 'case_blog');
+    } catch (e) {
+      console.error('[case-blog-images] 라벨링 실패(배정은 계속):', e);
     }
 
     // 소프트 게이트: 블로그 이미지 배정은 '이미 시작된 작업'의 진행 단계라 잔액 게이트를 두지 않는다(잔액 검사는 추출에서만).

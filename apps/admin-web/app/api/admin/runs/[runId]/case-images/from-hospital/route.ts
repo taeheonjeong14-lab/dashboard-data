@@ -137,7 +137,7 @@ export async function POST(
       const imageParts = prepared.filter((p): p is PreparedPart => p !== null);
       if (imageParts.length === 0) continue;
       // ★ 라벨링(비전 LLM)은 여기서 하지 않는다 — 저장만 한다. 진료 날짜가 4일이면 임포트 한 번에
-      //   4회씩 돌던 호출이 사라진다. 라벨은 건강검진 리포트 생성 직전에 미분류분만 1회 채운다
+      //   4회씩 돌던 호출이 사라진다. 라벨은 처음 쓰는 쪽이 그 직전에 미분류분만 1회 채운다
       //   (lib/chart-case-images/ensure-labeled.ts). 미분류 표시는 exam_type = NULL.
       //   덤으로, 이 경로는 예전에 usageContext 없이 호출해 **사용량 귀속도 토큰 차감도 없던**
       //   누수 구간이었다 — LLM 을 아예 안 부르므로 그 문제도 함께 사라진다.

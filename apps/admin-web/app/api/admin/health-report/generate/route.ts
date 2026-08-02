@@ -50,7 +50,7 @@ export async function POST(request: NextRequest) {
   // 실패해도 생성은 계속한다 — 라벨 없이 배치될 뿐이고, 그 편이 생성을 통째로 막는 것보다 낫다.
   if (String(o.contentType ?? '') === 'health_checkup') {
     try {
-      const r = await ensureRunImagesLabeled(runId);
+      const r = await ensureRunImagesLabeled(runId, 'health_report');
       if (r.groups > 0) {
         console.info(`[health-report/generate] 라벨링 ${r.labeled}장 / ${r.groups}회 · run ${runId}`);
       }

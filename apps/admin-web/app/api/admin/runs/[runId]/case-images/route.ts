@@ -203,7 +203,7 @@ export async function POST(
   // 원시 라벨링은 run당 1회 공용이라 업로드한 화면 맥락으로만 귀속을 판정한다.
   // NOTE: 예전에는 여기서 이미지 분석 토큰을 차감하며 product 를 "어느 화면에서 올렸나"로
   //   추측했다. 라벨링이 리포트 생성 직전으로 옮겨가면서 그 추측이 사라졌다 —
-  //   라벨이 필요한 경로가 건강검진뿐이라 ensure-labeled 가 항상 'health_report' 로 확정한다.
+  //   지금은 라벨이 필요해진 쪽(건강검진 생성 / 진료케이스 이미지 배정)이 product 를 직접 넘긴다.
   //   호출부가 여전히 body/form 에 product 를 실어 보내지만 이 라우트는 더 이상 쓰지 않는다.
   let rawFiles: RawFile[] = [];
   const stagingPaths: string[] = []; // JSON 직접 업로드의 임시 파일(처리 후 삭제)
@@ -361,7 +361,7 @@ export async function POST(
     }
 
     // ★ 여기서는 라벨링(비전 LLM)을 하지 않는다 — 저장만 한다.
-    //   라벨을 쓰는 곳은 건강검진 리포트 생성뿐이라, 그 직전에 미분류분만 1회 분류한다
+    //   라벨은 처음 실제로 쓰는 쪽(건강검진 생성 / 진료케이스 이미지 배정)이 그 직전에 1회 채운다
     //   (lib/chart-case-images/ensure-labeled.ts). 나눠 올릴 때마다 기존 이미지까지 재분석하던
     //   비용이 사라지고, 진료케이스만 하는 run 은 라벨링을 한 번도 타지 않는다.
     //   미분류 표시는 exam_type = NULL.
