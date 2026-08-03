@@ -112,6 +112,11 @@ PAGE_LOAD_RETRY_COUNT = 0
 CURRENT_PAGE_LOAD_TIMEOUT_MS = PAGE_LOAD_TIMEOUT_MS_FIRST
 # 레이어 닫기 등 "되면 좋고 아니면 마는" 클릭의 상한. 기본 30초가 걸리면 키워드마다 분 단위를 버린다.
 _CLOSE_CLICK_TIMEOUT_MS = int(os.getenv("RANK_CLOSE_CLICK_TIMEOUT_MS", "1500"))
+# 키워드 N개마다 빈 페이지로 이동해 렌더러 메모리를 회수한다(0이면 끔).
+# 크래시 덤프가 전부 CHROME_OUT_OF_MEMORY 였다.
+_MEM_RELEASE_EVERY = int(os.getenv("RANK_MEM_RELEASE_EVERY", "25"))
+# 회수용 이동의 상한. 짧게 잡는다 — 실패해도 그냥 넘어가면 되는 작업이다.
+_MEM_RELEASE_TIMEOUT_MS = int(os.getenv("RANK_MEM_RELEASE_TIMEOUT_MS", "5000"))
 
 def _set_page_load_timeout_for_attempt(attempt: int) -> int:
     global CURRENT_PAGE_LOAD_TIMEOUT_MS
@@ -2212,6 +2217,38 @@ def _persist_place_batch(rows: list[dict]) -> bool:
     return True
 
 
+def _release_page_memory(page, worker_id: int, done: int) -> None:
+    """
+    빈 페이지(about:blank)로 이동해, 렌더러가 물고 있던 문서 메모리를 놓게 한다.
+
+    크래시 덤프 5개가 전부 0xE0000008(CHROME_OUT_OF_MEMORY) 이었다. 워커는 페이지 하나로
+    키워드 수백 개를 이동하는데, 같은 렌더러가 계속 살아 있어 메모리가 쌓인다.
+
+    ★ 왜 context.new_page() 가 아닌가
+      앞서 페이지를 새로 열어 갈아끼웠더니 **그 호출이 매달렸다**. 송정(41키워드)과
+      일산클래식(72키워드)이 둘 다 정확히 교체 지점인 25번째에서 20분 스톨로 죽었다.
+      new_page() 에는 타임아웃을 줄 수 없어서, 크롬이 메모리 압박을 받는 바로 그 순간
+      — 즉 우리가 회수를 가장 필요로 하는 순간 — 에 스크립트가 통째로 멈춘다.
+      goto 는 timeout 을 명시할 수 있고 이미 매 키워드마다 쓰는 경로다. 매달릴 수 없다.
+
+    실패해도 그냥 넘어간다 — 회수는 "되면 좋은" 일이고, 여기서 멈춰 멀쩡히 받아둔 순위를
+    날릴 이유가 없다.
+    """
+    # ★ 로그를 시도 '전'에 남긴다. 지난번엔 성공 후에 찍게 해서, 매달렸을 때 로그조차 없었고
+    #   "코드가 안 들어간 건지 매달린 건지" 구분하는 데 잡 두 번을 버렸다.
+    with _print_lock:
+        print(f"♻️ 워커 {worker_id}: {done}개 처리 — 빈 페이지로 이동(메모리 회수)", flush=True)
+    try:
+        page.goto("about:blank", wait_until="domcontentloaded", timeout=_MEM_RELEASE_TIMEOUT_MS)
+    except Exception as e:
+        with _print_lock:
+            print(
+                f"⚠️ 워커 {worker_id}: 메모리 회수 실패(그대로 진행) — {type(e).__name__}",
+                file=sys.stderr,
+                flush=True,
+            )
+
+
 def _worker_blog_chunk(worker_id: int, pairs_chunk: list, use_debug_chrome: bool, debug_port: int) -> list[dict]:
     """
     워커 스레드: 자신만의 playwright + 브라우저 세션으로 pairs_chunk를 순차 처리.
@@ -2231,7 +2268,7 @@ def _worker_blog_chunk(worker_id: int, pairs_chunk: list, use_debug_chrome: bool
         page = context.new_page()
         pending: list[dict] = []
         try:
-            for blog_id, kw in pairs_chunk:
+            for _idx, (blog_id, kw) in enumerate(pairs_chunk, 1):
                 if _blocked_event.is_set():
                     break
                 hospital_id = _HOSPITAL_BY_BLOG_ID.get(normalize_blog_id(blog_id), "")
@@ -2271,6 +2308,8 @@ def _worker_blog_chunk(worker_id: int, pairs_chunk: list, use_debug_chrome: bool
                     with _print_lock:
                         print(f"🛑 워커 {worker_id}: 네이버 차단/캡차 감지 — 수집 중단")
                     break
+                if _MEM_RELEASE_EVERY > 0 and _idx % _MEM_RELEASE_EVERY == 0 and _idx < len(pairs_chunk):
+                    _release_page_memory(page, worker_id, _idx)
                 _human_delay()
         finally:
             if _PERSIST_INCREMENTAL and pending:
