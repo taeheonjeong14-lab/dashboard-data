@@ -77,11 +77,27 @@ function statusVisual(status: string): Visual {
       return { icon: CheckCircle2, label: '완료', color: 'var(--success)', bg: 'var(--success-subtle)', border: 'rgba(22,163,74,0.25)' };
     case 'failed':
       return { icon: XCircle, label: '실패', color: 'var(--danger)', bg: 'var(--danger-subtle)', border: 'rgba(185,28,28,0.25)' };
+    // 실패로 끝났지만 데이터는 들어간 경우. '아무것도 못 했다' 와 같은 빨간색으로 보이면
+    // 진짜 심각한 실패를 놓친다 — 실제로 블로그 순위 540건을 다 받고 플레이스만 실패한 잡이
+    // 0건 실패와 똑같이 표시되고 있었다.
+    case 'partial':
+      return { icon: AlertTriangle, label: '부분 완료', color: 'var(--warning)', bg: 'var(--warning-subtle, rgba(217,119,6,0.10))', border: 'rgba(217,119,6,0.28)' };
     case 'running':
       return { icon: Loader2, label: '진행 중', color: 'var(--accent)', bg: 'var(--accent-subtle)', border: 'rgba(29,78,216,0.22)', spin: true };
     default:
       return { icon: Clock, label: '대기 중', color: 'var(--text-muted)', bg: 'var(--bg-subtle)', border: 'var(--border)' };
   }
+}
+
+/**
+ * 화면에 보여줄 상태. DB 의 status 는 그대로 두고 여기서만 파생시킨다 —
+ * 리퍼·알림 등 다른 로직이 'failed' 를 기준으로 돌고 있어 값 자체를 바꾸면 파급이 크다.
+ * 판정: 실패로 끝났어도 실제로 적재된 건이 하나라도 있으면 '부분 완료'.
+ */
+function displayStatus(item: { status: string; upserts?: UpsertItem[] }): string {
+  if (item.status !== 'failed') return item.status;
+  const landed = (item.upserts ?? []).some((u) => !u.skipped && (u.count ?? 0) > 0);
+  return landed ? 'partial' : 'failed';
 }
 
 // 수집 실패 원시 에러("종료 코드 N. <stderr 꼬리>")를 사람이 읽을 수 있는 원인 설명으로 풀어준다.
@@ -279,7 +295,7 @@ export default function CollectHistoryPanel({ hospitals }: { hospitals: ChartHos
       ) : (
         <div style={{ display: 'grid', gap: 8 }}>
           {items.map((item) => {
-            const sv = statusVisual(item.status);
+            const sv = statusVisual(item.kind === 'auto' ? displayStatus(item) : item.status);
             const src = sourceVisual(item);
             const dur = durationText(item.startedAt, item.finishedAt);
             const isFail = item.status === 'failed' || (item.errorRows ?? 0) > 0 || (item.failedSteps?.length ?? 0) > 0;
@@ -441,6 +457,31 @@ export default function CollectHistoryPanel({ hospitals }: { hospitals: ChartHos
                             )}
                           </div>
                         );
+                      })()}
+                      {/* 끝난 잡의 단계별 진행 요약. upserts 는 '적재된 행 수'라 단위가 달라
+                          (예: 키워드 19개 → 75행) 같은 줄에 섞으면 19/39 와 75건이 뒤엉킨다. 따로 보여준다. */}
+                      {(() => {
+                        const filter = item.stepsFilter;
+                        const keys = filter && filter.length > 0
+                          ? COLLECT_STEPS.filter((st) => filter.includes(st.key))
+                          : COLLECT_STEPS;
+                        const rows = keys
+                          .map((st) => ({ st, p: item.progress?.[st.key] }))
+                          .filter((x) => x.p && (x.p.total ?? 0) > 0);
+                        if (rows.length === 0) return null;
+                        return rows.map(({ st, p }) => {
+                          const done = p!.done ?? 0;
+                          const total = p!.total ?? 0;
+                          const complete = done >= total;
+                          return (
+                            <div key={`prog-${st.key}`} style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-secondary)' }}>
+                              <span>{st.label}</span>
+                              <span style={{ fontWeight: 600, color: complete ? 'var(--success)' : 'var(--warning)' }}>
+                                {done.toLocaleString()}/{total.toLocaleString()}건 완료
+                              </span>
+                            </div>
+                          );
+                        });
                       })()}
                       {item.upserts?.map((u) => (
                         <div key={u.label} style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-secondary)' }}>

@@ -540,9 +540,16 @@ async function pollAndRun() {
     const finalSteps = accSteps.length > 0 ? accSteps : parsed.steps;
     const status = code === 0 ? "done" : "failed";
     if (status === "failed") {
+      // 실패로 끝났어도 적재된 게 있으면 그렇게 알린다. "아무것도 못 했다" 와 "거의 다 했는데
+      // 마지막 단계만 안 됐다" 가 같은 문구로 오면, 알림이 쌓일수록 진짜 심각한 걸 놓치게 된다.
+      // (실제로 블로그 순위 540건을 다 받고 플레이스만 실패한 잡이 0건 실패와 같은 알림이었다.)
+      const landed = (parsed.upserts ?? []).filter((u) => !u.skipped && (u.count ?? 0) > 0);
+      const landedText = landed.map((u) => `${u.label} ${u.count.toLocaleString()}건`).join(", ");
       await notifyAdminError(
         "데이터 수집",
-        `수집 작업이 실패했어요. (job ${job.id})`,
+        landed.length > 0
+          ? `수집 일부만 됐어요 — ${landedText} 는 적재됨. (job ${job.id})`
+          : `수집 작업이 실패했어요. 적재된 데이터가 없습니다. (job ${job.id})`,
         "/admin/data-upload?section=collect",
       );
       // 에러 로그에는 **실패한 step 단위로** 남긴다 — "잡이 실패했다" 한 줄보다 어느 수집이
