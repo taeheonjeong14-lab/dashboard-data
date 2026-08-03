@@ -153,6 +153,21 @@ export function RichTextTextarea({ value, onChange, maxLength, rows, placeholder
 
   const minHeight = rows ? Math.round(rows * 1.6 * 14) : undefined;
 
+  // textarea 는 브라우저 기본 테두리가 있지만 contentEditable div 는 없다. 그래서 교체하는 순간
+  // 호출부가 테두리를 직접 주지 않던 화면(admin 편집창)은 입력칸이 통째로 사라진 것처럼 보인다.
+  // className 을 준 쪽(외부 검토의 .hcu-rv-textarea)은 자기 CSS 가 있으므로 건드리지 않는다 —
+  // 인라인 스타일이 클래스를 이겨서 그쪽 디자인을 덮어버리기 때문이다.
+  const chrome: CSSProperties = className
+    ? {}
+    : {
+        border: '1px solid var(--border, #d4d4d8)',
+        borderRadius: 4,
+        background: 'var(--surface, #fff)',
+        padding: 8,
+        // textarea 처럼 세로로 늘릴 수 있게. overflow 가 visible 이 아니라 div 에서도 동작한다.
+        resize: 'vertical',
+      };
+
   return (
     <div style={{ display: 'grid', gap: 5 }}>
       <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -195,15 +210,15 @@ export function RichTextTextarea({ value, onChange, maxLength, rows, placeholder
             e.preventDefault();
             exec(k === 'b' ? 'bold' : 'italic');
           }}
-          style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', overflowY: 'auto', minHeight, ...style }}
+          style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', overflowY: 'auto', minHeight, ...chrome, ...style }}
         />
         {empty && placeholder ? (
           <span
             aria-hidden
             style={{
               position: 'absolute',
-              top: (style?.padding as number) ?? 8,
-              left: (style?.padding as number) ?? 8,
+              top: (style?.padding as number) ?? (chrome.padding as number) ?? 8,
+              left: (style?.padding as number) ?? (chrome.padding as number) ?? 8,
               fontSize: style?.fontSize ?? 14,
               color: 'var(--text-muted, #a1a1aa)',
               pointerEvents: 'none',
