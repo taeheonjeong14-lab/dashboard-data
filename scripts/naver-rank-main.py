@@ -117,6 +117,8 @@ _CLOSE_CLICK_TIMEOUT_MS = int(os.getenv("RANK_CLOSE_CLICK_TIMEOUT_MS", "1500"))
 _MEM_RELEASE_EVERY = int(os.getenv("RANK_MEM_RELEASE_EVERY", "25"))
 # 회수용 이동의 상한. 짧게 잡는다 — 실패해도 그냥 넘어가면 되는 작업이다.
 _MEM_RELEASE_TIMEOUT_MS = int(os.getenv("RANK_MEM_RELEASE_TIMEOUT_MS", "5000"))
+# 차단 감지에서 페이지를 들여다볼 때의 상한. 타임아웃 없는 호출이 매달려 잡을 죽인 적이 있다.
+_BLOCK_PROBE_TIMEOUT_MS = int(os.getenv("RANK_BLOCK_PROBE_TIMEOUT_MS", "1500"))
 
 def _set_page_load_timeout_for_attempt(attempt: int) -> int:
     global CURRENT_PAGE_LOAD_TIMEOUT_MS
@@ -2125,8 +2127,15 @@ def _detect_block(page) -> bool:
         pass
     try:
         # 정상 검색결과/블로그탭 컨테이너(#main_pack)가 있으면 차단 페이지가 아니다.
-        if page.query_selector("#main_pack"):
-            return False
+        # ★ query_selector 에는 타임아웃을 줄 수 없다. 크롬이 반쯤 죽은 상태(OOM 직후 등)에서
+        #   이 호출이 영원히 매달려 잡이 20분 스톨로 죽었다 — 실제로 일산클래식이 키워드 26을
+        #   정상 완료한 직후 여기서 멈췄다. 바로 아래 inner_text 에는 타임아웃이 있었는데
+        #   이 줄만 없었다. 대기 가능한 호출로 바꿔 상한을 건다.
+        try:
+            if page.wait_for_selector("#main_pack", state="attached", timeout=_BLOCK_PROBE_TIMEOUT_MS):
+                return False
+        except Exception:
+            pass  # 없거나 응답이 없으면 아래 본문 검사로 넘어간다
         low = (page.inner_text("body", timeout=1500) or "").lower()
         for m in _BLOCK_TEXT_MARKERS:
             if m.lower() in low:
