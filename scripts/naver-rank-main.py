@@ -110,6 +110,10 @@ PAGE_LOAD_TIMEOUT_MS_FIRST = 10000
 PAGE_LOAD_TIMEOUT_MS_RETRY = 15000
 PAGE_LOAD_RETRY_COUNT = 0
 CURRENT_PAGE_LOAD_TIMEOUT_MS = PAGE_LOAD_TIMEOUT_MS_FIRST
+# 레이어 닫기 등 "되면 좋고 아니면 마는" 클릭의 상한. 기본 30초가 걸리면 키워드마다 분 단위를 버린다.
+_CLOSE_CLICK_TIMEOUT_MS = int(os.getenv("RANK_CLOSE_CLICK_TIMEOUT_MS", "1500"))
+# Playwright 기본 30초 대신 쓰는 컨텍스트 기본값. 페이지 이동처럼 오래 걸리는 건 각자 명시한다.
+_DEFAULT_ACTION_TIMEOUT_MS = int(os.getenv("RANK_DEFAULT_ACTION_TIMEOUT_MS", "10000"))
 
 
 def _set_page_load_timeout_for_attempt(attempt: int) -> int:
@@ -786,6 +790,9 @@ def create_browser_session(playwright, *, headless: bool = True, use_debug_chrom
             ) from last_err
 
         context = browser.contexts[0] if browser.contexts else browser.new_context()
+        # 안전망: 타임아웃을 명시하지 않은 click/wait 이 파일에 12곳 있다. 기본 30초가 걸리면
+        # 네이버가 마크업을 바꾸는 순간 조용히 분 단위를 먹는다(실제로 그렇게 됐다).
+        context.set_default_timeout(_DEFAULT_ACTION_TIMEOUT_MS)
         context.route("**/*.{png,jpg,jpeg,gif,webp,svg,ico,woff,woff2,ttf,otf,eot}", lambda route: route.abort())
 
         def cleanup():
@@ -809,6 +816,9 @@ def create_browser_session(playwright, *, headless: bool = True, use_debug_chrom
         "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
     )
     context = browser.new_context(user_agent=ua)
+    # 안전망: 타임아웃을 명시하지 않은 click/wait 이 파일에 12곳 있다. 기본 30초가 걸리면
+    # 네이버가 마크업을 바꾸는 순간 조용히 분 단위를 먹는다(실제로 그렇게 됐다).
+    context.set_default_timeout(_DEFAULT_ACTION_TIMEOUT_MS)
     # launch 모드에서 true 로 노출되는 navigator.webdriver 흔적 제거(CDP 모드는 원래 false).
     context.add_init_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined});")
     context.route("**/*.{png,jpg,jpeg,gif,webp,svg,ico,woff,woff2,ttf,otf,eot}", lambda route: route.abort())
@@ -1154,43 +1164,76 @@ def try_find_rank_general_search(
         return None, True, None, False
 
 
+def _pet_popular_layer(page):
+    """
+    열려 있는 반려동물 인기글 레이어를 돌려준다. 없으면 None.
+    DOM 접근이 실패해도(페이지 이동 중·렌더러 응답 없음 등) 예외를 내보내지 않는다 —
+    이 함수는 "되면 좋고" 성격이라, 여기서 터지면 멀쩡히 받아둔 순위까지 날아간다.
+    """
+    for sel in SELECTOR_PET_POPULAR_LAYER:
+        try:
+            el = page.query_selector(sel)
+        except Exception:
+            return None
+        if el:
+            return el
+    return None
+
+
 def _close_pet_popular_layer_if_open(page) -> None:
+    """레이어 닫기. 어떤 이유로 실패해도 수집을 멈추지 않는다(원래 동작 유지)."""
+    try:
+        _close_pet_popular_layer_impl(page)
+    except Exception:
+        pass
+
+
+def _close_pet_popular_layer_impl(page) -> None:
     """
     반려동물 인기글 "더보기"로 연 레이어가 열려 있으면 닫는다.
     일반 검색(rrB_bdR)은 배경(통합검색 본문)에 있으므로, 레이어를 닫아야 탐색 가능.
+
+    ★ 예전엔 레이어 유무와 무관하게 **매 키워드마다** 실행됐고, 그 안에서 `[class*="close"]` 같은
+      광범위 셀렉터가 숨은 요소를 잡아 Playwright 기본 타임아웃(30초)을 두 번 소진했다.
+      로그상 이 구간이 750회 전부 55초 아래로 내려간 적이 없고 74%가 60초 언저리였다(7일간 14시간).
+      잡이 1~2시간으로 늘어나 크롬이 죽을 창을 벌린 주범이라, 아래 세 가지를 지킨다:
+        1) 레이어가 실제로 떠 있을 때만 동작한다(대부분의 호출이 여기서 끝난다)
+        2) 모든 클릭에 짧은 타임아웃을 명시한다
+        3) 넓은 셀렉터(class*=close / class*=backdrop)는 쓰지 않는다 — 엉뚱한 걸 눌러
+           부작용을 낼 수도 있다
     """
-    try:
-        # 1) Escape 키로 레이어 닫기 시도 (대부분의 모달/레이어 공통)
+    if _pet_popular_layer(page) is None:
+        return  # 열린 적 없음 — 여기서 끝. (예전엔 이 경우에도 60초를 썼다)
+
+    # 1) Escape 로 닫기 시도 (대부분의 모달 공통, 비용 거의 0)
+    with suppress(Exception):
         page.keyboard.press("Escape")
-        page.wait_for_timeout(50)
-        # 2) 레이어 전용 닫기 버튼 클릭 시도 (네이버 LayerBridge 등)
-        for close_sel in [
-            'button[aria-label="닫기"]',
-            '[class*="close"]',
-            '._lb_close',
-            '.layer_close',
-            '.bridge_content ~ button',
-            '.spw_rerank .btn_close',
-            'a[role="button"]:has-text("닫기")',
-        ]:
-            btn = page.query_selector(close_sel)
-            if btn:
-                try:
-                    btn.click()
-                    page.wait_for_timeout(50)
-                    break
-                except Exception:
-                    pass
-        # 3) 백드롭(딤) 클릭으로 레이어 닫기 시도
-        backdrop = page.query_selector('.bridge_backdrop, .layer_backdrop, [class*="backdrop"]')
-        if backdrop:
-            try:
-                backdrop.click()
-                page.wait_for_timeout(50)
-            except Exception:
-                pass
-    except Exception:
-        pass
+        page.wait_for_timeout(80)
+    if _pet_popular_layer(page) is None:
+        return
+
+    # 2) 레이어 전용 닫기 버튼 — 구체적인 것만, 짧은 타임아웃으로.
+    for close_sel in (
+        '._lb_close',
+        '.layer_close',
+        '.bridge_content button[aria-label="닫기"]',
+        '.pack_group._lb_content_root button[aria-label="닫기"]',
+    ):
+        btn = page.query_selector(close_sel)
+        if not btn:
+            continue
+        with suppress(Exception):
+            btn.click(timeout=_CLOSE_CLICK_TIMEOUT_MS)
+            page.wait_for_timeout(80)
+        if _pet_popular_layer(page) is None:
+            return
+
+    # 3) 그래도 남아 있으면 배경 클릭으로 닫기 — 백드롭도 구체 셀렉터만.
+    backdrop = page.query_selector('.bridge_backdrop, .layer_backdrop')
+    if backdrop:
+        with suppress(Exception):
+            backdrop.click(timeout=_CLOSE_CLICK_TIMEOUT_MS)
+            page.wait_for_timeout(80)
 
 
 def get_three_section_ranks(page, target_id: str, integrated_url: str) -> dict[str, int | None]:
