@@ -33,12 +33,29 @@ type Props = {
 const ESC: Record<string, string> = { '&': '&amp;', '<': '&lt;', '>': '&gt;' };
 const esc = (s: string) => s.replace(/[&<>]/g, (c) => ESC[c]);
 
-/** 평문 마크다운 → 표시용 HTML. rich-text.tsx 의 렌더 규칙과 같은 좁은 규칙을 쓴다. */
+/** 「1. 소제목」처럼 번호로 시작하는 줄 — 리포트가 자동으로 굵게 그리는 규칙(hrss-topic-num). */
+const NUMBERED_LINE = /^\s*\d+\.\s/;
+
+/**
+ * 평문 마크다운 → 표시용 HTML. rich-text.tsx 의 렌더 규칙과 같은 좁은 규칙을 쓴다.
+ *
+ * 번호 소제목 줄은 저장된 텍스트에 별표가 없어도 리포트가 자동으로 굵게 그린다(종합소견·사후관리).
+ * 편집칸이 그걸 안 보여주면 "리포트엔 굵은데 편집칸엔 안 굵은" 불일치가 생기므로 여기서도 같이 그린다.
+ * 단 `<strong>` 이 아니라 `<span>` 으로 그린다 — htmlToMarkdown 이 span 은 껍데기로 보고 벗겨내므로
+ * **자동 굵게가 별표로 저장에 새어 들어가지 않는다**. 새어 들어가면 리포트가 이중으로 굵게 처리하고,
+ * 첫 글자가 `*` 가 되어 번호 규칙(NUMBERED_LINE)까지 깨진다.
+ */
 export function markdownToHtml(md: string): string {
-  const out = esc(md)
-    .replace(/\*\*([^\n]+?)\*\*/g, '<strong>$1</strong>')
-    .replace(/(^|[^*\w])\*(?!\s)([^*\n]+?)(?<!\s)\*(?!\*)/g, '$1<em>$2</em>');
-  return out.replace(/\n/g, '<br>');
+  return (md ?? '')
+    .split('\n')
+    .map((line) => {
+      const html = esc(line)
+        .replace(/\*\*\*([^\n]+?)\*\*\*/g, '<strong><em>$1</em></strong>')
+        .replace(/\*\*([^\n]+?)\*\*/g, '<strong>$1</strong>')
+        .replace(/(^|[^*\w])\*(?!\s)([^*\n]+?)(?<!\s)\*(?!\*)/g, '$1<em>$2</em>');
+      return NUMBERED_LINE.test(line) ? `<span style="font-weight:700">${html}</span>` : html;
+    })
+    .join('<br>');
 }
 
 /** 표시용 HTML → 평문 마크다운. 굵게·기울임 외의 태그는 전부 버리고 글자만 남긴다. */
@@ -159,6 +176,12 @@ export function RichTextTextarea({ value, onChange, maxLength, rows, placeholder
           onInput={() => { if (!composing.current) flush(); }}
           onCompositionStart={() => { composing.current = true; }}
           onCompositionEnd={() => { composing.current = false; flush(); }}
+          onBlur={() => {
+            // 타이핑 중에는 커서를 지키려고 다시 그리지 않는다. 그래서 새로 친 「2. 소제목」 줄의
+            // 자동 굵게가 바로 반영되지 않는데, 포커스가 빠지는 시점엔 커서 걱정이 없으니 여기서 맞춘다.
+            const el = ref.current;
+            if (el && !composing.current) el.innerHTML = markdownToHtml(emitted.current ?? '');
+          }}
           onPaste={(e) => {
             // 워드·웹에서 복사하면 태그가 딸려온다. 글자만 받는다.
             e.preventDefault();
