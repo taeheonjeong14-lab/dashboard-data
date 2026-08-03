@@ -112,9 +112,6 @@ PAGE_LOAD_RETRY_COUNT = 0
 CURRENT_PAGE_LOAD_TIMEOUT_MS = PAGE_LOAD_TIMEOUT_MS_FIRST
 # 레이어 닫기 등 "되면 좋고 아니면 마는" 클릭의 상한. 기본 30초가 걸리면 키워드마다 분 단위를 버린다.
 _CLOSE_CLICK_TIMEOUT_MS = int(os.getenv("RANK_CLOSE_CLICK_TIMEOUT_MS", "1500"))
-# Playwright 기본 30초 대신 쓰는 컨텍스트 기본값. 페이지 이동처럼 오래 걸리는 건 각자 명시한다.
-_DEFAULT_ACTION_TIMEOUT_MS = int(os.getenv("RANK_DEFAULT_ACTION_TIMEOUT_MS", "10000"))
-
 
 def _set_page_load_timeout_for_attempt(attempt: int) -> int:
     global CURRENT_PAGE_LOAD_TIMEOUT_MS
@@ -790,9 +787,6 @@ def create_browser_session(playwright, *, headless: bool = True, use_debug_chrom
             ) from last_err
 
         context = browser.contexts[0] if browser.contexts else browser.new_context()
-        # 안전망: 타임아웃을 명시하지 않은 click/wait 이 파일에 12곳 있다. 기본 30초가 걸리면
-        # 네이버가 마크업을 바꾸는 순간 조용히 분 단위를 먹는다(실제로 그렇게 됐다).
-        context.set_default_timeout(_DEFAULT_ACTION_TIMEOUT_MS)
         context.route("**/*.{png,jpg,jpeg,gif,webp,svg,ico,woff,woff2,ttf,otf,eot}", lambda route: route.abort())
 
         def cleanup():
@@ -816,9 +810,6 @@ def create_browser_session(playwright, *, headless: bool = True, use_debug_chrom
         "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
     )
     context = browser.new_context(user_agent=ua)
-    # 안전망: 타임아웃을 명시하지 않은 click/wait 이 파일에 12곳 있다. 기본 30초가 걸리면
-    # 네이버가 마크업을 바꾸는 순간 조용히 분 단위를 먹는다(실제로 그렇게 됐다).
-    context.set_default_timeout(_DEFAULT_ACTION_TIMEOUT_MS)
     # launch 모드에서 true 로 노출되는 navigator.webdriver 흔적 제거(CDP 모드는 원래 false).
     context.add_init_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined});")
     context.route("**/*.{png,jpg,jpeg,gif,webp,svg,ico,woff,woff2,ttf,otf,eot}", lambda route: route.abort())
