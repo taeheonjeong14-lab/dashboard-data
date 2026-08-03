@@ -22,8 +22,12 @@ function renderSummaryParagraph(para: string, i: number) {
   const numbered = /^\s*\d+\.\s/.test(firstLine);
   return (
     <p key={i} className="hrss-placeholder-text">
-      {numbered ? <span className="hrss-topic-num">{firstLine}</span> : firstLine}
-      {rest}
+      {numbered ? (
+        <span className="hrss-topic-num">{renderReportRichText(firstLine)}</span>
+      ) : (
+        renderReportRichText(firstLine)
+      )}
+      {renderReportRichText(rest)}
     </p>
   );
 }

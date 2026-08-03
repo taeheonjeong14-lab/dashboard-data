@@ -16,8 +16,14 @@
  */
 import type { ReactNode } from 'react';
 
-/** `**…**` 을 먼저 먹고, 남은 조각에서 `*…*` 를 찾는다(볼드가 이탤릭보다 우선). */
-const BOLD = /\*\*([^\n]+?)\*\*/;
+/**
+ * `***…***`(굵게+기울임) → `**…**`(굵게) 순으로 먹고, 남은 조각에서 `*…*`(기울임)를 찾는다.
+ *
+ * 세 겹을 먼저 잡는 게 중요하다. `**` 규칙만 두면 `***둘다***` 에서 앞의 `**` 와 뒤쪽 `**` 가
+ * 짝지어져 `<strong>*둘다</strong>*` 처럼 별표가 본문에 새어나온다. 편집기에서 한 글자에
+ * 굵게·기울임을 다 걸면 실제로 `***…***` 가 만들어지므로 반드시 처리해야 한다.
+ */
+const BOLD = /\*\*\*([^\n]+?)\*\*\*|\*\*([^\n]+?)\*\*/;
 const ITALIC = /(?<![*\w])\*(?!\s)([^*\n]+?)(?<!\s)\*(?!\*)/;
 
 function renderItalic(text: string, keyPrefix: string): ReactNode[] {
@@ -51,7 +57,16 @@ export function renderReportRichText(value: unknown): ReactNode {
     const m = BOLD.exec(rest);
     if (!m || m.index === undefined) break;
     if (m.index > 0) out.push(...renderItalic(rest.slice(0, m.index), `b${i}pre`));
-    out.push(<strong key={`b${i}`}>{renderItalic(m[1] ?? '', `b${i}in`)}</strong>);
+    out.push(
+      m[1] !== undefined ? (
+        // `***x***` — 굵게 안에 기울임. 안쪽을 다시 파싱하지 않는다(이미 둘 다 걸린 상태다).
+        <strong key={`b${i}`}>
+          <em>{m[1]}</em>
+        </strong>
+      ) : (
+        <strong key={`b${i}`}>{renderItalic(m[2] ?? '', `b${i}in`)}</strong>
+      ),
+    );
     rest = rest.slice(m.index + m[0].length);
     i += 1;
   }

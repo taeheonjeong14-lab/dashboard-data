@@ -1267,11 +1267,11 @@ export function AdminHealthCheckupWorkspace({
               </div>
             </summary>
             <div style={{ padding: '12px 14px' }}>
-              <textarea
+              <RichTextTextarea
                 rows={10}
                 style={{ width: '100%', fontSize: 14, padding: 10 }}
                 value={draft.overallSummary}
-                onChange={(e) => setDraft((d) => ({ ...d, overallSummary: e.target.value }))}
+                onChange={(v) => setDraft((d) => ({ ...d, overallSummary: v }))}
               />
               <p style={{ margin: '6px 0 0', fontSize: 14, color: 'var(--warning)' }}>
                 {overallLen} / 권장 최대 글자수 {HEALTH_CHECKUP_MAX_OVERALL_CHARS}
@@ -1296,11 +1296,11 @@ export function AdminHealthCheckupWorkspace({
               </div>
             </summary>
             <div style={{ padding: '12px 14px' }}>
-              <textarea
+              <RichTextTextarea
                 rows={8}
                 style={{ width: '100%', fontSize: 14, padding: 10 }}
                 value={draft.followUpCare}
-                onChange={(e) => setDraft((d) => ({ ...d, followUpCare: e.target.value }))}
+                onChange={(v) => setDraft((d) => ({ ...d, followUpCare: v }))}
               />
               <p style={{ margin: '6px 0 0', fontSize: 14, color: 'var(--warning)' }}>
                 {followLen} / 권장 최대 글자수 {HEALTH_CHECKUP_MAX_FOLLOW_UP_CHARS}

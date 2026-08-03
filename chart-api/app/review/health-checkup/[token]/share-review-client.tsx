@@ -379,7 +379,7 @@ function HealthCheckupReviewEditor({ draft, onChange, onSave, saving, activeSect
         <div>
           <label style={{ display: 'block' }}>
             <span style={{ display: 'block', fontSize: 12, fontWeight: 500, color: '#52525b', marginBottom: 4 }}>종합 소견</span>
-            <textarea className="hcu-rv-textarea" style={{ minHeight: 140 }} value={draft.overallSummary} onChange={(e) => onChange({ ...draft, overallSummary: e.target.value })} />
+            <RichTextTextarea className="hcu-rv-textarea" style={{ minHeight: 140 }} value={draft.overallSummary} onChange={(v) => onChange({ ...draft, overallSummary: v })} />
           </label>
           <CharCountLine current={draft.overallSummary.length} max={HEALTH_CHECKUP_MAX_OVERALL_CHARS} min={HEALTH_CHECKUP_MIN_OVERALL_CHARS} />
         </div>
@@ -389,7 +389,7 @@ function HealthCheckupReviewEditor({ draft, onChange, onSave, saving, activeSect
         <div>
           <label style={{ display: 'block' }}>
             <span style={{ display: 'block', fontSize: 12, fontWeight: 500, color: '#52525b', marginBottom: 4 }}>사후 관리</span>
-            <textarea className="hcu-rv-textarea" style={{ minHeight: 120 }} value={draft.followUpCare} onChange={(e) => onChange({ ...draft, followUpCare: e.target.value })} />
+            <RichTextTextarea className="hcu-rv-textarea" style={{ minHeight: 120 }} value={draft.followUpCare} onChange={(v) => onChange({ ...draft, followUpCare: v })} />
           </label>
           <CharCountLine current={draft.followUpCare.length} max={HEALTH_CHECKUP_MAX_FOLLOW_UP_CHARS} min={HEALTH_CHECKUP_MIN_FOLLOW_UP_CHARS} />
         </div>
