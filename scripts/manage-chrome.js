@@ -225,6 +225,18 @@ async function main() {
     process.exit(res.status === 0 ? 0 : 1);
   }
 
+  // 수집이 끝난 뒤 정리: 병원 로그인 Chrome 을 닫고, 순위 전용(9223)도 닫는다.
+  // 순위 Chrome 은 어차피 다음 수집의 prepare-rank 에서 새로 띄우므로 남겨둘 이유가 없다.
+  // 남겨두면 잡과 잡 사이에 계속 메모리를 물고 있다 — 그게 OOM 의 출발점이었다.
+  if (mode === "cleanup") {
+    let n = 0;
+    for (const p of hospitalPorts()) n += close(p);
+    // 9223 은 PROTECTED 라 force 로만 닫는다(일괄 종료에 휩쓸리지 않게 해둔 장치는 유지).
+    n += close(9223, { force: true });
+    log(`수집 후 정리 완료 — 프로세스 ${n}개`);
+    process.exit(0);
+  }
+
   if (mode === "list") {
     for (const p of [...hospitalPorts(), ...PROTECTED_PORTS]) {
       const pids = pidsOn(p);
@@ -232,7 +244,7 @@ async function main() {
     }
     process.exit(0);
   }
-  console.error("사용법: ensure --port N | close --port N | close-hospitals | prepare-rank | list");
+  console.error("사용법: ensure --port N | close --port N | close-hospitals | prepare-rank | cleanup | list");
   process.exit(2);
 }
 

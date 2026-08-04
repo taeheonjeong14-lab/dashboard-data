@@ -10,7 +10,7 @@
  * - `COLLECT_ALL_NO_FILE_LOG=1`: 파일 없음, 콘솔에 자식 출력까지 전부(이전과 유사)
  */
 
-const { spawn } = require("child_process");
+const { spawn, spawnSync } = require("child_process");
 const fs = require("fs");
 const path = require("path");
 require("dotenv").config({ path: path.resolve(__dirname, "..", ".env") });
@@ -600,9 +600,29 @@ async function main() {
   if (runState.logFilePath) {
     emit(`상세 로그(자식 출력 포함): ${runState.logFilePath}`);
   }
+  cleanupChromes();
   closeFileLog();
   if (failedSteps.length > 0) {
     process.exit(1);
+  }
+}
+
+/**
+ * 수집이 끝났으면 띄웠던 Chrome 을 닫는다. 안 닫으면 잡과 잡 사이에 계속 메모리를 물고 있고,
+ * 그게 쌓여 순위 수집이 OOM 으로 죽었다(크래시 덤프가 전부 CHROME_OUT_OF_MEMORY 였다).
+ * 정리 실패는 수집 결과와 무관하므로 삼킨다. COLLECT_KEEP_CHROME=1 로 끌 수 있다.
+ */
+function cleanupChromes() {
+  if (process.env.COLLECT_KEEP_CHROME === "1") return;
+  try {
+    const r = spawnSync(process.execPath, [path.join(ROOT_DIR, "scripts", "manage-chrome.js"), "cleanup"], {
+      encoding: "utf8",
+      timeout: 60_000,
+    });
+    const out = String(r.stdout || "").split(String.fromCharCode(10));
+    for (const line of out) if (line.trim()) emit(line.trim());
+  } catch (e) {
+    emit(`Chrome 정리 실패(무시): ${e && e.message ? e.message : e}`, "err");
   }
 }
 
@@ -627,6 +647,7 @@ main().catch((err) => {
   } else {
     emit(`힌트: "단계 N/M"이면 해당 스크립트가 실패한 것입니다. 위 콘솔 출력을 확인하세요.`, "err");
   }
+  cleanupChromes();
   closeFileLog();
   process.exit(1);
 });
