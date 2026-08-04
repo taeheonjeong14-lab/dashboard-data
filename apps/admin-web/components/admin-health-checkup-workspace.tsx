@@ -1408,7 +1408,10 @@ export function AdminHealthCheckupWorkspace({
                         ? implicationPhraseForTitle(block.titleKo)
                         : null;
                       return (
-                      <label key={ri} style={{ fontSize: 14, display: 'grid', gap: 4 }}>
+                      /* label 이 아니라 div 다. label 은 클릭 시 안의 첫 폼 컨트롤을 활성화하는데,
+                         여기 첫 컨트롤이 상용구 버튼이라 편집칸을 클릭하면 그 문구가 입력됐다.
+                         textarea 시절엔 클릭이 거기서 멈춰 증상이 없었고, contentEditable 로 바꾸면서 드러났다. */
+                      <div key={ri} style={{ fontSize: 14, display: 'grid', gap: 4 }}>
                         <span style={{ color: 'var(--text-muted)' }}>{row.label}</span>
                         {isDiagnosisRow && (
                           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 2 }}>
@@ -1447,7 +1450,7 @@ export function AdminHealthCheckupWorkspace({
                           {row.content.length} / 권장 최대 글자수 {rowMax}
                           {row.content.length > rowMax ? OVER_MAX_WARNING : ''}
                         </span>
-                      </label>
+                      </div>
                       );
                     })}
                     {(k === 'systemsPage3Blocks' || k === 'systemsPage3bBlocks' || k === 'systemsPage4Blocks') && (() => {
