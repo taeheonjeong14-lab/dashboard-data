@@ -117,6 +117,8 @@ _CLOSE_CLICK_TIMEOUT_MS = int(os.getenv("RANK_CLOSE_CLICK_TIMEOUT_MS", "1500"))
 _BLOCK_PROBE_TIMEOUT_MS = int(os.getenv("RANK_BLOCK_PROBE_TIMEOUT_MS", "1500"))
 # N개마다 크롬을 통째로 재시작하고 이어서 한다(0이면 끔 = 예전과 동일).
 # 크래시 덤프가 전부 CHROME_OUT_OF_MEMORY 였다 — 크롬이 새로 뜨면 쌓인 메모리가 사라진다.
+# 키워드 사이 단계 흔적(스톨 지점 특정용). 기본 켜짐 — 출력뿐이라 위험이 없다.
+_TRACE = os.getenv("RANK_TRACE", "1") != "0"
 _SESSION_BATCH = int(os.getenv("RANK_SESSION_BATCH", "0"))
 _SESSION_RESTART_TIMEOUT_SEC = int(os.getenv("RANK_SESSION_RESTART_TIMEOUT_SEC", "60"))
 # 배치는 워커 1개일 때만 쓴다(재시작이 다른 워커 세션을 끊으므로). 실행부에서 채운다.
@@ -2278,16 +2280,22 @@ def _worker_blog_batch(worker_id: int, pairs_chunk: list, use_debug_chrome: bool
                 with _shared_results_lock:
                     _shared_blog_results.append(row)
                 _bump_rank_progress(kw)
+                # 이 구간에서 20분 스톨이 반복되는데 후보가 셋(DB 적재·차단 감지·대기)이라
+                # 매번 추리로 좁혀야 했다. 마지막 줄이 어느 호출에서 멈췄는지 바로 말해주게 한다.
+                _trace(worker_id, "DB 적재")
                 if _PERSIST_INCREMENTAL:
                     pending.append(row)
                     if len(pending) >= _PERSIST_BATCH and _persist_blog_batch(pending):
                         pending = []
+                _trace(worker_id, "차단 감지")
                 if _detect_block(page):
                     _blocked_event.set()
                     with _print_lock:
                         print(f"🛑 워커 {worker_id}: 네이버 차단/캡차 감지 — 수집 중단")
                     break
+                _trace(worker_id, "키워드 간 대기")
                 _human_delay()
+                _trace(worker_id, "다음 키워드")
         finally:
             if _PERSIST_INCREMENTAL and pending:
                 _persist_blog_batch(pending)
@@ -2297,6 +2305,14 @@ def _worker_blog_batch(worker_id: int, pairs_chunk: list, use_debug_chrome: bool
                 with suppress(Exception):
                     cleanup()
     return chunk_results
+
+
+def _trace(worker_id: int, step: str) -> None:
+    """키워드 사이 단계 흔적. RANK_TRACE=0 으로 끌 수 있다."""
+    if not _TRACE:
+        return
+    with _print_lock:
+        print(f"   - [w{worker_id}] {step}", flush=True)
 
 
 def _restart_rank_chrome_for_batch(worker_id: int) -> bool:
