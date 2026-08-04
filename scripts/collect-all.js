@@ -509,6 +509,16 @@ async function main() {
       command: "python",
       args: [path.join(ROOT_DIR, "scripts", "naver-place-reviews-main.py")],
       options: { env: baseEnv },
+      // 리뷰 수집도 로그인 Chrome(CDP)을 쓴다. baseEnv 가 블로그 포트를 물고 가므로 그 포트를 띄운다.
+      // 이게 없으면 크롬을 하나도 안 띄워둔 상태에서 이 단계만 CDP 연결 실패로 죽는다.
+      ...(blogPort == null ? {} : {
+        prepare: {
+          name: "로그인 Chrome 준비(리뷰)",
+          command: process.execPath,
+          args: [path.join(ROOT_DIR, "scripts", "manage-chrome.js"), "ensure", "--port", String(blogPort)],
+          options: { env: baseEnv },
+        },
+      }),
     },
     {
       key: "place_reviews",
