@@ -452,6 +452,16 @@ async function main() {
       command: process.execPath,
       args: [path.join(ROOT_DIR, "scripts", "collect-blog-metrics.js"), resolved.blogId],
       options: { env: blogEnv },
+      // 이 단계에 필요한 로그인 Chrome 만 이때 띄운다. 예전엔 병원별 12개를 워커에
+      // 상시 띄워두어 메모리를 잡아먹었고, 그 탓에 순위 수집이 OOM 으로 죽었다.
+      ...(blogPort == null ? {} : {
+        prepare: {
+          name: "로그인 Chrome 준비(블로그)",
+          command: process.execPath,
+          args: [path.join(ROOT_DIR, "scripts", "manage-chrome.js"), "ensure", "--port", String(blogPort)],
+          options: { env: baseEnv },
+        },
+      }),
     },
     {
       key: "smartplace",
@@ -459,6 +469,16 @@ async function main() {
       command: process.execPath,
       args: [path.join(ROOT_DIR, "scripts", "collect-smartplace-inflow.js"), resolved.blogId],
       options: { env: placeEnv },
+      // 이 단계에 필요한 로그인 Chrome 만 이때 띄운다. 예전엔 병원별 12개를 워커에
+      // 상시 띄워두어 메모리를 잡아먹었고, 그 탓에 순위 수집이 OOM 으로 죽었다.
+      ...(placePort == null ? {} : {
+        prepare: {
+          name: "로그인 Chrome 준비(플레이스)",
+          command: process.execPath,
+          args: [path.join(ROOT_DIR, "scripts", "manage-chrome.js"), "ensure", "--port", String(placePort)],
+          options: { env: baseEnv },
+        },
+      }),
     },
     {
       key: "keyword_rank",
@@ -470,9 +490,9 @@ async function main() {
       // /json/version 은 응답하는데 CDP 세션만 못 여는 상태가 되고, 그러면 34개 조합을 하나씩
       // 재시도하며 24분을 태우고 전멸한다(실측 7일 22건). 상했는지 판별하는 대신 누적을 없앤다.
       prepare: {
-        name: "순위 전용 Chrome 재시작",
+        name: "병원 Chrome 정리 + 순위 Chrome 재시작",
         command: process.execPath,
-        args: [path.join(ROOT_DIR, "scripts", "restart-rank-chrome.js")],
+        args: [path.join(ROOT_DIR, "scripts", "manage-chrome.js"), "prepare-rank"],
         options: { env: rankEnv },
       },
     },
