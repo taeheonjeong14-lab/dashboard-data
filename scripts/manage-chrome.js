@@ -28,6 +28,8 @@ const HOSPITAL_PORT_MAX = 7099;
 
 const READY_TIMEOUT_MS = Number(process.env.CHROME_READY_TIMEOUT_MS || "20000");
 const READY_POLL_MS = 400;
+/** 정상 종료를 기다리는 시간. 이 안에 안 끝나면 강제 종료. */
+const GRACEFUL_CLOSE_MS = Number(process.env.CHROME_GRACEFUL_CLOSE_MS || "5000");
 
 function log(msg) {
   console.log(`[chrome] ${msg}`);
@@ -110,10 +112,24 @@ function close(port, { force = false } = {}) {
     log(`포트 ${port} 떠 있지 않음`);
     return 0;
   }
+  // ★ 먼저 **정상 종료**를 시도한다. /F 로 바로 죽이면 크롬이 쿠키·세션을 디스크에 쓰지 못하고
+  //   끝나서 로그인이 풀릴 수 있다. 이 크롬들은 병원 네이버 계정으로 로그인해 둔 것이라
+   //   세션이 날아가면 사람이 다시 로그인해야 한다.
   for (const pid of pids) {
-    spawnSync("taskkill", ["/F", "/T", "/PID", String(pid)], { stdio: "ignore" });
+    spawnSync("taskkill", ["/PID", String(pid)], { stdio: "ignore" }); // /F 없음 = 창 닫기 요청
   }
-  log(`포트 ${port} 닫음 (${pids.length}개 프로세스)`);
+  // 쿠키 flush 시간을 준 뒤, 그래도 남아 있으면 그때 강제 종료한다.
+  const waitUntil = Date.now() + GRACEFUL_CLOSE_MS;
+  while (Date.now() < waitUntil && pidsOn(port).length > 0) {
+    spawnSync(process.execPath, ["-e", "setTimeout(()=>{},300)"], { stdio: "ignore" });
+  }
+  const left = pidsOn(port);
+  if (left.length > 0) {
+    for (const pid of left) spawnSync("taskkill", ["/F", "/T", "/PID", String(pid)], { stdio: "ignore" });
+    log(`포트 ${port} 닫음 (정상 종료 ${pids.length - left.length}개 · 강제 ${left.length}개)`);
+  } else {
+    log(`포트 ${port} 정상 종료 (${pids.length}개)`);
+  }
   return pids.length;
 }
 
