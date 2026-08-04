@@ -407,6 +407,12 @@ async function main() {
     if (Number.isFinite(resolved.debugPort) && resolved.debugPort > 0) return resolved.debugPort;
     return resolveHospitalChromePort(config, resolved.hospitalId, kind);
   };
+  // 병원별 Chrome 프로필. 폴더 이름 = 병원 id (기존에 손으로 만들어 쓰던 규칙과 동일).
+  // 전용 .cmd 가 없는 병원도 이 경로로 직접 띄울 수 있게 넘긴다.
+  const hospitalProfileDir = path.join(
+    process.env.CHROME_PROFILE_ROOT || "C:/Projects/chrome-profiles",
+    resolved.hospitalId,
+  );
   const blogPort = pickPort("blog");
   const placePort = pickPort("place");
   emit(
@@ -458,7 +464,7 @@ async function main() {
         prepare: {
           name: "로그인 Chrome 준비(블로그)",
           command: process.execPath,
-          args: [path.join(ROOT_DIR, "scripts", "manage-chrome.js"), "ensure", "--port", String(blogPort)],
+          args: [path.join(ROOT_DIR, "scripts", "manage-chrome.js"), "ensure", "--port", String(blogPort), "--profile", hospitalProfileDir],
           options: { env: baseEnv },
         },
       }),
@@ -475,7 +481,7 @@ async function main() {
         prepare: {
           name: "로그인 Chrome 준비(플레이스)",
           command: process.execPath,
-          args: [path.join(ROOT_DIR, "scripts", "manage-chrome.js"), "ensure", "--port", String(placePort)],
+          args: [path.join(ROOT_DIR, "scripts", "manage-chrome.js"), "ensure", "--port", String(placePort), "--profile", hospitalProfileDir],
           options: { env: baseEnv },
         },
       }),
@@ -515,7 +521,7 @@ async function main() {
         prepare: {
           name: "로그인 Chrome 준비(리뷰)",
           command: process.execPath,
-          args: [path.join(ROOT_DIR, "scripts", "manage-chrome.js"), "ensure", "--port", String(blogPort)],
+          args: [path.join(ROOT_DIR, "scripts", "manage-chrome.js"), "ensure", "--port", String(blogPort), "--profile", hospitalProfileDir],
           options: { env: baseEnv },
         },
       }),

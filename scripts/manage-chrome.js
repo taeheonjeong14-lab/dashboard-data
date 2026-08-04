@@ -28,6 +28,8 @@ const HOSPITAL_PORT_MAX = 7099;
 
 const READY_TIMEOUT_MS = Number(process.env.CHROME_READY_TIMEOUT_MS || "20000");
 const READY_POLL_MS = 400;
+/** 병원별 프로필이 사는 곳. 폴더 이름은 병원 id 다(기존 .cmd 들과 같은 규칙). */
+const PROFILE_ROOT = process.env.CHROME_PROFILE_ROOT || "C:/Projects/chrome-profiles";
 /** 정상 종료를 기다리는 시간. 이 안에 안 끝나면 강제 종료. */
 const GRACEFUL_CLOSE_MS = Number(process.env.CHROME_GRACEFUL_CLOSE_MS || "5000");
 
@@ -75,19 +77,51 @@ function pidsOn(port) {
     .filter((n) => Number.isFinite(n) && n > 0);
 }
 
-async function ensure(port) {
+/** 설치된 chrome.exe 경로. 기존 .cmd 들과 같은 순서로 찾는다. */
+function chromeExe() {
+  const cands = [
+    process.env.CHROME_PATH,
+    "C:/Program Files/Google/Chrome/Application/chrome.exe",
+    "C:/Program Files (x86)/Google/Chrome/Application/chrome.exe",
+  ].filter(Boolean);
+  return cands.find((c) => fs.existsSync(c)) || null;
+}
+
+async function ensure(port, profileDir) {
   if (await isUp(port)) {
     log(`포트 ${port} 이미 떠 있음`);
     return true;
   }
+
+  // ① 전용 .cmd 가 있으면 그걸 쓴다(기존 병원 3곳 — 특별한 플래그가 들어 있을 수 있어 존중).
   const cmd = launchCmdFor(port);
-  if (!cmd) {
-    log(`포트 ${port} 실행 스크립트를 찾지 못함 (scripts/windows/*port${port}*.cmd)`);
-    return false;
+  let child;
+  if (cmd) {
+    log(`포트 ${port} 띄우는 중 — ${path.basename(cmd)}`);
+    // cmd 안에서 start 로 띄우므로 이 프로세스는 바로 끝난다 → detached 로 두고 붙잡지 않는다.
+    child = spawn("cmd.exe", ["/c", cmd], { detached: true, stdio: "ignore", windowsHide: true });
+  } else {
+    // ② .cmd 가 없으면 포트+프로필로 직접 띄운다. 병원마다 .cmd 를 만들어 두는 방식은
+    //    13개 중 3개만 있었고 나머지는 손으로 띄워야 했다 — 그래서 자동화가 거기서 끊겼다.
+    const profile = profileDir || path.join(PROFILE_ROOT, String(port));
+    const exe = chromeExe();
+    if (!exe) {
+      log("chrome.exe 를 찾지 못함 (CHROME_PATH 로 지정 가능)");
+      return false;
+    }
+    const isNew = !fs.existsSync(profile);
+    if (isNew) {
+      fs.mkdirSync(profile, { recursive: true });
+      log(`프로필을 새로 만들었다 — ${profile}`);
+      log("  ↳ 로그인이 안 된 빈 프로필이다. 이 창에서 한 번 로그인해야 수집이 된다.");
+    }
+    log(`포트 ${port} 띄우는 중 — 프로필 ${profile}`);
+    child = spawn(exe, [`--user-data-dir=${profile}`, `--remote-debugging-port=${port}`], {
+      detached: true,
+      stdio: "ignore",
+      windowsHide: false, // 로그인이 필요할 수 있어 창을 숨기지 않는다
+    });
   }
-  log(`포트 ${port} 띄우는 중 — ${path.basename(cmd)}`);
-  // cmd 안에서 start 로 띄우므로 이 프로세스는 바로 끝난다 → detached 로 두고 붙잡지 않는다.
-  const child = spawn("cmd.exe", ["/c", cmd], { detached: true, stdio: "ignore", windowsHide: true });
   child.unref();
 
   const deadline = Date.now() + READY_TIMEOUT_MS;
@@ -153,7 +187,9 @@ async function main() {
 
   if (mode === "ensure") {
     if (!port) throw new Error("--port 가 필요합니다");
-    process.exit((await ensure(port)) ? 0 : 1);
+    const pi = process.argv.indexOf("--profile");
+    const profile = pi >= 0 ? process.argv[pi + 1] : null;
+    process.exit((await ensure(port, profile)) ? 0 : 1);
   }
   if (mode === "close") {
     if (!port) throw new Error("--port 가 필요합니다");
@@ -207,4 +243,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { isUp, launchCmdFor, hospitalPorts, PROTECTED_PORTS, HOSPITAL_PORT_MIN, HOSPITAL_PORT_MAX };
+module.exports = { isUp, launchCmdFor, hospitalPorts, chromeExe, PROFILE_ROOT, PROTECTED_PORTS, HOSPITAL_PORT_MIN, HOSPITAL_PORT_MAX };
