@@ -46,6 +46,7 @@ import time
 import random
 import re
 import os
+import subprocess
 import json
 import sys
 import threading
@@ -114,6 +115,12 @@ CURRENT_PAGE_LOAD_TIMEOUT_MS = PAGE_LOAD_TIMEOUT_MS_FIRST
 _CLOSE_CLICK_TIMEOUT_MS = int(os.getenv("RANK_CLOSE_CLICK_TIMEOUT_MS", "1500"))
 # 차단 감지에서 페이지를 들여다볼 때의 상한. 타임아웃 없는 호출이 매달려 잡을 죽인 적이 있다.
 _BLOCK_PROBE_TIMEOUT_MS = int(os.getenv("RANK_BLOCK_PROBE_TIMEOUT_MS", "1500"))
+# N개마다 크롬을 통째로 재시작하고 이어서 한다(0이면 끔 = 예전과 동일).
+# 크래시 덤프가 전부 CHROME_OUT_OF_MEMORY 였다 — 크롬이 새로 뜨면 쌓인 메모리가 사라진다.
+_SESSION_BATCH = int(os.getenv("RANK_SESSION_BATCH", "0"))
+_SESSION_RESTART_TIMEOUT_SEC = int(os.getenv("RANK_SESSION_RESTART_TIMEOUT_SEC", "60"))
+# 배치는 워커 1개일 때만 쓴다(재시작이 다른 워커 세션을 끊으므로). 실행부에서 채운다.
+_RANK_WORKER_COUNT = 1
 
 def _set_page_load_timeout_for_attempt(attempt: int) -> int:
     global CURRENT_PAGE_LOAD_TIMEOUT_MS
@@ -2221,7 +2228,7 @@ def _persist_place_batch(rows: list[dict]) -> bool:
     return True
 
 
-def _worker_blog_chunk(worker_id: int, pairs_chunk: list, use_debug_chrome: bool, debug_port: int) -> list[dict]:
+def _worker_blog_batch(worker_id: int, pairs_chunk: list, use_debug_chrome: bool, debug_port: int) -> list[dict]:
     """
     워커 스레드: 자신만의 playwright + 브라우저 세션으로 pairs_chunk를 순차 처리.
     CDP 모드에서는 같은 Chrome 포트에 별도 연결하여 페이지만 신규 생성.
@@ -2290,6 +2297,78 @@ def _worker_blog_chunk(worker_id: int, pairs_chunk: list, use_debug_chrome: bool
                 with suppress(Exception):
                     cleanup()
     return chunk_results
+
+
+def _restart_rank_chrome_for_batch(worker_id: int) -> bool:
+    """
+    순위 전용 크롬을 재시작한다. scripts/restart-rank-chrome.js 를 그대로 쓴다
+    (포트+프로필이 일치하는 크롬만 죽이고, 다시 띄우고, /json/version 으로 확인까지 한다).
+
+    반환: 성공 여부. 실패해도 호출부는 계속 간다 — 다음 세션 생성이 CDP 재연결을 재시도한다.
+    """
+    script = os.path.join(os.path.dirname(os.path.abspath(__file__)), "restart-rank-chrome.js")
+    if not os.path.exists(script):
+        with _print_lock:
+            print(f"⚠️ 워커 {worker_id}: 크롬 재시작 스크립트를 찾지 못함 — {script}", file=sys.stderr, flush=True)
+        return False
+    try:
+        # 타임아웃을 반드시 준다. 재시작이 매달려 잡을 통째로 세우는 일이 있어선 안 된다.
+        res = subprocess.run(
+            ["node", script],
+            capture_output=True,
+            text=True,
+            timeout=_SESSION_RESTART_TIMEOUT_SEC,
+        )
+        if res.returncode != 0:
+            with _print_lock:
+                print(
+                    f"⚠️ 워커 {worker_id}: 크롬 재시작 실패(계속 진행) — {(res.stderr or res.stdout or '').strip()[:200]}",
+                    file=sys.stderr,
+                    flush=True,
+                )
+            return False
+        return True
+    except Exception as e:
+        with _print_lock:
+            print(f"⚠️ 워커 {worker_id}: 크롬 재시작 오류(계속 진행) — {type(e).__name__}", file=sys.stderr, flush=True)
+        return False
+
+
+def _worker_blog_chunk(worker_id: int, pairs_chunk: list, use_debug_chrome: bool, debug_port: int) -> list[dict]:
+    """
+    워커 스레드의 바깥 껍데기. 기본은 예전과 똑같이 한 세션으로 전부 처리한다.
+
+    RANK_SESSION_BATCH 를 켜면 N개마다 **크롬을 통째로 재시작하고 새 연결로 이어서** 한다.
+    크래시 덤프가 전부 CHROME_OUT_OF_MEMORY 였고, 키워드가 많은 병원(72개)만 끝자락에서
+    죽는다 — 크롬이 새로 뜨면 쌓인 메모리가 통째로 사라지므로 그 지점에 닿지 않는다.
+
+    앞서 페이지만 갈아끼우는 방식(new_page / about:blank)은 실패했다. 반쯤 죽은 연결을
+    그대로 물려받아 다음 키워드가 매달렸다. 여기서는 세션을 버리고 크롬까지 새로 띄우므로
+    물려받을 상태가 없다.
+
+    ★ 병렬 워커가 2개 이상이면 배치를 쓰지 않는다 — 크롬을 재시작하면 다른 워커의 세션까지
+      끊어버린다. 지금 순위 수집은 워커 1개로 돌지만, 늘어나도 안전하도록 막아둔다.
+    """
+    if _SESSION_BATCH <= 0 or len(pairs_chunk) <= _SESSION_BATCH or _RANK_WORKER_COUNT > 1:
+        return _worker_blog_batch(worker_id, pairs_chunk, use_debug_chrome, debug_port)
+
+    results: list[dict] = []
+    total = len(pairs_chunk)
+    for start in range(0, total, _SESSION_BATCH):
+        if _blocked_event.is_set():
+            break
+        batch = pairs_chunk[start : start + _SESSION_BATCH]
+        if start > 0:
+            with _print_lock:
+                print(
+                    f"🔄 워커 {worker_id}: {start}/{total} 처리 — 크롬 재시작 후 이어서 진행",
+                    flush=True,
+                )
+            # 재시작은 "되면 좋은" 일이다. 여기서 터져 이미 받아둔 순위를 날리면 안 된다.
+            with suppress(Exception):
+                _restart_rank_chrome_for_batch(worker_id)
+        results.extend(_worker_blog_batch(worker_id, batch, use_debug_chrome, debug_port))
+    return results
 
 
 def _worker_place_chunk(worker_id: int, place_chunk: list, use_debug_chrome: bool, debug_port: int) -> list[dict]:
@@ -2529,6 +2608,8 @@ def main():
             print(f"⚠️ 블로그 ID 없는 {skipped}개 키워드 스킵")
         chunks = _split_roundrobin(valid_pairs, num_workers)
         actual_workers = len(chunks)
+        global _RANK_WORKER_COUNT
+        _RANK_WORKER_COUNT = actual_workers  # 배치 재시작은 워커 1개일 때만 쓴다
         worker_timeout_sec = int(os.getenv("RANK_WORKER_TIMEOUT_SEC", "3000"))
         print(f"🚀 네이버 블로그 순위 확인 — {len(valid_pairs)}개 조합 / {actual_workers}개 병렬 워커 (워커 타임아웃: {worker_timeout_sec}s)\n")
         with ThreadPoolExecutor(max_workers=actual_workers) as executor:
