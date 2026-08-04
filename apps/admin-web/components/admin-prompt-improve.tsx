@@ -11,6 +11,19 @@ import { useEffect, useState, type CSSProperties } from 'react';
 
 type Change = { field?: string; kind?: string; what?: string; reason?: string; promptFix?: string };
 type DiffEntry = { field: string; label: string; before: string; after: string };
+/**
+ * 이미지 블록의 초안 vs 최종본. 텍스트와 따로 보는 이유는 **고칠 대상이 다르기 때문**이다 —
+ * 텍스트는 초안 프롬프트, 사진은 비전 선택(generateCdFindings / selectSectionImages)이 정한다.
+ */
+type ImageDiffEntry = {
+  field: string;
+  label: string;
+  kept: number;
+  added: number;
+  removed: number;
+  addedNames?: string[];
+  removedNames?: string[];
+};
 type DiffResult = {
   changes?: Change[];
   promptSuggestions?: string[];
@@ -18,6 +31,7 @@ type DiffResult = {
   noEdits?: boolean;
   changed?: DiffEntry[];
   unchanged?: string[];
+  imageDiff?: ImageDiffEntry[];
 };
 type Item = {
   runId: string;
@@ -248,6 +262,36 @@ function DiffCard({
       {r?.noEdits ? (
         <div style={{ fontSize: 14, color: 'var(--success)', fontWeight: 600 }}>
           병원이 초안을 그대로 발송 — 이 건은 프롬프트가 잘 맞았습니다.
+        </div>
+      ) : null}
+
+      {/* 사진 교체 — 텍스트 변경과 따로 보여준다. 여기가 흔들리면 고칠 곳은 텍스트 프롬프트가
+          아니라 비전 선택(c/d 검사소견·a/b 넘침)이라, 섞으면 어느 쪽 문제인지 흐려진다. */}
+      {(r?.imageDiff?.length ?? 0) > 0 ? (
+        <div style={{ display: 'grid', gap: 6 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)' }}>
+            사진 교체 <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>(병원이 초안의 사진을 바꾼 곳)</span>
+          </div>
+          {r!.imageDiff!.map((im) => (
+            <div key={im.field} style={{ border: '1px solid var(--border)', borderRadius: 6, padding: '8px 10px', display: 'grid', gap: 4 }}>
+              <div style={{ fontSize: 13, fontWeight: 600 }}>{im.label}</div>
+              <div style={{ display: 'flex', gap: 10, fontSize: 13, flexWrap: 'wrap' }}>
+                <span style={{ color: 'var(--text-secondary)' }}>그대로 <b>{im.kept}</b>장</span>
+                <span style={{ color: 'var(--accent)' }}>추가 <b>{im.added}</b>장</span>
+                <span style={{ color: 'var(--danger)' }}>제외 <b>{im.removed}</b>장</span>
+              </div>
+              {(im.addedNames?.length ?? 0) > 0 ? (
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', wordBreak: 'break-all' }}>
+                  + {im.addedNames!.join(', ')}
+                </div>
+              ) : null}
+              {(im.removedNames?.length ?? 0) > 0 ? (
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', wordBreak: 'break-all' }}>
+                  − {im.removedNames!.join(', ')}
+                </div>
+              ) : null}
+            </div>
+          ))}
         </div>
       ) : null}
 

@@ -61,6 +61,95 @@ function flattenBlocks(key: string, label: string, raw: unknown): Array<{ field:
   return out;
 }
 
+export type ImageDiffEntry = {
+  /** 블록 경로(systemsPage4Blocks[1]). */
+  field: string;
+  /** 사람이 읽는 이름(치과·피부 4p · 치과 및 안과). */
+  label: string;
+  /** 초안·최종본에 모두 있는 사진 수. */
+  kept: number;
+  /** 병원이 새로 넣은 사진 수. */
+  added: number;
+  /** 병원이 뺀 사진 수. */
+  removed: number;
+  /** 어떤 파일인지 확인용(각 최대 6개까지만). */
+  addedNames: string[];
+  removedNames: string[];
+};
+
+/** storage 경로에서 파일명만. 비교는 경로 전체로 하되 표시는 짧게. */
+function fileNameOf(src: string): string {
+  const last = src.split('?')[0].split('/').pop() ?? src;
+  return last.length > 48 ? `${last.slice(0, 45)}…` : last;
+}
+
+/**
+ * 이미지 블록의 초안 vs 최종본 비교. 슬롯 위치가 아니라 **어떤 사진이 쓰였는지(집합)** 로 본다 —
+ * 순서만 바뀐 경우까지 "교체"로 세면 신호가 과장된다.
+ *
+ * 왜 텍스트와 따로 보나: 이미지 선택은 텍스트 프롬프트가 아니라 **비전 모델과 배치 코드**가 한다
+ * (c/d 검사소견의 generateCdFindings, a/b 넘침의 selectSectionImages). 병원이 사진을 바꿨다면
+ * 그건 "비전이 잘못 골랐다"는 신호라, 텍스트 변경과 섞으면 어느 쪽을 고쳐야 할지 흐려진다.
+ */
+export function diffBlockImages(draft: unknown, final: unknown): ImageDiffEntry[] {
+  const d = (draft ?? {}) as Record<string, unknown>;
+  const f = (final ?? {}) as Record<string, unknown>;
+  const out: ImageDiffEntry[] = [];
+
+  const srcsOf = (raw: unknown, bi: number): string[] => {
+    if (!Array.isArray(raw)) return [];
+    const block = raw[bi] as { images?: unknown } | undefined;
+    if (!block || !Array.isArray(block.images)) return [];
+    return (block.images as unknown[])
+      .map((s) => (s && typeof s === 'object' ? (s as { src?: unknown }).src : undefined))
+      .filter((s): s is string => typeof s === 'string' && s.trim().length > 0);
+  };
+
+  for (const { key, label } of BLOCK_FIELDS) {
+    const dRaw = d[key];
+    const fRaw = f[key];
+    const len = Math.max(Array.isArray(dRaw) ? dRaw.length : 0, Array.isArray(fRaw) ? fRaw.length : 0);
+    for (let bi = 0; bi < len; bi += 1) {
+      const before = srcsOf(dRaw, bi);
+      const after = srcsOf(fRaw, bi);
+      if (before.length === 0 && after.length === 0) continue; // 이미지 블록이 아님
+
+      const beforeSet = new Set(before);
+      const afterSet = new Set(after);
+      const kept = before.filter((s) => afterSet.has(s));
+      const removed = before.filter((s) => !afterSet.has(s));
+      const added = after.filter((s) => !beforeSet.has(s));
+      if (removed.length === 0 && added.length === 0) {
+        // 그대로면 기록하지 않는다 — 바뀐 것만 보이게.
+        continue;
+      }
+
+      // 블록 제목은 같은 섹션의 표(rows) 블록에서 가져온다. 이미지 블록에도 titleKo 가 있지만
+      // 실제로는 바로 앞 표 블록의 제목이 그 섹션의 이름이라 그쪽이 읽기 좋다.
+      const titleFrom = (raw: unknown): string => {
+        if (!Array.isArray(raw)) return '';
+        for (let i = bi; i >= 0; i -= 1) {
+          const b = raw[i] as { variant?: unknown; titleKo?: unknown } | undefined;
+          if (b?.variant === 'rows' && typeof b.titleKo === 'string' && b.titleKo.trim()) return b.titleKo.trim();
+        }
+        return '';
+      };
+      const title = titleFrom(fRaw) || titleFrom(dRaw) || `블록${bi + 1}`;
+
+      out.push({
+        field: `${key}[${bi}]`,
+        label: `${label} · ${title}`,
+        kept: kept.length,
+        added: added.length,
+        removed: removed.length,
+        addedNames: added.slice(0, 6).map(fileNameOf),
+        removedNames: removed.slice(0, 6).map(fileNameOf),
+      });
+    }
+  }
+  return out;
+}
+
 /** 초안·최종본을 필드 단위로 비교해 "실제로 바뀐 것"만 추린다(LLM 입력을 줄이고 신호를 또렷하게). */
 export function diffPayloads(draft: unknown, final: unknown): { changed: DiffEntry[]; unchanged: string[] } {
   const d = (draft ?? {}) as Record<string, unknown>;
@@ -279,18 +368,30 @@ export async function runDiffAnalysisIfSelected(
     const generated = await getHealthCheckupGeneratedContentForRun(null, runId);
     const final = generated?.payload ?? {};
     const { changed, unchanged } = diffPayloads(draft, final);
+    // 이미지 변경은 텍스트와 따로 담는다 — 고칠 대상이 다르다(텍스트 프롬프트 vs 비전 선택).
+    const imageDiff = diffBlockImages(draft, final);
 
     // 병원이 한 글자도 안 고쳤으면 LLM 을 부르지 않는다(비용 0, "손 안 댐"도 유의미한 신호).
     const result =
       changed.length === 0
-        ? { changes: [], promptSuggestions: [], summary: '병원이 초안을 수정 없이 그대로 발송함.', noEdits: true }
+        ? {
+            changes: [],
+            promptSuggestions: [],
+            // 글자는 그대로여도 사진을 바꿨을 수 있다. 그건 텍스트 프롬프트 신호가 아니라 LLM 을 부르지 않지만,
+            // "손 안 댐"으로 뭉뚱그리면 비전 쪽 신호를 놓친다.
+            summary:
+              imageDiff.length > 0
+                ? '본문 텍스트는 그대로 발송했고, 사진만 교체했음.'
+                : '병원이 초안을 수정 없이 그대로 발송함.',
+            noEdits: true,
+          }
         : await analyzeWithLlm(changed, unchanged, runId);
 
     await pool.query(
       `UPDATE health_report.report_draft_diffs
           SET status = 'done', final_payload = $2::jsonb, result = $3::jsonb, error = null, analyzed_at = now()
         WHERE parse_run_id = $1::uuid`,
-      [runId, JSON.stringify(final), JSON.stringify({ ...(result ?? {}), changed, unchanged })],
+      [runId, JSON.stringify(final), JSON.stringify({ ...(result ?? {}), changed, unchanged, imageDiff })],
     );
   } catch (e) {
     console.error('[report-draft-diff] 분석 실패:', e);
