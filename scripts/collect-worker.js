@@ -88,9 +88,18 @@ async function notifyAdminError(source, message, link) {
       .select("id", { count: "exact", head: true })
       .eq("type", "admin_error").eq("title", title).gte("created_at", since);
     if (count && count > 0) return;
-    const { data: admins } = await supabase.schema("core").from("admin_users").select("id");
+    // error 를 삼키면 알림이 통째로 사라진다. admin_users 의 service_role grant 가 빠져 있던 동안
+    // 이 호출이 조용히 빈 배열을 반환해 admin_error 알림이 전체 기간 0건이었다.
+    const { data: admins, error: adminErr } = await supabase.schema("core").from("admin_users").select("id");
+    if (adminErr) {
+      console.warn("[collect-worker] admin_users 조회 실패 — 오류 알림 생략:", adminErr.message);
+      return;
+    }
     const recipients = (admins || []).map((a) => a.id);
-    if (!recipients.length) return;
+    if (!recipients.length) {
+      console.warn("[collect-worker] 오류 알림 수신자 0명 — core.admin_users 가 비어 있습니다");
+      return;
+    }
     await supabase.schema("core").from("notifications").insert(
       recipients.map((uid) => ({ user_id: uid, hospital_id: null, type: "admin_error", title, body: message || null, link: link || null }))
     );

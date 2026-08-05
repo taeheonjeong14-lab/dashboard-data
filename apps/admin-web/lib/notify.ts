@@ -10,9 +10,18 @@ type AdminNotifyInput = { type: string; title: string; body?: string; link?: str
 export async function notifyAdmins(n: AdminNotifyInput): Promise<void> {
   try {
     const srvc = createServiceRoleClient();
-    const { data } = await srvc.schema('core').from('admin_users').select('id');
+    // error 를 삼키면 알림이 통째로 사라진다. admin_users 의 service_role grant 가 빠져 있던 동안
+    // 이 호출이 조용히 빈 배열을 반환해 admin_error 알림이 전체 기간 0건이었다.
+    const { data, error } = await srvc.schema('core').from('admin_users').select('id');
+    if (error) {
+      console.error('[notifyAdmins] admin_users 조회 실패 — 알림 생략:', error.message);
+      return;
+    }
     const recipients = (data ?? []).map((u) => (u as { id: string }).id);
-    if (recipients.length === 0) return;
+    if (recipients.length === 0) {
+      console.warn('[notifyAdmins] 수신자 0명 — core.admin_users 가 비어 있습니다');
+      return;
+    }
     await srvc.schema('core').from('notifications').insert(
       recipients.map((uid) => ({ user_id: uid, hospital_id: n.hospitalId ?? null, type: n.type, title: n.title, body: n.body ?? null, link: n.link ?? null })),
     );

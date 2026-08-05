@@ -36,9 +36,17 @@ export async function notifyHospitalUsers(
 async function notifyAdmins(n: { type: string; title: string; body?: string; link?: string; hospitalId?: string | null }): Promise<void> {
   try {
     const srvc = createServiceRoleClient();
-    const { data } = await srvc.schema('core').from('admin_users').select('id');
+    // error 를 삼키면 알림이 통째로 사라진다(admin-web lib/notify.ts 와 같은 이유).
+    const { data, error } = await srvc.schema('core').from('admin_users').select('id');
+    if (error) {
+      console.error('[notifyAdmins] admin_users 조회 실패 — 알림 생략:', error.message);
+      return;
+    }
     const recipients = (data ?? []).map((u) => (u as { id: string }).id);
-    if (recipients.length === 0) return;
+    if (recipients.length === 0) {
+      console.warn('[notifyAdmins] 수신자 0명 — core.admin_users 가 비어 있습니다');
+      return;
+    }
     await srvc.schema('core').from('notifications').insert(
       recipients.map((uid) => ({ user_id: uid, hospital_id: n.hospitalId ?? null, type: n.type, title: n.title, body: n.body ?? null, link: n.link ?? null })),
     );
