@@ -34,7 +34,12 @@ function ItemRow({ it, mode, compactLink, showBadge = true }: { it: WorkItem; mo
   const timeLabel = mode === 'pending' ? '요청' : mode === 'drafted' ? '작성완료' : '완료';
   const timeValue = mode === 'pending' ? it.requestedAt : mode === 'drafted' ? it.draftedAt : it.completedAt;
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-raised)' }}>
+    /* minWidth:0 이 없으면 카드가 자기 컬럼 밖으로 삐져나와 옆 컬럼 카드와 겹친다.
+       카드는 그리드 아이템이고 그리드 아이템의 기본값이 min-width:auto — 즉 "내용의 최소 폭보다
+       작아질 수 없다" 라서, 안쪽 병원·차트ID 줄(white-space:nowrap)의 폭이 카드의 하한선이 된다.
+       (아래 자식들의 minWidth:0 은 flex 줄 안에서 줄어드는 것만 풀 뿐, 카드 자신엔 효과가 없다.)
+       실측: 컬럼 374px 인데 카드 427px 로 53px 초과 → 20px 간격을 먹고 옆 컬럼을 덮었다. */
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0, padding: '11px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-raised)' }}>
       {showBadge && <StatusBadge category={it.type} stage={it.stage} />}
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
