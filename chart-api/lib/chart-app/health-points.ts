@@ -13,7 +13,11 @@ import { geminiGenerateText, tryParseJsonObject } from '@/lib/chart-app/gemini';
 import type { UsageContext } from '@/lib/billing/usage-log';
 import type { ReportSourceData } from '@/lib/chart-app/report-types';
 import { buildHealthCheckupSourceBlock } from '@/lib/chart-app/health-checkup-content-llm';
-import { HEALTH_CHECKUP_ORGAN_ORDER, HEALTH_CHECKUP_ORGAN_SPECS } from '@/lib/chart-app/health-checkup-prompt-instructions';
+import {
+  HEALTH_CHECKUP_BCS_SCALE_RULE,
+  HEALTH_CHECKUP_ORGAN_ORDER,
+  HEALTH_CHECKUP_ORGAN_SPECS,
+} from '@/lib/chart-app/health-checkup-prompt-instructions';
 
 /** 포인트의 근거 유형. */
 export type HealthPointBasis = 'chart' | 'lab' | 'image';
@@ -183,6 +187,10 @@ const SYS_HEALTH_POINTS = `당신은 반려동물 건강검진 리포트를 감�
   · **다른 명확한 근거로 이미 성립한 질환 그룹을 뒷받침하는 경우** → 그 그룹의 팩트로 넣는다. 이때는 아주 살짝만 벗어났어도(경계 근접이어도) 넣어 준다 — 그 질환의 보강 근거로서 의미가 있기 때문이다. 단 text 에 "경도 상승"·"참고범위 상단 근접"처럼 경계 수준임을 드러내 과장되지 않게 쓴다.
   · **뒷받침할 질환 그룹이 없는 경우** → 아예 포인트로 뽑지 않는다. 단독 팩트로도, 새 그룹으로도 만들지 않는다. (그 수치는 혈액검사 해석·장기 칸에서 그대로 다뤄지므로 리포트에서 사라지는 것이 아니다.)
   · 판정 기준은 **"이 값 하나만 놓고 임상적 결론(질환·병태)을 말할 수 있는가"** 다. 이탈 폭이 참고범위 너비의 10% 안팎 이하면 대개 경계값이지만, 이 수치는 기계적 기준이 아니라 눈대중이다 — 항목의 특성과 다른 근거와의 정합성으로 판단한다.
+- ★**[BCS(체형 점수) — 정상 등급은 포인트가 아니다]** ${HEALTH_CHECKUP_BCS_SCALE_RULE}
+  · **5점 이하는 정상이므로 포인트로 만들지 않는다.** "비만 경향"·"약간 통통"·"관리 필요" 같은 완충 표현을 붙여 정상 등급을 포인트로 만드는 것을 금지한다. 근거란에 "정상 4~5/9"라고 적으면서 동시에 비만 포인트를 만드는 것은 명백한 오답이다.
+  · 6점은 text 를 "경도 비만"으로, 7점 이상은 "비만"으로 쓴다. 6점을 그냥 "비만"으로 뭉뚱그리지 않는다.
+  · 다른 등급·점수 지표(VHS 등)도 같다 — **정상 등급이면 포인트로 뽑지 않는다.**
 - 각 팩트(포인트)는 하나의 **의미 단위 근거**이고, **한 팩트의 값들은 모두 같은 질환(group)을 가리켜야 한다.** 같은 질환을 가리키는 값은 한 팩트로 묶되(예: BUN·CREA·SDMA 동시 상승 → "신장 수치 상승(BUN 34, CREA 0.7, SDMA 11)" 한 팩트), **가리키는 질환이 다르면 — 설령 한 검사 줄·같은 출처라도 — 팩트를 나눠 각각 다른 group 을 준다.**
   · 예: 요검사의 "요당 1000, 단백뇨 100" 은 한 줄이지만 요당은 당뇨를, 단백뇨는 신장을 가리킨다 → "요당 1000" (group=당뇨) 와 "단백뇨 100" (group=신장) **두 팩트로 나눈다.**
 - 다른 출처(혈액/초음파 등)도 별개 팩트다. 다만 같은 질환의 관련 수치를 무의미하게 낱개로 쪼개진 말 것(그건 한 팩트로 묶음). 보통 팩트는 5~15개.
