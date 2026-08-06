@@ -84,6 +84,56 @@ function coverFieldNeedsSourceDefault(v: unknown): boolean {
   return v === undefined || v === null;
 }
 
+/** 날짜 문자열에서 비교용 키(YYYYMMDD). 차트마다 표기가 달라(2026.08.03 / 2026-08-03 10:30) 숫자만 뽑는다. */
+function dateKey(raw: string | null | undefined): string {
+  const m = String(raw ?? '').match(/(20\d{2})\D?(\d{1,2})\D?(\d{1,2})/);
+  if (!m) return '';
+  return `${m[1]}${m[2]!.padStart(2, '0')}${m[3]!.padStart(2, '0')}`;
+}
+
+/**
+ * 차트 표기가 제각각이라("5.2", "5.2kg", "BW 5.2 kg") 첫 숫자만 뽑아 "5.2kg" 로 통일한다.
+ * 상식 밖의 값(0.05kg 미만·150kg 초과, 예: g 단위로 적힌 "5200")은 쓰지 않는다 —
+ * 표지는 보호자가 보는 면이라 틀린 값을 채우느니 비워 두고 담당자가 넣는 게 낫다.
+ */
+function formatCoverWeight(raw: string): string | undefined {
+  const m = raw.trim().match(/\d+(?:\.\d+)?/);
+  if (!m) return undefined;
+  const n = Number(m[0]);
+  if (!Number.isFinite(n) || n < 0.05 || n > 150) return undefined;
+  return clamp(`${m[0]}kg`, SHORT);
+}
+
+/**
+ * 차트 바이탈에서 표지에 쓸 체중을 고른다.
+ * 검진일과 같은 날짜의 행이 있으면 그것을, 없으면 **가장 늦은 날짜**의 체중을 쓴다
+ * (날짜를 못 읽는 차트는 마지막 행 — result_vitals 는 차트 등장 순서라 보통 최신이 뒤).
+ * 체중이 기록돼 있지 않으면 undefined — 표지 칸은 비어 있고 담당자가 직접 채운다.
+ */
+export function coverWeightFromVitals(
+  vitals: ReportSourceData['vitalsByDate'],
+  checkupDate: string | undefined,
+): string | undefined {
+  const rows = (vitals ?? []).filter((v) => (v.weight ?? '').trim() && /\d/.test(v.weight ?? ''));
+  if (rows.length === 0) return undefined;
+
+  const wantKey = dateKey(checkupDate);
+  if (wantKey) {
+    const sameDay = rows.find((v) => dateKey(v.dateTime) === wantKey);
+    if (sameDay) return formatCoverWeight(sameDay.weight!);
+  }
+
+  let best: { key: string; weight: string } | null = null;
+  for (const v of rows) {
+    const key = dateKey(v.dateTime);
+    if (!key) continue;
+    if (!best || key >= best.key) best = { key, weight: v.weight! };
+  }
+  if (best) return formatCoverWeight(best.weight);
+
+  return formatCoverWeight(rows[rows.length - 1]!.weight!);
+}
+
 /** `undefined`·`null`인 표지 필드만 차트 DB에서 채움. 빈 문자열(`""`)은 보존. */
 export function applyHealthCheckupCoverFromSource(
   payload: HealthCheckupGeneratedContent,
@@ -100,6 +150,9 @@ export function applyHealthCheckupCoverFromSource(
 
   const isoRun = isoDateFromRunCreatedAt(source.run.createdAt);
   setIfUnset('coverCheckupDate', isoRun);
+
+  // 체중 — 차트 바이탈(result_vitals)에 있으면 표지에 바로 채운다. 없으면 비워 둔다.
+  setIfUnset('coverPatientWeight', coverWeightFromVitals(source.vitalsByDate, next.coverCheckupDate));
 
   if (b) {
     setIfUnset('coverPatientName', b.patientName ? clamp(b.patientName, SHORT) : undefined);

@@ -96,6 +96,16 @@ export type ReportSourceData = {
       rawText: string | null;
     }>;
   }>;
+  /** chart_pdf.result_vitals — 차트의 바이탈 행(체중·체온·심박 등). 표지 체중을 여기서 채운다. */
+  vitalsByDate: Array<{
+    dateTime: string;
+    weight: string | null;
+    temperature: string | null;
+    respiratoryRate: string | null;
+    heartRate: string | null;
+    bpSystolic: string | null;
+    bpDiastolic: string | null;
+  }>;
   caseImages: ReportCaseImage[];
 };
 

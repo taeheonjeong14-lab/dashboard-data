@@ -9,7 +9,7 @@ function lineCount(text: string) {
 
 export async function loadReportSourceData(runId: string): Promise<ReportSourceData> {
   const pool = getChartPgPool();
-  const [run, basic, charts, labs, vaccinations, plans, physical, images] = await Promise.all([
+  const [run, basic, charts, labs, vaccinations, plans, physical, images, vitals] = await Promise.all([
     pool.query(
       `select id, created_at, friendly_id, provider, model, parser_version, document_id
        from chart_pdf.parse_runs where id = $1::uuid limit 1`,
@@ -57,6 +57,12 @@ export async function loadReportSourceData(runId: string): Promise<ReportSourceD
               file_name, exam_type, radiology_sub,
               brief_comment, has_notable_finding, related_assessment_condition, storage_path, created_at
        from chart_pdf.parse_run_case_images where parse_run_id = $1::uuid order by idx`,
+      [runId],
+    ).catch(() => ({ rows: [] as Array<Record<string, unknown>> })),
+    // 바이탈(체중·체온·심박 등). 건강검진 리포트 표지의 체중을 이 값으로 채운다.
+    pool.query(
+      `select date_time, weight, temperature, respiratory_rate, heart_rate, bp_systolic, bp_diastolic, row_order
+       from chart_pdf.result_vitals where parse_run_id = $1::uuid order by row_order nulls last`,
       [runId],
     ).catch(() => ({ rows: [] as Array<Record<string, unknown>> })),
   ]);
@@ -155,6 +161,15 @@ export async function loadReportSourceData(runId: string): Promise<ReportSourceD
       return [...byDate.entries()].map(([dateTime, rows]) => ({ dateTime, rows }));
     })(),
     physicalExamItemsByDate: [...physicalByDate.entries()].map(([dateTime, items]) => ({ dateTime, items })),
+    vitalsByDate: (vitals.rows as Array<Record<string, unknown>>).map((v) => ({
+      dateTime: String(v.date_time || ''),
+      weight: (v.weight as string | null) ?? null,
+      temperature: (v.temperature as string | null) ?? null,
+      respiratoryRate: (v.respiratory_rate as string | null) ?? null,
+      heartRate: (v.heart_rate as string | null) ?? null,
+      bpSystolic: (v.bp_systolic as string | null) ?? null,
+      bpDiastolic: (v.bp_diastolic as string | null) ?? null,
+    })),
     caseImages: (images.rows as Array<Record<string, unknown>>).map((img) => ({
       id: String(img.id || ''),
       examDate: String(img.exam_date || ''),
