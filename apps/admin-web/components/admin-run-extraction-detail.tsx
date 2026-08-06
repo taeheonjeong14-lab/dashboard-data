@@ -19,7 +19,7 @@ import { isParseRunUuid } from '@/lib/chart-extraction/uuid';
 import { BucketDebugPanel } from '@/components/bucket-debug-panel';
 import { CaseBlogButton } from '@/components/admin-case-blog-modal';
 
-type ExtractionSection = 'basicInfo' | 'vaccination' | 'chartBody' | 'plan' | 'lab';
+type ExtractionSection = 'basicInfo' | 'vaccination' | 'chartBody' | 'plan' | 'lab' | 'additionalDocs';
 
 // 검사결과 행 flag 색 — high 빨강 / low 파랑 / unknown 회색 / normal(그 외) 기본색.
 function labFlagColor(flag: string): string | undefined {
@@ -1024,6 +1024,7 @@ export function AdminRunExtractionDetail({
     chartBody: false,
     plan: false,
     lab: false,
+    additionalDocs: false,
   });
   const [draftBasic, setDraftBasic] = useState<DraftBasicInfo | null>(null);
   const [draftVac, setDraftVac] = useState<DraftVacRow[] | null>(null);
@@ -1061,18 +1062,21 @@ export function AdminRunExtractionDetail({
   // hospital-ui 에서 작성한 케이스개요(진료케이스) / 강조사항(건강검진).
   const [caseOverview, setCaseOverview] = useState<Record<string, string> | null>(null);
   const [additionalDocs, setAdditionalDocs] = useState<AdditionalDoc[]>([]);
+  /** 추가 자료 수기 편집 드래프트 — 편집 가능한 필드(요약·원문)만 담는다. 순서는 additionalDocs 와 1:1. */
+  const [draftDocs, setDraftDocs] = useState<{ summary: string; text: string }[] | null>(null);
   const [emphasisText, setEmphasisText] = useState('');
   const imgModalRef = useRef<HTMLDialogElement>(null);
   const imgFileInputRef = useRef<HTMLInputElement>(null);
 
   // 케이스개요(blog_case)·강조사항(hospital_notes) 조회 — run 별 hospital 작성 내용.
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
+  // 추가 자료 저장 후에도 다시 부르므로 콜백으로 뺐다.
+  const fetchHospitalContent = useCallback(
+    async (opts?: { cancelled?: () => boolean }) => {
+      const cancelled = opts?.cancelled ?? (() => false);
       try {
         const res = await fetch(`/api/admin/health-report/content?runId=${encodeURIComponent(runId)}`, { credentials: 'include' });
         const data = (await res.json().catch(() => ({}))) as { items?: { contentType?: string; payload?: unknown }[] };
-        if (cancelled || !res.ok) return;
+        if (cancelled() || !res.ok) return;
         const items = data.items ?? [];
         const blog = items.find((i) => i.contentType === 'blog_case')?.payload as { overview?: Record<string, unknown>; additional_docs?: unknown } | undefined;
         const notes = items.find((i) => i.contentType === 'hospital_notes')?.payload as { emphasis_text?: unknown } | undefined;
@@ -1088,9 +1092,15 @@ export function AdminRunExtractionDetail({
       } catch {
         /* ignore */
       }
-    })();
+    },
+    [runId],
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+    void fetchHospitalContent({ cancelled: () => cancelled });
     return () => { cancelled = true; };
-  }, [runId]);
+  }, [fetchHospitalContent]);
 
   const labSpeciesProfile = useMemo(
     () => speciesProfileFromBasicSpecies(result?.basicInfo?.species ?? null),
@@ -1199,7 +1209,9 @@ export function AdminRunExtractionDetail({
       chartBody: false,
       plan: false,
       lab: false,
+      additionalDocs: false,
     });
+    setDraftDocs(null);
     setDraftBasic(null);
     setDraftVac(null);
     setDraftChart(null);
@@ -1264,6 +1276,33 @@ export function AdminRunExtractionDetail({
       setEditing((e) => ({ ...e, vaccination: false }));
       setDraftVac(null);
       await fetchDetail({ silent: true });
+    } catch (e) {
+      setSaveError(e instanceof Error ? e.message : '저장 실패');
+    } finally {
+      setSavingSection(null);
+    }
+  }
+
+  /**
+   * 추가 자료 수기 편집 저장. 다른 섹션과 달리 chart_pdf 가 아니라 blog_case payload 안에 사는 데이터라
+   * patchExtraction 이 아닌 전용 엔드포인트를 쓴다(케이스개요를 함께 덮어쓰지 않도록 서버가 병합).
+   */
+  async function saveAdditionalDocs() {
+    if (!draftDocs) return;
+    setSaveError(null);
+    setSavingSection('additionalDocs');
+    try {
+      const res = await fetch('/api/admin/health-report/additional-docs', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ runId, docs: draftDocs }),
+      });
+      const payload = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
+      if (!res.ok || !payload.ok) throw new Error(payload.error ?? '저장에 실패했습니다.');
+      setEditing((e) => ({ ...e, additionalDocs: false }));
+      setDraftDocs(null);
+      await fetchHospitalContent();
     } catch (e) {
       setSaveError(e instanceof Error ? e.message : '저장 실패');
     } finally {
@@ -1762,6 +1801,20 @@ export function AdminRunExtractionDetail({
       <details open style={{ ...sectionStyle, gridColumn: '1 / -1', display: activeTab === 'additionalDocs' ? undefined : 'none' }}>
         <summary style={summaryStyle} onClick={(e) => e.preventDefault()}>
           <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>추가 자료 <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>(병원 업로드 · LLM 추출 텍스트)</span></span>
+          <SectionEditControls
+            editing={editing.additionalDocs}
+            saving={savingSection === 'additionalDocs'}
+            editDisabled={additionalDocs.length === 0}
+            onEdit={() => {
+              setDraftDocs(additionalDocs.map((d) => ({ summary: d.summary ?? '', text: d.text ?? '' })));
+              setEditing((e) => ({ ...e, additionalDocs: true }));
+            }}
+            onSave={() => void saveAdditionalDocs()}
+            onCancel={() => {
+              setDraftDocs(null);
+              setEditing((e) => ({ ...e, additionalDocs: false }));
+            }}
+          />
         </summary>
         <div style={{ display: 'grid', gap: 18, padding: '8px 2px' }}>
           {additionalDocs.length === 0 ? (
@@ -1795,7 +1848,38 @@ export function AdminRunExtractionDetail({
                     </button>
                   ) : null}
                 </div>
-                {d.error ? (
+                {editing.additionalDocs && draftDocs ? (
+                  /* 편집 모드 — 추출 실패한 파일도 연다. 실패했을 때야말로 수기로 채워 넣어야 한다. */
+                  <>
+                    {d.error ? (
+                      <span style={{ fontSize: 14, color: 'var(--danger)' }}>추출 실패: {d.error} — 아래에 직접 입력해 주세요.</span>
+                    ) : null}
+                    <div style={{ display: 'grid', gap: 3 }}>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--accent)' }}>AI 요약 <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>(진료케이스 생성에 반영되는 내용)</span></span>
+                      <textarea
+                        value={draftDocs[i]?.summary ?? ''}
+                        onChange={(ev) => {
+                          const v = ev.target.value;
+                          setDraftDocs((rows) => rows?.map((r, ri) => (ri === i ? { ...r, summary: v } : r)) ?? null);
+                        }}
+                        rows={4}
+                        style={{ width: '100%', fontFamily: 'inherit', fontSize: 14, lineHeight: 1.6, padding: 8, border: `1px solid ${divider}`, borderRadius: 6 }}
+                      />
+                    </div>
+                    <div style={{ display: 'grid', gap: 3 }}>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)' }}>추출 원문</span>
+                      <textarea
+                        value={draftDocs[i]?.text ?? ''}
+                        onChange={(ev) => {
+                          const v = ev.target.value;
+                          setDraftDocs((rows) => rows?.map((r, ri) => (ri === i ? { ...r, text: v } : r)) ?? null);
+                        }}
+                        rows={12}
+                        style={{ width: '100%', fontFamily: 'inherit', fontSize: 14, lineHeight: 1.6, padding: 8, border: `1px solid ${divider}`, borderRadius: 6 }}
+                      />
+                    </div>
+                  </>
+                ) : d.error ? (
                   <span style={{ fontSize: 14, color: 'var(--danger)' }}>추출 실패: {d.error}</span>
                 ) : (
                   <>
