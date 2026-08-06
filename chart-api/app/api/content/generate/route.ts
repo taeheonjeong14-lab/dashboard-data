@@ -115,9 +115,11 @@ function normalizeActionTypes(action: unknown, caseType: string, allowAftercare 
   if (types.length === 0) types = ['other'];
   a.types = types;
   // scope(질환 귀속) — 아웃라인이 이 값으로 주질환:동반질환:기타질환 비중을 8:1.5:0.5 로 잡는다.
-  // 값이 없거나 이상하면 main(주질환)으로 둔다(예전 데이터 호환 — 그때는 전부 주질환처럼 다뤘다).
+  // 빈 값은 '미지정'으로 그대로 둔다: 술 전 검사·마취 전 평가처럼 특정 질환이 아니라 전신 상태를
+  // 보는 행위는 셋 중 하나를 고르는 게 오히려 거짓말이 된다. (예전엔 없으면 main 으로 채웠는데,
+  // 그러면 담당자가 비워둘 방법이 없었다. 미지정은 아웃라인에서 주질환 서사의 일부로 다뤄진다.)
   const scope = String(a.scope ?? '').trim().toLowerCase();
-  a.scope = scope === 'comorbid' || scope === 'other' ? scope : 'main';
+  a.scope = scope === 'main' || scope === 'comorbid' || scope === 'other' ? scope : '';
   // detail 은 medical, procedure 는 surgical 행위에만 — 태그가 정리되며 어긋난 키는 제거
   if (!types.includes('medical') && 'detail' in a) delete a.detail;
   if (!types.includes('surgical') && 'procedure' in a) delete a.procedure;
@@ -187,14 +189,16 @@ const SYS_CAUSAL = `당신은 동물병원을 운영하는 수의사이자 병�
 
 # 각 행위(action)의 질환 귀속(scope) — 글의 비중을 정하는 값 (매우 중요)
 - 병원 차트에는 이번 주제와 무관한 질환의 진료도 함께 적혀 있다. 그래서 **행위 하나하나가 어느 질환에 속하는지**를 표시한다.
-- 각 action 에 scope 를 **반드시 하나** 넣는다(CASE_OVERVIEW 의 "주질환명"·"동반 질환명" 기준):
+- 각 action 의 scope 는 넷 중 하나다(CASE_OVERVIEW 의 "주질환명"·"동반 질환명" 기준):
   · "main" = 주질환 : 주질환명 질환을 진단·치료·관리하기 위한 행위.
   · "comorbid" = 동반질환 : 동반 질환명에 적힌 **질환에 대한** 행위(그 질환을 평가·처치·관리한 행위).
   · "other" = 기타질환 : 주질환·동반질환 어디에도 속하지 않는 행위(그날 함께 본 다른 질환, 예방접종·미용 등).
+  · "" (빈 문자열) = 미지정 : **특정 질환이 아니라 환자의 전신 상태를 보는 공통 과정.** 아래 규칙 참조.
 - 판단 기준은 "그 행위를 **왜** 했는가". 같은 검사라도 주질환을 보려고 했으면 main, 동반질환 때문이면 comorbid 다.
-- ★**술 전 검사·마취 전 평가는 main 이다**(자주 틀리는 지점). 주질환을 수술로 치료하기 위한 **준비 과정**이므로, 결과가 정상이든 아니든 주질환에 속한다. "마취 안전성 확인"이 목적이라는 이유로 comorbid 를 붙이지 않는다.
-  · comorbid 는 그 검사에서 **특정 동반질환이 실제로 확인되어**, 그 질환을 따로 평가하거나 처치한 행위에만 붙인다.
-  · 예: 술 전 혈액검사·흉부 방사선·심장 평가 → main. 그 검사에서 신부전이 확인돼 수액·마취 계획을 바꾸고 신장 수치를 추적한 행위 → 그 부분만 comorbid.
+- ★**술 전 검사·마취 전 평가(#술전검사)는 scope 를 비운다("")**. 이 검사들의 목적은 특정 질환의 진단·치료가 아니라 **마취를 견딜 수 있는 몸인지**를 보는 것이라, 주질환·동반질환 어느 쪽으로 적어도 사실과 어긋난다. 결과가 정상이든 아니든 마찬가지다.
+  · 단, 그 검사에서 **특정 질환이 실제로 확인되어** 그 질환을 따로 평가·처치한 행위는 그 질환의 scope 를 붙인다.
+  · 예: 술 전 혈액검사·흉부 방사선·심장 평가 → "". 그 검사에서 신부전이 확인돼 수액·마취 계획을 바꾸고 신장 수치를 추적한 행위 → 그 부분만 comorbid.
+- 미지정("")은 위와 같은 **공통 과정에만** 쓴다. 어느 질환의 행위인지 판단할 수 있으면 반드시 셋 중 하나를 넣는다 — 애매하다고 비워두는 용도가 아니다.
 - 애매하면 **주질환과의 인과가 실제로 설명되는지**로 가른다. 설명이 안 되면 억지로 main 으로 올리지 말고 other 로 둔다.
 - ※ scope(어느 질환인가)와 types(행위의 성격: 검사·수술·내과 등)는 다른 축이다. 둘 다 넣는다.
 
@@ -385,7 +389,7 @@ const SYS_CAUSAL = `당신은 동물병원을 운영하는 수의사이자 병�
           "why": "그것을 한 임상적 이유 (한 줄, 없으면 빈 문자열)",
           "result": "그 행위로 나온 결과·수치·소견 (한 줄, 없으면 빈 문자열)",
           "types": ["exam_dx | preop | surgical | medical | recovery | aftercare | other 중 이 행위의 성격(반드시 1개 이상, 맞는 게 없으면 [\"other\"], 빈 배열 금지)"],
-          "scope": "main | comorbid | other 중 하나 — 이 행위가 속한 질환(주질환 / 동반질환 / 기타질환). 위 '# 각 행위의 질환 귀속' 기준. 반드시 채운다."
+          "scope": "main | comorbid | other | \"\"(빈 문자열=미지정) — 이 행위가 속한 질환(주질환 / 동반질환 / 기타질환), 술 전 검사처럼 특정 질환이 아닌 공통 과정이면 빈 문자열. 위 '# 각 행위의 질환 귀속' 기준."
         }
       ],
       "nextStep": ["그 결과로 다음에 하기로 한 것 — 불릿 (없으면 [])"]
@@ -435,7 +439,7 @@ const SYS_CAUSAL_PHASE = `당신은 동물병원을 운영하는 수의사이자
   "name": "그 날짜 요약 이름(짧게)",
   "period": "TARGET_PHASE 의 period (요청에 날짜 수정 없으면 그대로)",
   "dateEstimated": true 또는 false (날짜를 확정하지 못하고 시점만 추정했으면 true),
-  "actions": [ { "what": "...", "why": "...", "result": "...", "types": ["exam_dx | preop | surgical | medical | recovery | aftercare | other"], "scope": "main | comorbid | other" } ],
+  "actions": [ { "what": "...", "why": "...", "result": "...", "types": ["exam_dx | preop | surgical | medical | recovery | aftercare | other"], "scope": "main | comorbid | other | \"\"(미지정)" } ],
   "nextStep": ["..."]
 }
 (action 객체에 더해: medical 행위만 "detail"(처방 약 종류 문자열), surgical 행위만 "procedure"([{step,note}] 배열)를 추가. 그 외 행위는 두 키 생략.)`;
@@ -464,7 +468,8 @@ const SYS_OUTLINE = `당신은 동물병원을 운영하는 수의사이자 병�
 - 한국어. (JSON 키는 영어)
 
 # 질환별 비중 (scope) — 글 전체 분량 배분의 기준 (★★가장 중요)
-- CAUSAL_FLOW 의 각 action 에는 scope 가 붙어 있다: "main"(주질환) / "comorbid"(동반질환) / "other"(기타질환).
+- CAUSAL_FLOW 의 각 action 에는 scope 가 붙어 있다: "main"(주질환) / "comorbid"(동반질환) / "other"(기타질환) / ""(미지정).
+- **미지정("")은 술 전 검사·마취 전 평가처럼 특정 질환이 아니라 전신 상태를 보는 공통 과정이다.** 비중 계산에서는 주질환 쪽 서사의 일부로 다룬다(주질환 수술·치료로 가는 준비 과정이므로). 다만 그 자체를 주제로 한 섹션을 따로 만들어 부풀리지는 않는다.
 - 이 글은 **주질환명 하나에 대한 글**이다. 차트에 다른 질환 진료가 섞여 있어도 글의 비중은 다음을 지킨다:
   · **주질환(main) : 동반질환(comorbid) : 기타질환(other) = 8 : 1.5 : 0.5**
   · 즉 글의 대부분(약 80%)이 주질환의 진단·치료·경과여야 한다. 동반질환은 "주질환에 어떤 영향을 줬는지"를 중심으로 짧게(약 15%),
