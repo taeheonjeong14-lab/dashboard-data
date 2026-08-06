@@ -126,6 +126,10 @@ async function checkHospital(config, h) {
   const port = pickPort(config, h, "blog");
   const placePort = pickPort(config, h, "place");
   const profileDir = path.join(PROFILE_ROOT, h.id);
+  // 블로그·플레이스가 다른 네이버 아이디면 포트가 갈리고 **프로필도 갈린다**(collect-all.js 와 같은 규칙 —
+  // 크롬은 한 user-data-dir 을 두 프로세스가 동시에 못 열기 때문). 여기서 규칙이 어긋나면 로그인해 둔
+  // 프로필과 수집이 쓰는 프로필이 달라져, 점검은 ✅ 인데 수집은 빈 값이 되는 최악의 조합이 된다.
+  const placeProfileDir = placePort && placePort !== port ? `${profileDir}-place` : profileDir;
   const result = { name: h.name, port, blog: null, place: null, needsLogin: false, ports: new Set() };
 
   if (!port) {
@@ -158,7 +162,7 @@ async function checkHospital(config, h) {
   }
 
   if (h.smartplaceStatUrl && placePort && placePort !== port) {
-    const e2 = manageChrome("ensure", placePort, profileDir);
+    const e2 = manageChrome("ensure", placePort, placeProfileDir);
     result.ports.add(placePort);
     if (!e2.ok) {
       result.place = { status: "ERROR", detail: `Chrome 준비 실패(플레이스 ${placePort})` };

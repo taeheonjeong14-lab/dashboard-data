@@ -415,10 +415,18 @@ async function main() {
   );
   const blogPort = pickPort("blog");
   const placePort = pickPort("place");
+  // 블로그·플레이스가 다른 네이버 아이디면 포트를 갈라 두 크롬을 띄우는데, **프로필도 갈라야 한다.**
+  // 크롬은 한 user-data-dir 을 두 프로세스가 동시에 못 연다 — 같은 폴더를 주면 두 번째 크롬이
+  // 기존 인스턴스에 넘기고 그냥 종료해서, 그 포트로는 CDP 가 영영 안 뜬다(단계가 통째로 실패).
+  // 포트가 같으면(=아이디 하나) 기존 그대로 한 프로필을 쓴다.
+  const placeProfileDir =
+    placePort != null && blogPort != null && placePort !== blogPort
+      ? `${hospitalProfileDir}-place`
+      : hospitalProfileDir;
   emit(
     blogPort === placePort
       ? `병원별 Chrome 포트: ${blogPort == null ? "(미설정, 스크립트 기본값 사용)" : blogPort}`
-      : `병원별 Chrome 포트(단계별 분리): 블로그=${blogPort ?? "-"} / 플레이스=${placePort ?? "-"}`
+      : `병원별 Chrome 포트(단계별 분리): 블로그=${blogPort ?? "-"}(${hospitalProfileDir}) / 플레이스=${placePort ?? "-"}(${placeProfileDir})`
   );
 
   const portEnv = (p) =>
@@ -481,7 +489,7 @@ async function main() {
         prepare: {
           name: "로그인 Chrome 준비(플레이스)",
           command: process.execPath,
-          args: [path.join(ROOT_DIR, "scripts", "manage-chrome.js"), "ensure", "--port", String(placePort), "--profile", hospitalProfileDir],
+          args: [path.join(ROOT_DIR, "scripts", "manage-chrome.js"), "ensure", "--port", String(placePort), "--profile", placeProfileDir],
           options: { env: baseEnv },
         },
       }),
