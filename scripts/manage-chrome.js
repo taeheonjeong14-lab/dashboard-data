@@ -168,16 +168,43 @@ function close(port, { force = false } = {}) {
 }
 
 /** scripts/windows 의 .cmd 파일명에서 병원용 포트를 모은다. */
-function hospitalPorts() {
-  if (!fs.existsSync(WIN_DIR)) return [];
+/** 지금 실제로 떠 있는 chrome.exe 들의 --remote-debugging-port 목록. */
+function runningDebugPorts() {
+  const ps = [
+    `Get-CimInstance Win32_Process -Filter "Name='chrome.exe'"`,
+    `| ForEach-Object { $_.CommandLine }`,
+  ].join(" ");
+  const res = spawnSync("powershell", ["-NoProfile", "-Command", ps], { encoding: "utf8" });
   const ports = new Set();
-  for (const f of fs.readdirSync(WIN_DIR)) {
-    const m = /port(\d{4,5})\b/i.exec(f);
-    if (!m) continue;
-    const p = Number(m[1]);
-    if (p >= HOSPITAL_PORT_MIN && p <= HOSPITAL_PORT_MAX && !PROTECTED_PORTS.has(p)) ports.add(p);
+  for (const m of String(res.stdout || "").matchAll(/--remote-debugging-port=(\d{4,5})/g)) {
+    ports.add(Number(m[1]));
   }
-  return [...ports].sort((a, b) => a - b);
+  return ports;
+}
+
+/**
+ * 일괄 종료 대상 병원 포트.
+ *
+ * 예전엔 scripts/windows/*.cmd 파일명에서만 뽑았는데, .cmd 는 7000~7002 세 개뿐이라
+ * **.cmd 없이 직접 띄우는 병원(7003~)이 영영 안 닫혔다.** a1cf5f3 에서 "띄우는 쪽"만
+ * .cmd 없이도 되게 고치고 "닫는 쪽"은 그대로 둔 탓이다 — 수집 후 정리(cleanup)와
+ * 순위 전 메모리 확보(prepare-rank)가 9개 병원에 대해 무효였다(원래 목적이 OOM 방지였는데).
+ *
+ * 닫는 게 목적이니 **실제로 떠 있는 프로세스**를 기준으로 잡는다(어떻게 띄웠든 무관).
+ * .cmd 기반 목록도 합집합으로 유지 — 떠 있지 않으면 close 가 0개를 반환할 뿐 해롭지 않다.
+ */
+function hospitalPorts() {
+  const ports = new Set();
+  if (fs.existsSync(WIN_DIR)) {
+    for (const f of fs.readdirSync(WIN_DIR)) {
+      const m = /port(\d{4,5})\b/i.exec(f);
+      if (m) ports.add(Number(m[1]));
+    }
+  }
+  for (const p of runningDebugPorts()) ports.add(p);
+  return [...ports]
+    .filter((p) => p >= HOSPITAL_PORT_MIN && p <= HOSPITAL_PORT_MAX && !PROTECTED_PORTS.has(p))
+    .sort((a, b) => a - b);
 }
 
 async function main() {
