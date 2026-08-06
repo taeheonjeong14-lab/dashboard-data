@@ -1391,18 +1391,36 @@ async function generatePOST(request: NextRequest) {
       try {
         const { caseOverview, caseOverviewText, externalDocsText } = await loadCaseOverviewForRun();
         const sourceText = JSON.stringify(source).slice(0, 120_000);
+        // 다시 생성 시 담당자가 적은 수정 방향. 차트에 근거가 적으면 AI 가 날짜 흐름을 추측으로 메우는데,
+        // 그때 백지에서 다시 뽑으면 같은 추측을 반복한다 → 직전 흐름을 출발점으로 주고 방향만 고치게 한다.
+        const revisionNote = String(body.feedback ?? '').trim().slice(0, 2000);
+        const priorFlow = body.priorFlow ?? body.causalFlow ?? null;
+        const priorFlowText =
+          revisionNote && priorFlow && typeof priorFlow === 'object'
+            ? JSON.stringify(priorFlow).slice(0, 40_000)
+            : '';
         const userContent = [
           dateAnchorBlock(source), // ★자료에 실재하는 날짜만 — 오늘 날짜를 지어내는 것을 막는다
           '',
           'CASE_OVERVIEW:',
           caseOverviewText,
           '',
+          ...(priorFlowText ? ['PRIOR_FLOW (직전에 만든 흐름 — 이것을 고쳐서 다시 만든다):', priorFlowText, ''] : []),
+          ...(revisionNote
+            ? ['★REVISION_REQUEST (담당자의 수정 방향 — 다른 어떤 지시보다 우선한다):', revisionNote, '']
+            : []),
           'CHART_SOURCE:',
           sourceText,
           '',
           ...(externalDocsText ? ['EXTERNAL_DOCS (병원이 올린 외부 검사 자료 · 파일별 요약):', externalDocsText, ''] : []),
           '---',
-          '위 자료로 인과 흐름을 재구성하여, 지정된 JSON 형식으로만 출력하세요.',
+          revisionNote
+            ? priorFlowText
+              ? '위 자료로 인과 흐름을 다시 구성하세요. PRIOR_FLOW 를 출발점으로 삼아 REVISION_REQUEST 를 반드시 반영하고, ' +
+                '**지적되지 않은 부분은 PRIOR_FLOW 의 내용·표현을 그대로 유지**하세요(전부 새로 쓰지 않는다). ' +
+                '지정된 JSON 형식으로만 출력하세요.'
+              : '위 자료로 인과 흐름을 재구성하되 REVISION_REQUEST 를 반드시 반영하여, 지정된 JSON 형식으로만 출력하세요.'
+            : '위 자료로 인과 흐름을 재구성하여, 지정된 JSON 형식으로만 출력하세요.',
         ].join('\n');
         const stageMaxTokens = 16384;
         const raw = await geminiGenerateText(userContent, {

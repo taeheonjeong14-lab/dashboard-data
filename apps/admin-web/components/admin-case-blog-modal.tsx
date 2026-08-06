@@ -476,6 +476,8 @@ export function CaseBlogButton({
 
   const [genLoading, setGenLoading] = useState<null | 1 | 2 | 3 | 4 | 5>(null);
   const [phaseBusy, setPhaseBusy] = useState<number | null>(null); // 날짜별 다시 생성 중인 phase 인덱스
+  const [causalRegenOpen, setCausalRegenOpen] = useState(false);   // 1단계 전체 다시 생성 — 수정 방향 입력 모달
+  const [causalRegenText, setCausalRegenText] = useState('');
   const [confirmed, setConfirmed] = useState(false); // 블로그 글 확정됨(AI 재생성 불가)
   const [savedFlag, setSavedFlag] = useState(false);  // 네이버 저장완료 — 수기 수정 시 보존(상태 되돌림 방지)
   const [saving, setSaving] = useState(false);
@@ -522,10 +524,19 @@ export function CaseBlogButton({
     if (!res.ok) throw new Error(data.error ?? '저장 실패');
   }
 
-  async function genCausal() {
+  /**
+   * 1단계 인과 흐름 생성. feedback(수정 방향)이 있으면 직전 흐름을 함께 보내
+   * "백지에서 다시"가 아니라 "이 흐름을 이렇게 고쳐서"가 되게 한다 — 차트 근거가 얇을 때
+   * 그냥 다시 생성하면 AI 가 같은 추측을 반복하기 때문.
+   */
+  async function genCausal(feedback?: string) {
     setGenLoading(1); setError(null); setSavedMsg('');
     try {
-      const g = await callGenerate({ contentType: 'blog_causal' });
+      const note = (feedback ?? '').trim();
+      const g = await callGenerate({
+        contentType: 'blog_causal',
+        ...(note ? { feedback: note, ...(causal ? { priorFlow: causal } : {}) } : {}),
+      });
       setCausal(asCausal(g.causalFlow));
       if (Array.isArray(g.caseOverview)) setCaseOverview(g.caseOverview as OverviewItem[]);
       setLoadedRunId(runId);
@@ -996,11 +1007,52 @@ export function CaseBlogButton({
                   ) : confirmed ? (
                     <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)' }}>확정됨 · 수기 수정만 가능</span>
                   ) : (
-                    <button type="button" style={btnFlat} onClick={() => { if (step === 1) void genCausal(); else if (step === 2) void genOutline(); else void genBlog(); }} disabled={busy}>
+                    <button
+                      type="button"
+                      style={btnFlat}
+                      /* 1단계는 바로 재생성하지 않고 수정 방향을 먼저 받는다(흐름이 있을 때만 — 첫 생성은 물어볼 대상이 없다). */
+                      onClick={() => {
+                        if (step === 1) { if (causal) { setCausalRegenText(''); setCausalRegenOpen(true); } else void genCausal(); }
+                        else if (step === 2) void genOutline();
+                        else void genBlog();
+                      }}
+                      disabled={busy}
+                    >
                       {genLoading === step ? '생성 중…' : '전체 다시 생성'}
                     </button>
                   )}
                 </div>
+
+                {/* 1단계 전체 다시 생성 — 수정 방향 입력 */}
+                {causalRegenOpen ? (
+                  <div style={regenOverlay} onClick={() => setCausalRegenOpen(false)}>
+                    <div style={regenDialog} onClick={(e) => e.stopPropagation()}>
+                      <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text)' }}>인과 흐름 전체 다시 생성</div>
+                      <div style={{ fontSize: 14, color: 'var(--text-secondary)', marginTop: 4, marginBottom: 10 }}>
+                        지금 날짜순 흐름을 어떤 방향으로 고칠지 알려주세요. 지금 흐름을 출발점으로 삼아 그 방향만 반영해 다시 만듭니다.
+                        <br />(비워두면 지금 흐름을 참고하지 않고 차트에서 처음부터 다시 뽑습니다)
+                      </div>
+                      <textarea
+                        value={causalRegenText}
+                        onChange={(e) => setCausalRegenText(e.target.value)}
+                        placeholder="예: 2월 3일 내용은 차트에 근거가 없는 추측이니 빼주세요 / 진단과 수술을 같은 날짜로 묶어주세요 / 재검 날짜를 하나로 합쳐주세요"
+                        rows={4}
+                        autoFocus
+                        style={inputStyle}
+                      />
+                      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 12 }}>
+                        <button type="button" style={btnSecondary} onClick={() => setCausalRegenOpen(false)}>취소</button>
+                        <button
+                          type="button"
+                          style={btnPrimary}
+                          onClick={() => { const note = causalRegenText; setCausalRegenOpen(false); void genCausal(note); }}
+                        >
+                          다시 생성
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
 
                 <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', paddingRight: 4 }}>
                   {genLoading === step && step === 1 && !causal ? (
