@@ -4,7 +4,6 @@ import { writeFileSync } from "fs";
 import { generateAndSaveAssessment } from "@/lib/run-ai-assessment-llm";
 import { assignLinesToBuckets } from "@/lib/text-bucketing/assign-buckets";
 import {
-  EXTERNAL_LAB_COMMENT_LABEL_PREFIX,
   findExternalLabReportPages,
   isExternalLabReportHeaderArtifact,
   parseExternalLabReportHeader,
@@ -4224,13 +4223,28 @@ export async function POST(request: NextRequest) {
     );
 
     stage = "chartBody";
+    /**
+     * 결과지 코멘트는 **차트사 그룹핑에 태우지 않는다.** 랩이 보낸 별개 문서의 판독 소견이라
+     * 차트 진료 경계 규칙이 통하지 않고, 오히려 차트 규칙에 걸려 사라진다.
+     *
+     * 실측 run 990ebcec(양파, 「플러스벳 검사지 → 결과지」 순): 검사지 1쪽의 '진단 검사 결과'
+     * 제목이 그룹의 **첫 줄**이 되는데, splitPlusVetSoapSections 는 그 제목 이후를 검사 표로 보고
+     * 잘라내므로 cutoff=0 → 본문이 빈 그룹이 되어 **뒤따르던 코멘트 40줄까지 통째로 버려졌다**
+     * (반대 순서인 시루는 코멘트가 앞에 있어 우연히 살아 있었다 — 또 하나의 업로드 순서 의존).
+     *
+     * 재조립 이후 chartBody 안의 결과지 페이지 줄은 코멘트뿐이므로(위 재조립 참고) 페이지로 가른다.
+     */
+    const reportCommentLines =
+      reportPages.size > 0 ? buckets.chartBody.filter((l) => reportPages.has(l.page)) : [];
+    const chartOnlyBodyLines =
+      reportPages.size > 0 ? buckets.chartBody.filter((l) => !reportPages.has(l.page)) : buckets.chartBody;
     const efriendsDirectBlocks = efriendsChartBodyByDateFromBlocks(efriendsChartBlocks);
     let chartBodyByDate =
       chartType === "efriends"
         ? efriendsDirectBlocks.length > 0
           ? efriendsDirectBlocks
-          : groupChartBodyByDate(buckets.chartBody, chartType, ocrPositions)
-        : groupChartBodyByDate(buckets.chartBody, chartType, ocrPositions);
+          : groupChartBodyByDate(chartOnlyBodyLines, chartType, ocrPositions)
+        : groupChartBodyByDate(chartOnlyBodyLines, chartType, ocrPositions);
     if (
       chartType === "efriends" &&
       chartBodyByDate.length === 0 &&
@@ -4242,34 +4256,33 @@ export async function POST(request: NextRequest) {
       }
     }
     /**
-     * 결과지 코멘트 그룹에 **검체채취일**을 붙인다.
+     * 결과지 코멘트를 **자기 그룹**으로 붙인다 — 날짜는 검체채취일.
      *
-     * 결과지엔 차트사 방문 앵커가 없어 이 그룹은 'unknown' 으로 남는데, 리포트·검진 포인트 생성은
+     * 결과지엔 차트사 방문 앵커가 없어 그냥 두면 'unknown' 이 되는데, 리포트·검진 포인트 생성은
      * **검진일과 날짜가 정확히 같은 그룹만** 근거로 넣는다(buildHealthCheckupSourceBlock).
      * 즉 unknown 은 어떤 검진일을 넣어도 영원히 제외돼, 랩 판독의 소견(SDMA·proBNP·T4 해석)이
      * 리포트에 단 한 줄도 못 들어간다. 결과지에서 우리가 이미 읽어 둔 날짜가 있으니 그걸 쓴다.
-     *
-     * 페이지가 **전부 결과지 구간인 그룹**, 또는 **우리가 붙인 코멘트 라벨을 달고 있는 그룹**에 붙인다.
-     * 페이지 조건만 보면 결과지 뒤에 차트가 한 장만 붙어도(합쳐 올린 PDF) 그 한 장 때문에 그룹 전체가
-     * 다시 unknown 으로 남아 소견이 통째로 리포트에서 빠진다(실측 시루: 결과지 3쪽 + 차트 1쪽이
-     * 한 그룹으로 묶여 SDMA·proBNP·T4 해설이 전부 제외됐다). 라벨은 우리가 직접 심은 표식이라
-     * "이 그룹의 내용이 결과지 판독 소견"이라는 정확한 근거다.
      */
     const externalLabCollectionDate = externalLabReportHeader?.collectionDate ?? null;
-    if (externalLabCollectionDate && reportPages.size > 0) {
-      let dated = 0;
-      chartBodyByDate = chartBodyByDate.map((group) => {
-        const undated = !group.dateTime.trim() || group.dateTime === "unknown";
-        const allFromReport = group.pages.length > 0 && group.pages.every((p) => reportPages.has(p));
-        const carriesReportComment =
-          group.bodyText.includes(EXTERNAL_LAB_COMMENT_LABEL_PREFIX) ||
-          group.planText.includes(EXTERNAL_LAB_COMMENT_LABEL_PREFIX);
-        if (!undated || (!allFromReport && !carriesReportComment)) return group;
-        dated += 1;
-        return { ...group, dateTime: externalLabCollectionDate };
-      });
-      if (dated > 0) {
-        console.log("[external-lab] 코멘트 그룹 %d개에 검체채취일 %s 부여", dated, externalLabCollectionDate);
+    if (reportCommentLines.length > 0) {
+      const bodyText = reportCommentLines.map((l) => l.text).join("\n").trim();
+      if (bodyText) {
+        chartBodyByDate = [
+          ...chartBodyByDate,
+          {
+            dateTime: externalLabCollectionDate ?? "unknown",
+            pages: [...new Set(reportCommentLines.map((l) => l.page))].sort((a, b) => a - b),
+            bodyText,
+            planText: "",
+            lineCount: reportCommentLines.length,
+            planDetected: false,
+          },
+        ];
+        console.log(
+          "[external-lab] 코멘트 %d줄을 검체채취일 %s 그룹으로 분리",
+          reportCommentLines.length,
+          externalLabCollectionDate ?? "없음(unknown)",
+        );
       }
     }
 
