@@ -4,7 +4,9 @@ import { writeFileSync } from "fs";
 import { generateAndSaveAssessment } from "@/lib/run-ai-assessment-llm";
 import { assignLinesToBuckets } from "@/lib/text-bucketing/assign-buckets";
 import {
+  EXTERNAL_LAB_COMMENT_LABEL_PREFIX,
   findExternalLabReportPages,
+  isExternalLabReportHeaderArtifact,
   parseExternalLabReportHeader,
   parseExternalLabReportRows,
   splitExternalLabReportLines,
@@ -4160,10 +4162,22 @@ export async function POST(request: NextRequest) {
      */
     const externalLabReportOnly =
       externalLabReportPages.length > 0 && sanitizedLines.every((l) => reportPages.has(l.page));
-    if (externalLabReportPages.length > 0) {
+    const reportLabLines = buckets.lab.filter((l) => reportPages.has(l.page));
+    /**
+     * 아래 재조립은 "결과지 페이지의 내용은 전부 buckets.lab 에 있다"는 전제 위에 선다.
+     * 전제가 깨지면 chartBody 를 코멘트로 갈아끼우는 순간 그 페이지들이 **통째로 삭제**된다
+     * (실측 run 990ebcec: 버킷팅이 결과지를 못 열어 lab 0줄 → 229줄이 경고 한 줄 없이 사라졌다).
+     * 버킷팅 쪽 원인은 고쳤지만, 같은 사고가 다시 조용히 나지 않게 여기서도 막는다.
+     */
+    if (externalLabReportPages.length > 0 && reportLabLines.length === 0) {
+      console.warn(
+        "[external-lab] ⚠ 결과지 페이지 %s 에 검사줄이 하나도 없다 — 재조립을 건너뛴다(차트 본문 보존)",
+        externalLabReportPages.join(","),
+      );
+    } else if (externalLabReportPages.length > 0) {
       const firstReportPage = externalLabReportPages[0]!;
       const lastReportPage = externalLabReportPages[externalLabReportPages.length - 1]!;
-      const split = splitExternalLabReportLines(buckets.lab.filter((l) => reportPages.has(l.page)));
+      const split = splitExternalLabReportLines(reportLabLines);
       const collectionDate = externalLabReportHeader?.collectionDate ?? null;
       const anchor = collectionDate
         ? [{ page: split.lab[0]?.page ?? firstReportPage, text: collectionDate, corrected: false }]
@@ -4235,7 +4249,11 @@ export async function POST(request: NextRequest) {
      * 즉 unknown 은 어떤 검진일을 넣어도 영원히 제외돼, 랩 판독의 소견(SDMA·proBNP·T4 해석)이
      * 리포트에 단 한 줄도 못 들어간다. 결과지에서 우리가 이미 읽어 둔 날짜가 있으니 그걸 쓴다.
      *
-     * 페이지가 **전부 결과지 구간인 그룹에만** 붙인다 — 차트 내용이 섞인 그룹은 그 날짜가 아니다.
+     * 페이지가 **전부 결과지 구간인 그룹**, 또는 **우리가 붙인 코멘트 라벨을 달고 있는 그룹**에 붙인다.
+     * 페이지 조건만 보면 결과지 뒤에 차트가 한 장만 붙어도(합쳐 올린 PDF) 그 한 장 때문에 그룹 전체가
+     * 다시 unknown 으로 남아 소견이 통째로 리포트에서 빠진다(실측 시루: 결과지 3쪽 + 차트 1쪽이
+     * 한 그룹으로 묶여 SDMA·proBNP·T4 해설이 전부 제외됐다). 라벨은 우리가 직접 심은 표식이라
+     * "이 그룹의 내용이 결과지 판독 소견"이라는 정확한 근거다.
      */
     const externalLabCollectionDate = externalLabReportHeader?.collectionDate ?? null;
     if (externalLabCollectionDate && reportPages.size > 0) {
@@ -4243,7 +4261,10 @@ export async function POST(request: NextRequest) {
       chartBodyByDate = chartBodyByDate.map((group) => {
         const undated = !group.dateTime.trim() || group.dateTime === "unknown";
         const allFromReport = group.pages.length > 0 && group.pages.every((p) => reportPages.has(p));
-        if (!undated || !allFromReport) return group;
+        const carriesReportComment =
+          group.bodyText.includes(EXTERNAL_LAB_COMMENT_LABEL_PREFIX) ||
+          group.planText.includes(EXTERNAL_LAB_COMMENT_LABEL_PREFIX);
+        if (!undated || (!allFromReport && !carriesReportComment)) return group;
         dated += 1;
         return { ...group, dateTime: externalLabCollectionDate };
       });
@@ -4333,14 +4354,23 @@ export async function POST(request: NextRequest) {
         birth: externalLabReportHeader.birth,
       };
       const filled: string[] = [];
+      const replaced: string[] = [];
       for (const [key, value] of Object.entries(fromReport) as Array<
         [keyof typeof parsedBasicInfo, string | null]
       >) {
         if (!value?.trim()) continue;
-        const chartValue = parsedBasicInfo[key];
+        const rawChartValue = parsedBasicInfo[key];
+        /**
+         * 차트 값이 **결과지 머리말을 잘못 읽은 쓰레기**면 없는 것으로 친다.
+         * 결과지만 올린 문서에선 위 분기가 통째로 덮어써서 이미 해결됐지만, 차트가 한 장이라도
+         * 섞이면 이쪽으로 와서 그 쓰레기가 살아남았다(실측 시루: 성별 "1735 2026.07.20",
+         * 보호자 "동물품종" — 게다가 보호자 대조에서 가짜 '다른 환자' 경고까지 냈다).
+         */
+        const artifact = isExternalLabReportHeaderArtifact(rawChartValue);
+        const chartValue = artifact ? null : rawChartValue;
         if (!chartValue?.trim()) {
           (parsedBasicInfo[key] as string | null) = value;
-          filled.push(String(key));
+          (artifact ? replaced : filled).push(String(key));
           continue;
         }
         // 이름류만 대조한다(종·성별 표기는 랩과 차트가 원래 다르게 쓴다: "Canine" vs "개").
@@ -4352,6 +4382,12 @@ export async function POST(request: NextRequest) {
       }
       if (filled.length > 0) {
         console.log("[external-lab] 기본정보 보충: %s", JSON.stringify(filled));
+      }
+      if (replaced.length > 0) {
+        console.log(
+          "[external-lab] 차트가 결과지 머리말을 잘못 읽은 칸을 결과지 값으로 교체: %s",
+          JSON.stringify(replaced),
+        );
       }
       if (externalLabPatientMismatch.length > 0) {
         console.warn(

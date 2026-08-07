@@ -80,6 +80,9 @@ export function assignLinesToBuckets(
           isPlusVetChartVisitHeaderLine(line.text) ||
           /^subjective\b/i.test(line.text.replace(/\s+/g, ' ').trim()) ||
           isPlusVetDiagnosticResultsSectionTitle(normalized, line.text) ||
+          // 트렌드 뒤에 외부 랩 결과지가 이어 붙은 경우 — 결과지 표 헤더도 재개 신호다.
+          // (아래 결과지 분기와 같은 이유: 결과지엔 plusvet 재개 신호가 하나도 없어 통째로 드롭된다)
+          isExternalLabReportTableHeaderLine(line.text) ||
           isEnglishVaccinationSectionHeaderLine(line.text) ||
           isVitalsSectionHeaderLine(line.text);
         if (!resume) continue; // 트렌드 내부 줄 → 드롭
@@ -133,6 +136,27 @@ export function assignLinesToBuckets(
         });
         continue;
       }
+    }
+
+    /**
+     * 외부 랩 결과지의 검사 표 헤더는 **차트사와 무관한** lab 시작 신호다 — 종류별 분기보다 앞에 온다.
+     *
+     * 아래 plusvet 분기는 '진단 검사 결과' 제목을 만나면 plusvetDiagnosticResultsSection 을 켜고,
+     * 그 뒤로는 어떤 줄이든 자기 분기에서 `continue` 해 버려 **일반 lab 헤더 검사
+     * (isLabSectionHeader, 이 함수 아래쪽)에 도달조차 못 한다.** 그래서 「플러스벳 검사지 → KVL
+     * 결과지」 순으로 합쳐 올리면 결과지 표 헤더를 아무도 보지 못하고 결과지 전체가 chartBody 로 갔다.
+     * 그 뒤 route 의 결과지 재조립이 결과지 페이지의 chartBody 를 코멘트(= buckets.lab 에서 계산)로
+     * 갈아끼우는데 lab 이 비어 있어 **결과지 229줄이 통째로 삭제**됐다
+     * (실측 run 990ebcec 양파: 검사 61행 전멸). 반대 순서(결과지 먼저)만 우연히 살아 있었다.
+     *
+     * plusvet 플래그를 여기서 내려야 뒤따르는 결과지 줄이 다시 plusvet 분기로 빨려들지 않는다.
+     * 헤더 줄 자체를 lab 에 남기는 이유는 아래 isLabSectionHeader 쪽 주석과 같다(코멘트 끝 판단 신호).
+     */
+    if (isExternalLabReportTableHeaderLine(line.text)) {
+      section = 'lab';
+      plusvetDiagnosticResultsSection = false;
+      buckets.lab.push({ page: line.page, text: line.text, corrected: false });
+      continue;
     }
 
     /**

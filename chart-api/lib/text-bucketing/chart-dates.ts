@@ -52,11 +52,24 @@ export function extractLabDateTime(text: string) {
 }
 
 /**
+ * 줄 맨 앞의 표 테두리(`|`)를 벗긴다.
+ *
+ * 플러스벳 '진단 검사 결과' 출력물은 앵커 줄이 표의 한 셀이라, 전사에 따라 **왼쪽 테두리가
+ * 파이프로 딸려 온다**(허브 실측: `| 2026.07.17 15:54 | Serum Analysis … | V200`,
+ * `| 2026.07.27 11:46 Serum Analysis … | V200`). 아래 판정들은 전부 줄 **시작**이 날짜인지를
+ * 보므로 이 한 글자에 전부 실패했고, lab 섹션이 열리지 않아 바로 다음 줄인 검사값이 chartBody 로
+ * 샜다(실측 run 990ebcec 양파 `CPL 330.3 ng/mL ↑`, cb16eeb7 시루 `fPL 1.2 ng/mL`).
+ */
+function stripLeadingCellBorder(text: string): string {
+  return text.replace(/^[\s|｜]+/, '');
+}
+
+/**
  * 플러스벳 "진단 검사 결과" 구간에서 검사 시각 줄만 인정 (줄 **시작**이 날짜+시각).
  * 제목 직후 반복되는 기본정보 줄이 lab으로 들어가지 않게 한다.
  */
 export function extractPlusVetLabSectionAnchorDateTime(text: string): string | null {
-  const normalized = text.replace(/\s+/g, ' ').trim();
+  const normalized = stripLeadingCellBorder(text.replace(/\s+/g, ' ').trim());
   const m = normalized.match(
     /^(?:\[)?\s*(20\d{2}[./-]\d{1,2}[./-]\d{1,2})\s+(?:(오전|오후|am|pm)\s*)?([0-2]?\d:[0-5]\d(?::[0-5]\d)?)\b/i,
   );
@@ -66,7 +79,7 @@ export function extractPlusVetLabSectionAnchorDateTime(text: string): string | n
 }
 
 function matchPlusVetDatetimePipeRest(text: string): { line: string; dateTime: string; afterFirstPipe: string } | null {
-  const line = text.replace(/\s+/g, ' ').trim();
+  const line = stripLeadingCellBorder(text.replace(/\s+/g, ' ').trim());
   const m = line.match(
     /^(?:\[)?\s*(20\d{2}[./-]\d{1,2}[./-]\d{1,2}\s+\d{1,2}:\d{2}(?::\d{2})?)\s*\|\s*(.+)$/i,
   );

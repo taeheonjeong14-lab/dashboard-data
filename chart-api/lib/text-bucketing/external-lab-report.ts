@@ -165,6 +165,29 @@ export type ExternalLabReportHeader = {
   collectionDate: string | null;
 };
 
+/**
+ * 차트용 기본정보 파서가 **결과지 머리말을 자기 양식으로 읽어 만들어낸 쓰레기 값**인가.
+ *
+ * 결과지 머리말은 「라벨 줄 · 값 줄」이 따로 인쇄돼(위 buildHeaderBlocks 참고), 차트사 파서는
+ * 라벨을 값으로 집거나 여러 칸을 한 칸으로 뭉친다. 실측:
+ *   시루 성별 "1735 2026.07.20"(차트번호+접수일) · 보호자 "동물품종"(라벨 그 자체)
+ *   양파 생년월일 "양파 8세 2018.07.27 김혜영 Canine 말티즈"(한 블록 통째)
+ * 이 값들은 **비어 있지 않아서** "빈 칸만 채운다"는 보충 로직을 통과해 버리고, 제대로 읽어 둔
+ * 결과지 값이 영영 반영되지 않는다(그리고 보호자 이름 대조에서 가짜 '다른 환자' 경고까지 낸다).
+ */
+export function isExternalLabReportHeaderArtifact(value: string | null | undefined): boolean {
+  const t = (value ?? '').replace(/\s+/g, ' ').trim();
+  if (!t) return false;
+  if (t.length > 30) return true;
+  // 라벨 자체가 값 칸에 들어왔다("동물품종", "동물종 동물품종").
+  if (t.split(' ').some((tok) => (HEADER_LABELS as readonly string[]).includes(tok))) return true;
+  // 순수한 날짜 한 칸은 정상이다(차트가 읽은 생년월일).
+  if (DATE_TOKEN_RE.test(t)) return false;
+  // 날짜가 다른 토큰과 섞여 있으면 옆 칸이 밀려 들어온 것이다("1735 2026.07.20").
+  if (/20\d{2}[./-]\d{1,2}[./-]\d{1,2}/.test(t)) return true;
+  return false;
+}
+
 /** 값 같지 않은 칸(라벨이 밀려 들어온 경우 등)을 걸러낸다. */
 function headerValueOrNull(v: string | undefined): string | null {
   const t = (v ?? '').trim();
@@ -344,6 +367,13 @@ function isExternalLabReportFooterLine(text: string): boolean {
   return false;
 }
 
+/**
+ * 코멘트 문단 앞에 붙이는 출처 라벨의 머리말.
+ * 이 표식이 있는 chartBody 그룹은 **우리가 결과지에서 옮겨 온 판독 소견**이라는 뜻이라,
+ * 날짜(검체채취일)를 붙일 그룹을 고르는 근거로도 쓴다(route 참고).
+ */
+export const EXTERNAL_LAB_COMMENT_LABEL_PREFIX = '[외부 검사 코멘트';
+
 export type ExternalLabReportSplit<T> = {
   /** 검사 표 줄 — 기존 표 파서로 넘어간다. */
   lab: T[];
@@ -393,7 +423,9 @@ export function splitExternalLabReportLines<T extends SplitPairInput>(lines: T[]
       titles.unshift((buffer.pop()!.text ?? '').replace(/\s+/g, ' ').trim());
     }
     if (buffer.length > 0) {
-      const label = currentTitle ? `[외부 검사 코멘트 · ${currentTitle}]` : '[외부 검사 코멘트]';
+      const label = currentTitle
+        ? `${EXTERNAL_LAB_COMMENT_LABEL_PREFIX} · ${currentTitle}]`
+        : `${EXTERNAL_LAB_COMMENT_LABEL_PREFIX}]`;
       comments.push({ ...buffer[0]!, text: label }, ...buffer);
     }
     buffer = [];
