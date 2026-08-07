@@ -118,9 +118,28 @@ export function orderedLinesFromPastedChartText(raw: string, chartKind?: ChartKi
 
 // ─── Basic info ───────────────────────────────────────────────────────────────
 
+/**
+ * 랩 결과지·EMR 이 쓰는 두 글자 성별 약어. N=Neutered · S=Spayed · C=Castrated · I=Intact,
+ * F=Female · M=Male (순서는 랩마다 다르다).
+ *
+ * 아래 일반 규칙은 단어 경계(\bf\b, \bm\b)에 기대는데 두 글자가 붙어 있으면 경계가 없어 전부
+ * 빠져나간다 — 실측 KVL 결과지의 "NF"(중성화 암컷)가 정규화 없이 그대로 저장됐다. 기존
+ * FS·MN 도 중성화 여부만 잡히고 성별을 못 정해 결국 원문이 나가고 있었다.
+ */
+const SEX_ABBREVIATIONS: Record<string, string> = {
+  NF: '암컷(중성화)', FN: '암컷(중성화)', SF: '암컷(중성화)', FS: '암컷(중성화)',
+  NM: '수컷(중성화)', MN: '수컷(중성화)', CM: '수컷(중성화)', MC: '수컷(중성화)',
+  IF: '암컷', FI: '암컷', F: '암컷',
+  IM: '수컷', MI: '수컷', M: '수컷',
+};
+
 export function normalizeBasicInfoSex(value: string | null): string | null {
   if (!value) return null;
   const t = value.trim();
+
+  // 성별 칸의 값이라 약어를 먼저 본다(수치·단위와 헷갈릴 여지가 없다).
+  const abbreviation = SEX_ABBREVIATIONS[t.toUpperCase().replace(/[\s.·/()]/g, '')];
+  if (abbreviation) return abbreviation;
 
   const neuterMaleEf =
     /\bc[\s.．·\/]*male\b/i.test(t) ||
