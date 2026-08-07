@@ -49,34 +49,39 @@ export type EnsureLabeledResult = {
  * (실패 사실은 호출부가 에러 로그로 올린다.)
  */
 /**
- * 촬영일이 비어 있는 이미지에 **이 run 의 검사일**을 채운다.
+ * 촬영일이 비어 있는 이미지에 **이 run 의 진료일**을 채운다.
  *
  * 병원이 사진을 날짜 그룹 없이 올리면 exam_date 가 null 로 들어온다. 그런데 건강검진 리포트는
  * 검진일과 날짜가 같은 이미지만 근거로 쓰기 때문에, 날짜가 없으면 아무리 분석해도 리포트에
- * 실리지 않는다. run 의 검사일이 하나로 정해질 때만 채운다 — 여러 날짜가 섞인 차트에서 전부
- * 한 날짜로 몰아 버리면 그게 더 나쁘다.
+ * 실리지 않는다. 건강검진은 하루에 끝나므로 **차트 본문과 같은 날짜**가 곧 촬영일이다.
+ *
+ * 날짜가 하나로 정해질 때만 채운다 — 여러 날짜가 섞인 차트에서 전부 한 날짜로 몰아 버리면
+ * 그게 더 나쁘다(사진이 엉뚱한 진료에 붙는다).
  */
 async function backfillMissingExamDates(
   pool: ReturnType<typeof getAdminWebPgPool>,
   runId: string,
 ): Promise<string | null> {
-  // 1순위: 외부 랩 결과지의 검체채취일(추출 때 읽어 둔 값).
-  const { rows: runRows } = await pool.query<{ collection_date: string | null }>(
-    `SELECT raw_payload->'externalLabReport'->'header'->>'collectionDate' AS collection_date
-       FROM chart_pdf.parse_runs WHERE id = $1::uuid`,
-    [runId],
-  );
-  let date = runRows[0]?.collection_date?.trim() || null;
-
-  // 2순위: 검사 결과의 날짜가 하나뿐이면 그 날짜.
-  if (!date) {
-    const { rows: labRows } = await pool.query<{ d: string | null }>(
-      `SELECT DISTINCT (date_time::date)::text AS d
-         FROM chart_pdf.result_lab_items
+  const singleDate = async (table: 'result_chart_by_date' | 'result_lab_items'): Promise<string | null> => {
+    const { rows } = await pool.query<{ d: string | null }>(
+      `SELECT DISTINCT substring(date_time from '^\\d{4}-\\d{2}-\\d{2}') AS d
+         FROM chart_pdf.${table}
         WHERE parse_run_id = $1::uuid AND date_time ~ '^\\d{4}-\\d{2}-\\d{2}'`,
       [runId],
     );
-    if (labRows.length === 1) date = labRows[0]?.d ?? null;
+    return rows.length === 1 ? rows[0]?.d ?? null : null;
+  };
+
+  // 1순위: 차트 본문 날짜(= 그 진료일). 2순위: 검사 결과 날짜. 둘 다 "하나뿐일 때만".
+  // 3순위: 외부 랩 결과지의 검체채취일 — 차트 본문이 아예 없는 결과지 단독 run 용.
+  let date = (await singleDate('result_chart_by_date')) ?? (await singleDate('result_lab_items'));
+  if (!date) {
+    const { rows } = await pool.query<{ collection_date: string | null }>(
+      `SELECT raw_payload->'externalLabReport'->'header'->>'collectionDate' AS collection_date
+         FROM chart_pdf.parse_runs WHERE id = $1::uuid`,
+      [runId],
+    );
+    date = rows[0]?.collection_date?.trim() || null;
   }
   if (!date) return null;
 
