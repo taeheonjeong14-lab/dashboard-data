@@ -4,9 +4,9 @@ import { writeFileSync } from "fs";
 import { generateAndSaveAssessment } from "@/lib/run-ai-assessment-llm";
 import { assignLinesToBuckets } from "@/lib/text-bucketing/assign-buckets";
 import {
-  cleanExternalLabReportLines,
-  extractExternalLabReportCollectionDate,
-  isExternalLabReportTableHeaderLine,
+  findExternalLabReportPages,
+  parseExternalLabReportHeader,
+  splitExternalLabReportLines,
 } from "@/lib/text-bucketing/external-lab-report";
 import {
   parseVaccinationRecordsFromBucketLines,
@@ -4114,19 +4114,66 @@ export async function POST(request: NextRequest) {
      * 외부 랩(수탁 검사기관) 결과지 — 병원 차트가 아니라 KVL·IDEXX 등이 보내온 검사 보고서.
      * 표 헤더("검사항목 검사결과 참고치")가 있으면 isLabSectionHeader 가 basicInfo 를 닫고 lab 을
      * 열어 주므로 여기까지는 온다. 다만 두 가지를 더 손봐야 기존 표 파서가 먹는다:
-     *  (a) 코멘트 해설문 제거 — "14~19 μg/dL" 같은 범위가 문장에 잔뜩 있어 가짜 항목이 된다.
+     *  (a) 코멘트 해설문 분리 — "14~19 μg/dL" 같은 범위가 문장에 잔뜩 있어 검사 표에 두면 가짜
+     *      항목이 된다. 버리진 않고 차트 본문으로 보낸다(랩 판독의 소견이다).
      *  (b) 컬럼 순서로 뽑히며 두 줄로 갈린 행 되붙이기("7.40 5.65 ~ 8.87 10^6/μL" + "RBC").
      * 그리고 결과지엔 검사 날짜 앵커가 본문에 없으므로(머리말의 '검체채취일'이 유일) 그 날짜를
      * 앵커 줄로 만들어 앞에 붙인다 — 안 그러면 60개 항목이 전부 'unknown' 그룹으로 간다.
+     *
+     * ★ 이 손질은 **결과지 페이지에만** 건다. 병원에 "차트 먼저, 결과지 나중" 같은 업로드 순서를
+     *   요구할 수 없기 때문이다. 문서 전체에 걸면 순서에 따라 두 가지가 깨진다:
+     *    · 차트 검사줄이 결과지 해설문 규칙(60자 초과 등)에 걸려 사라진다.
+     *    · 앵커를 맨 앞에 붙이므로, 차트가 먼저면 결과지 60행이 차트의 마지막 방문일로 붙는다
+     *      (날짜 그룹은 "직전 앵커가 이긴다" — groupLabLinesByDate).
+     *   페이지로 자르면 결과지는 결과지대로, 차트는 차트대로 처리돼 순서와 무관해진다.
      */
-    const isExternalLabReport = sanitizedLines.some((l) => isExternalLabReportTableHeaderLine(l.text));
-    if (isExternalLabReport) {
-      const cleanedLab = cleanExternalLabReportLines(buckets.lab);
-      const collectionDate = extractExternalLabReportCollectionDate(buckets.basicInfo.map((l) => l.text));
+    const externalLabReportPages = findExternalLabReportPages(sanitizedLines);
+    const externalLabReportHeader =
+      externalLabReportPages.length > 0
+        ? parseExternalLabReportHeader(
+            sanitizedLines.filter((l) => externalLabReportPages.includes(l.page)).map((l) => l.text),
+          )
+        : null;
+    if (externalLabReportPages.length > 0) {
+      const reportPages = new Set(externalLabReportPages);
+      const firstReportPage = externalLabReportPages[0]!;
+      const lastReportPage = externalLabReportPages[externalLabReportPages.length - 1]!;
+      const split = splitExternalLabReportLines(buckets.lab.filter((l) => reportPages.has(l.page)));
+      const collectionDate = externalLabReportHeader?.collectionDate ?? null;
       const anchor = collectionDate
-        ? [{ page: cleanedLab[0]?.page ?? 1, text: collectionDate, corrected: false }]
+        ? [{ page: split.lab[0]?.page ?? firstReportPage, text: collectionDate, corrected: false }]
         : [];
-      buckets = { ...buckets, lab: [...anchor, ...cleanedLab] };
+      // 결과지는 연속 페이지 구간이므로 앞/뒤 차트 줄 사이에 그대로 끼워 넣으면 문서 순서가 보존된다.
+      buckets = {
+        ...buckets,
+        lab: [
+          ...buckets.lab.filter((l) => l.page < firstReportPage),
+          ...anchor,
+          ...split.lab,
+          ...buckets.lab.filter((l) => l.page > lastReportPage),
+        ],
+        /**
+         * 코멘트(랩 판독의 소견)는 검사값이 아니라 진료 맥락이라 차트 본문으로 보낸다.
+         * 문서 순서대로 끼워 넣어야 chartBody 날짜 그룹핑이 앞 진료에 붙인다 — 결과지만 올린
+         * 경우엔 앞 진료가 없어 'unknown' 그룹이 된다(날짜 없는 진료 한 건).
+         *
+         * 결과지 페이지가 chartBody 에 기여하는 건 **코멘트뿐**이다. 차트를 먼저 올리면 그 시점
+         * 섹션이 chartBody 라 결과지 머리말("동물이름 봄 송정림 Canine 말티즈")이 통째로 진료
+         * 본문에 섞여 들어간다 — 진료 노트가 아니므로 뺀다.
+         */
+        chartBody: [
+          ...buckets.chartBody.filter((l) => l.page < firstReportPage),
+          ...split.comments,
+          ...buckets.chartBody.filter((l) => l.page > lastReportPage),
+        ],
+      };
+      console.log(
+        "[external-lab] 결과지 페이지 %s · 검체채취일 %s · 검사줄 %d · 코멘트 %d줄",
+        externalLabReportPages.join(","),
+        collectionDate ?? "없음",
+        split.lab.length,
+        split.comments.length,
+      );
     }
 
     const physicalExamItems =
@@ -4188,6 +4235,54 @@ export async function POST(request: NextRequest) {
         if (filled.length > 0) {
           console.log("[basicInfo] 텍스트 레이어로 보충: %s", JSON.stringify(filled));
         }
+      }
+    }
+    /**
+     * 외부 랩 결과지 머리말로 기본정보의 **빈 칸만** 채운다(위 텍스트 레이어 백스톱과 같은 방식).
+     *
+     * 우선순위가 차트인 이유: 결과지는 의뢰서에 적힌 대로 찍히고, run 의 주인은 차트의 환자다.
+     * 결과지만 올린 경우엔 차트 값이 애초에 없으므로 결과지가 그대로 채운다 — 그전까지는
+     * 동물이름·보호자가 통째로 비어 있었다.
+     *
+     * 둘 다 있는데 다르면 덮어쓰지 않고 **불일치로 남긴다** — 남의 결과지가 섞여 올라온 경우라
+     * 조용히 한쪽을 택하면 안 된다.
+     */
+    const externalLabPatientMismatch: Array<{ field: string; chart: string; report: string }> = [];
+    if (externalLabReportHeader) {
+      const fromReport: Partial<Record<keyof typeof parsedBasicInfo, string | null>> = {
+        patientName: externalLabReportHeader.patientName,
+        ownerName: externalLabReportHeader.ownerName,
+        species: externalLabReportHeader.species,
+        breed: externalLabReportHeader.breed,
+        sex: externalLabReportHeader.sex,
+        birth: externalLabReportHeader.birth,
+      };
+      const filled: string[] = [];
+      for (const [key, value] of Object.entries(fromReport) as Array<
+        [keyof typeof parsedBasicInfo, string | null]
+      >) {
+        if (!value?.trim()) continue;
+        const chartValue = parsedBasicInfo[key];
+        if (!chartValue?.trim()) {
+          (parsedBasicInfo[key] as string | null) = value;
+          filled.push(String(key));
+          continue;
+        }
+        // 이름류만 대조한다(종·성별 표기는 랩과 차트가 원래 다르게 쓴다: "Canine" vs "개").
+        if (key !== "patientName" && key !== "ownerName") continue;
+        const norm = (s: string) => s.replace(/\s+/g, "").toLowerCase();
+        if (norm(chartValue) !== norm(value)) {
+          externalLabPatientMismatch.push({ field: String(key), chart: chartValue, report: value });
+        }
+      }
+      if (filled.length > 0) {
+        console.log("[external-lab] 기본정보 보충: %s", JSON.stringify(filled));
+      }
+      if (externalLabPatientMismatch.length > 0) {
+        console.warn(
+          "[external-lab] ⚠ 결과지 환자가 차트와 다르다: %s",
+          JSON.stringify(externalLabPatientMismatch),
+        );
       }
     }
     stage = "detectSpeciesProfile";
@@ -4348,6 +4443,16 @@ export async function POST(request: NextRequest) {
         vitals: buckets.vitals,
       },
       basicInfoParsed: parsedBasicInfo,
+      // 외부 랩 결과지가 섞여 있을 때만 채워진다. patientMismatch 가 비어 있지 않으면
+      // 결과지 환자와 차트 환자가 다르다 — 남의 결과지일 수 있으니 사람이 확인해야 한다.
+      externalLabReport:
+        externalLabReportPages.length > 0
+          ? {
+              pages: externalLabReportPages,
+              header: externalLabReportHeader,
+              patientMismatch: externalLabPatientMismatch,
+            }
+          : null,
       chartBodyByDate,
       labByDate: labByDateForPayload,
       labItemsByDate,

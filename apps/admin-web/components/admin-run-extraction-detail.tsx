@@ -1968,6 +1968,37 @@ export function AdminRunExtractionDetail({
           </span>
         </summary>
         <div style={{ padding: '0 12px 12px', borderTop: 'none' }}>
+          {/*
+            외부 랩 결과지가 같이 올라왔는데 결과지 환자가 차트와 다른 경우.
+            추출은 차트 값을 채택했다 — 남의 결과지가 섞였다면 검사 결과 자체가 다른 환자 것이므로
+            사람이 원본 PDF 를 열어 확인해야 한다.
+          */}
+          {result.externalLabPatientMismatch.length > 0 && (
+            <div
+              style={{
+                marginTop: 10,
+                padding: '10px 12px',
+                border: '1px solid #d97706',
+                background: '#fffbeb',
+                borderRadius: 6,
+                fontSize: 13,
+                color: '#7c2d12',
+              }}
+            >
+              <div style={{ fontWeight: 700, marginBottom: 4 }}>⚠ 외부 검사 결과지의 환자가 차트와 다릅니다</div>
+              <div style={{ marginBottom: 4 }}>
+                {result.externalLabPatientMismatch
+                  .map(
+                    (m) =>
+                      `${m.field === 'patientName' ? '환자명' : '보호자'}: 차트 "${m.chart}" ↔ 결과지 "${m.report}"`,
+                  )
+                  .join(' · ')}
+              </div>
+              <div style={{ color: '#92400e' }}>
+                기본정보는 차트 값을 따랐습니다. 다른 환자의 결과지가 섞여 올라왔는지 원본 PDF 를 확인하세요.
+              </div>
+            </div>
+          )}
           {editing.basicInfo && draftBasic ? (
             <div style={{ display: 'grid', gap: 8, marginTop: 10, gridTemplateColumns: '1fr 1fr' }}>
               {(

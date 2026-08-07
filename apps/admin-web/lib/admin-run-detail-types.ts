@@ -45,6 +45,11 @@ export type RunDetailResponse = {
     sex: string | null;
   } | null;
   chartTypeNotice: string | null;
+  /**
+   * 외부 랩 결과지(KVL 등)가 같이 올라왔는데 결과지의 환자·보호자가 차트와 다른 경우.
+   * 남의 결과지가 섞여 올라왔을 수 있어 사람이 확인해야 한다. 비어 있으면 불일치 없음.
+   */
+  externalLabPatientMismatch: Array<{ field: 'patientName' | 'ownerName'; chart: string; report: string }>;
   /** 병원이 업로드한 원본 PDF(서명 URL). 이미지는 이미지 분석 탭에서 본다. */
   sourceFiles: {
     pdfs: Array<{ name: string; url: string }>;

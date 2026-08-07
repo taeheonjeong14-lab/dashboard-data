@@ -30,6 +30,28 @@ function chartTypeNoticeFor(kind: ChartKind): string {
   return CHART_TYPE_NOTICE[kind] ?? CHART_TYPE_NOTICE.other;
 }
 
+/**
+ * chart-api 가 raw_payload 에 남긴 외부 랩 결과지 환자 불일치를 읽는다.
+ * (추출 결과 테이블엔 채택된 값만 남으므로, 무엇과 달랐는지는 payload 에만 있다.)
+ */
+function readExternalLabPatientMismatch(rawPayload: unknown): RunDetailResponse['externalLabPatientMismatch'] {
+  if (!rawPayload || typeof rawPayload !== 'object') return [];
+  const report = (rawPayload as Record<string, unknown>).externalLabReport;
+  if (!report || typeof report !== 'object') return [];
+  const rows = (report as Record<string, unknown>).patientMismatch;
+  if (!Array.isArray(rows)) return [];
+  return rows.flatMap((row) => {
+    if (!row || typeof row !== 'object') return [];
+    const r = row as Record<string, unknown>;
+    const field = String(r.field ?? '');
+    if (field !== 'patientName' && field !== 'ownerName') return [];
+    const chart = String(r.chart ?? '').trim();
+    const report_ = String(r.report ?? '').trim();
+    if (!chart || !report_) return [];
+    return [{ field, chart, report: report_ }];
+  });
+}
+
 const SIGNED_URL_TTL = 60 * 60; // 1시간
 
 function basename(p: string): string {
@@ -370,6 +392,7 @@ export async function loadAdminRunDetail(runId: string): Promise<RunDetailRespon
     },
     basicInfo,
     chartTypeNotice: chartTypeNoticeFor(chartType),
+    externalLabPatientMismatch: readExternalLabPatientMismatch(runRow.raw_payload),
     sourceFiles,
     chartBodyByDate,
     labItemsByDate,

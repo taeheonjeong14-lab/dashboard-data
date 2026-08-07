@@ -14,6 +14,7 @@ import {
   isPlusVetLabPanelTitleLine,
   isVisitContextLine,
 } from '@/lib/text-bucketing/chart-dates';
+import { isExternalLabReportTableHeaderLine } from '@/lib/text-bucketing/external-lab-report';
 import type { OcrRow } from '@/lib/google-vision';
 import { minimalOcrCorrection, type OrderedLine, type BucketedLine } from '@/lib/text-bucketing/ocr-line-correction';
 
@@ -270,6 +271,17 @@ export function assignLinesToBuckets(
 
     if (isLabSectionHeader(normalized, line.text, chartKind)) {
       section = 'lab';
+      /**
+       * 외부 랩 결과지의 표 헤더는 **버리지 않고 lab 으로 넘긴다** — 섹션 경계 신호이기 때문.
+       * 결과지는 「표 + 코멘트」를 섹션마다 반복하는데, 코멘트를 어디서 끝낼지 아는 유일한 단서가
+       * 다음 표 헤더다. 여기서 헤더를 소비해 버리면 정리 단계(splitExternalLabReportLines)가
+       * 경계를 못 봐서 첫 '코멘트' 이후 문서 끝까지 통째로 코멘트로 간주한다
+       * (실측: KVL 60행 중 CBC 32행만 남고 Chemistry 이하 28행이 사라졌다).
+       * 헤더 줄 자체는 정리 단계에서 제거되므로 검사 파서까지 흘러가지 않는다.
+       */
+      if (isExternalLabReportTableHeaderLine(line.text)) {
+        buckets.lab.push({ page: line.page, text: line.text, corrected: false });
+      }
       continue;
     }
     if (isEnglishVaccinationSectionHeaderLine(line.text)) {
