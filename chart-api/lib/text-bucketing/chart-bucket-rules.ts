@@ -1,5 +1,6 @@
 import type { ChartKind } from '@/lib/text-bucketing/chart-kind';
 import { isVisitContextLine, extractWoorienLooseVisitDateTime, isPlusVetLabMachinePanelHeaderLine } from '@/lib/text-bucketing/chart-dates';
+import { isExternalLabReportTableHeaderLine } from '@/lib/text-bucketing/external-lab-report';
 
 /**
  * 상단 환자/병원 블록이 끝나고 본 차트가 시작됐다고 볼 조건.
@@ -82,6 +83,11 @@ export function isDiagnosisTrendSectionTitle(lineText: string): boolean {
  * - 기타: 한국어 진단검사 헤더 등
  */
 export function isLabSectionHeader(normalizedLine: string, originalLine: string, kind: ChartKind): boolean {
+  // 외부 랩 결과지의 검사 표 헤더("검사항목 검사결과 참고치")는 **차트 종류와 무관한** 신호다.
+  // 이 문서에는 차트사 앵커가 하나도 없어서, 이 검사가 없으면 문서 전체가 basicInfo 로 빨려들어가
+  // 검사 파서가 호출조차 되지 않는다(KVL 실측: 6쪽 60항목이 통째로 basicInfo). 종류별 early return
+  // 보다 반드시 앞에 와야 한다 — plusvet·intovet 은 아래에서 false 로 끊기 때문.
+  if (isExternalLabReportTableHeaderLine(originalLine)) return true;
   if (kind === 'plusvet') return false;
   if (normalizedLine.includes('lab examination')) return true;
   if (kind === 'woorien_pms') {

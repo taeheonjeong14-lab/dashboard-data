@@ -4,6 +4,11 @@ import { writeFileSync } from "fs";
 import { generateAndSaveAssessment } from "@/lib/run-ai-assessment-llm";
 import { assignLinesToBuckets } from "@/lib/text-bucketing/assign-buckets";
 import {
+  cleanExternalLabReportLines,
+  extractExternalLabReportCollectionDate,
+  isExternalLabReportTableHeaderLine,
+} from "@/lib/text-bucketing/external-lab-report";
+import {
   parseVaccinationRecordsFromBucketLines,
   type ParsedVaccinationRecord,
 } from "@/lib/text-bucketing/vaccination-parse";
@@ -4105,6 +4110,25 @@ export async function POST(request: NextRequest) {
         buckets = { ...buckets, vitals: [...buckets.vitals, ...physicalExamBucket] };
       }
     }
+    /**
+     * 외부 랩(수탁 검사기관) 결과지 — 병원 차트가 아니라 KVL·IDEXX 등이 보내온 검사 보고서.
+     * 표 헤더("검사항목 검사결과 참고치")가 있으면 isLabSectionHeader 가 basicInfo 를 닫고 lab 을
+     * 열어 주므로 여기까지는 온다. 다만 두 가지를 더 손봐야 기존 표 파서가 먹는다:
+     *  (a) 코멘트 해설문 제거 — "14~19 μg/dL" 같은 범위가 문장에 잔뜩 있어 가짜 항목이 된다.
+     *  (b) 컬럼 순서로 뽑히며 두 줄로 갈린 행 되붙이기("7.40 5.65 ~ 8.87 10^6/μL" + "RBC").
+     * 그리고 결과지엔 검사 날짜 앵커가 본문에 없으므로(머리말의 '검체채취일'이 유일) 그 날짜를
+     * 앵커 줄로 만들어 앞에 붙인다 — 안 그러면 60개 항목이 전부 'unknown' 그룹으로 간다.
+     */
+    const isExternalLabReport = sanitizedLines.some((l) => isExternalLabReportTableHeaderLine(l.text));
+    if (isExternalLabReport) {
+      const cleanedLab = cleanExternalLabReportLines(buckets.lab);
+      const collectionDate = extractExternalLabReportCollectionDate(buckets.basicInfo.map((l) => l.text));
+      const anchor = collectionDate
+        ? [{ page: cleanedLab[0]?.page ?? 1, text: collectionDate, corrected: false }]
+        : [];
+      buckets = { ...buckets, lab: [...anchor, ...cleanedLab] };
+    }
+
     const physicalExamItems =
       chartType === "efriends" ? parseEfriendsPhysicalExamItemsFromVitalsLines(buckets.vitals) : [];
     stage = "vitals";
