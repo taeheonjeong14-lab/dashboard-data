@@ -48,12 +48,59 @@ export type EnsureLabeledResult = {
  * 실패는 던지지 않는다 — 라벨이 없으면 배치가 라벨 없이 진행될 뿐, 생성 자체를 막을 이유는 없다.
  * (실패 사실은 호출부가 에러 로그로 올린다.)
  */
+/**
+ * 촬영일이 비어 있는 이미지에 **이 run 의 검사일**을 채운다.
+ *
+ * 병원이 사진을 날짜 그룹 없이 올리면 exam_date 가 null 로 들어온다. 그런데 건강검진 리포트는
+ * 검진일과 날짜가 같은 이미지만 근거로 쓰기 때문에, 날짜가 없으면 아무리 분석해도 리포트에
+ * 실리지 않는다. run 의 검사일이 하나로 정해질 때만 채운다 — 여러 날짜가 섞인 차트에서 전부
+ * 한 날짜로 몰아 버리면 그게 더 나쁘다.
+ */
+async function backfillMissingExamDates(
+  pool: ReturnType<typeof getAdminWebPgPool>,
+  runId: string,
+): Promise<string | null> {
+  // 1순위: 외부 랩 결과지의 검체채취일(추출 때 읽어 둔 값).
+  const { rows: runRows } = await pool.query<{ collection_date: string | null }>(
+    `SELECT raw_payload->'externalLabReport'->'header'->>'collectionDate' AS collection_date
+       FROM chart_pdf.parse_runs WHERE id = $1::uuid`,
+    [runId],
+  );
+  let date = runRows[0]?.collection_date?.trim() || null;
+
+  // 2순위: 검사 결과의 날짜가 하나뿐이면 그 날짜.
+  if (!date) {
+    const { rows: labRows } = await pool.query<{ d: string | null }>(
+      `SELECT DISTINCT (date_time::date)::text AS d
+         FROM chart_pdf.result_lab_items
+        WHERE parse_run_id = $1::uuid AND date_time ~ '^\\d{4}-\\d{2}-\\d{2}'`,
+      [runId],
+    );
+    if (labRows.length === 1) date = labRows[0]?.d ?? null;
+  }
+  if (!date) return null;
+
+  const res = await pool.query(
+    `UPDATE chart_pdf.parse_run_case_images SET exam_date = $2::date
+      WHERE parse_run_id = $1::uuid AND exam_date IS NULL`,
+    [runId, date],
+  );
+  if (res.rowCount) console.info(`[ensure-labeled] 촬영일 없는 이미지 ${res.rowCount}장에 ${date} 부여 · run ${runId}`);
+  return date;
+}
+
 export async function ensureRunImagesLabeled(
   runId: string,
   /** 토큰 차감 귀속. 건강검진은 유료, 진료케이스는 바른플랜이면 즉시 환불(net 0). */
   product: 'health_report' | 'case_blog',
 ): Promise<EnsureLabeledResult> {
   const pool = getAdminWebPgPool();
+
+  // 라벨링은 날짜 그룹 단위이고 요약도 그 날짜로 저장되므로, 날짜부터 채우고 시작한다.
+  await backfillMissingExamDates(pool, runId).catch((e) => {
+    console.error('[ensure-labeled] 촬영일 backfill 실패(라벨링은 계속):', e);
+    return null;
+  });
 
   const { rows } = await pool.query<UnlabeledRow>(
     `SELECT id, file_name, storage_path, exam_date

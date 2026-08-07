@@ -107,6 +107,13 @@ export type ReportSourceData = {
     bpDiastolic: string | null;
   }>;
   caseImages: ReportCaseImage[];
+  /**
+   * chart_pdf.parse_run_case_image_summaries — 이미지 **그룹(검사일)** 단위 판독 요약.
+   * 장별 코멘트(brief_comment)는 지금 아무도 쓰지 않는다(라벨링은 종류·부위만 채운다) — 실제
+   * 판독 내용은 전부 여기 bullets 에 있다. 이걸 안 실으면 리포트·검진 포인트에 이미지 근거가
+   * 한 줄도 들어가지 않는다.
+   */
+  caseImageSummaries: Array<{ examDate: string; bullets: string[] }>;
 };
 
 /** vet-report `report-template` 컴포넌트 호환 (미래 `/report/generate` 등) */

@@ -48,7 +48,12 @@ export async function POST(request: NextRequest) {
   // 라벨이 필요한 건 건강검진 리포트뿐이다(배치·정렬·캡션·a/b 분리·c/d 필터). 업로드 시점에는
   // 저장만 하고, 실제로 쓰기 직전인 여기서 미분류분만 1회 분류한다. 전부 분류돼 있으면 LLM 호출 0.
   // 실패해도 생성은 계속한다 — 라벨 없이 배치될 뿐이고, 그 편이 생성을 통째로 막는 것보다 낫다.
-  if (String(o.contentType ?? '') === 'health_checkup') {
+  //
+  // ★ 1단계인 **검진 포인트(health_points)에서도** 돌린다. 포인트는 "리포트에서 무엇을 말할지"를
+  //   정하는 단계라, 여기서 이미지 판독이 비어 있으면 이미지 소견은 리포트 어디에도 실리지 않는다
+  //   (실측: 이미지 30장이 미분류라 근거가 0개가 되어 포인트 생성이 실패했다).
+  //   멱등이라 2단계에서 다시 불러도 LLM 호출은 0이다.
+  if (['health_checkup', 'health_points'].includes(String(o.contentType ?? ''))) {
     try {
       const r = await ensureRunImagesLabeled(runId, 'health_report');
       if (r.groups > 0) {

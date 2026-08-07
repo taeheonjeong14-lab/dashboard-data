@@ -9,7 +9,7 @@ function lineCount(text: string) {
 
 export async function loadReportSourceData(runId: string): Promise<ReportSourceData> {
   const pool = getChartPgPool();
-  const [run, basic, charts, labs, vaccinations, plans, physical, images, vitals] = await Promise.all([
+  const [run, basic, charts, labs, vaccinations, plans, physical, images, vitals, imageSummaries] = await Promise.all([
     pool.query(
       `select id, created_at, friendly_id, provider, model, parser_version, document_id
        from chart_pdf.parse_runs where id = $1::uuid limit 1`,
@@ -63,6 +63,13 @@ export async function loadReportSourceData(runId: string): Promise<ReportSourceD
     pool.query(
       `select date_time, weight, temperature, respiratory_rate, heart_rate, bp_systolic, bp_diastolic, row_order
        from chart_pdf.result_vitals where parse_run_id = $1::uuid order by row_order nulls last`,
+      [runId],
+    ).catch(() => ({ rows: [] as Array<Record<string, unknown>> })),
+    // 이미지 판독 요약(검사일 그룹 단위). 장별 brief_comment 는 지금 아무도 채우지 않으므로
+    //  이미지 근거는 사실상 전부 여기에 있다.
+    pool.query(
+      `select (exam_date::date)::text as exam_date, bullets
+       from chart_pdf.parse_run_case_image_summaries where parse_run_id = $1::uuid`,
       [runId],
     ).catch(() => ({ rows: [] as Array<Record<string, unknown>> })),
   ]);
@@ -170,9 +177,17 @@ export async function loadReportSourceData(runId: string): Promise<ReportSourceD
       bpSystolic: (v.bp_systolic as string | null) ?? null,
       bpDiastolic: (v.bp_diastolic as string | null) ?? null,
     })),
+    caseImageSummaries: (imageSummaries.rows as Array<Record<string, unknown>>).map((s) => ({
+      examDate: String(s.exam_date || ''),
+      bullets: Array.isArray(s.bullets)
+        ? (s.bullets as unknown[]).map((b) => String(b ?? '').trim()).filter(Boolean)
+        : [],
+    })),
     caseImages: (images.rows as Array<Record<string, unknown>>).map((img) => ({
       id: String(img.id || ''),
-      examDate: String(img.exam_date || ''),
+      // 촬영일을 알면 그걸 쓰고, 모를 때만 저장일로 물러선다. 검진일 필터가 이 값을 보는데,
+      //  저장일만 쓰면 "7/30 검진분을 8/6 에 업로드" 한 이미지가 통째로 빠진다.
+      examDate: String(img.exam_date_exact || img.exam_date || ''),
       // 실제 촬영일(없을 수 있음). 진료케이스 날짜 앵커 전용 — 업로드일(examDate)과 섞지 말 것.
       examDateExact: String(img.exam_date_exact || ''),
       fileName: String(img.file_name || ''),

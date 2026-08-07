@@ -107,8 +107,20 @@ export function buildHealthCheckupSourceBlock(source: ReportSourceData, checkupD
   const vacLines = vacSource.slice(0, 30).map((v, i) => `${i + 1}. ${v.productName} | ${v.administeredDate ?? '-'} | ${v.recordType} ${v.doseOrder}`);
   const imageLines = imageSource.slice(0, 40).map((img, i) => {
     const label = examTypeLabel((img.examType as keyof typeof EXAM_TYPE_LABEL_KO) || 'other', img.radiologySub);
-    return `${i + 1}. ${img.examDate} | ${label} | 주목=${img.hasNotableFinding ? '있음' : '없음'} | ${img.briefComment}`;
+    const comment = img.briefComment?.trim() ? ` | ${img.briefComment.trim()}` : '';
+    return `${i + 1}. ${img.examDate} | ${label}${comment}`;
   });
+  /**
+   * 이미지 **판독 내용**은 여기 있다. 장별 briefComment 는 지금 아무도 채우지 않아서(라벨링은
+   * 종류·부위만 채운다) 위 목록만으로는 "무슨 사진이 몇 장 있다"까지밖에 전달되지 않았다 —
+   * 이미지가 아무리 많아도 소견이 프롬프트에 한 줄도 안 들어가던 구간이다.
+   */
+  const summarySource = checkupDate
+    ? (source.caseImageSummaries ?? []).filter((s) => matchesCheckupDate(s.examDate, checkupDate))
+    : (source.caseImageSummaries ?? []);
+  const imageSummaryLines = summarySource.flatMap((s) =>
+    s.bullets.slice(0, 20).map((b) => `- ${s.examDate || '날짜미상'} | ${b}`),
+  );
   const physicalExamLines = physicalExamSource
     .flatMap((d) => d.items.map((item) => ({ dateTime: d.dateTime, ...item })))
     .filter((item) => !['nrf', 'normal', 'good', '양호', '정상'].includes(item.valueText.trim().toLowerCase()))
@@ -136,8 +148,11 @@ export function buildHealthCheckupSourceBlock(source: ReportSourceData, checkupD
     '신체검사 특이사항(참고):',
     ...(physicalExamLines.length ? physicalExamLines : ['(특이사항 없음/데이터 없음)']),
     '',
-    '이미지 분석 요약:',
+    '이미지 목록:',
     ...(imageLines.length ? imageLines : ['(이미지 없음)']),
+    '',
+    '이미지 판독 요약(AI 비전 분석):',
+    ...(imageSummaryLines.length ? imageSummaryLines : ['(판독 요약 없음)']),
   ].join('\n');
 }
 

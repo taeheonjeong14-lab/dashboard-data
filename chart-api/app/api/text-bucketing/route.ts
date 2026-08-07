@@ -4227,6 +4227,30 @@ export async function POST(request: NextRequest) {
         chartBodyByDate = recovered;
       }
     }
+    /**
+     * 결과지 코멘트 그룹에 **검체채취일**을 붙인다.
+     *
+     * 결과지엔 차트사 방문 앵커가 없어 이 그룹은 'unknown' 으로 남는데, 리포트·검진 포인트 생성은
+     * **검진일과 날짜가 정확히 같은 그룹만** 근거로 넣는다(buildHealthCheckupSourceBlock).
+     * 즉 unknown 은 어떤 검진일을 넣어도 영원히 제외돼, 랩 판독의 소견(SDMA·proBNP·T4 해석)이
+     * 리포트에 단 한 줄도 못 들어간다. 결과지에서 우리가 이미 읽어 둔 날짜가 있으니 그걸 쓴다.
+     *
+     * 페이지가 **전부 결과지 구간인 그룹에만** 붙인다 — 차트 내용이 섞인 그룹은 그 날짜가 아니다.
+     */
+    const externalLabCollectionDate = externalLabReportHeader?.collectionDate ?? null;
+    if (externalLabCollectionDate && reportPages.size > 0) {
+      let dated = 0;
+      chartBodyByDate = chartBodyByDate.map((group) => {
+        const undated = !group.dateTime.trim() || group.dateTime === "unknown";
+        const allFromReport = group.pages.length > 0 && group.pages.every((p) => reportPages.has(p));
+        if (!undated || !allFromReport) return group;
+        dated += 1;
+        return { ...group, dateTime: externalLabCollectionDate };
+      });
+      if (dated > 0) {
+        console.log("[external-lab] 코멘트 그룹 %d개에 검체채취일 %s 부여", dated, externalLabCollectionDate);
+      }
+    }
 
     const allBucketLines = Object.values(buckets).flat();
     const correctedCount = allBucketLines.filter((line) => line.corrected).length;
