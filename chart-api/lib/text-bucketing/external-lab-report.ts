@@ -324,6 +324,14 @@ function isSectionTitleCandidate(text: string): boolean {
  * 마지막 섹션의 코멘트는 뒤에 표 헤더가 없어 문서 끝까지 이어지므로, 이 줄들이 그대로 코멘트로
  * 새어 들어간다. 랩마다 문구는 달라도 성격(주소·연락처·자문·면책)은 같다.
  */
+/**
+ * 푸터 블록의 첫 줄인 랩 회사명("코리아벳랩") — 주소·연락처 같은 성격 단서가 없어 위 규칙엔
+ * 안 걸린다. 뒤에 진짜 푸터 줄이 따라올 때만 푸터로 보므로, 본문의 짧은 줄을 오인하지 않는다.
+ */
+function isBareLabNameLine(text: string): boolean {
+  return /^[A-Za-z가-힣]{2,12}$/.test((text ?? '').replace(/\s+/g, ' ').trim());
+}
+
 function isExternalLabReportFooterLine(text: string): boolean {
   const t = (text ?? '').replace(/\s+/g, ' ').trim();
   if (!t) return false;
@@ -363,12 +371,25 @@ export function splitExternalLabReportLines<T extends SplitPairInput>(lines: T[]
   /** 다음 코멘트 문단이 어느 검사의 소견인지 — 직전 표의 제목. */
   let currentTitle: string | null = null;
   let inComment = false;
+  /** 인쇄물 푸터 시작 이후 — 규칙에 없는 문구가 섞여 있어도 코멘트로 받지 않는다. */
+  let inFooter = false;
 
-  const closeComment = () => {
+  /**
+   * @param nextSectionFollows 이 코멘트를 끝낸 것이 **다음 섹션의 시작**인가.
+   *   문서 끝(EOF)에서 닫을 땐 false 여야 한다. 뒤에 올 섹션이 없는데도 제목을 떼면 본문
+   *   마지막 줄이 사라진다(실측 KVL: "는 4.0보다 조금 높은 정도)" 가 통째로 유실).
+   */
+  const closeComment = (nextSectionFollows: boolean) => {
     inComment = false;
+    inFooter = false;
     // 문단 끝에 붙은 다음 섹션 제목(최대 2줄)을 떼어낸다 — 코멘트가 아니라 뒤 표의 제목이다.
     const titles: string[] = [];
-    while (buffer.length > 0 && titles.length < 2 && isSectionTitleCandidate(buffer[buffer.length - 1]!.text)) {
+    while (
+      nextSectionFollows &&
+      buffer.length > 0 &&
+      titles.length < 2 &&
+      isSectionTitleCandidate(buffer[buffer.length - 1]!.text)
+    ) {
       titles.unshift((buffer.pop()!.text ?? '').replace(/\s+/g, ' ').trim());
     }
     if (buffer.length > 0) {
@@ -382,7 +403,7 @@ export function splitExternalLabReportLines<T extends SplitPairInput>(lines: T[]
   for (const line of lines) {
     const t = (line.text ?? '').replace(/\s+/g, ' ').trim();
     if (isExternalLabReportTableHeaderLine(t)) {
-      if (inComment) closeComment();
+      if (inComment) closeComment(true);
       // 첫 섹션의 제목만 여기서 줍는다. 둘째 섹션부터는 제목이 앞 코멘트 문단 끝에 붙어 오므로
       // closeComment 가 이미 정확히 떼어 놨다 — 여기서 lab 줄(산점도 범례 등)로 덮어쓰면 안 된다.
       if (currentTitle === null) {
@@ -394,19 +415,25 @@ export function splitExternalLabReportLines<T extends SplitPairInput>(lines: T[]
       }
       continue;
     }
-    if (inComment && TABLE_ROW_RE.test(t)) closeComment();
+    if (inComment && TABLE_ROW_RE.test(t)) closeComment(true);
     if (isExternalLabReportCommentHeaderLine(t)) {
       inComment = true;
       continue;
     }
     if (inComment) {
-      if (!isExternalLabReportFooterLine(t)) buffer.push(line);
+      if (isExternalLabReportFooterLine(t)) {
+        // 푸터의 첫 줄(랩 회사명)은 규칙에 안 걸려 이미 버퍼에 들어가 있다 — 여기서 되돌린다.
+        if (buffer.length > 0 && isBareLabNameLine(buffer[buffer.length - 1]!.text)) buffer.pop();
+        inFooter = true;
+        continue;
+      }
+      if (!inFooter) buffer.push(line);
       continue;
     }
     if (isExternalLabReportProseLine(t)) continue;
     kept.push(line);
   }
-  if (inComment) closeComment();
+  if (inComment) closeComment(false);
 
   return { lab: pairSplitLabReportRows(kept), comments };
 }
