@@ -58,7 +58,7 @@ export type EnsureLabeledResult = {
  * 날짜가 하나로 정해질 때만 채운다 — 여러 날짜가 섞인 차트에서 전부 한 날짜로 몰아 버리면
  * 그게 더 나쁘다(사진이 엉뚱한 진료에 붙는다).
  */
-async function backfillMissingExamDates(
+export async function backfillMissingExamDates(
   pool: ReturnType<typeof getAdminWebPgPool>,
   runId: string,
 ): Promise<string | null> {

@@ -5,6 +5,7 @@ import { getAdminWebPgPool } from '@/lib/db';
 import { createServiceRoleClient } from '@/lib/supabase/service-role';
 import { type ImageInputPart } from '@/lib/chart-case-images/analyze';
 import { prepareImageForAnalysis } from '@/lib/chart-case-images/encode';
+import { backfillMissingExamDates } from '@/lib/chart-case-images/ensure-labeled';
 import type { ExamType, RadiologySub, FindingSpot } from '@/lib/chart-case-images/types';
 
 export const dynamic = 'force-dynamic';
@@ -94,6 +95,12 @@ export async function GET(
 
   try {
     await ensureTable(pool); // exam_date 등 누락 컬럼 self-heal 후 SELECT
+    // 촬영일이 빈 이미지에 이 run 의 진료일을 채운다(LLM 호출 없는 순수 SQL). 라벨링 때도 하지만
+    // 그건 생성 버튼을 눌러야 도는지라, 이미지 탭만 열어 본 담당자에겐 계속 "날짜 미지정"으로 보였다.
+    await backfillMissingExamDates(pool, runId).catch((e) => {
+      console.error('[case-images] 촬영일 backfill 실패(조회는 계속):', e);
+      return null;
+    });
     const { rows } = await pool.query<{
       id: string;
       idx: number;
