@@ -415,3 +415,71 @@ export function splitExternalLabReportLines<T extends SplitPairInput>(lines: T[]
 export function cleanExternalLabReportLines<T extends SplitPairInput>(lines: T[]): T[] {
   return splitExternalLabReportLines(lines).lab;
 }
+
+export type ExternalLabReportRow = {
+  page: number;
+  itemName: string;
+  valueText: string;
+  unit: string | null;
+  referenceRange: string | null;
+  rawRow: string;
+};
+
+/**
+ * 결과지의 검사행 — 「항목 값 [참고범위] [단위]」.
+ *
+ * 차트사 파서에 맡기면 안 된다. 이 형식은 어느 차트사 표와도 다르고, 차트사 파서는 자기 표를
+ * 전제로 토큰을 나누기 때문에 조용히 어긋난 값을 만든다(실측: plusvet 파서에 KVL 을 물리면
+ * "Hb 19.0 13.1 ~ 20.5 g/dL" 이 항목 `HB190131` · 값 `20.5` 가 됐다 — 이름·값·하한이 한 덩어리로
+ * 붙고 **참고범위 상한이 검사값 자리로** 들어갔다. 60행 중 50행만, 그나마 전부 틀린 값).
+ * 결과지 표는 랩이 달라도 골격이 같으므로 여기서 한 번에 처리한다.
+ */
+const EXTERNAL_LAB_ROW_RE = new RegExp(
+  '^([A-Za-z가-힣(][^~]{0,38}?)' + // 항목명 — 참고범위 물결을 넘어 삼키지 않는다
+    '\\s+([<>]?\\s*-?\\d[\\d.,]*)' + // 값
+    '(?:\\s+(-?\\d[\\d.,]*)\\s*[~–—]\\s*(-?\\d[\\d.,]*))?' + // 참고범위(없는 항목이 있다: RDW-SD, IRF …)
+    `(?:\\s+(${UNIT_RE.source}))?\\s*$`, // 단위(비율 항목엔 없다)
+  'i',
+);
+
+/** 정성 결과행 — "Ehrlichia Ab Negative" 처럼 값이 숫자가 아닌 항목. */
+const EXTERNAL_LAB_QUALITATIVE_ROW_RE =
+  /^([A-Za-z가-힣(][^~]{0,38}?)\s+(Positive|Negative|Detected|Not\s+Detected|양성|음성)\s*$/i;
+
+/**
+ * 한 줄을 검사행으로 읽는다. 검사행이 아니면 null.
+ *
+ * 참고범위도 단위도 없는 「이름 숫자」는 받지 않는다 — 산점도 범례·페이지 번호 같은 줄이
+ * 그 모양이라, 받으면 가짜 항목이 된다. 결과지 표의 행은 최소한 둘 중 하나를 갖는다.
+ */
+export function parseExternalLabReportRow(text: string, page: number): ExternalLabReportRow | null {
+  const t = (text ?? '').replace(/\s+/g, ' ').trim();
+  if (!t || isExternalLabReportTableHeaderLine(t) || isExternalLabReportProseLine(t)) return null;
+
+  const m = EXTERNAL_LAB_ROW_RE.exec(t);
+  if (m) {
+    const [, name, value, low, high, unit] = m;
+    if (!low && !unit) return null;
+    return {
+      page,
+      itemName: name!.trim(),
+      valueText: value!.replace(/\s+/g, ''),
+      unit: unit?.trim() || null,
+      referenceRange: low && high ? `${low.trim()} - ${high.trim()}` : null,
+      rawRow: t,
+    };
+  }
+
+  const q = EXTERNAL_LAB_QUALITATIVE_ROW_RE.exec(t);
+  if (q) {
+    return { page, itemName: q[1]!.trim(), valueText: q[2]!.trim(), unit: null, referenceRange: null, rawRow: t };
+  }
+  return null;
+}
+
+/** 결과지 lab 줄 묶음 → 검사행. 검사행이 아닌 줄(날짜 앵커, "단위" 머리글 등)은 조용히 버린다. */
+export function parseExternalLabReportRows(lines: readonly SplitPairInput[]): ExternalLabReportRow[] {
+  return lines
+    .map((l) => parseExternalLabReportRow(l.text, l.page))
+    .filter((r): r is ExternalLabReportRow => r !== null);
+}

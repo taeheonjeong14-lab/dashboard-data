@@ -6,6 +6,7 @@ import { assignLinesToBuckets } from "@/lib/text-bucketing/assign-buckets";
 import {
   findExternalLabReportPages,
   parseExternalLabReportHeader,
+  parseExternalLabReportRows,
   splitExternalLabReportLines,
 } from "@/lib/text-bucketing/external-lab-report";
 import {
@@ -4128,14 +4129,19 @@ export async function POST(request: NextRequest) {
      *   페이지로 자르면 결과지는 결과지대로, 차트는 차트대로 처리돼 순서와 무관해진다.
      */
     const externalLabReportPages = findExternalLabReportPages(sanitizedLines);
+    const reportPages = new Set(externalLabReportPages);
     const externalLabReportHeader =
       externalLabReportPages.length > 0
         ? parseExternalLabReportHeader(
             sanitizedLines.filter((l) => externalLabReportPages.includes(l.page)).map((l) => l.text),
           )
         : null;
+    /**
+     * 문서에 차트는 없고 결과지뿐인가. 이 경우 기본정보의 주인은 결과지다(아래 basicInfo 참고).
+     */
+    const externalLabReportOnly =
+      externalLabReportPages.length > 0 && sanitizedLines.every((l) => reportPages.has(l.page));
     if (externalLabReportPages.length > 0) {
-      const reportPages = new Set(externalLabReportPages);
       const firstReportPage = externalLabReportPages[0]!;
       const lastReportPage = externalLabReportPages[externalLabReportPages.length - 1]!;
       const split = splitExternalLabReportLines(buckets.lab.filter((l) => reportPages.has(l.page)));
@@ -4241,14 +4247,38 @@ export async function POST(request: NextRequest) {
      * 외부 랩 결과지 머리말로 기본정보의 **빈 칸만** 채운다(위 텍스트 레이어 백스톱과 같은 방식).
      *
      * 우선순위가 차트인 이유: 결과지는 의뢰서에 적힌 대로 찍히고, run 의 주인은 차트의 환자다.
-     * 결과지만 올린 경우엔 차트 값이 애초에 없으므로 결과지가 그대로 채운다 — 그전까지는
-     * 동물이름·보호자가 통째로 비어 있었다.
      *
-     * 둘 다 있는데 다르면 덮어쓰지 않고 **불일치로 남긴다** — 남의 결과지가 섞여 올라온 경우라
-     * 조용히 한쪽을 택하면 안 된다.
+     * ★ 단, **결과지만 올린 문서에선 결과지가 이긴다.** 차트 값이 "없다"고 기대하면 안 되기
+     *   때문이다: 차트용 basicInfo 파서가 결과지 머리말을 자기 양식으로 읽어 **빈 값이 아니라
+     *   쓰레기 값**을 만든다(실측 KVL: 보호자 "동물품종", 성별 "4486 2026.07.30"). 그러면 빈칸만
+     *   채우는 아래 로직이 발동하지 않아, 제대로 읽어 둔 결과지 값이 영영 반영되지 않는다.
+     *
+     * 차트와 결과지가 함께 올라온 경우엔 종전대로 차트가 이기고, 둘 다 있는데 다르면 덮어쓰지 않고
+     * **불일치로 남긴다** — 남의 결과지가 섞여 올라온 경우라 조용히 한쪽을 택하면 안 된다.
      */
     const externalLabPatientMismatch: Array<{ field: string; chart: string; report: string }> = [];
-    if (externalLabReportHeader) {
+    if (externalLabReportHeader && externalLabReportOnly) {
+      const overwritten: string[] = [];
+      const fromReport: Partial<Record<keyof typeof parsedBasicInfo, string | null>> = {
+        patientName: externalLabReportHeader.patientName,
+        ownerName: externalLabReportHeader.ownerName,
+        species: externalLabReportHeader.species,
+        breed: externalLabReportHeader.breed,
+        sex: externalLabReportHeader.sex,
+        birth: externalLabReportHeader.birth,
+      };
+      for (const [key, value] of Object.entries(fromReport) as Array<
+        [keyof typeof parsedBasicInfo, string | null]
+      >) {
+        if (!value?.trim()) continue;
+        if (parsedBasicInfo[key] === value) continue;
+        (parsedBasicInfo[key] as string | null) = value;
+        overwritten.push(String(key));
+      }
+      if (overwritten.length > 0) {
+        console.log("[external-lab] 결과지 단독 문서 — 기본정보를 결과지 값으로: %s", JSON.stringify(overwritten));
+      }
+    } else if (externalLabReportHeader) {
       const fromReport: Partial<Record<keyof typeof parsedBasicInfo, string | null>> = {
         patientName: externalLabReportHeader.patientName,
         ownerName: externalLabReportHeader.ownerName,
@@ -4310,7 +4340,34 @@ export async function POST(request: NextRequest) {
     stage = "labItems";
     for (const group of labLineGroups) {
       stage = "labItems:parse";
-      const parsedRaw = parseLabItemsFromGroupLines(group.lines, chartType, { isUrinalysis: group.isUrinalysis });
+      /**
+       * 결과지 행과 차트 행은 표 형식이 아예 달라 파서도 갈라야 한다(차트사 파서에 결과지를 물리면
+       * 값이 참고범위 상한으로 바뀌는 식으로 조용히 어긋난다 — parseExternalLabReportRows 주석).
+       * 같은 날짜 그룹에 둘이 섞일 수 있으므로(같은 날 병원 검사 + 외부 랩 결과지) 그룹 통째가
+       * 아니라 **페이지로 갈라** 각자 파서에 보낸다.
+       */
+      const reportGroupLines = group.lines.filter((l) => reportPages.has(l.page));
+      const chartGroupLines = group.lines.filter((l) => !reportPages.has(l.page));
+      const parsedRaw: LabItem[] = [
+        ...(chartGroupLines.length > 0
+          ? parseLabItemsFromGroupLines(chartGroupLines, chartType, { isUrinalysis: group.isUrinalysis })
+          : []),
+        ...parseExternalLabReportRows(reportGroupLines).map((row) => {
+          const numeric = Number.parseFloat(row.valueText.replace(/[<>]/g, "").replace(/,/g, ""));
+          return {
+            page: row.page,
+            rowY: 0,
+            itemName: row.itemName,
+            value: Number.isFinite(numeric) ? numeric : null,
+            valueText: row.valueText,
+            unit: row.unit,
+            referenceRange: row.referenceRange,
+            // 결과지는 H/L 마커를 인쇄하지 않는다(색으로만 표시) — 값↔참고범위로 계산한다.
+            flag: computeLabFlag(row.valueText, row.referenceRange),
+            rawRow: row.rawRow,
+          };
+        }),
+      ];
       stage = "labItems:sanitize";
       const parsed = sanitizeLabItems(parsedRaw, chartType);
       const mappedItems: Array<{ itemName: string; rawItemName: string; valueText: string; unit: string | null; referenceRange: string | null; flag: LabItem["flag"]; page: number }> = [];
