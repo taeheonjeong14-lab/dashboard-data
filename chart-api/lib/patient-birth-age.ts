@@ -172,6 +172,20 @@ export function finalizeBasicInfoBirthAndAge(
 ): BasicInfoBirthAgeResult {
   const todayKst = utcDateFromKstCalendar(now);
 
+  /**
+   * 이미 실제 생년월일이 들어와 있으면 차트사별 나이 표기 해석을 건너뛴다.
+   *
+   * 차트사 분기는 "이 칸엔 나이가 적혀 있다"는 전제 위에 서 있다(플러스벳 `13Y OM` → 방문일에서
+   * 역산해 생일을 합성). 그런데 외부 랩 결과지는 머리말에 **진짜 생년월일**을 찍는다
+   * ("동물나이: 11세 2015.03.28"). 이걸 플러스벳 규칙에 넣으면 나이 표기가 아니라서 파싱에
+   * 실패하고 생일·나이가 함께 null 이 된다 — 정답을 손에 쥐고 버리는 셈이다.
+   * 날짜가 확실할 때는 어느 차트사든 그 날짜가 합성값보다 정확하므로 여기서 먼저 처리한다.
+   */
+  const explicitBirthIso = parseLeadingIsoDate(parsed.birth) ?? normalizeBirthToIso(parsed.birth);
+  if (explicitBirthIso) {
+    return { ...parsed, birth: explicitBirthIso, age: ageYearsCeilFromBirthIso(explicitBirthIso, todayKst) };
+  }
+
   if (chartKind === 'plusvet') {
     const ym = parsePlusVetAgeYM(parsed.birth);
     if (!ym) {
