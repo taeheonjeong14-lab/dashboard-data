@@ -19,6 +19,11 @@ const PRIORITY_RULES: CanonicalRule[] = [
   { canonical: 'BUN/CREA', pattern: /BUN\s*\/\s*CR\b/i },
   { canonical: 'BUN/CREA', pattern: /(?:^|[^A-Z0-9])B\s*\/\s*C(?:\b|\s*(?:R|ratio|비))/i },
   { canonical: 'NA/K', pattern: /NA\s*\/\s*K/i },
+  // 보정 염소(Corrected Cl = Cl × 140/Na) — 측정 Cl 과 다른 값이라 합치지 않는다.
+  //  normalizeToken 이 괄호를 지우면 'Cl(corr)' 이 'CL' 이 되어 측정 Cl 로 흡수되므로,
+  //  raw 단계인 여기서 잡아 멱등성까지 확보한다(두 번째 패턴이 canonical 자기 자신을 잡는다).
+  { canonical: 'Cl(corr)', pattern: /CORRECTED\s*CL\b/i },
+  { canonical: 'Cl(corr)', pattern: /\bCL\s*\(\s*CORR/i },
   { canonical: 'D-dimer', pattern: /D[\s-]*DIMER/i },
   // 이온화 칼슘(Ca2+) = iCA. "(7.4)"는 pH 7.4 보정값이라 별개 항목(iCA(7.4)) → normalizeToken 이 괄호를
   //  지우기 전에 여기서 구분해 잡는다. (7.4) 형태를 먼저 검사. 총칼슘 "Ca"(+ 없음)는 여기서 안 잡히고 CA 로.
@@ -127,7 +132,26 @@ const DIRECT_ALIASES: Record<string, string> = {
   TCHOLESTEROL: 'CHOL',
   TOTALCHOLESTEROL: 'CHOL',
   PLATELETS: 'PLT',
+  PLATELET: 'PLT',
   PLATLETS: 'PLT',
+  PLATLET: 'PLT',
+  // 외부 랩 결과지(KVL 등)는 약어 대신 풀네임으로 인쇄한다 — 약어 별칭만 있으면 통째로 미매핑된다.
+  GLOBULIN: 'GLOB',
+  ALBUMIN: 'ALB',
+  TOTALBILIRUBIN: 'TBIL',
+  BILIRUBINTOTAL: 'TBIL',
+  TRIGLYCERIDE: 'TRIG',
+  TRIGLYCERIDES: 'TRIG',
+  GLUCOSE: 'GLU', // 소변 포도당은 UA 섹션에서 urinalysisSectionItemName 이 U-GLU 로 돌린다(여긴 혈액)
+  AMYLASE: 'AMYL',
+  LIPASE: 'LIPA', // 췌장 리파아제(cPL/fPL)와 다른 항목 — pancreaticLipaseImmunoCanonical 는 "pancreatic" 이 붙어야 발동
+  CREATININE: 'CREA',
+  // 단독 'P' = 무기인. 카테고리 맵은 이미 P 를 electrolyte 로 보고 있는데 표준명이 PHOS 뿐이라 매칭이 끊겼다.
+  P: 'PHOS',
+  PHOSPHORUS: 'PHOS',
+  INORGANICPHOSPHORUS: 'PHOS',
+  T4TOTAL: 'T4',
+  TOTALT4: 'T4',
   // PLT-I(임피던스)·PLT-O(광학)는 같은 혈소판수의 다른 측정법 — 값이 다를 수 있어 PLT로 합치지 않고 별개로 둔다.
   PLTI: 'PLT-I',
   PLTO: 'PLT-O',
@@ -406,7 +430,7 @@ const RECOGNIZED_LAB_ITEMS: ReadonlySet<string> = new Set(
     'TBIL', 'DBIL', 'TBA', 'TCHO', 'CHOL', 'TRIG', 'AMYL', 'LIPA', 'CK', 'TLI', 'NH3', 'FRUC', 'OSM', 'OSM CA',
     'CKMB', 'proBNP', 'NT-proBNP', 'cTnI', 'SDH', 'GLDH', 'URIC', 'UREA',
     // Electrolyte
-    'NA', 'K', 'CL', 'CA', 'iCA', 'iCA(7.4)', 'PHOS', 'MG', 'NA/K', 'AG',
+    'NA', 'K', 'CL', 'Cl(corr)', 'CA', 'iCA', 'iCA(7.4)', 'PHOS', 'MG', 'NA/K', 'AG',
     // Urinalysis (요검사) — 소변 고유 항목만
     'SG', 'UBG', 'Nitrite', 'LEU',
     // UA 섹션 전용(섹션 헤더로 소변 확정 시 사용하는 소변 전용 이름)
@@ -695,6 +719,7 @@ const ITEM_TO_CATEGORY: Record<string, string> = {
   NA: 'electrolyte',
   K: 'electrolyte',
   CL: 'electrolyte',
+  'Cl(corr)': 'electrolyte',
   CA: 'electrolyte',
   ICA: 'electrolyte',
   iCA: 'electrolyte',

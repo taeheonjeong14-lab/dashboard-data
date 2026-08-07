@@ -32,7 +32,7 @@ const CHEMISTRY_LAB_SHEET_SUPPLEMENTARY_SHARED: readonly string[] = ['DBIL', 'TB
 const CHEMISTRY_LAB_SHEET_SUPPLEMENTARY_TAIL: readonly string[] = ['TLI', 'OSM CA', 'proBNP', 'cTnI'];
 
 const ELECTROLYTE_LAB_SHEET_FIXED: readonly string[] = ['Na', 'K', 'Cl', 'NA/K'];
-const ELECTROLYTE_LAB_SHEET_SUPPLEMENTARY: readonly string[] = ['iCA', 'iCA(7.4)', 'Mg', 'AG'];
+const ELECTROLYTE_LAB_SHEET_SUPPLEMENTARY: readonly string[] = ['iCA', 'iCA(7.4)', 'Mg', 'AG', 'Cl(corr)'];
 
 const BLOOD_GAS_LAB_SHEET_FIXED: readonly string[] = ['pH', 'pCO2', 'HCO3', 'BE', 'pO2'];
 const BLOOD_GAS_LAB_SHEET_SUPPLEMENTARY: readonly string[] = ['SO2', 'Lactate', 'tCO2', 'tHb'];
