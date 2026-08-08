@@ -435,6 +435,8 @@ const RECOGNIZED_LAB_ITEMS: ReadonlySet<string> = new Set(
     'SG', 'UBG', 'Nitrite', 'LEU',
     // UA 섹션 전용(섹션 헤더로 소변 확정 시 사용하는 소변 전용 이름)
     'U-pH', 'U-GLU', 'U-PRO', 'U-BIL', 'U-KET', 'U-BLD', 'U-RBC', 'U-WBC', 'U-URIC', 'Color', 'Clarity',
+    // 요침사(microscopy) — 혈액에 없는 이름이라 U- 접두 없이 원문 표기를 그대로 쓴다.
+    'Cast', 'Crystal', 'Epithelia', 'Bacteria',
     'UPC', 'U-CRE',
     // Coagulation
     'PT', 'aPTT', 'TT', 'D-dimer', 'FDP', 'AT III', 'BMBT', 'Platelet func',
@@ -682,6 +684,8 @@ const ITEM_TO_CATEGORY: Record<string, string> = {
   'U-KET': 'urinalysis', 'U-BLD': 'urinalysis', 'U-RBC': 'urinalysis', 'U-WBC': 'urinalysis',
   'U-URIC': 'urinalysis',
   Color: 'urinalysis', Clarity: 'urinalysis',
+  // 요침사(microscopy)
+  Cast: 'urinalysis', Crystal: 'urinalysis', Epithelia: 'urinalysis', Bacteria: 'urinalysis',
   // 소변 화학 — 소변 샘플 필요(혈액과 같은 표에 찍혀 나와도 소변 항목).
   UPC: 'urinalysis',
   'U-CRE': 'urinalysis',
@@ -915,7 +919,22 @@ const URINALYSIS_SECTION_MAP: Record<string, string> = {
   BIL: 'U-BIL', BILIRUBIN: 'U-BIL',
   KET: 'U-KET', KETONE: 'U-KET', KETONES: 'U-KET',
   BLD: 'U-BLD', BLOOD: 'U-BLD', ERY: 'U-BLD', OB: 'U-BLD', OCCULTBLOOD: 'U-BLD',
+  // 딥스틱 잠혈을 "Blood/Hemoglobin" 한 칸으로 찍는 랩이 있다(KVL 실측). 혈액 Hb 와 이름이 겹치므로
+  // 전역이 아니라 여기(섹션 한정)에서만 받는다.
+  //  ※ "HB" 단독은 넣지 않는다 — 섹션 판정이 한 번만 어긋나도 혈액 헤모글로빈이 잠혈로 둔갑한다.
+  //  ※ normalizeToken 은 '/' 를 지우지 않는다 — 키도 슬래시를 살려 둔다.
+  'BLOOD/HEMOGLOBIN': 'U-BLD', HEMOGLOBIN: 'U-BLD',
   RBC: 'U-RBC', WBC: 'U-WBC',
+  /**
+   * 요침사(microscopy) 항목. 원문은 "Cast(Microscopy)" 처럼 괄호가 붙어 오는데 normalizeToken 이
+   * 괄호를 떼므로 CAST 로 들어온다. 혈액 패널엔 없는 이름이라 U- 접두 없이 원문 표기를 canonical 로
+   * 쓴다 — Color·Clarity 와 같은 규칙이다(겹치는 이름만 U-* 를 붙인다).
+   */
+  CAST: 'Cast', CASTS: 'Cast', URINARYCAST: 'Cast',
+  CRYSTAL: 'Crystal', CRYSTALS: 'Crystal',
+  EPITHELIA: 'Epithelia', EPITHELIAL: 'Epithelia', EPITHELIALCELL: 'Epithelia',
+  EPITHELIALCELLS: 'Epithelia', EPI: 'Epithelia',
+  BACTERIA: 'Bacteria', BACT: 'Bacteria', BACTERIUM: 'Bacteria',
   LEU: 'LEU', LEUKOCYTE: 'LEU', LEUKOCYTES: 'LEU',
   SG: 'SG', USG: 'SG', SPGR: 'SG', SPECIFICGRAVITY: 'SG',
   UBG: 'UBG', URO: 'UBG', UROBILINOGEN: 'UBG',
