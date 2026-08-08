@@ -9,6 +9,8 @@
  * 표라는 공통 골격을 갖고, 다른 건 로고와 헤더 문구뿐이다.
  */
 
+import { looksLikeUrinalysisGroup } from '@dashboard/lab-normalize';
+
 /** 검사 표 헤더 — "검사항목 검사결과 참고치 [단위]" / 영문 "Test Result Reference [Unit]". */
 export function isExternalLabReportTableHeaderLine(text: string): boolean {
   const t = (text ?? '').replace(/\s+/g, ' ').trim();
@@ -301,13 +303,14 @@ export type SplitPairInput = { page: number; text: string };
  * 조건을 좁게 잡아(값 줄은 반드시 단위로 끝나고, 이름 줄은 숫자로 시작하지 않는 짧은 이름)
  * 산점도 범례("RBC" → "Pink" → "-") 같은 블록에서는 발화하지 않는다.
  */
-export function pairSplitLabReportRows<T extends SplitPairInput>(lines: T[]): T[] {
+export function pairSplitLabReportRows<T extends SplitPairInput & { sectionTitle?: true }>(lines: T[]): T[] {
   const out: T[] = [];
   for (let i = 0; i < lines.length; i += 1) {
     const cur = lines[i]!;
     const next = lines[i + 1];
     const curText = (cur.text ?? '').replace(/\s+/g, ' ').trim();
-    if (next && VALUE_ONLY_LINE_RE.test(curText) && isBareItemNameLine(next.text)) {
+    // 섹션 제목은 항목명이 아니다 — 앞 값 줄에 되붙이면 "Urinalysis 1304 …" 같은 가짜 행이 된다.
+    if (next && !cur.sectionTitle && !next.sectionTitle && VALUE_ONLY_LINE_RE.test(curText) && isBareItemNameLine(next.text)) {
       const name = (next.text ?? '').replace(/\s+/g, ' ').trim();
       out.push({ ...cur, text: `${name} ${curText}` });
       i += 1; // 이름 줄은 소비
@@ -334,7 +337,10 @@ const TABLE_ROW_RE = new RegExp(
  */
 function isSectionTitleCandidate(text: string): boolean {
   const t = (text ?? '').replace(/\s+/g, ' ').trim();
-  if (!t || t.length > 30) return false;
+  // 40자 — 패널 이름이 길게 인쇄되는 경우가 있다("UCCR (Urine Cortisol:Creatinine Ratio)" 38자).
+  // 30자에서 잘려 제목으로 안 잡히면 그 패널 행들이 **앞 섹션(요검사)에 딸려 들어간다**(실측 탱이).
+  // 코멘트 문장을 잘못 집을 위험은 프로즈 판정 + "최대 2줄" 상한이 막는다.
+  if (!t || t.length > 40) return false;
   if (isExternalLabReportProseLine(t)) return false;
   if (/[:：.]$/.test(t)) return false; // "1. SDMA와 Creatinine이 모두 정상:" 같은 해설 항목 제외
   if (/^\d/.test(t)) return false;
@@ -374,9 +380,17 @@ function isExternalLabReportFooterLine(text: string): boolean {
  */
 export const EXTERNAL_LAB_COMMENT_LABEL_PREFIX = '[외부 검사 코멘트';
 
+/** 결과지 lab 줄 — 어느 섹션(패널)에서 나왔는지를 함께 들고 다닌다. */
+export type ExternalLabReportLabLine<T> = T & {
+  /** 이 줄이 속한 섹션 제목("Chemistry · Chemistry Panel 25종"). 첫 섹션 제목이 없으면 null. */
+  section: string | null;
+  /** 섹션 제목 줄 자체(검사행이 아니다). */
+  sectionTitle?: true;
+};
+
 export type ExternalLabReportSplit<T> = {
   /** 검사 표 줄 — 기존 표 파서로 넘어간다. */
-  lab: T[];
+  lab: Array<ExternalLabReportLabLine<T>>;
   /** 코멘트 해설문 — 검사값이 아니라 판독 소견이라 차트 본문으로 간다. */
   comments: T[];
 };
@@ -395,7 +409,7 @@ export type ExternalLabReportSplit<T> = {
  * 검사값만큼 진료 맥락이다. 다만 **병원 수의사가 쓴 노트가 아니므로** 출처 표시를 달아 내보낸다.
  */
 export function splitExternalLabReportLines<T extends SplitPairInput>(lines: T[]): ExternalLabReportSplit<T> {
-  const kept: T[] = [];
+  const kept: Array<ExternalLabReportLabLine<T>> = [];
   const comments: T[] = [];
   let buffer: T[] = [];
   /** 다음 코멘트 문단이 어느 검사의 소견인지 — 직전 표의 제목. */
@@ -413,14 +427,14 @@ export function splitExternalLabReportLines<T extends SplitPairInput>(lines: T[]
     inComment = false;
     inFooter = false;
     // 문단 끝에 붙은 다음 섹션 제목(최대 2줄)을 떼어낸다 — 코멘트가 아니라 뒤 표의 제목이다.
-    const titles: string[] = [];
+    const titleLines: T[] = [];
     while (
       nextSectionFollows &&
       buffer.length > 0 &&
-      titles.length < 2 &&
+      titleLines.length < 2 &&
       isSectionTitleCandidate(buffer[buffer.length - 1]!.text)
     ) {
-      titles.unshift((buffer.pop()!.text ?? '').replace(/\s+/g, ' ').trim());
+      titleLines.unshift(buffer.pop()!);
     }
     if (buffer.length > 0) {
       const label = currentTitle
@@ -429,7 +443,18 @@ export function splitExternalLabReportLines<T extends SplitPairInput>(lines: T[]
       comments.push({ ...buffer[0]!, text: label }, ...buffer);
     }
     buffer = [];
-    if (titles.length > 0) currentTitle = titles.join(' · ');
+    if (titleLines.length > 0) {
+      currentTitle = titleLines.map((l) => (l.text ?? '').replace(/\s+/g, ' ').trim()).join(' · ');
+      /**
+       * 제목 줄을 **lab 으로 되돌린다.** 예전엔 라벨로만 쓰고 버렸는데, 그러면
+       *  (a) 디버그 버킷에서 어느 패널의 표인지 알 수 없고(실측: 내용은 다 있는데 'Urinalysis' 만 없음),
+       *  (b) 무엇보다 **UA 판정이 섹션이 아니라 결과지 전체에 걸린다** — 결과지는 검체채취일 하나짜리
+       *      lab 그룹이라, 요검사 신호(SG·Ery/μL…) 두 개면 CBC·혈청까지 요검사로 물든다
+       *      (실측 양파·탱이: 혈액 RBC·WBC 와 혈청 Glucose 가 U-RBC·U-WBC·U-GLU 로 저장됐다).
+       * 검사행이 아니므로 sectionTitle 로 표시해 파서·행 되붙이기에서 제외한다.
+       */
+      for (const l of titleLines) kept.push({ ...l, section: currentTitle, sectionTitle: true });
+    }
   };
 
   for (const line of lines) {
@@ -439,11 +464,19 @@ export function splitExternalLabReportLines<T extends SplitPairInput>(lines: T[]
       // 첫 섹션의 제목만 여기서 줍는다. 둘째 섹션부터는 제목이 앞 코멘트 문단 끝에 붙어 오므로
       // closeComment 가 이미 정확히 떼어 놨다 — 여기서 lab 줄(산점도 범례 등)로 덮어쓰면 안 된다.
       if (currentTitle === null) {
+        const tailFrom = Math.max(0, kept.length - 2);
         const titles = kept
-          .slice(-2)
+          .slice(tailFrom)
           .map((l) => (l.text ?? '').replace(/\s+/g, ' ').trim())
           .filter(isSectionTitleCandidate);
-        if (titles.length > 0) currentTitle = titles.join(' · ');
+        if (titles.length > 0) {
+          currentTitle = titles.join(' · ');
+          // 첫 섹션 제목은 코멘트 버퍼가 아니라 kept 에 이미 들어와 있다 — 여기서 제목으로 표시한다.
+          for (let i = tailFrom; i < kept.length; i += 1) {
+            const l = kept[i]!;
+            if (isSectionTitleCandidate(l.text)) kept[i] = { ...l, section: currentTitle, sectionTitle: true };
+          }
+        }
       }
       continue;
     }
@@ -463,7 +496,7 @@ export function splitExternalLabReportLines<T extends SplitPairInput>(lines: T[]
       continue;
     }
     if (isExternalLabReportProseLine(t)) continue;
-    kept.push(line);
+    kept.push({ ...line, section: currentTitle });
   }
   if (inComment) closeComment(false);
 
@@ -471,7 +504,9 @@ export function splitExternalLabReportLines<T extends SplitPairInput>(lines: T[]
 }
 
 /** 검사 표 줄만 필요할 때. */
-export function cleanExternalLabReportLines<T extends SplitPairInput>(lines: T[]): T[] {
+export function cleanExternalLabReportLines<T extends SplitPairInput>(
+  lines: T[],
+): Array<ExternalLabReportLabLine<T>> {
   return splitExternalLabReportLines(lines).lab;
 }
 
@@ -482,7 +517,33 @@ export type ExternalLabReportRow = {
   unit: string | null;
   referenceRange: string | null;
   rawRow: string;
+  /** 이 행이 나온 섹션 제목. */
+  section: string | null;
+  /** 그 섹션이 요검사(UA) 패널인가 — 이름 정규화를 소변 전용(U-*)으로 돌릴지의 근거. */
+  isUrinalysis: boolean;
 };
+
+/**
+ * 섹션 제목이 요검사 패널인가.
+ *
+ * "Urine" 만으로는 판정하지 않는다 — 내분비 섹션의 `UCCR (Urine Cortisol:Creatinine Ratio)` 처럼
+ * 소변 검체를 쓰지만 딥스틱 요검사가 아닌 항목이 있고, 그걸 UA 로 보면 Urine cortisol 이
+ * 소변 전용 이름으로 잘못 정규화된다.
+ */
+function isUrinalysisSectionTitle(section: string): boolean {
+  return /urinalysis|urine\s*analysis|요\s*검사|뇨\s*검사/i.test(section);
+}
+
+/**
+ * 요검사 정성값 — 딥스틱(neg·trace·norm·+~+++)·색·혼탁도·현미경 소견(neg·comments).
+ * 랩마다 표기가 달라 어휘를 열거하지 않고 **형태**로 받는다(숫자로 시작하지 않는 짧은 한두 단어).
+ * UA 섹션 안에서만 쓰므로 혈액·혈청 표의 줄에는 닿지 않는다.
+ */
+const UA_QUALITATIVE_VALUE = '(?:\\+{1,3}|-|[A-Za-z가-힣]{1,12}(?:\\s+[A-Za-z가-힣]{1,12})?)';
+const EXTERNAL_LAB_UA_QUALITATIVE_ROW_RE = new RegExp(
+  `^([A-Za-z가-힣(][^~]{0,38}?)\\s+(${UA_QUALITATIVE_VALUE})(?:\\s+(${UNIT_RE.source}))?\\s*$`,
+  'i',
+);
 
 /**
  * 결과지의 검사행 — 「항목 값 [참고범위] [단위]」.
@@ -511,16 +572,30 @@ const EXTERNAL_LAB_QUALITATIVE_ROW_RE =
  * 참고범위도 단위도 없는 「이름 숫자」는 받지 않는다 — 산점도 범례·페이지 번호 같은 줄이
  * 그 모양이라, 받으면 가짜 항목이 된다. 결과지 표의 행은 최소한 둘 중 하나를 갖는다.
  */
-export function parseExternalLabReportRow(text: string, page: number): ExternalLabReportRow | null {
-  const t = (text ?? '').replace(/\s+/g, ' ').trim();
+export function parseExternalLabReportRow(
+  text: string,
+  page: number,
+  opts?: { urinalysis?: boolean; section?: string | null },
+): ExternalLabReportRow | null {
+  const urinalysis = opts?.urinalysis === true;
+  const base = { page, section: opts?.section ?? null, isUrinalysis: urinalysis };
+  let t = (text ?? '').replace(/\s+/g, ' ').trim();
   if (!t || isExternalLabReportTableHeaderLine(t) || isExternalLabReportProseLine(t)) return null;
+  // 참고범위가 비어 물결만 인쇄된 꼬리("Leu neg ~") — 남겨 두면 어느 규칙에도 안 걸려 행이 사라진다.
+  t = t.replace(/\s*~\s*$/, '').trim();
+  if (!t) return null;
 
   const m = EXTERNAL_LAB_ROW_RE.exec(t);
   if (m) {
     const [, name, value, low, high, unit] = m;
-    if (!low && !unit) return null;
+    /**
+     * 참고범위도 단위도 없는 「이름 숫자」는 산점도 범례·페이지 번호와 구별되지 않아 받지 않는다.
+     * **요검사 섹션은 예외** — 비중(`Specific Gravity 1.005`)·현미경 카운트(`RBC(Microscopy) 0`)가
+     * 원래 참고범위도 단위도 없이 인쇄된다. 섹션이 확정된 자리라 범례가 섞일 일이 없다.
+     */
+    if (!low && !unit && !urinalysis) return null;
     return {
-      page,
+      ...base,
       itemName: name!.trim(),
       valueText: value!.replace(/\s+/g, ''),
       unit: unit?.trim() || null,
@@ -531,14 +606,55 @@ export function parseExternalLabReportRow(text: string, page: number): ExternalL
 
   const q = EXTERNAL_LAB_QUALITATIVE_ROW_RE.exec(t);
   if (q) {
-    return { page, itemName: q[1]!.trim(), valueText: q[2]!.trim(), unit: null, referenceRange: null, rawRow: t };
+    return { ...base, itemName: q[1]!.trim(), valueText: q[2]!.trim(), unit: null, referenceRange: null, rawRow: t };
+  }
+
+  if (urinalysis) {
+    const ua = EXTERNAL_LAB_UA_QUALITATIVE_ROW_RE.exec(t);
+    if (ua) {
+      return {
+        ...base,
+        itemName: ua[1]!.trim(),
+        valueText: ua[2]!.trim(),
+        unit: ua[3]?.trim() || null,
+        referenceRange: null,
+        rawRow: t,
+      };
+    }
   }
   return null;
 }
 
-/** 결과지 lab 줄 묶음 → 검사행. 검사행이 아닌 줄(날짜 앵커, "단위" 머리글 등)은 조용히 버린다. */
-export function parseExternalLabReportRows(lines: readonly SplitPairInput[]): ExternalLabReportRow[] {
-  return lines
-    .map((l) => parseExternalLabReportRow(l.text, l.page))
-    .filter((r): r is ExternalLabReportRow => r !== null);
+/**
+ * 결과지 lab 줄 묶음 → 검사행. 검사행이 아닌 줄(날짜 앵커, "단위" 머리글 등)은 조용히 버린다.
+ *
+ * UA(요검사) 판정을 **섹션 단위로** 내린다. 결과지는 검체채취일 하나짜리 lab 그룹이라 그룹 전체로
+ * 판정하면 요검사 신호가 CBC·혈청까지 물들여 혈액 RBC·WBC 와 혈청 Glucose 가 U-RBC·U-WBC·U-GLU 로
+ * 저장된다(실측 양파·탱이). 제목이 없거나 못 읽은 결과지를 위해 내용 판정도 함께 쓴다 —
+ * 판정 함수는 @dashboard/lab-normalize 단일 소스라 admin 수정 패치와 기준이 같다.
+ */
+export function parseExternalLabReportRows(
+  lines: readonly (SplitPairInput & { section?: string | null; sectionTitle?: true })[],
+): ExternalLabReportRow[] {
+  const textsBySection = new Map<string, string[]>();
+  for (const l of lines) {
+    const key = l.section ?? '';
+    textsBySection.set(key, [...(textsBySection.get(key) ?? []), l.text ?? '']);
+  }
+  const uaBySection = new Map<string, boolean>();
+  for (const [key, texts] of textsBySection) {
+    uaBySection.set(key, isUrinalysisSectionTitle(key) || looksLikeUrinalysisGroup(texts));
+  }
+
+  const rows: ExternalLabReportRow[] = [];
+  for (const l of lines) {
+    if (l.sectionTitle) continue; // 제목 줄은 검사행이 아니다(버킷 표시용으로만 남겨 둔 줄)
+    const section = l.section ?? null;
+    const row = parseExternalLabReportRow(l.text, l.page, {
+      urinalysis: uaBySection.get(section ?? '') === true,
+      section,
+    });
+    if (row) rows.push(row);
+  }
+  return rows;
 }

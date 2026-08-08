@@ -973,7 +973,16 @@ function groupContentLooksLikeUrinalysis(lines: BucketedLine[]): boolean {
   return looksLikeUrinalysisGroup(lines.map((l) => l.text));
 }
 
-function groupLabLinesByDate(lines: BucketedLine[]): LabByDateLinesGroup[] {
+/**
+ * @param reportPages 외부 랩 결과지 페이지. 넘기면 그룹의 UA 판정에서 **결과지 줄을 뺀다** —
+ *   결과지는 섹션마다 패널이 다른데 날짜 앵커가 검체채취일 하나뿐이라 그룹 전체가 한 덩어리다.
+ *   그대로 두면 결과지의 요검사 섹션 때문에 그룹이 UA 로 판정돼, 같은 그룹의 **차트 검사행까지**
+ *   소변 이름으로 물든다. 결과지 행은 parseExternalLabReportRows 가 섹션 단위로 따로 판정한다.
+ */
+function groupLabLinesByDate(
+  lines: BucketedLine[],
+  reportPages?: ReadonlySet<number>,
+): LabByDateLinesGroup[] {
   const groups = new Map<string, BucketedLine[]>();
   const uaByKey = new Map<string, boolean>();
   const bgByKey = new Map<string, boolean>();
@@ -999,7 +1008,11 @@ function groupLabLinesByDate(lines: BucketedLine[]): LabByDateLinesGroup[] {
   return [...groups.entries()].map(([dateTime, groupLines]) => ({
     dateTime,
     lines: groupLines,
-    isUrinalysis: uaByKey.get(dateTime) === true || groupContentLooksLikeUrinalysis(groupLines),
+    isUrinalysis:
+      uaByKey.get(dateTime) === true ||
+      groupContentLooksLikeUrinalysis(
+        reportPages ? groupLines.filter((l) => !reportPages.has(l.page)) : groupLines,
+      ),
     isBloodGas: bgByKey.get(dateTime) === true,
   }));
 }
@@ -4290,7 +4303,7 @@ export async function POST(request: NextRequest) {
     const correctedCount = allBucketLines.filter((line) => line.corrected).length;
 
     stage = "groupLabLinesByDate";
-    const labLineGroups = groupLabLinesByDate(buckets.lab);
+    const labLineGroups = groupLabLinesByDate(buckets.lab, reportPages);
     const chartTextForBasicInfo = sanitizedLines.map((line) => line.text).join("\n");
     stage = "parseBasicInfoFromText";
     const parsedBasicInfo = parseBasicInfoFromText(chartTextForBasicInfo, chartType, buckets.basicInfo);
@@ -4451,7 +4464,7 @@ export async function POST(request: NextRequest) {
        */
       const reportGroupLines = group.lines.filter((l) => reportPages.has(l.page));
       const chartGroupLines = group.lines.filter((l) => !reportPages.has(l.page));
-      const parsedRaw: LabItem[] = [
+      const parsedRaw: Array<LabItem & { isUrinalysisRow?: boolean }> = [
         ...(chartGroupLines.length > 0
           ? parseLabItemsFromGroupLines(chartGroupLines, chartType, { isUrinalysis: group.isUrinalysis })
           : []),
@@ -4468,6 +4481,8 @@ export async function POST(request: NextRequest) {
             // 결과지는 H/L 마커를 인쇄하지 않는다(색으로만 표시) — 값↔참고범위로 계산한다.
             flag: computeLabFlag(row.valueText, row.referenceRange),
             rawRow: row.rawRow,
+            // 결과지 행의 UA 여부는 **자기 섹션**이 정한다(그룹 판정으로 덮으면 CBC·혈청이 물든다).
+            isUrinalysisRow: row.isUrinalysis,
           };
         }),
       ];
@@ -4479,8 +4494,10 @@ export async function POST(request: NextRequest) {
         stage = `labItems:canonicalize ${dbg}`;
         // 요검사(UA) 그룹은 섹션 컨텍스트로 소변 전용 이름(U-*)으로 정규화한다. rawItemName 은 원문 그대로 유지.
         //  urinalysisSectionItemName 이 null 이면 검사값 아님(채취법 Collec 등) → 드롭.
+        //  결과지 행은 행에 실려 온 **섹션 판정**이 이긴다 — 그룹 판정은 차트 행에만 쓴다.
+        const rowIsUrinalysis = item.isUrinalysisRow ?? group.isUrinalysis;
         let itemName: string;
-        if (group.isUrinalysis) {
+        if (rowIsUrinalysis) {
           const ua = urinalysisSectionItemName(item.itemName);
           if (ua === null) continue;
           itemName = ua;
